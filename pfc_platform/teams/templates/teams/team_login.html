@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Team Login - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Team Login</h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">Enter your team name and PIN to access your team dashboard.</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="team_id" class="form-label">Team</label>
+                            <select class="form-select" id="team_id" name="team_id" required>
+                                <option value="">Select your team...</option>
+                                {% for team in teams %}
+                                    <option value="{{ team.id }}">{{ team.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="pin" class="form-label">PIN</label>
+                            <input type="password" class="form-control" id="pin" name="pin" placeholder="Enter your 6-digit PIN" required>
+                            <div class="form-text">Your team PIN was provided by the tournament administrator.</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i> Login
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <p class="mb-0">Need help? Contact the tournament administrator.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

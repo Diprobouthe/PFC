@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ court }} - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{{ court }}</h1>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Court Details</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Number:</strong> {{ court.number }}</p>
+                    {% if court.name %}
+                        <p><strong>Name:</strong> {{ court.name }}</p>
+                    {% endif %}
+                    {% if court.location_description %}
+                        <p><strong>Location:</strong> {{ court.location_description|linebreaksbr }}</p>
+                    {% endif %}
+                    
+                    <p><strong>Status:</strong> 
+                        {% if court.is_active %}
+                            <span class="badge bg-warning text-dark">Currently in use</span>
+                        {% else %}
+                            <span class="badge bg-success">Available</span>
+                        {% endif %}
+                    </p>
+                    
+                    {# Placeholder for picture if added later. ImageField requires Pillow installation. #}
+
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'court_list' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back to Courts
+                    </a>
+                    {# Add edit/admin links if needed #}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

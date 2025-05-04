@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Team Tournament Dashboard - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{{ team.name }} - {{ tournament.name }}</h1>
+            
+            <div class="alert alert-success">
+                <h5 class="alert-heading">Successfully Signed In!</h5>
+                <p>You are signed in to this tournament since {{ signin.signed_in_at|date:"F j, Y, g:i a" }}</p>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Match Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-3">
+                        <a href="{% url 'next_opponent_request' tournament.id team.id %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-user-friends me-2"></i> Request Next Opponent
+                        </a>
+                        <a href="{% url 'match_list' %}?tournament_id={{ tournament.id }}" class="btn btn-success btn-lg">
+                            <i class="fas fa-play me-2"></i> View Matches
+                        </a>
+                        <a href="{% url 'match_list' %}?tournament_id={{ tournament.id }}" class="btn btn-info btn-lg">
+                            <i class="fas fa-clipboard-check me-2"></i> View Tournament Matches
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Tournament Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Format:</strong> {{ tournament.get_format_display }}</p>
+                            <p><strong>Start Date:</strong> {{ tournament.start_date|date:"F j, Y" }}</p>
+                            <p><strong>End Date:</strong> {{ tournament.end_date|date:"F j, Y" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                {% if tournament.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% elif tournament.is_archived %}
+                                    <span class="badge bg-secondary">Archived</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Inactive</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Teams:</strong> {{ tournament.teams.count }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{% url 'tournament_signout' team.id tournament.id %}" class="btn btn-danger">
+                    <i class="fas fa-sign-out-alt me-2"></i> Sign Out
+                </a>
+                <a href="{% url 'tournament_signin_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i> Back to Tournaments
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

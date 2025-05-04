@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Team Details - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{{ team.name }}</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Players</h5>
+                </div>
+                <div class="card-body">
+                    {% if players %}
+                        <div class="list-group">
+                            {% for player in players %}
+                                <div class="list-group-item">
+                                    <h5 class="mb-1">{{ player.name }}</h5>
+                                    {% if player.is_captain %}
+                                        <span class="badge bg-primary">Captain</span>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No players added to this team yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Essential Team Actions - Visible to All Users -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Match Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'team_login' %}" class="btn btn-primary">
+                            <i class="fas fa-user-friends"></i> Find Next Opponent
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{% url 'team_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Teams
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
