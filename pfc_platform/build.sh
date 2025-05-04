@@ -6,8 +6,7 @@ set -o errexit
 pip install -r requirements.txt
 
 # Collect static files
-python pfc_platform/manage.py collectstatic --no-input
+python manage.py collectstatic --no-input
 
 # Apply database migrations
-python pfc_platform/manage.py migrate
-
+python manage.py migrate
