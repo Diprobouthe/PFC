@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ team.name }} - Available Matches{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Available Matches for {{ team.name }}</h1>
+                <a href="{% url 'team_login' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Login
+                </a>
+            </div>
+
+            {% if has_matches %}
+                <!-- System Recommendation -->
+                {% if system_recommendation %}
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-star-fill"></i> System Recommendation
+                        </h5>
+                        <small>Our top priority match for your team</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h4 class="mb-2">
+                                    <strong>
+                                        {{ system_recommendation.team1.name }} vs {{ system_recommendation.team2.name }}
+                                    </strong>
+                                </h4>
+                                <p class="mb-1">
+                                    <strong>Tournament:</strong> {{ system_recommendation.tournament.name }}
+                                </p>
+                                {% if system_recommendation.round %}
+                                    <p class="mb-1">
+                                        <strong>Round:</strong> {{ system_recommendation.round.number }}
+                                    </p>
+                                {% endif %}
+                                {% if system_recommendation.court %}
+                                    <p class="mb-1">
+                                        <strong>Court:</strong> {{ system_recommendation.court.name }}
+                                    </p>
+                                {% endif %}
+                                {% if system_recommendation.status == 'pending_verification' %}
+                                    <div class="alert alert-info mt-2 mb-0">
+                                        <i class="bi bi-info-circle"></i> 
+                                        <strong>Partially Initiated:</strong> This match is waiting for your team to join!
+                                        {% for activation in system_recommendation.activations.all %}
+                                            <br><small>Activated by: {{ activation.team.name }}</small>
+                                        {% endfor %}
+                                    </div>
+                                {% elif system_recommendation.status == 'pending' %}
+                                    <div class="alert alert-warning mt-2 mb-0">
+                                        <i class="bi bi-clock"></i> 
+                                        <strong>Pending Match:</strong> Ready to be started
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <a href="{% url 'match_detail' system_recommendation.id %}" class="btn btn-success btn-lg">
+                                    <i class="bi bi-play-fill"></i> View Match
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- All Available Matches -->
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul"></i> All Available Matches
+                        </h5>
+                        <small>Complete list of matches for your team</small>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for match in all_matches %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center {% if match == system_recommendation %}bg-light{% endif %}">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1 {% if match == system_recommendation %}fw-bold{% endif %}">
+                                                    {{ match.team1.name }} vs {{ match.team2.name }}
+                                                    {% if match == system_recommendation %}
+                                                        <span class="badge bg-success ms-2">Recommended</span>
+                                                    {% endif %}
+                                                </h6>
+                                                <p class="mb-1 text-muted">
+                                                    <small>
+                                                        Tournament: {{ match.tournament.name }}
+                                                        {% if match.round %} | Round: {{ match.round.number }}{% endif %}
+                                                        {% if match.court %} | Court: {{ match.court.name }}{% endif %}
+                                                    </small>
+                                                </p>
+                                            </div>
+                                            <div class="text-end">
+                                                {% if match.status == 'pending_verification' %}
+                                                    <span class="badge bg-info">Partially Initiated</span>
+                                                {% elif match.status == 'pending' %}
+                                                    <span class="badge bg-warning">Pending</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% if match.status == 'pending_verification' %}
+                                            <div class="mt-2">
+                                                {% for activation in match.activations.all %}
+                                                    <small class="text-info">
+                                                        <i class="bi bi-person-check"></i> Activated by: {{ activation.team.name }}
+                                                    </small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="ms-3">
+                                        <a href="{% url 'match_detail' match.id %}" class="btn btn-outline-primary btn-sm">
+                                            View Details
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match Statistics Summary -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-info">{{ partially_initiated|length }}</h5>
+                                <p class="card-text">Partially Initiated</p>
+                                <small class="text-muted">Highest Priority - Someone is waiting!</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-warning">{{ pending_matches|length }}</h5>
+                                <p class="card-text">Pending Matches</p>
+                                <small class="text-muted">Ready to be started</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% else %}
+                <!-- No Matches Available -->
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-calendar-x display-1 text-muted mb-3"></i>
+                        <h3 class="text-muted">No Matches Available</h3>
+                        <p class="text-muted">
+                            Your team {{ team.name }} doesn't have any available matches at the moment.
+                        </p>
+                        <div class="mt-4">
+                            <a href="{% url 'tournament_list' %}" class="btn btn-primary me-2">
+                                <i class="bi bi-trophy"></i> View Tournaments
+                            </a>
+                            <a href="{% url 'match_list' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-list"></i> All Matches
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Quick Actions -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <a href="{% url 'match_list' %}" class="btn btn-outline-primary w-100 mb-2">
+                                <i class="bi bi-list"></i> View All Matches
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{% url 'tournament_list' %}" class="btn btn-outline-success w-100 mb-2">
+                                <i class="bi bi-trophy"></i> View Tournaments
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{% url 'team_detail' team.id %}" class="btn btn-outline-info w-100 mb-2">
+                                <i class="bi bi-people"></i> Team Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

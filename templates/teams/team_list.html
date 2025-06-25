@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Teams - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-users"></i> Teams
+                <small class="text-muted">Discover our petanque teams</small>
+            </h1>
+            
+            {% if teams_with_profiles %}
+                <div class="row">
+                    {% for team_data in teams_with_profiles %}
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card h-100 team-card">
+                                <div class="card-header bg-primary text-white d-flex align-items-center">
+                                    {% if team_data.profile.logo_svg %}
+                                        <img src="{{ team_data.profile.logo_svg.url }}" alt="{{ team_data.team.name }} Logo" 
+                                             class="team-logo-small me-2" style="width: 40px; height: 40px; object-fit: contain;">
+                                    {% else %}
+                                        <i class="fas fa-shield-alt me-2" style="font-size: 24px;"></i>
+                                    {% endif %}
+                                    <div>
+                                        <h5 class="mb-0">{{ team_data.team.name }}</h5>
+                                        <small class="opacity-75">
+                                            <i class="fas fa-star"></i> {{ team_data.profile.team_value|floatformat:1 }}
+                                            <span class="badge bg-light text-dark ms-1">{{ team_data.profile.get_level_display }}</span>
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                {% if team_data.profile.team_photo_jpg %}
+                                    <div class="team-photo-container" style="height: 200px; overflow: hidden;">
+                                        <img src="{{ team_data.profile.team_photo_jpg.url }}" alt="{{ team_data.team.name }} Photo" 
+                                             class="card-img-top" style="width: 100%; height: 100%; object-fit: cover;">
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="card-body">
+                                    {% if team_data.profile.motto %}
+                                        <p class="card-text text-muted fst-italic">
+                                            <i class="fas fa-quote-left"></i> {{ team_data.profile.motto }}
+                                        </p>
+                                    {% endif %}
+                                    
+                                    <div class="row text-center mb-3">
+                                        <div class="col-4">
+                                            <div class="stat-item">
+                                                <h6 class="text-primary mb-0">{{ team_data.player_count }}</h6>
+                                                <small class="text-muted">Players</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="stat-item">
+                                                <h6 class="text-success mb-0">{{ team_data.profile.matches_won }}</h6>
+                                                <small class="text-muted">Wins</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="stat-item">
+                                                <h6 class="text-info mb-0">{{ team_data.total_badges }}</h6>
+                                                <small class="text-muted">Badges</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if team_data.badges %}
+                                        <div class="badges-preview mb-3">
+                                            {% for badge in team_data.badges %}
+                                                <span class="badge bg-warning text-dark me-1 mb-1">
+                                                    <i class="fas fa-trophy"></i> {{ badge.name }}
+                                                </span>
+                                            {% endfor %}
+                                            {% if team_data.total_badges > 3 %}
+                                                <span class="badge bg-secondary">+{{ team_data.total_badges|add:"-3" }} more</span>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i> 
+                                            {% if team_data.profile.founded_date %}
+                                                Founded {{ team_data.profile.founded_date|date:"Y" }}
+                                            {% else %}
+                                                Team Profile
+                                            {% endif %}
+                                        </small>
+                                        <div class="win-rate">
+                                            <span class="badge bg-{% if team_data.profile.win_rate >= 70 %}success{% elif team_data.profile.win_rate >= 50 %}warning{% else %}danger{% endif %}">
+                                                {{ team_data.profile.win_rate|floatformat:0 }}% Win Rate
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="card-footer bg-transparent">
+                                    <a href="{% url 'team_detail' team_data.team.id %}" class="btn btn-primary w-100">
+                                        <i class="fas fa-eye"></i> View Team Profile
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h3 class="text-muted">No teams found</h3>
+                    <p class="text-muted">Teams will appear here once they create their profiles.</p>
+                    {% if user.is_staff %}
+                        <a href="{% url 'team_create' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create First Team
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.team-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.team-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+}
+
+.team-logo-small {
+    border-radius: 50%;
+    background: white;
+    padding: 2px;
+}
+
+.stat-item h6 {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.badges-preview .badge {
+    font-size: 0.75rem;
+}
+
+.team-photo-container {
+    position: relative;
+}
+
+.team-photo-container::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.1));
+}
+</style>
+{% endblock %}

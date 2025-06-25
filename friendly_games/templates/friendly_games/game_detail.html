@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ game.name }} - Friendly Game{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4 mb-4">{{ game.name }}</h1>
+            <p class="lead">Friendly Game Details</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">Game Information</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Game Details</h5>
+                            <ul class="list-unstyled">
+                                <li><strong>Name:</strong> {{ game.name }}</li>
+                                <li><strong>Status:</strong> 
+                                    <span class="badge 
+                                        {% if game.status == 'DRAFT' %}bg-secondary
+                                        {% elif game.status == 'READY' %}bg-primary
+                                        {% elif game.status == 'ACTIVE' %}bg-warning
+                                        {% elif game.status == 'COMPLETED' %}bg-success
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ game.get_status_display }}
+                                    </span>
+                                </li>
+                                <li><strong>Target Score:</strong> {{ game.target_score }} points</li>
+                                <li><strong>Created:</strong> {{ game.created_at|date:"M d, Y H:i" }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Match Number</h5>
+                            <div class="alert alert-info">
+                                {% if game.match_number %}
+                                <h4 class="alert-heading">#{{ game.match_number }}</h4>
+                                <p class="mb-0">Share this match number for others to join!</p>
+                                {% else %}
+                                <h4 class="alert-heading">No Match Number</h4>
+                                <p class="mb-0">This game was created with the legacy system.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if game.status == 'COMPLETED' %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <h4 class="mb-0">
+                                        <i class="fas fa-trophy"></i> Final Score
+                                    </h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card bg-dark text-white">
+                                                <div class="card-body text-center">
+                                                    <h3>Black Team</h3>
+                                                    <h1 class="display-3">{{ game.black_team_score }}</h1>
+                                                    {% if game.black_team_score > game.white_team_score %}
+                                                        <span class="badge bg-warning fs-6">WINNER</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card bg-light">
+                                                <div class="card-body text-center">
+                                                    <h3>White Team</h3>
+                                                    <h1 class="display-3">{{ game.white_team_score }}</h1>
+                                                    {% if game.white_team_score > game.black_team_score %}
+                                                        <span class="badge bg-warning fs-6">WINNER</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Validation Status -->
+                                    <div class="row mt-3">
+                                        <div class="col-12 text-center">
+                                            <div class="alert 
+                                                {% if game.validation_status == 'FULLY_VALIDATED' %}alert-success
+                                                {% elif game.validation_status == 'PARTIALLY_VALIDATED' %}alert-warning
+                                                {% else %}alert-secondary{% endif %} mb-0">
+                                                <strong>
+                                                    {% if game.validation_status == 'FULLY_VALIDATED' %}
+                                                        <i class="fas fa-check-double"></i> Fully Validated
+                                                    {% elif game.validation_status == 'PARTIALLY_VALIDATED' %}
+                                                        <i class="fas fa-check"></i> Partially Validated
+                                                    {% else %}
+                                                        <i class="fas fa-clock"></i> Not Validated
+                                                    {% endif %}
+                                                </strong>
+                                                <br>
+                                                <small>
+                                                    {% if game.validation_status == 'FULLY_VALIDATED' %}
+                                                        Statistics recorded for all validated players
+                                                    {% elif game.validation_status == 'PARTIALLY_VALIDATED' %}
+                                                        Statistics recorded for some players
+                                                    {% else %}
+                                                        No statistics recorded - casual game
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 mt-4">
+                        {% if game.status == 'WAITING_FOR_PLAYERS' %}
+                        <a href="{% url 'friendly_games:start_match' game.id %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-play"></i> Start Match
+                        </a>
+                        <small class="text-muted text-center mt-2">
+                            Start the match when all players are ready
+                        </small>
+                        
+                        {% elif game.status == 'ACTIVE' %}
+                            {% if game.result %}
+                                <!-- Result submitted, waiting for validation -->
+                                <div class="alert alert-info text-center">
+                                    <h5><i class="fas fa-hourglass-half"></i> Waiting for Validation</h5>
+                                    <p class="mb-2">
+                                        <strong>{{ game.result.submitted_by_team|title }} Team</strong> submitted the result:
+                                        <strong>Black {{ game.black_team_score }} - White {{ game.white_team_score }}</strong>
+                                    </p>
+                                    <p class="mb-0">
+                                        <strong>{{ game.result.get_other_team|title }} Team</strong> needs to validate this result.
+                                    </p>
+                                </div>
+                                
+                                <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-check-circle"></i> Validate Result ({{ game.result.get_other_team|title }} Team)
+                                </a>
+                                <small class="text-muted text-center mt-2">
+                                    {{ game.result.get_other_team|title }} team can agree or disagree with the submitted result
+                                </small>
+                            {% else %}
+                                <!-- No result submitted yet -->
+                                <a href="{% url 'friendly_games:submit_score' game.id %}" class="btn btn-warning btn-lg">
+                                    <i class="fas fa-clipboard-check"></i> Submit Score
+                                </a>
+                                <small class="text-muted text-center mt-2">
+                                    Submit the final score when the match is complete
+                                </small>
+                            {% endif %}
+                        
+                        {% elif game.status == 'COMPLETED' %}
+                        <div class="alert alert-success text-center">
+                            <i class="fas fa-check-circle"></i> Match Completed
+                            {% if game.result %}
+                                <br><small class="text-muted">
+                                    Validated by {{ game.result.validated_by_team|title }} team 
+                                    on {{ game.result.validated_at|date:"M d, Y H:i" }}
+                                </small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <a href="{% url 'friendly_games:create_game' %}" class="btn btn-outline-success">
+                            <i class="fas fa-plus"></i> Create Another Game
+                        </a>
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home"></i> Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if players %}
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Players</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Black Team</h6>
+                            <ul class="list-unstyled">
+                                {% for player in players %}
+                                    {% if player.team == 'BLACK' %}
+                                    <li>{{ player.player.name }} ({{ player.position }}) 
+                                        {% if player.codename_verified %}✓{% else %}✗{% endif %}
+                                    </li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>White Team</h6>
+                            <ul class="list-unstyled">
+                                {% for player in players %}
+                                    {% if player.team == 'WHITE' %}
+                                    <li>{{ player.player.name }} ({{ player.position }}) 
+                                        {% if player.codename_verified %}✓{% else %}✗{% endif %}
+                                    </li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

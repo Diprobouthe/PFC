@@ -1,0 +1,359 @@
+{% extends 'base.html' %}
+
+{% block title %}Team Login - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    {% if current_team %}
+        <!-- Team Profile Management Interface -->
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>
+                        <i class="fas fa-users me-2"></i>
+                        {{ current_team.name }} - Team Management
+                    </h2>
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" name="logout" class="btn btn-outline-secondary">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Team Profile Display -->
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-id-card me-2"></i>Team Profile
+                        </h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <!-- Team Logo -->
+                        {% if profile.logo_svg %}
+                            <div class="mb-3">
+                                <img src="{{ profile.logo_svg.url }}" alt="{{ current_team.name }} Logo" 
+                                     style="max-width: 120px; max-height: 120px;" class="img-fluid">
+                            </div>
+                        {% else %}
+                            <div class="mb-3">
+                                <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                                     style="width: 120px; height: 120px; margin: 0 auto;">
+                                    <i class="fas fa-image text-muted fa-3x"></i>
+                                </div>
+                                <small class="text-muted">No logo uploaded</small>
+                            </div>
+                        {% endif %}
+
+                        <!-- Team Name and Value -->
+                        <h4>{{ current_team.name }}</h4>
+                        
+                        <!-- Team Value and Level -->
+                        <div class="mb-3">
+                            <span class="badge bg-{{ profile.get_level_display.1 }} fs-6">
+                                {{ profile.get_level_display.0 }}
+                            </span>
+                            <div class="mt-1">
+                                <strong>Team Value: {{ profile.team_value|floatformat:1 }}</strong>
+                            </div>
+                        </div>
+
+                        <!-- Team Stats -->
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h6 class="text-muted mb-1">Matches</h6>
+                                    <strong>{{ profile.matches_played }}</strong>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-muted mb-1">Win Rate</h6>
+                                <strong>{{ profile.win_rate }}%</strong>
+                            </div>
+                        </div>
+
+                        <!-- Team Motto -->
+                        {% if profile.motto %}
+                            <div class="mt-3">
+                                <em>"{{ profile.motto }}"</em>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Team Photo -->
+                {% if profile.team_photo_jpg %}
+                    <div class="card shadow mt-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">Team Photo</h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <img src="{{ profile.team_photo_jpg.url }}" alt="{{ current_team.name }} Photo" 
+                                 class="img-fluid rounded">
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Profile Management Forms -->
+            <div class="col-lg-8">
+                <!-- Profile Update Form -->
+                <div class="card shadow mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-edit me-2"></i>Update Team Profile
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ profile_form.logo_svg.id_for_label }}" class="form-label">
+                                        {{ profile_form.logo_svg.label }}
+                                    </label>
+                                    {{ profile_form.logo_svg }}
+                                    <div class="form-text">{{ profile_form.logo_svg.help_text }}</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ profile_form.team_photo_jpg.id_for_label }}" class="form-label">
+                                        {{ profile_form.team_photo_jpg.label }}
+                                    </label>
+                                    {{ profile_form.team_photo_jpg }}
+                                    <div class="form-text">{{ profile_form.team_photo_jpg.help_text }}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ profile_form.motto.id_for_label }}" class="form-label">
+                                        {{ profile_form.motto.label }}
+                                    </label>
+                                    {{ profile_form.motto }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ profile_form.founded_date.id_for_label }}" class="form-label">
+                                        {{ profile_form.founded_date.label }}
+                                    </label>
+                                    {{ profile_form.founded_date }}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ profile_form.description.id_for_label }}" class="form-label">
+                                    {{ profile_form.description.label }}
+                                </label>
+                                {{ profile_form.description }}
+                            </div>
+                            
+                            {{ profile_form.profile_type }}
+                            
+                            <button type="submit" name="update_profile" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Update Profile
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Badges Section -->
+                <div class="card shadow mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-trophy me-2"></i>Team Badges
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Current Badges -->
+                        {% if badges %}
+                            <div class="mb-4">
+                                <h6>Current Badges:</h6>
+                                <div class="row">
+                                    {% for badge in badges %}
+                                        <div class="col-md-6 mb-2">
+                                            <div class="badge bg-success me-2 p-2">
+                                                <i class="fas fa-award me-1"></i>
+                                                {{ badge.display_name }}
+                                            </div>
+                                            {% if badge.data.description %}
+                                                <small class="text-muted d-block">{{ badge.data.description }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-4">No badges earned yet. Add your first achievement below!</p>
+                        {% endif %}
+
+                        <!-- Add Badge Form -->
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ badge_form.badge_type.id_for_label }}" class="form-label">
+                                        {{ badge_form.badge_type.label }}
+                                    </label>
+                                    {{ badge_form.badge_type }}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ badge_form.custom_name.id_for_label }}" class="form-label">
+                                        {{ badge_form.custom_name.label }}
+                                    </label>
+                                    {{ badge_form.custom_name }}
+                                    <div class="form-text">{{ badge_form.custom_name.help_text }}</div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="{{ badge_form.description.id_for_label }}" class="form-label">
+                                        {{ badge_form.description.label }}
+                                    </label>
+                                    {{ badge_form.description }}
+                                </div>
+                            </div>
+                            <button type="submit" name="add_badge" class="btn btn-success">
+                                <i class="fas fa-plus me-2"></i>Add Badge
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Team Players -->
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users me-2"></i>Team Players
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if team_players %}
+                            <div class="row">
+                                {% for player in team_players %}
+                                    <div class="col-md-6 mb-2">
+                                        <div class="d-flex align-items-center">
+                                            {% if player.profile.profile_picture %}
+                                                <img src="{{ player.profile.profile_picture.url }}" 
+                                                     alt="{{ player.name }}" 
+                                                     class="rounded-circle me-2" 
+                                                     style="width: 32px; height: 32px; object-fit: cover;">
+                                            {% else %}
+                                                <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" 
+                                                     style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-user text-white"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <strong>{{ player.name }}</strong>
+                                                {% if player.is_captain %}
+                                                    <span class="badge bg-warning text-dark ms-1">Captain</span>
+                                                {% endif %}
+                                                <div class="small text-muted">
+                                                    Value: {{ player.profile.value|floatformat:1 }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No players in this team yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Team Login Form -->
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">
+                            <i class="fas fa-users me-2"></i>Team Login
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-4">Enter your team PIN to access team management and profile features.</p>
+                        
+                        <form method="post">
+                            {% csrf_token %}
+                            
+                            <div class="mb-3">
+                                <label for="pin" class="form-label">Team PIN</label>
+                                <input type="password" class="form-control" id="pin" name="pin" 
+                                       placeholder="Enter your 6-digit PIN" required>
+                                <div class="form-text">Your team PIN was provided when the team was created.</div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-sign-in-alt me-2"></i> Login to Team Management
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <hr class="my-4">
+                        
+                        <h6>Quick Actions (with PIN):</h6>
+                        <div class="d-grid gap-2">
+                            <form method="post" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="find_next">
+                                <input type="password" name="pin" placeholder="Enter PIN" class="form-control mb-2" required>
+                                <button type="submit" class="btn btn-outline-info w-100">
+                                    <i class="fas fa-search me-2"></i> Find Next Match
+                                </button>
+                            </form>
+                            
+                            <form method="post" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="activate">
+                                <input type="password" name="pin" placeholder="Enter PIN" class="form-control mb-2" required>
+                                <button type="submit" class="btn btn-outline-success w-100">
+                                    <i class="fas fa-play me-2"></i> Start Match
+                                </button>
+                            </form>
+                            
+                            <form method="post" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="submit_score">
+                                <input type="password" name="pin" placeholder="Enter PIN" class="form-control mb-2" required>
+                                <button type="submit" class="btn btn-outline-warning w-100">
+                                    <i class="fas fa-clipboard-check me-2"></i> Submit Score
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="card-footer text-center">
+                        <p class="mb-0">Need help? Contact the tournament administrator.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Show/hide custom badge name field based on selection
+document.addEventListener('DOMContentLoaded', function() {
+    const badgeTypeSelect = document.getElementById('{{ badge_form.badge_type.id_for_label }}');
+    const customNameField = document.getElementById('{{ badge_form.custom_name.id_for_label }}').closest('.mb-3');
+    
+    if (badgeTypeSelect && customNameField) {
+        function toggleCustomName() {
+            if (badgeTypeSelect.value === 'custom') {
+                customNameField.style.display = 'block';
+            } else {
+                customNameField.style.display = 'none';
+            }
+        }
+        
+        badgeTypeSelect.addEventListener('change', toggleCustomName);
+        toggleCustomName(); // Initial check
+    }
+});
+</script>
+{% endblock %}

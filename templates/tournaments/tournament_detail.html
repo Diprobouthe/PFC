@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block title %}Tournament Details - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{{ tournament.name }}</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Tournament Details</h5>
+                    {% comment %}
+                    Admin buttons commented out until views are implemented
+                    {% if user.is_staff %}
+                    <div>
+                        <a href="{% url 'tournament_update' tournament.id %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        {% if tournament.is_active and not tournament.is_archived %}
+                            <a href="{% url 'tournament_archive' tournament.id %}" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-archive"></i> Archive
+                            </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endcomment %}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Format:</strong> {{ tournament.get_format_display }}</p>
+                            <p><strong>Play Format:</strong> {{ tournament.get_play_format_display }}</p>
+                            <p><strong>Start Date:</strong> {{ tournament.start_date|date:"F j, Y g:i A" }}</p>
+                            <p><strong>End Date:</strong> {{ tournament.end_date|date:"F j, Y g:i A" }}</p>
+                            <p><strong>Current Round:</strong> {{ tournament.current_round_number|default:"Not started" }}</p>
+                            {% if tournament.description %}
+                            <p><strong>Description:</strong> {{ tournament.description }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                {% if tournament.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% elif tournament.is_archived %}
+                                    <span class="badge bg-secondary">Archived</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Inactive</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Automation Status:</strong> <span class="badge bg-info">{{ tournament.get_automation_status_display }}</span></p>
+                            <p><strong>Teams:</strong> {{ teams|length }}</p>
+                            <p><strong>Multi-Stage Tournament:</strong> {% if tournament.is_multi_stage %}Yes{% else %}No{% endif %}</p>
+                            <p><strong>Created:</strong> {{ tournament.created_at|date:"F j, Y g:i A" }}</p>
+                            <p><strong>Last Updated:</strong> {{ tournament.updated_at|date:"F j, Y g:i A" }}</p>
+                        </div>
+                    </div>
+                    
+                    {% if tournament.courts.all %}
+                    <div class="mt-3">
+                        <h6>Assigned Courts:</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for court in tournament.courts.all %}
+                                <span class="badge bg-secondary">Court {{ court.number }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3">
+                        <a href="{% url 'tournament_leaderboard' tournament.id %}" class="btn btn-info">
+                            <i class="fas fa-trophy"></i> View Leaderboard
+                        </a>
+                        <a href="{% url 'tournament_matches' tournament.id %}" class="btn btn-info">
+                            <i class="fas fa-list"></i> View Matches
+                        </a>
+                        {% comment %}
+                        Admin button commented out until view is implemented
+                        {% if user.is_staff %}
+                        <a href="{% url 'generate_matches' tournament.id %}" class="btn btn-warning">
+                            <i class="fas fa-random"></i> Generate Matches
+                        </a>
+                        {% endif %}
+                        {% endcomment %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Teams</h5>
+                    {% comment %}
+                    Admin button commented out until view is implemented
+                    {% if user.is_staff %}
+                    <a href="{% url 'tournament_assign_teams' tournament.id %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> Assign Teams
+                    </a>
+                    {% endif %}
+                    {% endcomment %}
+                </div>
+                <div class="card-body">
+                    {% if teams %}
+                        <div class="list-group">
+                            {% for team in teams %}
+                                <a href="{% url 'team_detail' team.id %}" class="list-group-item list-group-item-action">
+                                    <h5 class="mb-1">{{ team.name }}</h5>
+                                    <p class="mb-1">Players: {{ team.players.count }}</p>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No teams assigned to this tournament yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Rounds</h5>
+                </div>
+                <div class="card-body">
+                    {% if rounds %}
+                        <div class="accordion" id="roundsAccordion">
+                            {% for round in rounds %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading{{ round.id }}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ round.id }}" aria-expanded="false" aria-controls="collapse{{ round.id }}">
+                                            Round {{ round.number }}
+                                        </button>
+                                    </h2>
+                                    <div id="collapse{{ round.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ round.id }}" data-bs-parent="#roundsAccordion">
+                                        <div class="accordion-body">
+                                            {% with round_matches=round.matches.all %}
+                                                {% if round_matches %}
+                                                    <div class="list-group">
+                                                        {% for match in round_matches %}
+                                                            <a href="{% url 'match_detail' match.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                                                <div>
+                                                                    <h6 class="mb-1">{{ match.team1.name }} vs {{ match.team2.name }}</h6>
+                                                                    {% if match.status == 'completed' %}
+                                                                        <p class="mb-0">Score: {{ match.team1_score }} - {{ match.team2_score }}</p>
+                                                                    {% endif %}
+                                                                </div>
+                                                                <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'active' %}bg-success{% elif match.status == 'waiting_validation' %}bg-info{% else %}bg-secondary{% endif %} rounded-pill">
+                                                                    {{ match.get_status_display }}
+                                                                </span>
+                                                            </a>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% else %}
+                                                    <p class="text-muted">No matches in this round yet.</p>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No rounds created for this tournament yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{% url 'tournament_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Tournaments
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

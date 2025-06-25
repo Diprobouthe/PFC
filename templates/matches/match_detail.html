@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+
+{% block title %}Match Details - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Match Details</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ match.team1.name }} vs {{ match.team2.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
+                            <p><strong>Status:</strong> 
+                                <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'pending_verification' %}bg-warning{% elif match.status == 'active' %}bg-success{% elif match.status == 'waiting_validation' %}bg-info{% else %}bg-secondary{% endif %}">
+                                    {{ match.get_status_display }}
+                                </span>
+                            </p>
+                            {% if match.match_type %}
+                                <p><strong>Match Type:</strong> 
+                                    <span class="badge bg-info">
+                                        {% if match.match_type == 'triplet' %}
+                                            Triplet (3 players per team)
+                                        {% elif match.match_type == 'doublet' %}
+                                            Doublet (2 players per team)
+                                        {% elif match.match_type == 'tete_a_tete' %}
+                                            Tête-à-tête (1 player per team)
+                                        {% elif match.match_type == 'mixed' %}
+                                            Mixed Format (Team 1: {{ match.team1_player_count }}, Team 2: {{ match.team2_player_count }})
+                                        {% else %}
+                                            {{ match.match_type|title }}
+                                        {% endif %}
+                                    </span>
+                                </p>
+                            {% endif %}
+                            {% if match.status == 'pending_verification' %}
+                                {% for activation in match.activations.all %}
+                                    <p><strong>Initiated by:</strong> <span class="badge bg-info">{{ activation.team.name }}</span></p>
+                                {% endfor %}
+                            {% endif %}
+                            {% if match.round %}
+                                <p><strong>Round:</strong> {{ match.round }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {% if match.court %}
+                                <p><strong>Court:</strong> {{ match.court }}</p>
+                                <p id="court-info">
+                                    {% if match.court.id in tournament_court_ids %}
+                                    <span class="badge bg-success">Tournament Court</span>
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                            {% if match.start_time %}
+                                <p><strong>Started:</strong> {{ match.start_time|date:"F j, Y, g:i a" }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if match.status == 'completed' or match.status == 'waiting_validation' %}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Score</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row text-center">
+                                            <div class="col-5">
+                                                <h3>{{ match.team1.name }}</h3>
+                                                <h1 class="display-1">{{ match.team1_score }}</h1>
+                                            </div>
+                                            <div class="col-2 d-flex align-items-center justify-content-center">
+                                                <h2>vs</h2>
+                                            </div>
+                                            <div class="col-5">
+                                                <h3>{{ match.team2.name }}</h3>
+                                                <h1 class="display-1">{{ match.team2_score }}</h1>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Player Roster Section -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card shadow-sm">
+                                <div class="card-header bg-gradient" style="background-color: #6c7ae0; color: white;">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-users me-2"></i>
+                                        <h5 class="mb-0">Match Participants</h5>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3 mb-md-0">
+                                            <div class="d-flex align-items-center mb-3">
+                                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-users text-white"></i>
+                                                </div>
+                                                <h5 class="mb-0">{{ match.team1.name }}</h5>
+                                            </div>
+                                            <div class="list-group">
+                                                {% for player in match.match_players.all %}
+                                                    {% if player.team == match.team1 %}
+                                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <i class="fas fa-user me-2 text-primary"></i>
+                                                                {{ player.player.name }}
+                                                            </div>
+                                                            <span class="badge rounded-pill" style="background-color: #6c7ae0;">
+                                                                {% if player.role == 'pointer' %}
+                                                                    <i class="fas fa-bullseye me-1"></i>
+                                                                {% elif player.role == 'milieu' %}
+                                                                    <i class="fas fa-exchange-alt me-1"></i>
+                                                                {% elif player.role == 'tirer' %}
+                                                                    <i class="fas fa-bomb me-1"></i>
+                                                                {% else %}
+                                                                    <i class="fas fa-random me-1"></i>
+                                                                {% endif %}
+                                                                {{ player.get_role_display }}
+                                                            </span>
+                                                        </div>
+                                                    {% endif %}
+                                                {% empty %}
+                                                    <div class="list-group-item text-muted">
+                                                        <i class="fas fa-info-circle me-2"></i>
+                                                        No player data recorded
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="d-flex align-items-center mb-3">
+                                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-users text-white"></i>
+                                                </div>
+                                                <h5 class="mb-0">{{ match.team2.name }}</h5>
+                                            </div>
+                                            <div class="list-group">
+                                                {% for player in match.match_players.all %}
+                                                    {% if player.team == match.team2 %}
+                                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <i class="fas fa-user me-2 text-primary"></i>
+                                                                {{ player.player.name }}
+                                                            </div>
+                                                            <span class="badge rounded-pill" style="background-color: #6c7ae0;">
+                                                                {% if player.role == 'pointer' %}
+                                                                    <i class="fas fa-bullseye me-1"></i>
+                                                                {% elif player.role == 'milieu' %}
+                                                                    <i class="fas fa-exchange-alt me-1"></i>
+                                                                {% elif player.role == 'tirer' %}
+                                                                    <i class="fas fa-bomb me-1"></i>
+                                                                {% else %}
+                                                                    <i class="fas fa-random me-1"></i>
+                                                                {% endif %}
+                                                                {{ player.get_role_display }}
+                                                            </span>
+                                                        </div>
+                                                    {% endif %}
+                                                {% empty %}
+                                                    <div class="list-group-item text-muted">
+                                                        <i class="fas fa-info-circle me-2"></i>
+                                                        No player data recorded
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        {% if match.status == 'pending' %}
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <a href="{% url 'match_activate' match.id match.team1.id %}" class="btn btn-primary btn-lg btn-block w-100">
+                                        <i class="fas fa-play"></i> Start Match as {{ match.team1.name }}
+                                    </a>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <a href="{% url 'match_activate' match.id match.team2.id %}" class="btn btn-primary btn-lg btn-block w-100">
+                                        <i class="fas fa-play"></i> Start Match as {{ match.team2.name }}
+                                    </a>
+                                </div>
+                            </div>
+                        {% elif match.status == 'pending_verification' %}
+                            {% for activation in match.activations.all %}
+                                {% if activation.team == match.team1 %}
+                                    <div class="row">
+                                        <div class="col-md-12 mb-3">
+                                            <a href="{% url 'match_activate' match.id match.team2.id %}" class="btn btn-primary btn-lg btn-block w-100">
+                                                <i class="fas fa-play"></i> Start Match as {{ match.team2.name }}
+                                            </a>
+                                        </div>
+                                    </div>
+                                {% elif activation.team == match.team2 %}
+                                    <div class="row">
+                                        <div class="col-md-12 mb-3">
+                                            <a href="{% url 'match_activate' match.id match.team1.id %}" class="btn btn-primary btn-lg btn-block w-100">
+                                                <i class="fas fa-play"></i> Start Match as {{ match.team1.name }}
+                                            </a>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% elif match.status == 'active' %}
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <a href="{% url 'match_submit_result' match.id match.team1.id %}" class="btn btn-success btn-lg btn-block w-100">
+                                        <i class="fas fa-check"></i> Submit Score as {{ match.team1.name }}
+                                    </a>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <a href="{% url 'match_submit_result' match.id match.team2.id %}" class="btn btn-success btn-lg btn-block w-100">
+                                        <i class="fas fa-check"></i> Submit Score as {{ match.team2.name }}
+                                    </a>
+                                </div>
+                            </div>
+                        {% elif match.status == 'waiting_validation' %}
+                            <div class="row">
+                                {% if result.submitted_by != match.team1 %}
+                                    <div class="col-md-6 mb-3">
+                                        <a href="{% url 'match_validate_result' match.id match.team1.id %}" class="btn btn-info btn-lg btn-block w-100">
+                                            <i class="fas fa-check-double"></i> Validate Score as {{ match.team1.name }}
+                                        </a>
+                                    </div>
+                                {% endif %}
+                                {% if result.submitted_by != match.team2 %}
+                                    <div class="col-md-6 mb-3">
+                                        <a href="{% url 'match_validate_result' match.id match.team2.id %}" class="btn btn-info btn-lg btn-block w-100">
+                                            <i class="fas fa-check-double"></i> Validate Score as {{ match.team2.name }}
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{% url 'match_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Matches
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

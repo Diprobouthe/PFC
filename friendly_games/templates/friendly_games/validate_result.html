@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block title %}Validate Result - Petanque Platform (PFC){% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-check-circle"></i> Validate Game Result
+                    </h3>
+                    <small>Match #{{ game.match_number }}</small>
+                </div>
+                <div class="card-body">
+                    <!-- Submitted Result Display -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Submitted Result</h5>
+                            <small class="text-muted">Submitted by {{ result.submitted_by_team|title }} Team</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-5">
+                                    <div class="card bg-dark text-white">
+                                        <div class="card-body">
+                                            <h4>Black Team</h4>
+                                            <h2 class="display-4">{{ game.black_team_score }}</h2>
+                                            <small>
+                                                {% for player in game.players.all %}
+                                                    {% if player.team == 'BLACK' %}
+                                                        {{ player.player.name }}{% if not forloop.last %}, {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-center justify-content-center">
+                                    <h3 class="text-muted">VS</h3>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h4>White Team</h4>
+                                            <h2 class="display-4">{{ game.white_team_score }}</h2>
+                                            <small>
+                                                {% for player in game.players.all %}
+                                                    {% if player.team == 'WHITE' %}
+                                                        {{ player.player.name }}{% if not forloop.last %}, {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if result.submitter_verified %}
+                                <div class="alert alert-success mt-3">
+                                    <i class="fas fa-check-circle"></i> 
+                                    The submitting team provided a verified codename for statistics.
+                                </div>
+                            {% elif result.submitter_codename %}
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-exclamation-triangle"></i> 
+                                    The submitting team provided a codename, but it could not be verified.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Validation Form -->
+                    <form method="post" id="validationForm">
+                        {% csrf_token %}
+                        
+                        <!-- Validation Decision -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">{{ validating_team|title }} Team Validation</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="radio" name="validation_action" 
+                                                   id="agree" value="agree" required>
+                                            <label class="form-check-label" for="agree">
+                                                <strong class="text-success">
+                                                    <i class="fas fa-thumbs-up"></i> Agree with Result
+                                                </strong>
+                                                <br>
+                                                <small class="text-muted">Confirm the scores are correct</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="radio" name="validation_action" 
+                                                   id="disagree" value="disagree" required>
+                                            <label class="form-check-label" for="disagree">
+                                                <strong class="text-danger">
+                                                    <i class="fas fa-thumbs-down"></i> Disagree with Result
+                                                </strong>
+                                                <br>
+                                                <small class="text-muted">The scores are incorrect</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Optional Codename Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">Optional: Validate Your Participation</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="validator_codename" class="form-label">
+                                        <strong>Your Codename (Optional)</strong>
+                                    </label>
+                                    <input type="text" class="form-control" id="validator_codename" 
+                                           name="validator_codename" placeholder="Enter your 6-character codename"
+                                           maxlength="6" style="text-transform: uppercase;"
+                                           value="{% if session_codename %}{{ session_codename }}{% endif %}">
+                                    <div class="form-text">
+                                        <i class="fas fa-info-circle"></i> 
+                                        <strong>Validation Levels:</strong>
+                                        <ul class="mt-2 mb-0">
+                                            <li><strong>Fully Validated:</strong> Both teams provide valid codenames</li>
+                                            <li><strong>Partially Validated:</strong> Only one team provides a valid codename</li>
+                                            <li><strong>Not Validated:</strong> Neither team provides codenames</li>
+                                        </ul>
+                                        {% if session_codename %}
+                                        <br><small class="text-success">
+                                            <i class="fas fa-check-circle"></i> Auto-filled from your session
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        Available {{ validating_team|title }} team players: 
+                                        {% for player in validating_players %}
+                                            {{ player.player.name }}{% if not forloop.last %}, {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check"></i> Submit Validation
+                            </button>
+                        </div>
+
+                        <!-- Back Button -->
+                        <div class="text-center mt-3">
+                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Game
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-uppercase codename input
+document.getElementById('validator_codename').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+
+// Form validation
+document.getElementById('validationForm').addEventListener('submit', function(e) {
+    const validationAction = document.querySelector('input[name="validation_action"]:checked');
+    if (!validationAction) {
+        e.preventDefault();
+        alert('Please select whether you agree or disagree with the result.');
+        return false;
+    }
+    
+    const codename = document.getElementById('validator_codename').value.trim();
+    if (codename && codename.length !== 6) {
+        e.preventDefault();
+        alert('Codename must be exactly 6 characters long.');
+        return false;
+    }
+    
+    // Confirmation for disagreement
+    if (validationAction.value === 'disagree') {
+        if (!confirm('Are you sure you disagree with this result? This will reset the game to active status and require a new score submission.')) {
+            e.preventDefault();
+            return false;
+        }
+    }
+});
+</script>
+{% endblock %}
+
+
+
+
+

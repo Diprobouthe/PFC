@@ -1,0 +1,428 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ team.name }} - Team Profile{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Team Header with Logo and Basic Info -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card team-header-card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 text-center">
+                            {% if profile.logo_svg %}
+                                <img src="{{ profile.logo_svg.url }}" alt="{{ team.name }} Logo" 
+                                     class="team-logo-large img-fluid" style="max-width: 120px; max-height: 120px; object-fit: contain;">
+                            {% else %}
+                                <div class="team-logo-placeholder">
+                                    <i class="fas fa-shield-alt fa-4x text-muted"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h1 class="mb-2">{{ team.name }}</h1>
+                            {% if profile.motto %}
+                                <p class="lead text-muted fst-italic mb-2">
+                                    <i class="fas fa-quote-left"></i> {{ profile.motto }}
+                                </p>
+                            {% endif %}
+                            <div class="team-stats-inline">
+                                <span class="badge bg-primary me-2">
+                                    <i class="fas fa-star"></i> {{ profile.team_value|floatformat:1 }}
+                                </span>
+                                <span class="badge bg-success me-2">{{ profile.get_level_display }}</span>
+                                <span class="badge bg-info">{{ players_with_profiles|length }} Players</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="team-stats-grid">
+                                <div class="stat-box">
+                                    <h3 class="text-success mb-0">{{ team_statistics.matches_won }}</h3>
+                                    <small class="text-muted">Wins</small>
+                                </div>
+                                <div class="stat-box">
+                                    <h3 class="text-primary mb-0">{{ team_statistics.matches_played }}</h3>
+                                    <small class="text-muted">Matches</small>
+                                </div>
+                                <div class="stat-box">
+                                    <h3 class="text-warning mb-0">{{ team_statistics.win_rate|floatformat:0 }}%</h3>
+                                    <small class="text-muted">Win Rate</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Photo Section -->
+    {% if profile.team_photo_jpg %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="team-photo-hero" style="height: 300px; overflow: hidden; position: relative;">
+                    <img src="{{ profile.team_photo_jpg.url }}" alt="{{ team.name }} Team Photo" 
+                         style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="photo-overlay">
+                        <h3 class="text-white">{{ team.name }} Team</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Left Column: Players and Team Info -->
+        <div class="col-lg-8">
+            <!-- Players Section with Clickable Profiles -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users"></i> Team Players
+                    </h5>
+                    <span class="badge bg-primary">{{ players_with_profiles|length }} Members</span>
+                </div>
+                <div class="card-body">
+                    {% if players_with_profiles %}
+                        <div class="row">
+                            {% for player_data in players_with_profiles %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <a href="{% url 'player_profile' player_data.player.id %}" class="text-decoration-none">
+                                        <div class="player-card">
+                                            <div class="player-avatar-container">
+                                                {% if player_data.has_picture %}
+                                                    <img src="{{ player_data.profile.profile_picture.url }}" 
+                                                         alt="{{ player_data.player.name }}" class="player-avatar">
+                                                {% else %}
+                                                    <div class="player-avatar-placeholder">
+                                                        <i class="fas fa-user"></i>
+                                                    </div>
+                                                {% endif %}
+                                                {% if player_data.player.is_captain %}
+                                                    <div class="captain-badge">
+                                                        <i class="fas fa-crown"></i>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="player-info">
+                                                <h6 class="mb-1">{{ player_data.player.name }}</h6>
+                                                <div class="player-stats">
+                                                    <span class="badge bg-primary">
+                                                        <i class="fas fa-star"></i> {{ player_data.profile.player_value|floatformat:1 }}
+                                                    </span>
+                                                    <span class="badge bg-secondary">{{ player_data.profile.get_level_display }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-user-plus fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">No players in this team yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Team Description -->
+            {% if profile.description %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> About {{ team.name }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">{{ profile.description|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column: Badges and Statistics -->
+        <div class="col-lg-4">
+            <!-- Badges Section -->
+            {% if badges %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy"></i> Achievements
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="badges-grid">
+                        {% for badge in badges %}
+                            <div class="badge-item">
+                                <div class="badge-icon">
+                                    <i class="fas fa-trophy text-warning"></i>
+                                </div>
+                                <div class="badge-info">
+                                    <h6 class="mb-0">{{ badge.name }}</h6>
+                                    <small class="text-muted">{{ badge.description }}</small>
+                                    {% if badge.date_earned %}
+                                        <div class="badge-date">
+                                            <small class="text-muted">{{ badge.date_earned|date:"M Y" }}</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Team Statistics -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar"></i> Team Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="stats-list">
+                        <div class="stat-row">
+                            <span class="stat-label">Team Value</span>
+                            <span class="stat-value text-primary">{{ profile.team_value|floatformat:1 }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Level</span>
+                            <span class="stat-value">{{ profile.get_level_display }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Matches Played</span>
+                            <span class="stat-value">{{ team_statistics.matches_played }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Matches Won</span>
+                            <span class="stat-value text-success">{{ team_statistics.matches_won }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Win Rate</span>
+                            <span class="stat-value text-{% if team_statistics.win_rate >= 70 %}success{% elif team_statistics.win_rate >= 50 %}warning{% else %}danger{% endif %}">
+                                {{ team_statistics.win_rate|floatformat:0 }}%
+                            </span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Tournaments</span>
+                            <span class="stat-value">{{ team_statistics.tournaments_participated }}</span>
+                        </div>
+                        {% if profile.founded_date %}
+                        <div class="stat-row">
+                            <span class="stat-label">Founded</span>
+                            <span class="stat-value">{{ profile.founded_date|date:"Y" }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team Actions -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs"></i> Team Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'team_login' %}" class="btn btn-primary">
+                            <i class="fas fa-user-friends"></i> TEAM MANAGEMENT
+                        </a>
+                        <a href="https://5001-i9uc4h60b5phqle0i4p1x-cf4b0f32.manusvm.computer/analytics" 
+                           target="_blank" class="btn btn-info">
+                            <i class="fas fa-chart-line"></i> Advanced Analytics
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <a href="{% url 'team_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Teams
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.team-header-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.team-header-card .card-body {
+    padding: 2rem;
+}
+
+.team-logo-large {
+    border-radius: 50%;
+    background: white;
+    padding: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.team-logo-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.team-stats-grid {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+.stat-box {
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    padding: 1rem;
+    border-radius: 10px;
+    min-width: 80px;
+}
+
+.team-photo-hero {
+    border-radius: 10px;
+}
+
+.photo-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding: 2rem;
+    display: flex;
+    align-items: end;
+}
+
+.player-card {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 15px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.player-card:hover {
+    border-color: #007bff;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,123,255,0.15);
+}
+
+.player-avatar-container {
+    position: relative;
+    margin-bottom: 0.5rem;
+}
+
+.player-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #e9ecef;
+}
+
+.player-avatar-placeholder {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    color: #6c757d;
+    font-size: 1.5rem;
+}
+
+.captain-badge {
+    position: absolute;
+    top: -5px;
+    right: 15px;
+    background: #ffc107;
+    color: #212529;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.player-info h6 {
+    color: #212529;
+    font-weight: 600;
+}
+
+.player-stats .badge {
+    font-size: 0.7rem;
+    margin: 0 2px;
+}
+
+.badge-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.badge-item:last-child {
+    border-bottom: none;
+}
+
+.badge-icon {
+    margin-right: 0.75rem;
+    font-size: 1.2rem;
+}
+
+.badge-info h6 {
+    color: #212529;
+    font-weight: 600;
+}
+
+.stats-list .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.stats-list .stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: #212529;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,579 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Friendly Game - PFC{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4 mb-4">Create Friendly Game</h1>
+            <p class="lead">Create a casual game with any players - no team restrictions!</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">Game Setup</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="gameForm">
+                        {% csrf_token %}
+                        <div class="form-group mb-4">
+                            <label for="game_name"><strong>Game Name:</strong></label>
+                            <input type="text" name="game_name" id="game_name" class="form-control" 
+                                   placeholder="Enter a name for this game" value="Friendly Game" required>
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="creator_codename"><strong>Your Codename (Optional):</strong></label>
+                            <input type="text" name="creator_codename" id="creator_codename" class="form-control" 
+                                   placeholder="Enter your 6-character codename to validate yourself" maxlength="6">
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                If you provide your codename and add yourself to a team, your participation will be validated for statistics.
+                            </small>
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="creator_position"><strong>Your Position (Optional):</strong></label>
+                            <select name="creator_position" id="creator_position" class="form-control">
+                                <option value="">Select your position</option>
+                                <option value="tirer">Shooter</option>
+                                <option value="pointeur">Pointeur</option>
+                                <option value="milieu">Milieu</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                Choose your playing position if you plan to participate in this game.
+                            </small>
+                        </div>
+                        
+                        <!-- Team Assignment Section -->
+                        <div class="row mb-4">
+                            <div class="col-md-5">
+                                <div class="card bg-dark text-white">
+                                    <div class="card-header text-center">
+                                        <h4><i class="fas fa-circle text-white"></i> Black Team</h4>
+                                    </div>
+                                    <div class="card-body" id="blackTeam" style="min-height: 200px;">
+                                        <div class="text-center text-white" id="blackTeamEmpty">
+                                            <i class="fas fa-users fa-3x mb-2 text-white"></i>
+                                            <p>Click players to add to Black Team</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-2 d-flex align-items-center justify-content-center">
+                                <div class="text-center">
+                                    <div class="mb-3">
+                                        <h5 id="gameType" class="text-primary">Select Players</h5>
+                                        <small class="text-muted" id="gameTypeDesc">Choose players for each team</small>
+                                    </div>
+                                    <h3>VS</h3>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="clearTeams">
+                                        <i class="fas fa-undo"></i> Clear All
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-5">
+                                <div class="card bg-light">
+                                    <div class="card-header text-center">
+                                        <h4><i class="fas fa-circle text-white"></i> White Team</h4>
+                                    </div>
+                                    <div class="card-body" id="whiteTeam" style="min-height: 200px;">
+                                        <div class="text-center text-muted" id="whiteTeamEmpty">
+                                            <i class="fas fa-users fa-3x mb-2"></i>
+                                            <p>Click players to add to White Team</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hidden inputs for selected players -->
+                        <input type="hidden" name="black_team_players" id="blackTeamPlayers">
+                        <input type="hidden" name="white_team_players" id="whiteTeamPlayers">
+                        
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle"></i> How It Works:</h5>
+                            <ul class="mb-0">
+                                <li>Click on players below to assign them to teams</li>
+                                <li>Players alternate between Black Team → White Team → Unassigned</li>
+                                <li>Create your game and get a unique <strong>Game PIN</strong></li>
+                                <li>Share the PIN with players for scoring</li>
+                                <li>Statistics are only recorded with valid player codenames</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success btn-lg" id="createGameBtn">
+                                <i class="fas fa-plus-circle"></i> Create Game
+                            </button>
+                            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Home
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Players Section -->
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Available Players</h4>
+                    <small>Click on any player to assign them to a team</small>
+                </div>
+                
+                <!-- Player Search and Filter Controls -->
+                <div class="card-body border-bottom bg-light py-2">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="playerSearch" placeholder="Search players...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="sortBy">
+                                <option value="team">Sort by Team</option>
+                                <option value="name">Sort Alphabetically</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="filterTeam">
+                                <option value="all">All Teams</option>
+                                {% for team in teams %}
+                                <option value="{{ team.name }}">{{ team.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                                <i class="fas fa-times"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for team in teams %}
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-primary">{{ team.name }}</h6>
+                            <div class="row">
+                                {% for player in team.players.all %}
+                                <div class="col-md-6 mb-2">
+                                    <div class="player-card border rounded p-2 text-center" 
+                                         data-player-id="{{ player.id }}" 
+                                         data-player-name="{{ player.name }}"
+                                         data-player-position="{{ player.position }}"
+                                         style="cursor: pointer; transition: all 0.3s;">
+                                        <strong>{{ player.name }}</strong><br>
+                                        <small class="text-muted">{{ player.position }}</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.player-card {
+    background-color: #808080;  /* 50% gray - perfect balance between white and black */
+    color: white;  /* White text on gray background */
+    border: 2px solid #6c757d !important;  /* Slightly darker border */
+}
+
+.player-card:hover {
+    background-color: #5a6268;  /* Slightly lighter on hover */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.player-card.black-team {
+    background-color: #343a40;  /* Dark for black team */
+    color: white;
+    border: 3px solid #28a745 !important;  /* Prominent green border for selection */
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);  /* Green glow effect */
+}
+
+.player-card.white-team {
+    background-color: #ffffff;  /* White for white team */
+    color: #343a40;
+    border: 3px solid #28a745 !important;  /* Prominent green border for selection */
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);  /* Green glow effect */
+}
+
+.team-player {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 8px;
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+.team-player:hover {
+    background-color: #e9ecef;
+}
+
+/* Special styling for team players in black team display */
+#blackTeam .team-player {
+    background-color: #ffffff;
+    color: #343a40;
+    border: 2px solid #ffc107;
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+#blackTeam .team-player:hover {
+    background-color: #fff3cd;
+    border-color: #ffca2c;
+    transform: translateY(-1px);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const blackTeam = document.getElementById('blackTeam');
+    const whiteTeam = document.getElementById('whiteTeam');
+    const blackTeamEmpty = document.getElementById('blackTeamEmpty');
+    const whiteTeamEmpty = document.getElementById('whiteTeamEmpty');
+    const blackTeamPlayers = document.getElementById('blackTeamPlayers');
+    const whiteTeamPlayers = document.getElementById('whiteTeamPlayers');
+    const clearTeamsBtn = document.getElementById('clearTeams');
+    
+    let selectedPlayers = {
+        black: [],
+        white: []
+    };
+
+    // Player card click handler
+    document.querySelectorAll('.player-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const playerId = this.dataset.playerId;
+            const playerName = this.dataset.playerName;
+            const playerPosition = this.dataset.playerPosition;
+            
+            // Intelligent cycling that skips full teams
+            if (this.classList.contains('black-team')) {
+                // Currently in black team - try to move to white team
+                if (selectedPlayers.white.length < 3) {
+                    // White team has space - move there
+                    movePlayerToWhite(playerId, playerName, playerPosition, this);
+                } else {
+                    // White team is full - remove from teams entirely
+                    removePlayerFromTeams(playerId, this);
+                }
+            } else if (this.classList.contains('white-team')) {
+                // Currently in white team - remove from teams
+                removePlayerFromTeams(playerId, this);
+            } else {
+                // Currently unassigned - try to add to black team first
+                if (selectedPlayers.black.length < 3) {
+                    // Black team has space - add there
+                    movePlayerToBlack(playerId, playerName, playerPosition, this);
+                } else if (selectedPlayers.white.length < 3) {
+                    // Black team full but white team has space - add to white
+                    movePlayerToWhite(playerId, playerName, playerPosition, this);
+                } else {
+                    // Both teams are full
+                    alert('Both teams are full! Maximum 3 players per team. Remove a player first.');
+                    return;
+                }
+            }
+            
+            updateHiddenInputs();
+            updateTeamDisplays();
+        });
+    });
+
+    function movePlayerToBlack(playerId, playerName, playerPosition, card) {
+        // Remove from white if present
+        selectedPlayers.white = selectedPlayers.white.filter(p => p.id !== playerId);
+        
+        // Add to black
+        selectedPlayers.black.push({
+            id: playerId,
+            name: playerName,
+            position: playerPosition
+        });
+        
+        // Update card appearance
+        card.classList.remove('white-team');
+        card.classList.add('black-team');
+    }
+
+    function movePlayerToWhite(playerId, playerName, playerPosition, card) {
+        // Remove from black
+        selectedPlayers.black = selectedPlayers.black.filter(p => p.id !== playerId);
+        
+        // Add to white
+        selectedPlayers.white.push({
+            id: playerId,
+            name: playerName,
+            position: playerPosition
+        });
+        
+        // Update card appearance
+        card.classList.remove('black-team');
+        card.classList.add('white-team');
+    }
+
+    function removePlayerFromTeams(playerId, card) {
+        // Remove from both teams
+        selectedPlayers.black = selectedPlayers.black.filter(p => p.id !== playerId);
+        selectedPlayers.white = selectedPlayers.white.filter(p => p.id !== playerId);
+        
+        // Reset card appearance
+        card.classList.remove('black-team', 'white-team');
+    }
+
+    function updateTeamDisplays() {
+        // Update black team display
+        if (selectedPlayers.black.length === 0) {
+            blackTeamEmpty.style.display = 'block';
+            blackTeam.querySelectorAll('.team-player').forEach(el => el.remove());
+        } else {
+            blackTeamEmpty.style.display = 'none';
+            blackTeam.querySelectorAll('.team-player').forEach(el => el.remove());
+            
+            selectedPlayers.black.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'team-player';
+                playerDiv.innerHTML = `
+                    <strong>${player.name}</strong><br>
+                    <small>${player.position}</small>
+                `;
+                blackTeam.appendChild(playerDiv);
+            });
+        }
+
+        // Update white team display
+        if (selectedPlayers.white.length === 0) {
+            whiteTeamEmpty.style.display = 'block';
+            whiteTeam.querySelectorAll('.team-player').forEach(el => el.remove());
+        } else {
+            whiteTeamEmpty.style.display = 'none';
+            whiteTeam.querySelectorAll('.team-player').forEach(el => el.remove());
+            
+            selectedPlayers.white.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'team-player';
+                playerDiv.innerHTML = `
+                    <strong>${player.name}</strong><br>
+                    <small>${player.position}</small>
+                `;
+                whiteTeam.appendChild(playerDiv);
+            });
+        }
+        
+        // Update game type display
+        updateGameType();
+    }
+    
+    function updateGameType() {
+        const gameTypeElement = document.getElementById('gameType');
+        const gameTypeDescElement = document.getElementById('gameTypeDesc');
+        
+        const blackCount = selectedPlayers.black.length;
+        const whiteCount = selectedPlayers.white.length;
+        
+        if (blackCount === 0 && whiteCount === 0) {
+            gameTypeElement.textContent = 'Select Players';
+            gameTypeElement.className = 'text-primary';
+            gameTypeDescElement.textContent = 'Choose players for each team';
+        } else if (blackCount !== whiteCount) {
+            gameTypeElement.textContent = 'Unbalanced Teams';
+            gameTypeElement.className = 'text-warning';
+            gameTypeDescElement.textContent = `Black: ${blackCount}, White: ${whiteCount}`;
+        } else if (blackCount === 1 && whiteCount === 1) {
+            gameTypeElement.textContent = 'Tête';
+            gameTypeElement.className = 'text-success';
+            gameTypeDescElement.textContent = '1 vs 1 - Head to head';
+        } else if (blackCount === 2 && whiteCount === 2) {
+            gameTypeElement.textContent = 'Doublettes';
+            gameTypeElement.className = 'text-success';
+            gameTypeDescElement.textContent = '2 vs 2 - Doubles';
+        } else if (blackCount === 3 && whiteCount === 3) {
+            gameTypeElement.textContent = 'Triplettes';
+            gameTypeElement.className = 'text-success';
+            gameTypeDescElement.textContent = '3 vs 3 - Triples';
+        } else {
+            gameTypeElement.textContent = 'Custom Game';
+            gameTypeElement.className = 'text-info';
+            gameTypeDescElement.textContent = `${blackCount} vs ${whiteCount}`;
+        }
+    }
+
+    function updateHiddenInputs() {
+        blackTeamPlayers.value = JSON.stringify(selectedPlayers.black.map(p => p.id));
+        whiteTeamPlayers.value = JSON.stringify(selectedPlayers.white.map(p => p.id));
+    }
+
+    // Clear teams button
+    clearTeamsBtn.addEventListener('click', function() {
+        selectedPlayers = { black: [], white: [] };
+        document.querySelectorAll('.player-card').forEach(card => {
+            card.classList.remove('black-team', 'white-team');
+        });
+        updateTeamDisplays();
+        updateHiddenInputs();
+    });
+
+    // Form validation
+    document.getElementById('gameForm').addEventListener('submit', function(e) {
+        const totalPlayers = selectedPlayers.black.length + selectedPlayers.white.length;
+        if (totalPlayers === 0) {
+            e.preventDefault();
+            alert('Please select at least one player for the game!');
+            return false;
+        }
+        
+        if (selectedPlayers.black.length === 0 || selectedPlayers.white.length === 0) {
+            if (!confirm('One team has no players. Continue anyway?')) {
+                e.preventDefault();
+                return false;
+            }
+        }
+    });
+    
+    // Search and Filter Functions
+    const playerSearch = document.getElementById('playerSearch');
+    const sortBy = document.getElementById('sortBy');
+    const filterTeam = document.getElementById('filterTeam');
+    
+    // Search functionality
+    playerSearch.addEventListener('input', function() {
+        filterPlayers();
+    });
+    
+    // Sort functionality
+    sortBy.addEventListener('change', function() {
+        sortPlayers();
+    });
+    
+    // Team filter functionality
+    filterTeam.addEventListener('change', function() {
+        filterPlayers();
+    });
+    
+    function filterPlayers() {
+        const searchTerm = playerSearch.value.toLowerCase();
+        const selectedTeam = filterTeam.value;
+        
+        document.querySelectorAll('.col-md-6.mb-3').forEach(teamSection => {
+            const teamName = teamSection.querySelector('h6').textContent;
+            let hasVisiblePlayers = false;
+            
+            // Show/hide team section based on team filter
+            if (selectedTeam !== 'all' && teamName !== selectedTeam) {
+                teamSection.style.display = 'none';
+                return;
+            }
+            
+            // Filter players within the team
+            teamSection.querySelectorAll('.player-card').forEach(playerCard => {
+                const playerName = playerCard.querySelector('strong').textContent.toLowerCase();
+                const matchesSearch = playerName.includes(searchTerm);
+                
+                if (matchesSearch) {
+                    playerCard.parentElement.style.display = 'block';
+                    hasVisiblePlayers = true;
+                } else {
+                    playerCard.parentElement.style.display = 'none';
+                }
+            });
+            
+            // Show/hide team section based on whether it has visible players
+            teamSection.style.display = hasVisiblePlayers ? 'block' : 'none';
+        });
+    }
+    
+    function sortPlayers() {
+        const container = document.querySelector('.card-body .row');
+        const teamSections = Array.from(container.children);
+        
+        if (sortBy.value === 'name') {
+            // Sort alphabetically by first player name in each team
+            teamSections.sort((a, b) => {
+                const aFirstPlayer = a.querySelector('.player-card strong')?.textContent || '';
+                const bFirstPlayer = b.querySelector('.player-card strong')?.textContent || '';
+                return aFirstPlayer.localeCompare(bFirstPlayer);
+            });
+        } else {
+            // Sort by team name (default)
+            teamSections.sort((a, b) => {
+                const aTeamName = a.querySelector('h6').textContent;
+                const bTeamName = b.querySelector('h6').textContent;
+                return aTeamName.localeCompare(bTeamName);
+            });
+        }
+        
+        // Re-append sorted sections
+        teamSections.forEach(section => container.appendChild(section));
+    }
+    
+    // Clear filters function
+    window.clearFilters = function() {
+        playerSearch.value = '';
+        sortBy.value = 'team';
+        filterTeam.value = 'all';
+        filterPlayers();
+        sortPlayers();
+    };
+    
+    // Auto-select logged-in player to black team
+    {% if auto_selected_player %}
+    function autoSelectPlayer() {
+        const autoPlayerId = '{{ auto_selected_player.id }}';
+        const autoPlayerName = '{{ auto_selected_player.name|escapejs }}';
+        const autoPlayerPosition = '{{ auto_selected_player.position|default:"MILIEU"|escapejs }}';
+        
+        // Find the player card
+        const playerCard = document.querySelector(`[data-player-id="${autoPlayerId}"]`);
+        if (playerCard && selectedPlayers.black.length < 3) {
+            // Auto-add to black team
+            movePlayerToBlack(autoPlayerId, autoPlayerName, autoPlayerPosition, playerCard);
+            updateHiddenInputs();
+            updateTeamDisplays();
+            
+            // Auto-fill creator codename field
+            const creatorCodenameField = document.getElementById('creator_codename');
+            if (creatorCodenameField && '{{ session_codename }}') {
+                creatorCodenameField.value = '{{ session_codename }}';
+                creatorCodenameField.style.backgroundColor = '#d4edda';
+                creatorCodenameField.style.borderColor = '#28a745';
+            }
+            
+            // Show success message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+            alertDiv.innerHTML = `
+                <i class="fas fa-check-circle"></i> 
+                <strong>Auto-selected!</strong> You've been automatically added to the Black Team as {{ auto_selected_player.name }}.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.card-body').insertBefore(alertDiv, document.querySelector('.card-body').firstChild);
+        }
+    }
+    
+    // Run auto-selection after page loads
+    setTimeout(autoSelectPlayer, 100);
+    {% endif %}
+});
+</script>
+{% endblock %}
+

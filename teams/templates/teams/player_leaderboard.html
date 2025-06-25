@@ -1,0 +1,283 @@
+{% extends 'base.html' %}
+
+{% block title %}Player Leaderboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4">Player Leaderboard</h1>
+            <p class="lead">View statistics for all players across tournaments</p>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">Filter Options</h5>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                                <i class="bi bi-funnel"></i> Show/Hide Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="collapse" id="filterCollapse">
+                    <div class="card-body">
+                        <form method="get" action="{% url 'player_leaderboard' %}">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="team" class="form-label">Team</label>
+                                    <select name="team" id="team" class="form-select">
+                                        <option value="">All Teams</option>
+                                        {% for team in teams %}
+                                            <option value="{{ team.id }}" {% if selected_team == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="skill_level" class="form-label">Skill Level</label>
+                                    <select name="skill_level" id="skill_level" class="form-select">
+                                        <option value="">All Levels</option>
+                                        <option value="1" {% if selected_skill_level == 1 %}selected{% endif %}>Beginner</option>
+                                        <option value="2" {% if selected_skill_level == 2 %}selected{% endif %}>Intermediate</option>
+                                        <option value="3" {% if selected_skill_level == 3 %}selected{% endif %}>Advanced</option>
+                                        <option value="4" {% if selected_skill_level == 4 %}selected{% endif %}>Expert</option>
+                                        <option value="5" {% if selected_skill_level == 5 %}selected{% endif %}>Professional</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="position" class="form-label">Position (Filter)</label>
+                                    <select name="position" id="position" class="form-select">
+                                        <option value="">All Positions</option>
+                                        <option value="pointer" {% if selected_position == 'pointer' %}selected{% endif %}>Pointer</option>
+                                        <option value="milieu" {% if selected_position == 'milieu' %}selected{% endif %}>Milieu</option>
+                                        <option value="tirer" {% if selected_position == 'tirer' %}selected{% endif %}>Shooter</option>
+                                        <option value="flex" {% if selected_position == 'flex' %}selected{% endif %}>Flex</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="sort_by" class="form-label">Sort By</label>
+                                    <select name="sort_by" id="sort_by" class="form-select">
+                                        <option value="win_rate" {% if sort_by == 'win_rate' %}selected{% endif %}>Win Rate</option>
+                                        <option value="matches_played" {% if sort_by == 'matches_played' %}selected{% endif %}>Matches Played</option>
+                                        <option value="matches_won" {% if sort_by == 'matches_won' %}selected{% endif %}>Matches Won</option>
+                                        <option value="skill_level" {% if sort_by == 'skill_level' %}selected{% endif %}>Skill Level</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="order" class="form-label">Order</label>
+                                    <select name="order" id="order" class="form-select">
+                                        <option value="desc" {% if order == 'desc' %}selected{% endif %}>Descending</option>
+                                        <option value="asc" {% if order == 'asc' %}selected{% endif %}>Ascending</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="mb-0">Player Rankings</h5>
+                        </div>
+                        <div class="col text-end">
+                            <span class="badge bg-primary">{{ players|length }} Players Overall</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Enhanced Tab Navigation with Separate Colored Tabs -->
+                    <ul class="nav nav-tabs nav-fill mb-0" id="leaderboardTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="overall-tab" data-bs-toggle="tab" data-bs-target="#overall-leaderboard" type="button" role="tab" aria-controls="overall-leaderboard" aria-selected="true" style="border-bottom: 3px solid #6c757d;">
+                                📊 Overall
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="pointer-tab" data-bs-toggle="tab" data-bs-target="#pointer-leaderboard" type="button" role="tab" aria-controls="pointer-leaderboard" aria-selected="false" style="border-bottom: 3px solid #28a745;">
+                                <span style="color: #28a745;">🎯 Pointer</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="milieu-tab" data-bs-toggle="tab" data-bs-target="#milieu-leaderboard" type="button" role="tab" aria-controls="milieu-leaderboard" aria-selected="false" style="border-bottom: 3px solid #17a2b8;">
+                                <span style="color: #17a2b8;">⚖️ Milieu</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tirer-tab" data-bs-toggle="tab" data-bs-target="#tirer-leaderboard" type="button" role="tab" aria-controls="tirer-leaderboard" aria-selected="false" style="border-bottom: 3px solid #dc3545;">
+                                <span style="color: #dc3545;">💥 Shooter</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="flex-tab" data-bs-toggle="tab" data-bs-target="#flex-leaderboard" type="button" role="tab" aria-controls="flex-leaderboard" aria-selected="false" style="border-bottom: 3px solid #fd7e14;">
+                                <span style="color: #fd7e14;">🔄 Flex</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="leaderboardTabContent">
+                        <!-- Overall Leaderboard Tab -->
+                        <div class="tab-pane fade show active" id="overall-leaderboard" role="tabpanel" aria-labelledby="overall-tab">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-striped mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">#</th>
+                                            <th scope="col">Player</th>
+                                            <th scope="col">Team</th>
+                                            <th scope="col">Skill Level</th>
+                                            <th scope="col">Matches</th>
+                                            <th scope="col">Wins</th>
+                                            <th scope="col">Win Rate</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for player in players %}
+                                        <tr>
+                                            <td>{{ forloop.counter }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if player.profile.profile_picture %}
+                                                        <img src="{{ player.profile.profile_picture.url }}" alt="{{ player.name }}" class="rounded-circle me-2" width="40" height="40">
+                                                    {% else %}
+                                                        <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                            <span class="text-white">{{ player.name|slice:":1" }}</span>
+                                                        </div>
+                                                    {% endif %}
+                                                    <div>
+                                                        <div class="fw-bold">{{ player.name }}</div>
+                                                        {% if player.is_captain %}
+                                                            <span class="badge bg-warning text-dark">Captain</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>{{ player.team.name }}</td>
+                                            <td>
+                                                {% if player.profile.skill_level == 1 %}
+                                                    <span class="badge bg-secondary">Beginner</span>
+                                                {% elif player.profile.skill_level == 2 %}
+                                                    <span class="badge bg-info">Intermediate</span>
+                                                {% elif player.profile.skill_level == 3 %}
+                                                    <span class="badge bg-primary">Advanced</span>
+                                                {% elif player.profile.skill_level == 4 %}
+                                                    <span class="badge bg-success">Expert</span>
+                                                {% elif player.profile.skill_level == 5 %}
+                                                    <span class="badge bg-danger">Professional</span>
+                                                {% else %}
+                                                    <span class="badge bg-light text-dark">Not Set</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ player.accurate_matches_played }}</td>
+                                            <td>{{ player.accurate_matches_won }}</td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ player.accurate_win_rate }}%"></div>
+                                                    </div>
+                                                    <span>{{ player.accurate_win_rate }}%</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'player_profile' player.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-person-badge"></i> View Profile
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="8" class="text-center py-4">
+                                                <div class="alert alert-info mb-0">
+                                                    <i class="bi bi-info-circle me-2"></i> No players found matching the selected filters.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Pointer Leaderboard Tab -->
+                        <div class="tab-pane fade" id="pointer-leaderboard" role="tabpanel" aria-labelledby="pointer-tab">
+                            {% with position_players=position_leaderboards.Pointer position_name="Pointer" %}
+                                {% include 'teams/partials/position_leaderboard_table.html' %}
+                            {% endwith %}
+                        </div>
+
+                        <!-- Milieu Leaderboard Tab -->
+                        <div class="tab-pane fade" id="milieu-leaderboard" role="tabpanel" aria-labelledby="milieu-tab">
+                            {% with position_players=position_leaderboards.Milieu position_name="Milieu" %}
+                                {% include 'teams/partials/position_leaderboard_table.html' %}
+                            {% endwith %}
+                        </div>
+
+                        <!-- Shooter Leaderboard Tab -->
+                        <div class="tab-pane fade" id="tirer-leaderboard" role="tabpanel" aria-labelledby="tirer-tab">
+                            {% with position_players=position_leaderboards.Tirer position_name="Shooter" %}
+                                {% include 'teams/partials/position_leaderboard_table.html' %}
+                            {% endwith %}
+                        </div>
+
+                        <!-- Flex Leaderboard Tab -->
+                        <div class="tab-pane fade" id="flex-leaderboard" role="tabpanel" aria-labelledby="flex-tab">
+                            {% with position_players=position_leaderboards.Flex position_name="Flex" %}
+                                {% include 'teams/partials/position_leaderboard_table.html' %}
+                            {% endwith %}
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+
+        // Persist active tab across page reloads/filter changes
+        const leaderboardTabs = document.querySelectorAll('#leaderboardTabs button[data-bs-toggle="tab"]');
+        leaderboardTabs.forEach(tab => {
+            tab.addEventListener('shown.bs.tab', event => {
+                localStorage.setItem('activeLeaderboardTab', event.target.id);
+            });
+        });
+
+        const activeTabId = localStorage.getItem('activeLeaderboardTab');
+        if (activeTabId) {
+            const activeTab = document.querySelector(`#${activeTabId}`);
+            if (activeTab) {
+                const tabInstance = new bootstrap.Tab(activeTab);
+                tabInstance.show();
+            }
+        }
+    });
+</script>
+{% endblock %}
+
+

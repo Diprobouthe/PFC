@@ -1,0 +1,523 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ player.codename }} - Player Profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">{{ player.name }}</h3>
+                    <div>
+                        <span class="badge badge-primary">{{ player.team.name }}</span>
+                        {% if player.team.pin %}
+                            <span class="badge badge-secondary">PIN: {{ player.team.pin }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Player Basic Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Player Information</h5>
+                            <!-- Profile Picture -->
+                            {% if player.profile.profile_picture %}
+                            <div class="text-center mb-3">
+                                <img src="{{ player.profile.profile_picture.url }}" alt="{{ player.name }}" 
+                                     class="rounded-circle border border-primary" 
+                                     style="width: 120px; height: 120px; object-fit: cover;">
+                            </div>
+                            {% else %}
+                            <div class="text-center mb-3">
+                                <div class="rounded-circle border border-secondary d-flex align-items-center justify-content-center" 
+                                     style="width: 120px; height: 120px; background-color: #f8f9fa; margin: 0 auto;">
+                                    <i class="fas fa-user fa-3x text-muted"></i>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <p><strong>Team:</strong> {{ player.team.name }}</p>
+                            {% if player.profile %}
+                            <p><strong>Rating:</strong> {{ player.profile.get_level_display.0 }} - {{ player.profile.value }}</p>
+                            <p><strong>Preferred Position:</strong> {{ player.profile.get_preferred_position_display|default:"Not specified" }}</p>
+                            {% else %}
+                            <p><strong>Rating:</strong> Not available</p>
+                            <p><strong>Preferred Position:</strong> Not specified</p>
+                            {% endif %}
+                            <p><strong>Joined:</strong> {{ player.created_at|date:"M d, Y" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Quick Stats</h5>
+                            <p><strong>Total Games:</strong> {{ overall_stats.matches_played }}</p>
+                            <p><strong>Wins:</strong> {{ overall_stats.matches_won }}</p>
+                            <p><strong>Losses:</strong> {{ overall_stats.matches_lost }}</p>
+                            <p><strong>Win Rate:</strong> {{ overall_stats.win_rate|floatformat:1 }}%</p>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Statistics Tabs -->
+                    {% if enhanced_stats.has_data or friendly_stats.total_games > 0 %}
+                    <div class="row">
+                        <div class="col-12">
+                            <ul class="nav nav-tabs" id="playerTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" id="overall-tab" data-toggle="tab" href="#overall" role="tab" aria-controls="overall" aria-selected="true">Overall</a>
+                                </li>
+                                {% if enhanced_stats.has_data %}
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="tournament-tab" data-toggle="tab" href="#tournament" role="tab" aria-controls="tournament" aria-selected="false">Tournament Stats</a>
+                                </li>
+                                {% endif %}
+                                {% if friendly_stats.total_games > 0 %}
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="friendly-tab" data-toggle="tab" href="#friendly" role="tab" aria-controls="friendly" aria-selected="false">Friendly Games</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                            
+                            <div class="tab-content" id="playerTabsContent">
+                                <!-- Overall Tab -->
+                                <div class="tab-pane fade show active" id="overall" role="tabpanel" aria-labelledby="overall-tab">
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Performance Overview</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row">
+                                                        <div class="col-6">
+                                                            <div class="text-center">
+                                                                <h4 class="text-success">{{ overall_stats.matches_won }}</h4>
+                                                                <small class="text-muted">Wins</small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <div class="text-center">
+                                                                <h4 class="text-danger">{{ overall_stats.matches_lost }}</h4>
+                                                                <small class="text-muted">Losses</small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <hr>
+                                                    <div class="text-center">
+                                                        <h5>{{ overall_stats.win_rate|floatformat:1 }}%</h5>
+                                                        <small class="text-muted">Win Rate</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Game Distribution</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p><strong>Tournament Games:</strong> {{ accurate_stats.matches_played|default:0 }}</p>
+                                                    <p><strong>Friendly Games:</strong> {{ friendly_stats.total_games|default:0 }}</p>
+                                                    <p><strong>Total Games:</strong> {{ overall_stats.matches_played }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Bell Curve Skill Comparison -->
+                                    {% if bell_curve_data.has_data %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Skill Comparison</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <!-- Percentile Text -->
+                                                    <div class="text-center mb-3">
+                                                        <h5 class="text-success">{{ bell_curve_data.percentile }}% of players have lower rating than you</h5>
+                                                        <p class="text-muted">Compared to {{ bell_curve_data.total_players }} players in the community</p>
+                                                    </div>
+                                                    
+                                                    <!-- Bell Curve Visualization -->
+                                                    <div class="text-center mb-3">
+                                                        <svg width="100%" height="200" viewBox="0 0 800 200" style="max-width: 800px;">
+                                                            <!-- Create histogram bars based on actual distribution -->
+                                                            {% for dist in bell_curve_data.distribution %}
+                                                                {% if dist.count > 0 %}
+                                                                    <!-- Calculate positions for 40 bars (10 per category) -->
+                                                                    {% widthratio dist.percentage 100 120 as bar_height %}
+                                                                    {% widthratio forloop.counter0 40 760 as x_start %}
+                                                                    
+                                                                    <!-- Bar representing actual player count -->
+                                                                    <rect x="{{ x_start|add:'20' }}" 
+                                                                          y="40" 
+                                                                          width="18" 
+                                                                          height="{{ bar_height }}" 
+                                                                          fill="{{ dist.color }}" 
+                                                                          opacity="0.7"/>
+                                                                    
+                                                                    <!-- Player count label on top of bar (only show if count > 0) -->
+                                                                    {% if dist.count > 0 %}
+                                                                    <text x="{{ x_start|add:'29' }}" 
+                                                                          y="30" 
+                                                                          text-anchor="middle" 
+                                                                          font-size="8" 
+                                                                          font-weight="bold" 
+                                                                          fill="#333">{{ dist.count }}</text>
+                                                                    {% endif %}
+                                                                {% else %}
+                                                                    <!-- Empty range - show minimal bar -->
+                                                                    {% widthratio forloop.counter0 40 760 as x_start %}
+                                                                    <rect x="{{ x_start|add:'20' }}" 
+                                                                          y="158" 
+                                                                          width="18" 
+                                                                          height="2" 
+                                                                          fill="{{ dist.color }}" 
+                                                                          opacity="0.3"/>
+                                                                {% endif %}
+                                                            {% endfor %}
+                                                            
+                                                            <!-- Skill level labels (major categories) -->
+                                                            <text x="110" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Novice</text>
+                                                            <text x="300" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Intermediate</text>
+                                                            <text x="490" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Advanced</text>
+                                                            <text x="680" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Pro</text>
+                                                            
+                                                            <!-- Player position marker -->
+                                                            {% if bell_curve_data.current_player_range is not None %}
+                                                                {% widthratio bell_curve_data.current_player_range 40 760 as range_x %}
+                                                                <circle cx="{{ range_x|add:'29' }}" 
+                                                                        cy="180" 
+                                                                        r="8" 
+                                                                        fill="#17a2b8" 
+                                                                        stroke="#fff" 
+                                                                        stroke-width="2"/>
+                                                                <text x="{{ range_x|add:'29' }}" 
+                                                                      y="175" 
+                                                                      text-anchor="middle" 
+                                                                      font-size="10" 
+                                                                      font-weight="bold" 
+                                                                      fill="#17a2b8">YOU</text>
+                                                            {% endif %}
+                                                            
+                                                            <!-- Range labels -->
+                                                            <text x="20" y="175" font-size="10" fill="#666">{{ bell_curve_data.min_rating|floatformat:0 }}</text>
+                                                            <text x="380" y="175" text-anchor="end" font-size="10" fill="#666">{{ bell_curve_data.max_rating|floatformat:0 }}</text>
+                                                        </svg>
+                                                    </div>
+                                                    
+                                                    <!-- Stats Summary -->
+                                                    <div class="row text-center">
+                                                        <div class="col-3">
+                                                            <strong>{{ bell_curve_data.current_rating|floatformat:1 }}</strong><br>
+                                                            <small class="text-muted">Your Rating</small>
+                                                        </div>
+                                                        <div class="col-3">
+                                                            <strong>{{ bell_curve_data.avg_rating }}</strong><br>
+                                                            <small class="text-muted">Average Rating</small>
+                                                        </div>
+                                                        <div class="col-3">
+                                                            <strong>{{ bell_curve_data.percentile }}%</strong><br>
+                                                            <small class="text-muted">Percentile</small>
+                                                        </div>
+                                                        <div class="col-3">
+                                                            <strong>{{ bell_curve_data.total_players }}</strong><br>
+                                                            <small class="text-muted">Total Players</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Overall Match History -->
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Match History (All Games)</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Date</th>
+                                                                    <th>Type</th>
+                                                                    <th>Opponent</th>
+                                                                    <th>Score</th>
+                                                                    <th>Position</th>
+                                                                    <th>Result</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <!-- Tournament Matches -->
+                                                                {% for match in matches %}
+                                                                <tr>
+                                                                    <td><a href="/matches/detail/{{ match.id }}/" class="text-decoration-none">{{ match.end_time|date:"M d, Y" }}</a></td>
+                                                                    <td><span class="badge badge-info">Tournament</span></td>
+                                                                    <td>
+                                                                        {% if match.team1 == player.team %}
+                                                                            {{ match.team2.name }}
+                                                                        {% else %}
+                                                                            {{ match.team1.name }}
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td><a href="/matches/detail/{{ match.id }}/" class="text-decoration-none">{{ match.team1_score }}-{{ match.team2_score }}</a></td>
+                                                                    <td>{{ player.position|default:"N/A" }}</td>
+                                                                    <td>
+                                                                        {% if match.winner == player.team %}
+                                                                            <span class="badge badge-success">W</span>
+                                                                        {% else %}
+                                                                            <span class="badge badge-danger">L</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                                
+                                                                <!-- Friendly Matches -->
+                                                                {% for match in friendly_matches %}
+                                                                <tr>
+                                                                    <td><a href="/friendly-games/{{ match.game_id }}/" class="text-decoration-none">{{ match.date|date:"M d, Y" }}</a></td>
+                                                                    <td><span class="badge badge-warning">Friendly</span></td>
+                                                                    <td>{{ match.team|default:"Mixed Teams" }}</td>
+                                                                    <td><a href="/friendly-games/{{ match.game_id }}/" class="text-decoration-none">{{ match.black_score }}-{{ match.white_score }}</a></td>
+                                                                    <td>{{ match.position|default:"N/A" }}</td>
+                                                                    <td>
+                                                                        {% if match.won %}
+                                                                            <span class="badge badge-success">W</span>
+                                                                        {% else %}
+                                                                            <span class="badge badge-danger">L</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                                
+                                                                {% if not matches and not friendly_matches %}
+                                                                <tr>
+                                                                    <td colspan="6" class="text-center text-muted">No matches played yet</td>
+                                                                </tr>
+                                                                {% endif %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Tournament Stats Tab -->
+                                {% if enhanced_stats.has_data %}
+                                <div class="tab-pane fade" id="tournament" role="tabpanel" aria-labelledby="tournament-tab">
+                                    <div class="row mt-3">
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Tournament Performance</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p><strong>Games Played:</strong> {{ enhanced_stats.total_games }}</p>
+                                                    <p><strong>Wins:</strong> {{ enhanced_stats.wins }}</p>
+                                                    <p><strong>Losses:</strong> {{ enhanced_stats.losses }}</p>
+                                                    <p><strong>Win Rate:</strong> {{ enhanced_stats.win_percentage|floatformat:1 }}%</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Scoring Stats</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p><strong>Total Points:</strong> {{ enhanced_stats.total_points_scored }}</p>
+                                                    <p><strong>Points Conceded:</strong> {{ enhanced_stats.total_points_conceded }}</p>
+                                                    <p><strong>Avg Points/Game:</strong> {{ enhanced_stats.avg_points_per_game|floatformat:1 }}</p>
+                                                    <p><strong>Point Differential:</strong> {{ enhanced_stats.point_differential }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Position Performance</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    {% if enhanced_stats.shooter_stats %}
+                                                    <h6>As Shooter:</h6>
+                                                    <p><strong>Games:</strong> {{ enhanced_stats.shooter_stats.games }}</p>
+                                                    <p><strong>Wins:</strong> {{ enhanced_stats.shooter_stats.wins }}</p>
+                                                    <p><strong>Win Rate:</strong> {{ enhanced_stats.shooter_stats.win_rate|floatformat:1 }}%</p>
+                                                    {% endif %}
+                                                    
+                                                    {% if enhanced_stats.pointer_stats %}
+                                                    <h6>As Pointer:</h6>
+                                                    <p><strong>Games:</strong> {{ enhanced_stats.pointer_stats.games }}</p>
+                                                    <p><strong>Wins:</strong> {{ enhanced_stats.pointer_stats.wins }}</p>
+                                                    <p><strong>Win Rate:</strong> {{ enhanced_stats.pointer_stats.win_rate|floatformat:1 }}%</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Recent Tournament Matches -->
+                                    {% if enhanced_stats.recent_matches %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Recent Tournament Matches</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Date</th>
+                                                                    <th>Opponent</th>
+                                                                    <th>Score</th>
+                                                                    <th>Position</th>
+                                                                    <th>Result</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for match in enhanced_stats.recent_matches %}
+                                                                <tr>
+                                                                    <td>{{ match.date|date:"M d" }}</td>
+                                                                    <td>{{ match.opponent_team }}</td>
+                                                                    <td>{{ match.team_score }}-{{ match.opponent_score }}</td>
+                                                                    <td>{{ match.position|default:"N/A" }}</td>
+                                                                    <td>
+                                                                        {% if match.won %}
+                                                                            <span class="badge badge-success">W</span>
+                                                                        {% else %}
+                                                                            <span class="badge badge-danger">L</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Friendly Games Tab -->
+                                {% if friendly_stats.total_games > 0 %}
+                                <div class="tab-pane fade" id="friendly" role="tabpanel" aria-labelledby="friendly-tab">
+                                    <div class="row mt-3">
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Friendly Game Performance</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p><strong>Games Played:</strong> {{ friendly_stats.total_games }}</p>
+                                                    <p><strong>Wins:</strong> {{ friendly_stats.wins }}</p>
+                                                    <p><strong>Losses:</strong> {{ friendly_stats.losses }}</p>
+                                                    <p><strong>Win Rate:</strong> {{ friendly_stats.win_percentage|floatformat:1 }}%</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Scoring Stats</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <p><strong>Total Points:</strong> {{ friendly_stats.total_points_scored }}</p>
+                                                    <p><strong>Points Conceded:</strong> {{ friendly_stats.total_points_conceded }}</p>
+                                                    <p><strong>Avg Points/Game:</strong> {{ friendly_stats.avg_points_per_game|floatformat:1 }}</p>
+                                                    <p><strong>Point Differential:</strong> {{ friendly_stats.point_differential }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Position Performance</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    {% if friendly_stats.shooter_stats %}
+                                                    <h6>As Shooter:</h6>
+                                                    <p><strong>Games:</strong> {{ friendly_stats.shooter_stats.games }}</p>
+                                                    <p><strong>Wins:</strong> {{ friendly_stats.shooter_stats.wins }}</p>
+                                                    <p><strong>Win Rate:</strong> {{ friendly_stats.shooter_stats.win_rate|floatformat:1 }}%</p>
+                                                    {% endif %}
+                                                    
+                                                    {% if friendly_stats.pointer_stats %}
+                                                    <h6>As Pointer:</h6>
+                                                    <p><strong>Games:</strong> {{ friendly_stats.pointer_stats.games }}</p>
+                                                    <p><strong>Wins:</strong> {{ friendly_stats.pointer_stats.wins }}</p>
+                                                    <p><strong>Win Rate:</strong> {{ friendly_stats.pointer_stats.win_rate|floatformat:1 }}%</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Recent Friendly Matches -->
+                                    {% if friendly_stats.recent_matches %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Recent Friendly Matches</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Date</th>
+                                                                    <th>Opponent</th>
+                                                                    <th>Score</th>
+                                                                    <th>Position</th>
+                                                                    <th>Result</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for match in friendly_stats.recent_matches %}
+                                                                <tr>
+                                                                    <td>{{ match.date|date:"M d" }}</td>
+                                                                    <td>{{ match.opponent_team }}</td>
+                                                                    <td>{{ match.team_score }}-{{ match.opponent_score }}</td>
+                                                                    <td>{{ match.position|default:"N/A" }}</td>
+                                                                    <td>
+                                                                        {% if match.won %}
+                                                                            <span class="badge badge-success">W</span>
+                                                                        {% else %}
+                                                                            <span class="badge badge-danger">L</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

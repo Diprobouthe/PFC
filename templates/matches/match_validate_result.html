@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Validate Score - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Validate Score as {{ team.name }}</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ match.team1.name }} vs {{ match.team2.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
+                            <p><strong>Round:</strong> {{ match.round }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                <span class="badge bg-info">{{ match.get_status_display }}</span>
+                            </p>
+                            {% if match.court %}
+                                <p><strong>Court:</strong> {{ match.court.name }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Submitted Score</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center">
+                                        <div class="col-5">
+                                            <h3>{{ match.team1.name }}</h3>
+                                            <h1 class="display-1">{{ match.team1_score }}</h1>
+                                        </div>
+                                        <div class="col-2 d-flex align-items-center justify-content-center">
+                                            <h2>vs</h2>
+                                        </div>
+                                        <div class="col-5">
+                                            <h3>{{ match.team2.name }}</h3>
+                                            <h1 class="display-1">{{ match.team2_score }}</h1>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if result.notes %}
+                                        <div class="mt-3">
+                                            <p><strong>Notes:</strong> {{ result.notes }}</p>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {% if result.photo_evidence %}
+                                        <div class="mt-3">
+                                            <p><strong>Photo Evidence:</strong></p>
+                                            <img src="{{ result.photo_evidence.url }}" alt="Match Evidence" class="img-fluid rounded">
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="form-group mb-3">
+                            <label>{{ form.validation_action.label_tag }}</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="radio" name="validation_action" 
+                                               id="id_validation_action_0" value="agree" required>
+                                        <label class="form-check-label" for="id_validation_action_0">
+                                            <strong class="text-success">
+                                                <i class="fas fa-thumbs-up"></i> Agree with submitted score
+                                            </strong>
+                                            <br>
+                                            <small class="text-muted">Confirm the scores are correct</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="radio" name="validation_action" 
+                                               id="id_validation_action_1" value="disagree" required>
+                                        <label class="form-check-label" for="id_validation_action_1">
+                                            <strong class="text-danger">
+                                                <i class="fas fa-thumbs-down"></i> Disagree with submitted score
+                                            </strong>
+                                            <br>
+                                            <small class="text-muted">The scores are incorrect</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if form.validation_action.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.validation_action.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="{{ form.pin.id_for_label }}"><strong>{{ form.pin.label }}:</strong></label>
+                            {{ form.pin }}
+                            {% if form.pin.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.pin.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">Enter your team's 6-digit PIN to confirm your choice.</small>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Please review the scores carefully. If you agree, the match will be marked as completed. If you disagree, the result will be cleared for resubmission.
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-info btn-lg">
+                                <i class="fas fa-check-double"></i> Confirm Validation Choice
+                            </button>
+                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Match
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

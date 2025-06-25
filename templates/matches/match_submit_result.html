@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Score - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Submit Score as {{ team.name }}</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ match.team1.name }} vs {{ match.team2.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
+                            <p><strong>Round:</strong> {{ match.round }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                <span class="badge bg-success">{{ match.get_status_display }}</span>
+                            </p>
+                            {% if match.court %}
+                                <p><strong>Court:</strong> {{ match.court.name }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="id_pin"><strong>Enter Team PIN:</strong></label>
+                            <input type="password" name="pin" maxlength="6" class="form-control" required id="id_pin" placeholder="Enter your 6-digit PIN">
+                            <small class="form-text text-muted">Enter your team's 6-digit PIN to confirm score submission.</small>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="id_team1_score"><strong>{{ match.team1.name }} Score:</strong></label>
+                                    <input type="number" name="team1_score" min="0" max="13" class="form-control form-control-lg" required id="id_team1_score" value="{{ form.team1_score.value|default:0 }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="id_team2_score"><strong>{{ match.team2.name }} Score:</strong></label>
+                                    <input type="number" name="team2_score" min="0" max="13" class="form-control form-control-lg" required id="id_team2_score" value="{{ form.team2_score.value|default:0 }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="id_photo_evidence"><strong>Photo Evidence (optional):</strong></label>
+                            <input type="file" name="photo_evidence" class="form-control" id="id_photo_evidence">
+                            <small class="form-text text-muted">Upload a photo of the final score (optional).</small>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="id_notes"><strong>Notes (optional):</strong></label>
+                            <textarea name="notes" class="form-control" id="id_notes" rows="3">{{ form.notes.value|default:'' }}</textarea>
+                            <small class="form-text text-muted">Add any notes about the match (optional).</small>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> The other team will need to validate these results after submission.
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check"></i> Submit Score
+                            </button>
+                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Match
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,291 @@
+<!-- Team Login Modal -->
+<div class="modal fade" id="teamLoginModal" tabindex="-1" aria-labelledby="teamLoginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="teamLoginModalLabel">
+                    <i class="fas fa-users me-2"></i>Team Login
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="teamLoginForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="teamPinInput" class="form-label">
+                            <i class="fas fa-key me-1"></i>Team PIN
+                        </label>
+                        <input 
+                            type="password" 
+                            class="form-control form-control-lg" 
+                            id="teamPinInput" 
+                            name="team_pin"
+                            placeholder="Enter your 6-character team PIN"
+                            maxlength="6"
+                            pattern="[A-Za-z0-9]{6}"
+                            required
+                            autocomplete="off"
+                        >
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Enter your team's 6-character PIN to access tournament functions
+                        </div>
+                        <div id="teamPinError" class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="teamRememberMe" name="remember_me">
+                        <label class="form-check-label" for="teamRememberMe">
+                            <i class="fas fa-clock me-1"></i>Remember me for 7 days
+                        </label>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="teamLoginBtn">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login as Team
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Success/Error Messages -->
+                <div id="teamLoginMessages" class="mt-3"></div>
+            </div>
+            <div class="modal-footer bg-light">
+                <small class="text-muted">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Your PIN is securely stored in your session and will auto-fill tournament forms
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Team Login JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const teamLoginForm = document.getElementById('teamLoginForm');
+    const teamPinInput = document.getElementById('teamPinInput');
+    const teamLoginBtn = document.getElementById('teamLoginBtn');
+    const teamLoginMessages = document.getElementById('teamLoginMessages');
+    const teamPinError = document.getElementById('teamPinError');
+    
+    // Auto-format PIN input to uppercase
+    teamPinInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        
+        // Clear previous validation states
+        this.classList.remove('is-valid', 'is-invalid');
+        teamPinError.textContent = '';
+        
+        // Real-time validation
+        if (this.value.length === 6) {
+            this.classList.add('is-valid');
+        } else if (this.value.length > 0) {
+            this.classList.add('is-invalid');
+            teamPinError.textContent = 'PIN must be exactly 6 characters';
+        }
+    });
+    
+    // Handle form submission
+    teamLoginForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const teamPin = formData.get('team_pin');
+        const rememberMe = formData.get('remember_me') === 'on';
+        
+        // Validate PIN format
+        if (!teamPin || teamPin.length !== 6) {
+            showTeamMessage('error', 'Please enter a valid 6-character PIN');
+            return;
+        }
+        
+        // Disable form during submission
+        teamLoginBtn.disabled = true;
+        teamLoginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Logging in...';
+        
+        // Submit login request
+        fetch('/auth/team/login/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                team_pin: teamPin,
+                remember_me: rememberMe
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showTeamMessage('success', data.message);
+                
+                // Update navigation
+                updateTeamNavigation(data.team_name, data.team_pin);
+                
+                // Close modal after short delay
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('teamLoginModal')).hide();
+                    
+                    // Trigger auto-fill for any visible PIN fields
+                    autoFillTeamPinFields(data.team_pin);
+                }, 1500);
+                
+            } else {
+                showTeamMessage('error', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Team login error:', error);
+            showTeamMessage('error', 'Login failed. Please try again.');
+        })
+        .finally(() => {
+            // Re-enable form
+            teamLoginBtn.disabled = false;
+            teamLoginBtn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Login as Team';
+        });
+    });
+    
+    function showTeamMessage(type, message) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+        
+        teamLoginMessages.innerHTML = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <i class="fas fa-${icon} me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+    }
+    
+    function updateTeamNavigation(teamName, teamPin) {
+        // Update navigation to show logged-in team
+        const teamNavSection = document.getElementById('teamNavSection');
+        if (teamNavSection) {
+            teamNavSection.innerHTML = `
+                <div class="dropdown">
+                    <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-users me-1"></i>${teamName}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><span class="dropdown-item-text"><small>PIN: ${teamPin}</small></span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="logoutTeam()">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout Team
+                        </a></li>
+                    </ul>
+                </div>
+            `;
+        }
+    }
+    
+    function autoFillTeamPinFields(teamPin) {
+        // Find all PIN input fields and auto-fill them
+        const pinFields = document.querySelectorAll('input[name="pin"], input[name="team_pin"]');
+        pinFields.forEach(field => {
+            if (field.type === 'password' || field.type === 'text') {
+                field.value = teamPin;
+                field.classList.add('auto-filled');
+                
+                // Add visual indicator
+                if (!field.parentNode.querySelector('.auto-fill-indicator')) {
+                    const indicator = document.createElement('small');
+                    indicator.className = 'text-success auto-fill-indicator';
+                    indicator.innerHTML = '<i class="fas fa-check-circle me-1"></i>Auto-filled from team session';
+                    field.parentNode.appendChild(indicator);
+                }
+            }
+        });
+    }
+});
+
+// Global team logout function
+function logoutTeam() {
+    fetch('/auth/team/logout/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update navigation
+            const teamNavSection = document.getElementById('teamNavSection');
+            if (teamNavSection) {
+                teamNavSection.innerHTML = `
+                    <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#teamLoginModal">
+                        <i class="fas fa-users me-1"></i>Team Login
+                    </button>
+                `;
+            }
+            
+            // Clear auto-filled fields
+            document.querySelectorAll('.auto-filled').forEach(field => {
+                field.value = '';
+                field.classList.remove('auto-filled');
+            });
+            
+            // Remove auto-fill indicators
+            document.querySelectorAll('.auto-fill-indicator').forEach(indicator => {
+                indicator.remove();
+            });
+            
+            // Show success message if there's a message container
+            const messageContainer = document.querySelector('.alert-container');
+            if (messageContainer) {
+                messageContainer.innerHTML = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Team logout error:', error);
+    });
+}
+
+// Auto-fill team PIN fields on page load if team is logged in
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/auth/team/status/')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.data.is_logged_in) {
+            // Update navigation
+            updateTeamNavigation(data.data.team_name, data.data.team_pin);
+            
+            // Auto-fill PIN fields
+            autoFillTeamPinFields(data.data.team_pin);
+        }
+    })
+    .catch(error => {
+        console.error('Team session check error:', error);
+    });
+});
+</script>
+
+<style>
+.auto-filled {
+    background-color: #d4edda !important;
+    border-color: #28a745 !important;
+}
+
+.auto-fill-indicator {
+    display: block;
+    margin-top: 0.25rem;
+}
+
+#teamPinInput:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.modal-header.bg-primary {
+    background-color: #0d6efd !important;
+}
+</style>
+

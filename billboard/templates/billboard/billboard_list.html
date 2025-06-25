@@ -1,0 +1,422 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PFC Billboard - Player Activity{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 mb-2">
+                        <i class="fas fa-bullhorn text-primary me-3"></i>
+                        PFC Billboard
+                    </h1>
+                    <p class="lead text-muted">Real-time player activity and court coordination</p>
+                </div>
+                <div>
+                    <a href="{% url 'billboard:create' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i>Post Activity
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Sections -->
+    <div class="row">
+        <!-- At Courts Section -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        Currently at Courts
+                        <span class="badge bg-light text-success ms-2">{{ at_courts|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if at_courts %}
+                        {% for entry in at_courts %}
+                            <div class="card mb-3 border-0 bg-light">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-1">
+                                            <span class="badge bg-success">{{ entry.get_player_name }}</span>
+                                        </h6>
+                                        <small class="text-muted">{{ entry.created_at|timesince }} ago</small>
+                                    </div>
+                                    <p class="card-text mb-2">
+                                        <i class="fas fa-building me-1"></i>
+                                        {{ entry.court_complex.name }}
+                                    </p>
+                                    {% if entry.message %}
+                                        <p class="card-text text-muted small">{{ entry.message }}</p>
+                                    {% endif %}
+                                    
+                                    <!-- Responses -->
+                                    <div class="responses-section" id="responses-{{ entry.id }}">
+                                        {% for response in entry.get_responses %}
+                                            <span class="badge bg-outline-success me-1 mb-1">{{ response.get_player_name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    
+                                    <!-- Response Form -->
+                                    <div class="mt-2">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control response-codename codename-autofill" 
+                                                   placeholder="Your codename" maxlength="6" 
+                                                   style="text-transform: uppercase;"
+                                                   value="{% if session_codename %}{{ session_codename }}{% endif %}">
+                                            <button class="btn btn-outline-success btn-respond" 
+                                                    data-entry-id="{{ entry.id }}" 
+                                                    data-action="I'm there too!">
+                                                <i class="fas fa-plus me-1"></i>I'm there too!
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-map-marker-alt fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No one is currently at the courts</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Going to Courts Section -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>
+                        Going to Courts
+                        <span class="badge bg-light text-warning ms-2">{{ going_to_courts|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if going_to_courts %}
+                        {% for entry in going_to_courts %}
+                            <div class="card mb-3 border-0 bg-light">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-1">
+                                            <span class="badge bg-warning text-dark">{{ entry.get_player_name }}</span>
+                                        </h6>
+                                        <small class="text-muted">{{ entry.created_at|timesince }} ago</small>
+                                    </div>
+                                    <p class="card-text mb-1">
+                                        <i class="fas fa-building me-1"></i>
+                                        {{ entry.court_complex.name }}
+                                    </p>
+                                    {% if entry.scheduled_date and entry.scheduled_time %}
+                                        <p class="card-text mb-2">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            <strong>{{ entry.scheduled_date|date:"M d, Y" }}</strong>
+                                            <i class="fas fa-clock ms-2 me-1"></i>
+                                            <strong>{{ entry.scheduled_time }}</strong>
+                                        </p>
+                                    {% elif entry.scheduled_time %}
+                                        <p class="card-text mb-2">
+                                            <i class="fas fa-clock me-1"></i>
+                                            <strong>{{ entry.scheduled_time }}</strong>
+                                        </p>
+                                    {% endif %}
+                                    {% if entry.message %}
+                                        <p class="card-text text-muted small">{{ entry.message }}</p>
+                                    {% endif %}
+                                    
+                                    <!-- Responses -->
+                                    <div class="responses-section" id="responses-{{ entry.id }}">
+                                        {% for response in entry.get_responses %}
+                                            <span class="badge bg-outline-warning me-1 mb-1">{{ response.get_player_name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    
+                                    <!-- Response Form -->
+                                    <div class="mt-2">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control response-codename codename-autofill" 
+                                                   placeholder="Your codename" maxlength="6" 
+                                                   style="text-transform: uppercase;"
+                                                   value="{% if session_codename %}{{ session_codename }}{% endif %}">
+                                            <button class="btn btn-outline-warning btn-respond" 
+                                                    data-entry-id="{{ entry.id }}" 
+                                                    data-action="I'll come too!">
+                                                <i class="fas fa-plus me-1"></i>I'll come too!
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No planned court visits</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tournament Matches Section -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100 border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>
+                        Tournament Matches
+                        <span class="badge bg-light text-info ms-2">{{ looking_for_match|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if looking_for_match %}
+                        {% for entry in looking_for_match %}
+                            <div class="card mb-3 border-0 bg-light">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-1">
+                                            <span class="badge bg-info">{{ entry.get_player_name }}</span>
+                                        </h6>
+                                        <small class="text-muted">{{ entry.created_at|timesince }} ago</small>
+                                    </div>
+                                    <p class="card-text mb-1">
+                                        <i class="fas fa-building me-1"></i>
+                                        {{ entry.court_complex.name }}
+                                    </p>
+                                    <p class="card-text mb-2">
+                                        <i class="fas fa-users me-1"></i>
+                                        vs <strong>{{ entry.opponent_team }}</strong>
+                                    </p>
+                                    {% if entry.scheduled_date and entry.scheduled_time %}
+                                        <p class="card-text mb-2">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            <strong>{{ entry.scheduled_date|date:"M d, Y" }}</strong>
+                                            <i class="fas fa-clock ms-2 me-1"></i>
+                                            <strong>{{ entry.scheduled_time }}</strong>
+                                        </p>
+                                    {% elif entry.scheduled_time %}
+                                        <p class="card-text mb-2">
+                                            <i class="fas fa-clock me-1"></i>
+                                            <strong>{{ entry.scheduled_time }}</strong>
+                                        </p>
+                                    {% elif entry.scheduled_date %}
+                                        <p class="card-text mb-2">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            <strong>{{ entry.scheduled_date|date:"M d, Y" }}</strong>
+                                        </p>
+                                    {% endif %}
+                                    {% if entry.message %}
+                                        <p class="card-text text-muted small">{{ entry.message }}</p>
+                                    {% endif %}
+                                    
+                                    <!-- Responses -->
+                                    <div class="responses-section" id="responses-{{ entry.id }}">
+                                        {% for response in entry.get_responses %}
+                                            <span class="badge bg-outline-info me-1 mb-1">{{ response.get_player_name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    
+                                    <!-- Response Form for Tournament Matches -->
+                                    <div class="mt-2">
+                                        {% if entry.is_confirmed %}
+                                            <!-- Show confirmation status when match is agreed -->
+                                            <div class="alert alert-success mb-0">
+                                                <i class="fas fa-check-circle me-2"></i>
+                                                <strong>Match Confirmed!</strong> {{ entry.opponent_team }} has agreed to this appointment.
+                                            </div>
+                                        {% else %}
+                                            <!-- Show PIN input form when match is not yet confirmed -->
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" class="form-control response-team-pin" 
+                                                       placeholder="Team PIN" maxlength="6" 
+                                                       style="text-transform: uppercase;"
+                                                       data-opponent-team="{{ entry.opponent_team }}">
+                                                <button class="btn btn-outline-info btn-respond-match" 
+                                                        data-entry-id="{{ entry.id }}" 
+                                                        data-opponent-team="{{ entry.opponent_team }}"
+                                                        data-action="We accept!">
+                                                    <i class="fas fa-handshake me-1"></i>We accept!
+                                                </button>
+                                            </div>
+                                            <small class="text-muted">Enter your team PIN to confirm match acceptance</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-trophy fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No pending tournament matches</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-refresh notice -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Live Updates:</strong> This page refreshes automatically every 30 seconds to show the latest activity.
+                Entries older than 24 hours are automatically removed.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for AJAX responses and auto-refresh -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle response buttons for regular activities
+    document.querySelectorAll('.btn-respond').forEach(button => {
+        button.addEventListener('click', function() {
+            const entryId = this.dataset.entryId;
+            const codenameInput = this.parentElement.querySelector('.response-codename');
+            const codename = codenameInput.value.trim().toUpperCase();
+            
+            if (!codename) {
+                alert('Please enter your codename');
+                return;
+            }
+            
+            // Disable button during request
+            this.disabled = true;
+            const originalText = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Responding...';
+            
+            fetch(`/billboard/entry/${entryId}/respond/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({codename: codename})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add response to the list
+                    const responsesSection = document.getElementById(`responses-${entryId}`);
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'badge bg-outline-success me-1 mb-1';
+                    newBadge.textContent = codename;
+                    responsesSection.appendChild(newBadge);
+                    
+                    // Clear input
+                    codenameInput.value = '';
+                    
+                    // Show success message
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-success alert-dismissible fade show mt-2';
+                    alert.innerHTML = `
+                        <i class="fas fa-check me-2"></i>${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    this.parentElement.parentElement.appendChild(alert);
+                } else {
+                    alert(data.message || 'Error responding to entry');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error responding to entry');
+            })
+            .finally(() => {
+                // Re-enable button
+                this.disabled = false;
+                this.innerHTML = originalText;
+            });
+        });
+    });
+
+    // Handle tournament match response buttons with PIN verification
+    document.querySelectorAll('.btn-respond-match').forEach(button => {
+        button.addEventListener('click', function() {
+            const entryId = this.dataset.entryId;
+            const opponentTeam = this.dataset.opponentTeam;
+            const pinInput = this.parentElement.querySelector('.response-team-pin');
+            const teamPin = pinInput.value.trim().toUpperCase();
+            
+            if (!teamPin) {
+                alert('Please enter your team PIN');
+                return;
+            }
+            
+            if (teamPin.length !== 6) {
+                alert('Team PIN must be exactly 6 characters');
+                return;
+            }
+            
+            // Disable button during request
+            this.disabled = true;
+            const originalText = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Verifying...';
+            
+            fetch(`/billboard/entry/${entryId}/respond-match/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    team_pin: teamPin,
+                    opponent_team: opponentTeam
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Replace the response form with agreement confirmation
+                    const responseDiv = this.parentElement.parentElement;
+                    responseDiv.innerHTML = `
+                        <div class="alert alert-success mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Match Confirmed!</strong> ${opponentTeam} has agreed to this appointment.
+                        </div>
+                    `;
+                    
+                    // Show success message
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-success alert-dismissible fade show mt-2';
+                    alert.innerHTML = `
+                        <i class="fas fa-handshake me-2"></i>${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    responseDiv.parentElement.appendChild(alert);
+                } else {
+                    alert(data.message || 'Invalid team PIN. Only the specified opponent team can accept this match.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error verifying team PIN');
+            })
+            .finally(() => {
+                // Re-enable button
+                this.disabled = false;
+                this.innerHTML = originalText;
+            });
+        });
+    });
+
+    // Auto-refresh page every 30 seconds
+    setInterval(function() {
+        location.reload();
+    }, 30000);
+});
+</script>
+
+{% csrf_token %}
+{% endblock %}
+

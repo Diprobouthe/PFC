@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Friendly Games Leaderboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 48px; width: auto; margin-right: 12px;"> Friendly Games Leaderboard</h1>
+            <p class="lead">Rankings based on fully validated friendly games only</p>
+        </div>
+    </div>
+
+    {% if not error %}
+    <!-- Trophy Showcase Section -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-warning shadow-lg">
+                <div class="card-header bg-gradient text-white text-center" style="background: linear-gradient(45deg, #ffd700, #ffed4e);">
+                    <h3 class="mb-0 text-dark">🏆 PFC TROPHY SHOWCASE 🏆</h3>
+                    <small class="text-dark">Recognizing Excellence in Friendly Games</small>
+                </div>
+                <div class="card-body bg-light">
+                    <!-- Most Active Players Section -->
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h5 class="text-center mb-3">
+                                <i class="fas fa-star text-warning"></i> Most Active Players
+                            </h5>
+                            <div class="row">
+                                {% for player in trophies.most_active %}
+                                <div class="col-md-4 text-center mb-3">
+                                    <div class="card h-100 {% if forloop.counter == 1 %}border-warning{% elif forloop.counter == 2 %}border-secondary{% else %}border-dark{% endif %}">
+                                        <div class="card-body">
+                                            {% if forloop.counter == 1 %}
+                                                <div class="mb-2">
+                                                    <i class="fas fa-star text-warning" style="font-size: 2rem;"></i>
+                                                </div>
+                                                <h6 class="card-title text-warning">🥇 PFC Golden Star</h6>
+                                            {% elif forloop.counter == 2 %}
+                                                <div class="mb-2">
+                                                    <i class="fas fa-star text-secondary" style="font-size: 1.8rem;"></i>
+                                                </div>
+                                                <h6 class="card-title text-secondary">🥈 PFC Silver Star</h6>
+                                            {% else %}
+                                                <div class="mb-2">
+                                                    <i class="fas fa-star text-dark" style="font-size: 1.6rem;"></i>
+                                                </div>
+                                                <h6 class="card-title text-dark">🥉 PFC Bronze Star</h6>
+                                            {% endif %}
+                                            <p class="card-text">
+                                                <strong>{{ player.player__name }}</strong><br>
+                                                <span class="badge bg-primary">{{ player.games_played }} games</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="col text-center">
+                                    <p class="text-muted">No active players yet</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Position Excellence Section -->
+                    <div class="row">
+                        <!-- Best Shooters -->
+                        <div class="col-md-6 mb-4">
+                            <h5 class="text-center mb-3">
+                                <i class="fas fa-bomb text-danger"></i> Best Shooters
+                            </h5>
+                            <div class="row">
+                                {% for player in trophies.best_shooters %}
+                                <div class="col-12 mb-2">
+                                    <div class="card {% if forloop.counter == 1 %}border-warning{% elif forloop.counter == 2 %}border-secondary{% else %}border-dark{% endif %}">
+                                        <div class="card-body py-2">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <div>
+                                                    {% if forloop.counter == 1 %}
+                                                        <span class="badge bg-warning text-dark">🥇 Golden Shooter</span>
+                                                    {% elif forloop.counter == 2 %}
+                                                        <span class="badge bg-secondary">🥈 Silver Shooter</span>
+                                                    {% else %}
+                                                        <span class="badge bg-dark">🥉 Bronze Shooter</span>
+                                                    {% endif %}
+                                                    <strong class="ms-2">{{ player.player__name }}</strong>
+                                                </div>
+                                                <div class="text-end">
+                                                    <span class="badge bg-success">{{ player.win_rate|floatformat:1 }}%</span>
+                                                    <small class="text-muted">({{ player.games_played }} games)</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="col text-center">
+                                    <p class="text-muted">No qualified shooters yet</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Best Pointers -->
+                        <div class="col-md-6 mb-4">
+                            <h5 class="text-center mb-3">
+                                <i class="fas fa-crosshairs text-success"></i> Best Pointers
+                            </h5>
+                            <div class="row">
+                                {% for player in trophies.best_pointers %}
+                                <div class="col-12 mb-2">
+                                    <div class="card {% if forloop.counter == 1 %}border-warning{% elif forloop.counter == 2 %}border-secondary{% else %}border-dark{% endif %}">
+                                        <div class="card-body py-2">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <div>
+                                                    {% if forloop.counter == 1 %}
+                                                        <span class="badge bg-warning text-dark">🥇 Golden Pointer</span>
+                                                    {% elif forloop.counter == 2 %}
+                                                        <span class="badge bg-secondary">🥈 Silver Pointer</span>
+                                                    {% else %}
+                                                        <span class="badge bg-dark">🥉 Bronze Pointer</span>
+                                                    {% endif %}
+                                                    <strong class="ms-2">{{ player.player__name }}</strong>
+                                                </div>
+                                                <div class="text-end">
+                                                    <span class="badge bg-success">{{ player.win_rate|floatformat:1 }}%</span>
+                                                    <small class="text-muted">({{ player.games_played }} games)</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="col text-center">
+                                    <p class="text-muted">No qualified pointers yet</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Section -->
+    <div class="row">
+        <div class="col">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="mb-0">Player Rankings</h5>
+                            <small>Only fully validated games (both teams verified)</small>
+                        </div>
+                        <div class="col text-end">
+                            <span class="badge bg-primary">{{ total_players }} Players</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs nav-fill mb-0" id="leaderboardTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="overall-tab" data-bs-toggle="tab" data-bs-target="#overall-leaderboard" type="button" role="tab" aria-controls="overall-leaderboard" aria-selected="true" style="border-bottom: 3px solid #6c757d;">
+                                📊 Overall
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="pointer-tab" data-bs-toggle="tab" data-bs-target="#pointer-leaderboard" type="button" role="tab" aria-controls="pointer-leaderboard" aria-selected="false" style="border-bottom: 3px solid #28a745;">
+                                <span style="color: #28a745;">🎯 Pointer</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="shooter-tab" data-bs-toggle="tab" data-bs-target="#shooter-leaderboard" type="button" role="tab" aria-controls="shooter-leaderboard" aria-selected="false" style="border-bottom: 3px solid #dc3545;">
+                                <span style="color: #dc3545;">💥 Shooter</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="milieu-tab" data-bs-toggle="tab" data-bs-target="#milieu-leaderboard" type="button" role="tab" aria-controls="milieu-leaderboard" aria-selected="false" style="border-bottom: 3px solid #17a2b8;">
+                                <span style="color: #17a2b8;">⚖️ Milieu</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="leaderboardTabContent">
+                        <!-- Overall Leaderboard Tab -->
+                        <div class="tab-pane fade show active" id="overall-leaderboard" role="tabpanel" aria-labelledby="overall-tab">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-striped mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">#</th>
+                                            <th scope="col">Player</th>
+                                            <th scope="col">Games Played</th>
+                                            <th scope="col">Games Won</th>
+                                            <th scope="col">Games Lost</th>
+                                            <th scope="col">Win Rate</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for player in player_stats %}
+                                        <tr>
+                                            <td>
+                                                {{ forloop.counter }}
+                                                {% if forloop.counter <= 3 and player in trophies.most_active %}
+                                                    {% if forloop.counter == 1 %}
+                                                        <i class="fas fa-star text-warning ms-1"></i>
+                                                    {% elif forloop.counter == 2 %}
+                                                        <i class="fas fa-star text-secondary ms-1"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-star text-dark ms-1"></i>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                        <span class="text-white">{{ player.player__name|slice:":1" }}</span>
+                                                    </div>
+                                                    <div>
+                                                        <div class="fw-bold">{{ player.player__name }}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ player.games_played }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-success">{{ player.games_won }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-danger">{{ player.games_lost }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ player.win_rate }}%"></div>
+                                                    </div>
+                                                    <span>{{ player.win_rate|floatformat:1 }}%</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'player_profile' player.player__id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-person-badge"></i> View Profile
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="7" class="text-center py-4">
+                                                <div class="alert alert-info mb-0">
+                                                    <i class="bi bi-info-circle me-2"></i> No fully validated friendly games found yet.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Position-specific tabs would go here -->
+                        <!-- For now, showing placeholder content -->
+                        <div class="tab-pane fade" id="pointer-leaderboard" role="tabpanel" aria-labelledby="pointer-tab">
+                            <div class="p-4 text-center">
+                                <h5>🎯 Pointer Leaderboard</h5>
+                                <p class="text-muted">Position-specific rankings coming soon...</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="shooter-leaderboard" role="tabpanel" aria-labelledby="shooter-tab">
+                            <div class="p-4 text-center">
+                                <h5>💥 Shooter Leaderboard</h5>
+                                <p class="text-muted">Position-specific rankings coming soon...</p>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="milieu-leaderboard" role="tabpanel" aria-labelledby="milieu-tab">
+                            <div class="p-4 text-center">
+                                <h5>⚖️ Milieu Leaderboard</h5>
+                                <p class="text-muted">Position-specific rankings coming soon...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Error State -->
+    <div class="row">
+        <div class="col">
+            <div class="alert alert-warning">
+                <h4>Friendly Games Not Available</h4>
+                <p>{{ error }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Add any JavaScript for interactive features
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching functionality is handled by Bootstrap
+    console.log('Friendly Games Leaderboard loaded');
+});
+</script>
+{% endblock %}
+

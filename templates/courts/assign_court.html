@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Assign Court - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'court_list' %}">Courts</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Assign Court</li>
+                </ol>
+            </nav>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="mb-0">Assign Court to Match</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="match" class="form-label">Match</label>
+                            <select class="form-select" id="match" name="match" required>
+                                <option value="">Select a match...</option>
+                                {% for match in available_matches %}
+                                    <option value="{{ match.id }}">
+                                        {{ match.team1.name }} vs {{ match.team2.name }} ({{ match.tournament.name }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="court" class="form-label">Court</label>
+                            <select class="form-select" id="court" name="court" required>
+                                <option value="">Select a court...</option>
+                                {% for court in available_courts %}
+                                    <option value="{{ court.id }}">
+                                        {{ court.name }} {% if court.location %}({{ court.location }}){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="start_time" class="form-label">Start Time</label>
+                            <input type="datetime-local" class="form-control" id="start_time" name="start_time" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Assign Court</button>
+                        <a href="{% url 'court_list' %}" class="btn btn-secondary">Cancel</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,287 @@
+<!-- Quick Login Modal -->
+<div class="modal fade" id="quickLoginModal" tabindex="-1" aria-labelledby="quickLoginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="quickLoginModalLabel">
+                    <i class="fas fa-sign-in-alt me-2"></i>Player Access
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Login Options -->
+                <div id="loginOptions">
+                    <div class="text-center mb-4">
+                        <h6 class="text-muted">Choose your option:</h6>
+                    </div>
+                    
+                    <!-- Existing Player Login -->
+                    <div class="d-grid gap-2 mb-3">
+                        <button type="button" class="btn btn-primary btn-lg" id="showLoginForm">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login with Codename
+                        </button>
+                        <button type="button" class="btn btn-success btn-lg" id="showCreateForm">
+                            <i class="fas fa-user-plus me-2"></i>Create New Player Profile
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Continue as Guest
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Login Form -->
+                <div id="loginFormSection" class="d-none">
+                    <form id="quickLoginForm" action="{% url 'player_login' %}" method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="loginCodename" class="form-label">
+                                <i class="fas fa-user me-1"></i>Your Codename
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg text-center" 
+                                   id="loginCodename" 
+                                   name="codename"
+                                   placeholder="Enter 6-character codename"
+                                   maxlength="6"
+                                   style="letter-spacing: 2px; font-weight: bold;"
+                                   required>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Enter your 6-character player codename to stay logged in
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rememberMe" name="remember_me" checked>
+                                <label class="form-check-label" for="rememberMe">
+                                    <i class="fas fa-clock me-1"></i>Remember me for 7 days
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="backToOptions">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Options
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Create Player Form -->
+                <div id="createFormSection" class="d-none">
+                    <div class="text-center mb-3">
+                        <h6 class="text-success">
+                            <i class="fas fa-user-plus me-2"></i>Create Your Player Profile
+                        </h6>
+                        <p class="text-muted small">Join the PFC community!</p>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'public_player_create' %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-external-link-alt me-2"></i>Go to Registration Page
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary" id="backToOptionsFromCreate">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Options
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Loading State -->
+                <div id="loginLoading" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Logging in...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Logging you in...</p>
+                </div>
+                
+                <!-- Success State -->
+                <div id="loginSuccess" class="text-center d-none">
+                    <div class="text-success mb-3">
+                        <i class="fas fa-check-circle fa-3x"></i>
+                    </div>
+                    <h5 class="text-success">Welcome back!</h5>
+                    <p class="text-muted">You are now logged in as <strong id="successCodename"></strong></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Login JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Quick login modal script loading...');
+    
+    const loginForm = document.getElementById('quickLoginForm');
+    const loginModal = new bootstrap.Modal(document.getElementById('quickLoginModal'));
+    const codenameInput = document.getElementById('loginCodename');
+    
+    // Modal navigation elements
+    const loginOptions = document.getElementById('loginOptions');
+    const loginFormSection = document.getElementById('loginFormSection');
+    const createFormSection = document.getElementById('createFormSection');
+    const showLoginBtn = document.getElementById('showLoginForm');
+    const showCreateBtn = document.getElementById('showCreateForm');
+    const backToOptionsBtn = document.getElementById('backToOptions');
+    const backToOptionsFromCreateBtn = document.getElementById('backToOptionsFromCreate');
+    
+    console.log('Modal elements found:', {
+        loginOptions: !!loginOptions,
+        loginFormSection: !!loginFormSection,
+        createFormSection: !!createFormSection,
+        showLoginBtn: !!showLoginBtn,
+        showCreateBtn: !!showCreateBtn
+    });
+    
+    // Show login form
+    if (showLoginBtn) {
+        showLoginBtn.addEventListener('click', function() {
+            console.log('Login button clicked');
+            loginOptions.classList.add('d-none');
+            loginFormSection.classList.remove('d-none');
+            if (codenameInput) codenameInput.focus();
+        });
+    }
+    
+    // Show create form
+    if (showCreateBtn) {
+        showCreateBtn.addEventListener('click', function() {
+            console.log('Create button clicked');
+            loginOptions.classList.add('d-none');
+            createFormSection.classList.remove('d-none');
+        });
+    }
+    
+    // Back to options from login
+    if (backToOptionsBtn) {
+        backToOptionsBtn.addEventListener('click', function() {
+            console.log('Back to options from login');
+            loginFormSection.classList.add('d-none');
+            loginOptions.classList.remove('d-none');
+            resetLoginForm();
+        });
+    }
+    
+    // Back to options from create
+    if (backToOptionsFromCreateBtn) {
+        backToOptionsFromCreateBtn.addEventListener('click', function() {
+            console.log('Back to options from create');
+            createFormSection.classList.add('d-none');
+            loginOptions.classList.remove('d-none');
+        });
+    }
+    
+    // Reset modal when closed
+    document.getElementById('quickLoginModal').addEventListener('hidden.bs.modal', function() {
+        console.log('Modal closed, resetting state');
+        // Reset to initial state
+        if (loginFormSection) loginFormSection.classList.add('d-none');
+        if (createFormSection) createFormSection.classList.add('d-none');
+        const loadingEl = document.getElementById('loginLoading');
+        const successEl = document.getElementById('loginSuccess');
+        if (loadingEl) loadingEl.classList.add('d-none');
+        if (successEl) successEl.classList.add('d-none');
+        if (loginOptions) loginOptions.classList.remove('d-none');
+        resetLoginForm();
+    });
+    
+    function resetLoginForm() {
+        if (codenameInput) {
+            codenameInput.value = '';
+            codenameInput.classList.remove('is-valid', 'is-invalid');
+            const errorDiv = document.querySelector('.invalid-feedback');
+            if (errorDiv) {
+                errorDiv.remove();
+            }
+        }
+    }
+    
+    // Auto-uppercase and format codename input
+    if (codenameInput) {
+        codenameInput.addEventListener('input', function(e) {
+            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (value.length > 6) value = value.substring(0, 6);
+            e.target.value = value;
+            
+            // Visual feedback for valid format
+            if (value.length === 6) {
+                e.target.classList.remove('is-invalid');
+                e.target.classList.add('is-valid');
+            } else {
+                e.target.classList.remove('is-valid');
+                e.target.classList.remove('is-invalid');
+            }
+        });
+    }
+    
+    // Handle form submission
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const codename = codenameInput.value.trim();
+            if (codename.length !== 6) {
+                codenameInput.classList.add('is-invalid');
+                return;
+            }
+            
+            // Show loading state
+            loginFormSection.classList.add('d-none');
+            document.getElementById('loginLoading').classList.remove('d-none');
+            
+            // Submit login request
+            fetch('{% url "player_login" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: 'codename=' + encodeURIComponent(codename)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success state
+                    document.getElementById('loginLoading').classList.add('d-none');
+                    document.getElementById('loginSuccess').classList.remove('d-none');
+                    document.getElementById('successCodename').textContent = codename;
+                    
+                    // Auto-close modal and refresh page after 2 seconds
+                    setTimeout(() => {
+                        loginModal.hide();
+                        location.reload();
+                    }, 2000);
+                } else {
+                    // Show error
+                    document.getElementById('loginLoading').classList.add('d-none');
+                    loginFormSection.classList.remove('d-none');
+                    codenameInput.classList.add('is-invalid');
+                    
+                    // Show error message
+                    let errorDiv = document.querySelector('.invalid-feedback');
+                    if (!errorDiv) {
+                        errorDiv = document.createElement('div');
+                        errorDiv.className = 'invalid-feedback';
+                        codenameInput.parentNode.appendChild(errorDiv);
+                    }
+                    errorDiv.textContent = data.error || 'Codename not found. Please check your codename or create a new profile.';
+                }
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                document.getElementById('loginLoading').classList.add('d-none');
+                loginFormSection.classList.remove('d-none');
+                codenameInput.classList.add('is-invalid');
+            });
+        });
+    }
+    
+    console.log('Quick login modal script loaded successfully');
+});
+</script>
+

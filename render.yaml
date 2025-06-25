@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pfc-platform
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn pfc_core.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DEBUG
+        value: false
+      - key: DJANGO_SETTINGS_MODULE
+        value: pfc_core.settings
+      - key: SECRET_KEY
+        generateValue: true
+    plan: free
+
