@@ -28,6 +28,7 @@
                                         {% if game.status == 'DRAFT' %}bg-secondary
                                         {% elif game.status == 'READY' %}bg-primary
                                         {% elif game.status == 'ACTIVE' %}bg-warning
+                                        {% elif game.status == 'PENDING_VALIDATION' %}bg-info
                                         {% elif game.status == 'COMPLETED' %}bg-success
                                         {% else %}bg-danger{% endif %}">
                                         {{ game.get_status_display }}
@@ -130,7 +131,7 @@
                             Start the match when all players are ready
                         </small>
                         
-                        {% elif game.status == 'ACTIVE' %}
+                        {% elif game.status == 'ACTIVE' or game.status == 'PENDING_VALIDATION' %}
                             {% if game.result %}
                                 <!-- Result submitted, waiting for validation -->
                                 <div class="alert alert-info text-center">

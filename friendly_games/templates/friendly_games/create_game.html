@@ -29,7 +29,8 @@
                         <div class="form-group mb-4">
                             <label for="creator_codename"><strong>Your Codename (Optional):</strong></label>
                             <input type="text" name="creator_codename" id="creator_codename" class="form-control" 
-                                   placeholder="Enter your 6-character codename to validate yourself" maxlength="6">
+                                   placeholder="Enter your 6-character codename to validate yourself" maxlength="6"
+                                   list="codename-suggestions" autocomplete="off">
                             <small class="form-text text-muted">
                                 <i class="fas fa-info-circle"></i> 
                                 If you provide your codename and add yourself to a team, your participation will be validated for statistics.
@@ -117,6 +118,15 @@
                                 <i class="fas fa-arrow-left"></i> Back to Home
                             </a>
                         </div>
+                        
+                        <!-- Datalist for codename autocomplete -->
+                        <datalist id="codename-suggestions">
+                            {% for team in teams %}
+                                {% for player in team.players.all %}
+                                    <option value="{{ player.name }}">{{ player.name }}</option>
+                                {% endfor %}
+                            {% endfor %}
+                        </datalist>
                     </form>
                 </div>
             </div>
