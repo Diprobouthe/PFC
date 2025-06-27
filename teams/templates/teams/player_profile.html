@@ -10,11 +10,14 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="mb-0">{{ player.name }}</h3>
-                    <div>
+                    <div class="d-flex align-items-center gap-2">
                         <span class="badge badge-primary">{{ player.team.name }}</span>
                         {% if player.team.pin %}
                             <span class="badge badge-secondary">PIN: {{ player.team.pin }}</span>
                         {% endif %}
+                        <a href="{% url 'edit_player_profile' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-edit me-1"></i>Edit Profile
+                        </a>
                     </div>
                 </div>
                 <div class="card-body">

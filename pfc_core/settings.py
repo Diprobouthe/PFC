@@ -41,6 +41,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://8000-ij6vwtfm80coqnmyblfez-ef17497e.manusvm.computer',
     'https://8000-ivbwqypjdkgyu3lexr6bx-8212350b.manusvm.computer',
     'http://8000-ivbwqypjdkgyu3lexr6bx-8212350b.manusvm.computer',
+    'https://8001-ilpv0jg1z0he0h0ezj8n0-8212350b.manusvm.computer',
+    'http://8001-ilpv0jg1z0he0h0ezj8n0-8212350b.manusvm.computer',
 ]
 
 # Add Render domain if available

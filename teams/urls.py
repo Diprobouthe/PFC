@@ -13,6 +13,7 @@ urlpatterns = [
     path('players/friendly-leaderboard/', views.friendly_games_leaderboard, name='friendly_games_leaderboard'),
     path('players/<int:player_id>/', views.player_profile, name='player_profile'),
     path('players/create/', views.public_player_create, name='public_player_create'),
+    path('players/edit/', views.edit_player_profile, name='edit_player_profile'),
     path('players/login/', views.player_login, name='player_login'),
     path('api/search/', views.team_search_api, name='team_search_api'),
     path('api/player-lookup/', api_views.player_lookup_api, name='player_lookup_api'),

@@ -523,3 +523,139 @@ class SubTeamPlayerRemovalForm(forms.Form):
                 self.fields['assignment'].help_text = 'No players assigned to this sub-team'
                 self.fields['assignment'].widget.attrs['disabled'] = True
 
+
+
+
+class EditPlayerProfileForm(forms.Form):
+    """Form for editing existing player profiles with authentication"""
+    
+    # Authentication fields
+    player_name = forms.ModelChoiceField(
+        queryset=Player.objects.all(),
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'player-name-select'
+        }),
+        label='Select Your Name',
+        help_text='Find and select your name from the list'
+    )
+    
+    codename = forms.CharField(
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Enter your 6-character codename',
+            'class': 'form-control',
+            'style': 'text-transform: uppercase;'
+        }),
+        label='Your Codename',
+        help_text='Enter your unique 6-character codename to verify your identity'
+    )
+    
+    # Profile editing fields (shown after authentication)
+    profile_picture = forms.ImageField(
+        required=False,
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': 'image/*'
+        }),
+        label='Profile Picture',
+        help_text="Upload a new profile photo (optional)"
+    )
+    
+    # Team change fields
+    change_team = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'id': 'change-team-checkbox'
+        }),
+        label='Change Team',
+        help_text='Check this box if you want to change your team'
+    )
+    
+    new_team_search = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Search for a new team by name...',
+            'class': 'form-control',
+            'autocomplete': 'off',
+            'id': 'new-team-search-input'
+        }),
+        label='New Team',
+        help_text="Type to search for teams"
+    )
+    
+    # Hidden field to store selected new team ID
+    new_team_id = forms.CharField(
+        max_length=10,
+        required=False,
+        widget=forms.HiddenInput(attrs={'id': 'new-team-id'})
+    )
+    
+    new_team_pin = forms.CharField(
+        max_length=6,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Enter new team PIN',
+            'class': 'form-control'
+        }),
+        label='New Team PIN',
+        help_text="Enter the PIN for the new team you want to join"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Order players by name for easier selection
+        self.fields['player_name'].queryset = Player.objects.all().order_by('name')
+    
+    def clean_codename(self):
+        """Validate codename format"""
+        codename = self.cleaned_data.get('codename', '').upper()
+        return codename
+    
+    def clean(self):
+        """Validate player authentication and team change logic"""
+        cleaned_data = super().clean()
+        player_name = cleaned_data.get('player_name')
+        codename = cleaned_data.get('codename')
+        change_team = cleaned_data.get('change_team')
+        new_team_id = cleaned_data.get('new_team_id')
+        new_team_pin = cleaned_data.get('new_team_pin')
+        
+        # Validate player authentication
+        if player_name and codename:
+            try:
+                # Check if the codename matches the selected player
+                from friendly_games.models import PlayerCodename
+                player_codename = PlayerCodename.objects.get(player=player_name)
+                if player_codename.codename != codename:
+                    raise forms.ValidationError("Invalid codename for the selected player. Please check and try again.")
+                
+                # Store the authenticated player for use in the view
+                cleaned_data['authenticated_player'] = player_name
+                
+            except PlayerCodename.DoesNotExist:
+                raise forms.ValidationError("No codename found for the selected player. Please contact support.")
+        
+        # Validate team change logic
+        if change_team:
+            if not new_team_id:
+                raise forms.ValidationError("Please search for and select a new team.")
+            
+            try:
+                new_team = Team.objects.get(id=new_team_id)
+                cleaned_data['new_team'] = new_team
+            except Team.DoesNotExist:
+                raise forms.ValidationError("Selected team not found. Please search again.")
+            
+            if not new_team_pin:
+                raise forms.ValidationError("Please enter the PIN for the new team.")
+            
+            # Validate that the PIN matches the selected team
+            if new_team.pin != new_team_pin:
+                raise forms.ValidationError(f"Invalid PIN for team '{new_team.name}'. Please check and try again.")
+        
+        return cleaned_data
+

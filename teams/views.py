@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Count, Prefetch
 from django.http import JsonResponse
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile
-from .forms import TeamForm, PlayerForm, TeamAvailabilityForm, PublicPlayerForm
+from .forms import TeamForm, PlayerForm, TeamAvailabilityForm, PublicPlayerForm, EditPlayerProfileForm
 from matches.models import Match, MatchActivation
 from pfc_core.session_utils import CodenameSessionManager
 from friendly_games.models import PlayerCodename
@@ -1752,4 +1752,85 @@ def team_management_dashboard(request):
         context['sub_team_assignment_forms'] = sub_team_assignment_forms
     
     return render(request, 'teams/team_management_dashboard.html', context)
+
+
+
+def edit_player_profile(request):
+    """
+    Allow players to edit their own profiles by authenticating with name and codename
+    """
+    authenticated_player = None
+    player_profile = None
+    
+    if request.method == 'POST':
+        form = EditPlayerProfileForm(request.POST, request.FILES)
+        if form.is_valid():
+            authenticated_player = form.cleaned_data['authenticated_player']
+            
+            # Get or create the player profile
+            try:
+                player_profile = authenticated_player.profile
+            except PlayerProfile.DoesNotExist:
+                player_profile = PlayerProfile.objects.create(
+                    player=authenticated_player,
+                    email='',
+                    skill_level=1
+                )
+            
+            # Update profile picture if provided
+            profile_picture = form.cleaned_data.get('profile_picture')
+            if profile_picture:
+                player_profile.profile_picture = profile_picture
+                player_profile.save()
+                messages.success(request, 'Profile picture updated successfully!')
+            
+            # Handle team change if requested
+            change_team = form.cleaned_data.get('change_team')
+            if change_team:
+                new_team = form.cleaned_data['new_team']
+                old_team = authenticated_player.team
+                
+                # Update player's team
+                authenticated_player.team = new_team
+                authenticated_player.save()
+                
+                messages.success(request, f'Successfully moved from {old_team.name} to {new_team.name}!')
+            
+            # If only profile picture was updated and no team change
+            if not change_team and profile_picture:
+                # Redirect to player profile to show the updated picture
+                return redirect('player_profile', player_id=authenticated_player.id)
+            elif change_team:
+                # Redirect to new team page
+                return redirect('team_detail', team_id=authenticated_player.team.id)
+            else:
+                messages.info(request, 'No changes were made to your profile.')
+        else:
+            # Form is not valid, but check if we have authentication data
+            player_name = form.cleaned_data.get('player_name') if 'player_name' in form.cleaned_data else None
+            codename = form.cleaned_data.get('codename') if 'codename' in form.cleaned_data else None
+            
+            if player_name and codename:
+                try:
+                    from friendly_games.models import PlayerCodename
+                    player_codename = PlayerCodename.objects.get(player=player_name)
+                    if player_codename.codename == codename.upper():
+                        authenticated_player = player_name
+                        try:
+                            player_profile = authenticated_player.profile
+                        except PlayerProfile.DoesNotExist:
+                            player_profile = None
+                except PlayerCodename.DoesNotExist:
+                    pass
+    
+    else:
+        form = EditPlayerProfileForm()
+    
+    context = {
+        'form': form,
+        'authenticated_player': authenticated_player,
+        'player_profile': player_profile,
+    }
+    
+    return render(request, 'teams/edit_player_profile.html', context)
 
