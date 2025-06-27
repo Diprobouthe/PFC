@@ -125,6 +125,7 @@
                                     <input type="text" class="form-control" id="validator_codename" 
                                            name="validator_codename" placeholder="Enter your 6-character codename"
                                            maxlength="6" style="text-transform: uppercase;"
+                                           list="validator-codename-suggestions" autocomplete="off"
                                            value="{% if session_codename %}{{ session_codename }}{% endif %}">
                                     <div class="form-text">
                                         <i class="fas fa-info-circle"></i> 
@@ -163,6 +164,15 @@
                                 <i class="fas fa-arrow-left"></i> Back to Game
                             </a>
                         </div>
+                        
+                        <!-- Datalist for validator codename autocomplete -->
+                        <datalist id="validator-codename-suggestions">
+                            {% for team in teams %}
+                                {% for player in team.players.all %}
+                                    <option value="{{ player.name }}">{{ player.name }}</option>
+                                {% endfor %}
+                            {% endfor %}
+                        </datalist>
                     </form>
                 </div>
             </div>

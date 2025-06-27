@@ -272,12 +272,19 @@ def activate_game(request, game_id):
 
 
 def submit_score(request, game_id):
-    """Submit scores for a friendly game"""
+    """Submit scores for a friendly game - First step of two-team validation"""
     game = get_object_or_404(FriendlyGame, id=game_id)
+    
+    # Check if result already exists (someone already submitted)
+    if hasattr(game, 'result'):
+        messages.info(request, 'Scores have already been submitted for this game. Please validate the result.')
+        return redirect('friendly_games:validate_result', game_id=game.id)
     
     if request.method == 'POST':
         black_score = int(request.POST.get('black_score', 0))
         white_score = int(request.POST.get('white_score', 0))
+        submitter_codename = request.POST.get('submitter_codename', '').strip().upper()
+        submitted_by_team = request.POST.get('submitting_team', '').upper()
         
         # Validate scores
         if black_score < 0 or white_score < 0:
@@ -293,32 +300,72 @@ def submit_score(request, game_id):
             messages.error(request, 'Scores cannot be tied. One team must win.')
             return redirect('friendly_games:submit_score', game_id=game.id)
         
+        # Validate submitted_by_team
+        if submitted_by_team not in ['BLACK', 'WHITE']:
+            messages.error(request, 'Please select which team is submitting the scores.')
+            return redirect('friendly_games:submit_score', game_id=game.id)
+        
+        # Update game scores but don't complete yet
         game.black_team_score = black_score
         game.white_team_score = white_score
-        game.status = 'COMPLETED'
+        game.status = 'PENDING_VALIDATION'  # New status for pending validation
         game.save()
         
-        # ===== RATING SYSTEM INTEGRATION =====
-        # Update player ratings after successful friendly game completion
-        # This is completely separate from game completion and won't affect it if it fails
-        try:
-            from matches.rating_integration import update_friendly_game_ratings
-            rating_result = update_friendly_game_ratings(game)
-            if rating_result["success"]:
-                logger.info(f"Friendly game {game.id} rating updates: {rating_result.get('reason', 'completed successfully')}")
-            else:
-                logger.warning(f"Friendly game {game.id} rating updates failed: {rating_result.get('reason', 'unknown error')}")
-        except Exception as e:
-            logger.error(f"Rating system error for friendly game {game.id}: {e}")
-            # Continue with normal game completion - rating failures don't break games
-        # ===== END RATING SYSTEM INTEGRATION =====
+        # Create FriendlyGameResult for validation process
+        from .models import FriendlyGameResult
+        result = FriendlyGameResult.objects.create(
+            game=game,
+            submitted_by_team=submitted_by_team,
+            submitter_codename=submitter_codename
+        )
         
-        messages.success(request, f'Scores submitted! Black: {black_score}, White: {white_score}')
+        # Verify submitter codename if provided
+        if submitter_codename:
+            try:
+                # Find players from the submitting team
+                submitting_players = game.players.filter(team=submitted_by_team)
+                for game_player in submitting_players:
+                    try:
+                        from .models import PlayerCodename
+                        player_codename = game_player.player.codename_profile
+                        if player_codename.codename == submitter_codename:
+                            result.submitter_verified = True
+                            # Also mark the game player as verified
+                            game_player.codename_verified = True
+                            game_player.provided_codename = submitter_codename
+                            game_player.save()
+                            break
+                    except PlayerCodename.DoesNotExist:
+                        continue
+            except Exception:
+                pass
+        
+        result.save()
+        
+        # Update validation status (will be PARTIALLY_VALIDATED if codename provided)
+        game.validation_status = 'PARTIALLY_VALIDATED' if result.submitter_verified else 'NOT_VALIDATED'
+        game.save()
+        
+        other_team = 'White' if submitted_by_team == 'BLACK' else 'Black'
+        messages.success(request, f'Scores submitted by {submitted_by_team.title()} team! Black: {black_score}, White: {white_score}. Waiting for {other_team} team validation.')
         return redirect('friendly_games:game_detail', game_id=game.id)
+    
+    # Get session context for template
+    from pfc_core.session_utils import SessionManager
+    session_context = SessionManager.get_session_context(request)
+    
+    # Get team players for display
+    black_players = game.players.filter(team='BLACK')
+    white_players = game.players.filter(team='WHITE')
     
     context = {
         'game': game,
+        'black_players': black_players,
+        'white_players': white_players,
     }
+    
+    # Add session context
+    context.update(session_context)
     
     return render(request, 'friendly_games/submit_score.html', context)
 
@@ -489,18 +536,66 @@ def start_match(request, game_id):
 
 def validate_result(request, game_id):
     """
-    Validate the result of a completed friendly game
+    Second step of two-team validation - opposing team validates the submitted result
     """
     game = get_object_or_404(FriendlyGame, id=game_id)
     
-    if game.status != 'COMPLETED':
-        messages.error(request, 'Game is not completed yet.')
+    # Check if there's a result to validate
+    if not hasattr(game, 'result'):
+        messages.error(request, 'No result has been submitted for this game yet.')
         return redirect('friendly_games:game_detail', game_id=game.id)
     
-    # Mark as validated
-    game.status = 'VALIDATED'
-    game.save()
+    result = game.result
     
-    messages.success(request, f'Game result validated! Final score: Black {game.black_team_score} - {game.white_team_score} White')
-    return redirect('friendly_games:game_detail', game_id=game.id)
+    # Check if already validated
+    if not result.is_pending_validation():
+        messages.info(request, 'This result has already been validated.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+    
+    # Determine which team should validate
+    validating_team = result.get_other_team()
+    validating_players = game.players.filter(team=validating_team)
+    
+    if request.method == 'POST':
+        validation_action = request.POST.get('validation_action')
+        validator_codename = request.POST.get('validator_codename', '').strip().upper()
+        
+        if validation_action not in ['agree', 'disagree']:
+            messages.error(request, 'Please select whether you agree or disagree with the result.')
+            return redirect('friendly_games:validate_result', game_id=game.id)
+        
+        # Use the FriendlyGameResult's validate_result method
+        result.validate_result(
+            validating_team=validating_team,
+            action=validation_action,
+            validator_codename=validator_codename if validator_codename else None
+        )
+        
+        if validation_action == 'agree':
+            messages.success(request, f'Result validated! Game completed with final score: Black {game.black_team_score} - {game.white_team_score} White')
+        else:
+            messages.info(request, 'Result disagreement recorded. Game has been reset to active status for new score submission.')
+        
+        return redirect('friendly_games:game_detail', game_id=game.id)
+    
+    # Get session context for template
+    from pfc_core.session_utils import SessionManager
+    session_context = SessionManager.get_session_context(request)
+    
+    # Get all teams with their players for autocomplete
+    from teams.models import Team
+    teams = Team.objects.all().prefetch_related('players')
+    
+    context = {
+        'game': game,
+        'result': result,
+        'validating_team': validating_team.lower(),
+        'validating_players': validating_players,
+        'teams': teams,
+    }
+    
+    # Add session context
+    context.update(session_context)
+    
+    return render(request, 'friendly_games/validate_result.html', context)
 

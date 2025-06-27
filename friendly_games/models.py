@@ -69,6 +69,7 @@ class FriendlyGame(models.Model):
         ('WAITING_FOR_PLAYERS', 'Waiting for Players'),
         ('READY', 'Ready to Play'),
         ('ACTIVE', 'In Progress'),
+        ('PENDING_VALIDATION', 'Pending Validation'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
         ('EXPIRED', 'Expired'),
@@ -426,7 +427,7 @@ class FriendlyGameResult(models.Model):
         
         if validator_codename:
             self.validator_codename = validator_codename
-            # Verify the codename
+            # Verify the codename belongs to a player from the validating team
             try:
                 # Find players from the validating team
                 validating_players = self.game.players.filter(team=validating_team)

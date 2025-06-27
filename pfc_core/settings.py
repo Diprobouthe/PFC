@@ -14,8 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-pfc-platform-development-key-fallback")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# Get DEBUG from environment variable, default to False for production
-DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
+# Enable DEBUG for sandbox testing
+DEBUG = True
 
 # ALLOWED_HOSTS configuration for Render and Sandbox
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
@@ -39,6 +39,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://8003-ior8fre53xn9ewk52nna7-6d9e8aff.manusvm.computer',
     'https://8000-ij6vwtfm80coqnmyblfez-ef17497e.manusvm.computer',
     'http://8000-ij6vwtfm80coqnmyblfez-ef17497e.manusvm.computer',
+    'https://8000-ivbwqypjdkgyu3lexr6bx-8212350b.manusvm.computer',
+    'http://8000-ivbwqypjdkgyu3lexr6bx-8212350b.manusvm.computer',
 ]
 
 # Add Render domain if available
