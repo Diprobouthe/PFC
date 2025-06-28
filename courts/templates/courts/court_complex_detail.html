@@ -120,7 +120,7 @@
                         {% for rating in ratings|slice:":5" %}
                         <div class="border-bottom pb-2 mb-2">
                             <div class="d-flex justify-content-between align-items-start">
-                                <strong>{{ rating.codename }}</strong>
+                                <strong>{{ rating.get_player_name }}</strong>
                                 <div class="text-warning">
                                     {% for i in "12345" %}
                                         {% if forloop.counter <= rating.stars %}

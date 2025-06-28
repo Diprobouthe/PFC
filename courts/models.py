@@ -115,6 +115,15 @@ class CourtComplexRating(models.Model):
     def __str__(self):
         return f"{self.codename}: {self.stars} stars for {self.court_complex.name}"
     
+    def get_player_name(self):
+        """Get the actual player name from codename for display (privacy-safe)"""
+        try:
+            from friendly_games.models import PlayerCodename
+            player_codename = PlayerCodename.objects.get(codename=self.codename)
+            return player_codename.player.name
+        except PlayerCodename.DoesNotExist:
+            return f"Player ({self.codename})"  # Fallback if codename not found
+    
     class Meta:
         ordering = ['-created_at']
         unique_together = ['court_complex', 'codename']  # One rating per codename per complex
