@@ -72,9 +72,10 @@
                     <!-- Team Composition -->
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="card bg-dark text-white">
+                            <div class="card bg-dark text-white team-display-card" id="black_team_display" data-team="BLACK" style="cursor: pointer; transition: all 0.3s ease;">
                                 <div class="card-header">
                                     <h5 class="mb-0">⚫ Black Team</h5>
+                                    <small class="text-light">Click to select this team</small>
                                 </div>
                                 <div class="card-body">
                                     <div id="black_team_players">
@@ -85,13 +86,19 @@
                                             <span id="black_available_count">3</span> slot(s) available
                                         </small>
                                     </div>
+                                    <div class="selection-indicator" style="display: none;">
+                                        <div class="mt-2 p-2 bg-success rounded text-center">
+                                            <i class="fas fa-check-circle"></i> <strong>Selected</strong>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="card bg-light">
+                            <div class="card bg-light team-display-card" id="white_team_display" data-team="WHITE" style="cursor: pointer; transition: all 0.3s ease;">
                                 <div class="card-header">
                                     <h5 class="mb-0">⚪ White Team</h5>
+                                    <small class="text-muted">Click to select this team</small>
                                 </div>
                                 <div class="card-body">
                                     <div id="white_team_players">
@@ -101,6 +108,11 @@
                                         <small class="text-muted">
                                             <span id="white_available_count">3</span> slot(s) available
                                         </small>
+                                    </div>
+                                    <div class="selection-indicator" style="display: none;">
+                                        <div class="mt-2 p-2 bg-success rounded text-center">
+                                            <i class="fas fa-check-circle"></i> <strong>Selected</strong>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -160,47 +172,10 @@
                             </div>
                         </div>
 
-                        <!-- Team Selection -->
-                        <div class="mb-3">
-                            <label class="form-label">Choose Team *</label>
-                            <div class="row" id="team_selection">
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" 
-                                               type="radio" 
-                                               name="team" 
-                                               id="team_black" 
-                                               value="BLACK" 
-                                               required>
-                                        <label class="form-check-label" for="team_black">
-                                            <div class="card bg-dark text-white team-card" id="black_team_card">
-                                                <div class="card-body text-center">
-                                                    <h5>⚫ Black Team</h5>
-                                                    <small id="black_team_status">Available</small>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" 
-                                               type="radio" 
-                                               name="team" 
-                                               id="team_white" 
-                                               value="WHITE" 
-                                               required>
-                                        <label class="form-check-label" for="team_white">
-                                            <div class="card bg-light team-card" id="white_team_card">
-                                                <div class="card-body text-center">
-                                                    <h5>⚪ White Team</h5>
-                                                    <small id="white_team_status">Available</small>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
+                        <!-- Hidden Team Selection (controlled by display cards above) -->
+                        <div class="mb-3" style="display: none;">
+                            <input type="radio" name="team" id="team_black" value="BLACK" required>
+                            <input type="radio" name="team" id="team_white" value="WHITE" required>
                         </div>
 
                         <!-- Position Selection -->
@@ -297,6 +272,33 @@
 }
 
 .team-card.disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Team Display Card Styles */
+.team-display-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 3px solid transparent;
+}
+
+.team-display-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.team-display-card.selected {
+    border: 3px solid #28a745;
+    box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+}
+
+.team-display-card.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.team-display-card.disabled:hover {
     transform: none;
     box-shadow: none;
 }
@@ -485,46 +487,162 @@ function updateTeamSelection() {
     const blackAvailable = parseInt(document.getElementById('black_available_count').textContent);
     const whiteAvailable = parseInt(document.getElementById('white_available_count').textContent);
     
-    const blackCard = document.getElementById('black_team_card');
-    const whiteCard = document.getElementById('white_team_card');
     const blackRadio = document.getElementById('team_black');
     const whiteRadio = document.getElementById('team_white');
-    const blackStatus = document.getElementById('black_team_status');
-    const whiteStatus = document.getElementById('white_team_status');
+    
+    // Update display cards
+    const blackDisplayCard = document.getElementById('black_team_display');
+    const whiteDisplayCard = document.getElementById('white_team_display');
     
     // Update Black team
     if (blackAvailable === 0) {
-        blackCard.classList.add('disabled');
         blackRadio.disabled = true;
-        blackStatus.textContent = 'Full (3/3)';
-        blackStatus.className = 'text-danger';
+        
+        // Disable display card
+        blackDisplayCard.classList.add('disabled');
+        blackDisplayCard.style.cursor = 'not-allowed';
     } else {
-        blackCard.classList.remove('disabled');
         blackRadio.disabled = false;
-        blackStatus.textContent = `${blackAvailable} slot(s) available`;
-        blackStatus.className = 'text-success';
+        
+        // Enable display card
+        blackDisplayCard.classList.remove('disabled');
+        blackDisplayCard.style.cursor = 'pointer';
     }
     
     // Update White team
     if (whiteAvailable === 0) {
-        whiteCard.classList.add('disabled');
         whiteRadio.disabled = true;
-        whiteStatus.textContent = 'Full (3/3)';
-        whiteStatus.className = 'text-danger';
+        
+        // Disable display card
+        whiteDisplayCard.classList.add('disabled');
+        whiteDisplayCard.style.cursor = 'not-allowed';
     } else {
-        whiteCard.classList.remove('disabled');
         whiteRadio.disabled = false;
-        whiteStatus.textContent = `${whiteAvailable} slot(s) available`;
-        whiteStatus.className = 'text-success';
+        
+        // Enable display card
+        whiteDisplayCard.classList.remove('disabled');
+        whiteDisplayCard.style.cursor = 'pointer';
     }
     
     // Auto-select available team if only one is available
     if (blackAvailable > 0 && whiteAvailable === 0) {
         blackRadio.checked = true;
+        updateTeamDisplaySelection('BLACK');
     } else if (whiteAvailable > 0 && blackAvailable === 0) {
         whiteRadio.checked = true;
+        updateTeamDisplaySelection('WHITE');
+    }
+    
+    // Add click handlers to team display cards
+    setupTeamDisplayClickHandlers();
+}
+
+function setupTeamDisplayClickHandlers() {
+    const blackDisplayCard = document.getElementById('black_team_display');
+    const whiteDisplayCard = document.getElementById('white_team_display');
+    
+    // Remove existing listeners to prevent duplicates
+    blackDisplayCard.replaceWith(blackDisplayCard.cloneNode(true));
+    whiteDisplayCard.replaceWith(whiteDisplayCard.cloneNode(true));
+    
+    // Get fresh references after cloning
+    const newBlackDisplayCard = document.getElementById('black_team_display');
+    const newWhiteDisplayCard = document.getElementById('white_team_display');
+    
+    // Add click handlers
+    newBlackDisplayCard.addEventListener('click', function() {
+        if (!this.classList.contains('disabled')) {
+            selectTeamFromDisplay('BLACK');
+        }
+    });
+    
+    newWhiteDisplayCard.addEventListener('click', function() {
+        if (!this.classList.contains('disabled')) {
+            selectTeamFromDisplay('WHITE');
+        }
+    });
+}
+
+function selectTeamFromDisplay(team) {
+    const blackRadio = document.getElementById('team_black');
+    const whiteRadio = document.getElementById('team_white');
+    
+    if (team === 'BLACK' && !blackRadio.disabled) {
+        blackRadio.checked = true;
+        updateTeamDisplaySelection('BLACK');
+        
+        // Scroll to join form to show the selection worked
+        document.getElementById('join_form_section').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+        });
+        
+        // Show success feedback
+        showTeamSelectionFeedback('Black Team selected! ⚫');
+        
+    } else if (team === 'WHITE' && !whiteRadio.disabled) {
+        whiteRadio.checked = true;
+        updateTeamDisplaySelection('WHITE');
+        
+        // Scroll to join form to show the selection worked
+        document.getElementById('join_form_section').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+        });
+        
+        // Show success feedback
+        showTeamSelectionFeedback('White Team selected! ⚪');
     }
 }
+
+function updateTeamDisplaySelection(selectedTeam) {
+    const blackDisplayCard = document.getElementById('black_team_display');
+    const whiteDisplayCard = document.getElementById('white_team_display');
+    const blackIndicator = blackDisplayCard.querySelector('.selection-indicator');
+    const whiteIndicator = whiteDisplayCard.querySelector('.selection-indicator');
+    
+    // Reset all selections
+    blackDisplayCard.classList.remove('selected');
+    whiteDisplayCard.classList.remove('selected');
+    blackIndicator.style.display = 'none';
+    whiteIndicator.style.display = 'none';
+    
+    // Show selection for chosen team
+    if (selectedTeam === 'BLACK') {
+        blackDisplayCard.classList.add('selected');
+        blackIndicator.style.display = 'block';
+    } else if (selectedTeam === 'WHITE') {
+        whiteDisplayCard.classList.add('selected');
+        whiteIndicator.style.display = 'block';
+    }
+}
+
+function showTeamSelectionFeedback(message) {
+    // Create temporary feedback element
+    const feedback = document.createElement('div');
+    feedback.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    feedback.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    feedback.innerHTML = `
+        <i class="fas fa-check-circle"></i> <strong>${message}</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(feedback);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (feedback.parentNode) {
+            feedback.remove();
+        }
+    }, 3000);
+}
+
+// Also listen for radio button changes to update display
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'team') {
+        updateTeamDisplaySelection(e.target.value);
+    }
+});
 
 function showError(message) {
     document.getElementById('error_message').textContent = message;

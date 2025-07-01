@@ -34,7 +34,7 @@
                     <h5 class="mb-0">
                         <i class="fas fa-map-marker-alt me-2"></i>
                         Currently at Courts
-                        <span class="badge bg-light text-success ms-2">{{ at_courts|length }}</span>
+                        <span class="badge bg-light text-success ms-2">{{ total_at_courts }}</span>
                     </h5>
                 </div>
                 <div class="card-body">
@@ -59,7 +59,7 @@
                                     <!-- Responses -->
                                     <div class="responses-section" id="responses-{{ entry.id }}">
                                         {% for response in entry.get_responses %}
-                                            <span class="badge bg-outline-success me-1 mb-1">{{ response.get_player_name }}</span>
+                                            <span class="badge border border-success text-success me-1 mb-1">{{ response.get_player_name }}</span>
                                         {% endfor %}
                                     </div>
                                     
@@ -97,7 +97,7 @@
                     <h5 class="mb-0">
                         <i class="fas fa-clock me-2"></i>
                         Going to Courts
-                        <span class="badge bg-light text-warning ms-2">{{ going_to_courts|length }}</span>
+                        <span class="badge bg-light text-warning ms-2">{{ total_going_to_courts }}</span>
                     </h5>
                 </div>
                 <div class="card-body">
@@ -135,7 +135,7 @@
                                     <!-- Responses -->
                                     <div class="responses-section" id="responses-{{ entry.id }}">
                                         {% for response in entry.get_responses %}
-                                            <span class="badge bg-outline-warning me-1 mb-1">{{ response.get_player_name }}</span>
+                                            <span class="badge border border-warning text-warning me-1 mb-1">{{ response.get_player_name }}</span>
                                         {% endfor %}
                                     </div>
                                     
@@ -173,7 +173,7 @@
                     <h5 class="mb-0">
                         <i class="fas fa-trophy me-2"></i>
                         Tournament Matches
-                        <span class="badge bg-light text-info ms-2">{{ looking_for_match|length }}</span>
+                        <span class="badge bg-light text-info ms-2">{{ total_looking_for_match }}</span>
                     </h5>
                 </div>
                 <div class="card-body">
@@ -309,8 +309,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Add response to the list
                     const responsesSection = document.getElementById(`responses-${entryId}`);
                     const newBadge = document.createElement('span');
-                    newBadge.className = 'badge bg-outline-success me-1 mb-1';
-                    newBadge.textContent = codename;
+                    newBadge.className = 'badge border border-success text-success me-1 mb-1';
+                    newBadge.textContent = data.player_name || codename;
                     responsesSection.appendChild(newBadge);
                     
                     // Clear input

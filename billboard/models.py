@@ -55,7 +55,7 @@ class BillboardEntry(models.Model):
             player_codename = PlayerCodename.objects.get(codename=self.codename)
             return player_codename.player.name
         except PlayerCodename.DoesNotExist:
-            return f"Player ({self.codename})"  # Fallback if codename not found
+            return "Anonymous Player"  # Privacy-safe fallback - never expose codenames
     
     def is_expired(self):
         """Check if entry is older than 24 hours"""
@@ -120,7 +120,7 @@ class BillboardResponse(models.Model):
             player_codename = PlayerCodename.objects.get(codename=self.codename)
             return player_codename.player.name
         except PlayerCodename.DoesNotExist:
-            return f"Player ({self.codename})"  # Fallback if codename not found
+            return "Anonymous Player"  # Privacy-safe fallback - never expose codenames
     
     def get_response_text(self):
         """Get display text for the response"""

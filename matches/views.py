@@ -37,6 +37,7 @@ def match_list(request, tournament_id=None):
     # Friendly games (new functionality)
     friendly_waiting = FriendlyGame.objects.filter(status="WAITING_FOR_PLAYERS").order_by("-created_at")
     friendly_active = FriendlyGame.objects.filter(status="ACTIVE").order_by("-started_at")
+    friendly_pending_validation = FriendlyGame.objects.filter(status="PENDING_VALIDATION").order_by("-created_at")
     friendly_completed = FriendlyGame.objects.filter(status="COMPLETED").order_by("-completed_at")
 
     context = {
@@ -49,6 +50,7 @@ def match_list(request, tournament_id=None):
         # Friendly games data
         "friendly_waiting": friendly_waiting,
         "friendly_active": friendly_active,
+        "friendly_pending_validation": friendly_pending_validation,
         "friendly_completed": friendly_completed,
     }
     return render(request, "matches/match_list.html", context)

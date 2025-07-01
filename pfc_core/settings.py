@@ -37,12 +37,16 @@ CSRF_TRUSTED_ORIGINS = [
     'https://0.0.0.0:8003',
     'https://8003-ior8fre53xn9ewk52nna7-6d9e8aff.manusvm.computer',
     'http://8003-ior8fre53xn9ewk52nna7-6d9e8aff.manusvm.computer',
+    'https://8003-i3oq6hlgohizbbb5fj60r-3ea5fdc7.manusvm.computer',
+    'http://8003-i3oq6hlgohizbbb5fj60r-3ea5fdc7.manusvm.computer',
     'https://8000-ij6vwtfm80coqnmyblfez-ef17497e.manusvm.computer',
     'http://8000-ij6vwtfm80coqnmyblfez-ef17497e.manusvm.computer',
     'https://8000-ivbwqypjdkgyu3lexr6bx-8212350b.manusvm.computer',
     'http://8000-ivbwqypjdkgyu3lexr6bx-8212350b.manusvm.computer',
     'https://8001-ilpv0jg1z0he0h0ezj8n0-8212350b.manusvm.computer',
     'http://8001-ilpv0jg1z0he0h0ezj8n0-8212350b.manusvm.computer',
+    'https://8002-ilpv0jg1z0he0h0ezj8n0-8212350b.manusvm.computer',
+    'http://8002-ilpv0jg1z0he0h0ezj8n0-8212350b.manusvm.computer',
 ]
 
 # Add Render domain if available

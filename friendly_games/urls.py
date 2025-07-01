@@ -11,5 +11,6 @@ urlpatterns = [
     path('<int:game_id>/start/', views.start_match, name='start_match'),
     path('<int:game_id>/submit-score/', views.submit_score, name='submit_score'),
     path('<int:game_id>/validate-result/', views.validate_result, name='validate_result'),
+    path('<int:game_id>/check-codename/', views.check_codename, name='check_codename'),
 ]
 

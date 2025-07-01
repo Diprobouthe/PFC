@@ -599,3 +599,45 @@ def validate_result(request, game_id):
     
     return render(request, 'friendly_games/validate_result.html', context)
 
+
+
+import json
+from django.http import JsonResponse
+
+def check_codename(request, game_id):
+    """AJAX endpoint to check which team a codename belongs to in a specific game"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'})
+    
+    try:
+        data = json.loads(request.body)
+        codename = data.get('codename', '').strip().upper()
+        
+        if not codename or len(codename) != 6:
+            return JsonResponse({'success': False, 'error': 'Invalid codename'})
+        
+        game = get_object_or_404(FriendlyGame, id=game_id)
+        
+        # Check if codename exists and belongs to a player in this game
+        from .models import PlayerCodename
+        try:
+            player_codename = PlayerCodename.objects.get(codename=codename)
+            
+            # Check if this player is in the game
+            game_player = game.players.filter(player=player_codename.player).first()
+            
+            if game_player:
+                return JsonResponse({
+                    'success': True,
+                    'team': game_player.team,
+                    'player_name': player_codename.player.name
+                })
+            else:
+                return JsonResponse({'success': False, 'error': 'Player not in this game'})
+                
+        except PlayerCodename.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Codename not found'})
+            
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+

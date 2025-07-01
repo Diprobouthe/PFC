@@ -152,6 +152,11 @@ class BillboardListView(ListView):
         context['going_to_courts'] = [e for e in entries if e.action_type == 'GOING_TO_COURTS']
         context['looking_for_match'] = [e for e in entries if e.action_type == 'LOOKING_FOR_MATCH']
         
+        # Calculate total people counts (original posters + responders)
+        context['total_at_courts'] = sum(1 + entry.responses.count() for entry in context['at_courts'])
+        context['total_going_to_courts'] = sum(1 + entry.responses.count() for entry in context['going_to_courts'])
+        context['total_looking_for_match'] = sum(1 + entry.responses.count() for entry in context['looking_for_match'])
+        
         return context
 
 
@@ -259,7 +264,8 @@ def respond_to_entry(request, entry_id):
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f'{codename} - {response_text}',
+                    'message': f'{response.get_player_name()} - {response_text}',
+                    'player_name': response.get_player_name(),
                     'response_count': entry.get_response_count()
                 })
             else:

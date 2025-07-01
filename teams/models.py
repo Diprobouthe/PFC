@@ -414,11 +414,11 @@ class PlayerProfile(models.Model):
     @property
     def level(self):
         """Return player level based on rating value"""
-        if self.value < 200:
+        if self.value <= 110:
             return 'novice'
-        elif self.value < 400:
+        elif self.value <= 150:
             return 'intermediate'  
-        elif self.value < 700:
+        elif self.value <= 200:
             return 'advanced'
         else:
             return 'pro'
@@ -699,11 +699,11 @@ class TeamProfile(models.Model):
     @property
     def level(self):
         """Return team level based on rating value"""
-        if self.team_value < 200:
+        if self.team_value <= 110:
             return 'developing'
-        elif self.team_value < 400:
+        elif self.team_value <= 150:
             return 'competitive'  
-        elif self.team_value < 700:
+        elif self.team_value <= 200:
             return 'elite'
         else:
             return 'champion'
@@ -1043,11 +1043,11 @@ class TeamProfile(models.Model):
     @property
     def level(self):
         """Return team level based on rating value"""
-        if self.team_value < 200:
+        if self.team_value <= 110:
             return 'developing'
-        elif self.team_value < 400:
+        elif self.team_value <= 150:
             return 'competitive'  
-        elif self.team_value < 700:
+        elif self.team_value <= 200:
             return 'elite'
         else:
             return 'champion'

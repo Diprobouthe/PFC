@@ -20,6 +20,12 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="friendly-pending-tab" data-bs-toggle="pill" data-bs-target="#friendly-pending" type="button" role="tab" aria-controls="friendly-pending" aria-selected="false">
+                        <span class="text-warning">⚠️ Pending Validation</span>
+                        <span class="badge bg-warning text-dark ms-1">{{ friendly_pending_validation|length }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="friendly-completed-tab" data-bs-toggle="pill" data-bs-target="#friendly-completed" type="button" role="tab" aria-controls="friendly-completed" aria-selected="false">
                         <span class="text-secondary">✅ Completed</span>
                         <span class="badge bg-secondary ms-1">{{ friendly_completed|length }}</span>
@@ -121,6 +127,69 @@
                     {% else %}
                         <div class="text-center py-4">
                             <p class="text-muted">No active friendly games.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Pending Validation Games -->
+                <div class="tab-pane fade" id="friendly-pending" role="tabpanel" aria-labelledby="friendly-pending-tab">
+                    {% if friendly_pending_validation %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-warning">
+                                    <tr>
+                                        <th>Match #</th>
+                                        <th>Submitted</th>
+                                        <th>Score</th>
+                                        <th>Submitted By</th>
+                                        <th>Needs Validation From</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in friendly_pending_validation %}
+                                    <tr>
+                                        <td>
+                                            <strong class="text-primary">#{{ game.match_number }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if game.result.submitted_at %}
+                                                {{ game.result.submitted_at|date:"M d, H:i" }}
+                                            {% else %}
+                                                <small class="text-muted">Unknown</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-dark">{{ game.black_team_score }}</span>
+                                            <small class="text-muted">-</small>
+                                            <span class="badge bg-light text-dark">{{ game.white_team_score }}</span>
+                                        </td>
+                                        <td>
+                                            {% if game.result.submitted_by_team == 'BLACK' %}
+                                                <span class="badge bg-dark">Black Team</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">White Team</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if game.result.submitted_by_team == 'BLACK' %}
+                                                <span class="badge bg-light text-dark">White Team</span>
+                                            {% else %}
+                                                <span class="badge bg-dark">Black Team</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-sm btn-warning">Validate</a>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No friendly games pending validation.</p>
                         </div>
                     {% endif %}
                 </div>

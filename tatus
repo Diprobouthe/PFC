@@ -1,0 +1,21 @@
+warning: in the working copy of 'courts/models.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/courts/models.py b/courts/models.py[m
+[1mindex 1d9c5bc..f050ded 100644[m
+[1m--- a/courts/models.py[m
+[1m+++ b/courts/models.py[m
+[36m@@ -115,6 +115,15 @@[m [mclass CourtComplexRating(models.Model):[m
+     def __str__(self):[m
+         return f"{self.codename}: {self.stars} stars for {self.court_complex.name}"[m
+     [m
+[32m+[m[32m    def get_player_name(self):[m
+[32m+[m[32m        """Get the actual player name from codename for display (privacy-safe)"""[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            from friendly_games.models import PlayerCodename[m
+[32m+[m[32m            player_codename = PlayerCodename.objects.get(codename=self.codename)[m
+[32m+[m[32m            return player_codename.player.name[m
+[32m+[m[32m        except PlayerCodename.DoesNotExist:[m
+[32m+[m[32m            return f"Player ({self.codename})"  # Fallback if codename not found[m
+[32m+[m[41m    [m
+     class Meta:[m
+         ordering = ['-created_at'][m
+         unique_together = ['court_complex', 'codename']  # One rating per codename per complex[m
