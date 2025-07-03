@@ -42,7 +42,12 @@
             
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <!-- No duplicate buttons here - only the always-visible icons above -->
+                    <!-- Live Scores Link -->
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{% url 'live_scores_list' %}">
+                            <i class="fas fa-chart-line me-1"></i>Live Scores
+                        </a>
+                    </li>
                 </ul>
                 <ul class="navbar-nav">
                     <!-- Player Codename Authentication Status -->

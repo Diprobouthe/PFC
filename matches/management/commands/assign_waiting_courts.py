@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from matches.models import Match
-from courts.views import auto_assign_court
+from matches.utils import auto_assign_court  # Fixed import
 from django.utils import timezone
 import logging
 

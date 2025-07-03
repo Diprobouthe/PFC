@@ -94,10 +94,49 @@ def update_tournament_match_ratings(match):
                 except Exception as e:
                     logger.error(f"Failed to update rating for loser {player_profile.player.name}: {e}")
             
-            logger.info(f"Tournament match {match.id} rating updates completed: {len(updates)} players updated")
+            # ===== UPDATE TEAM VALUES =====
+            # Update team values based on new player ratings
+            team_updates = []
+            
+            # Update winner team value
+            try:
+                winner_profile = getattr(match.winner, 'profile', None)
+                if winner_profile:
+                    old_team_value = winner_profile.team_value
+                    if winner_profile.update_team_value():
+                        new_team_value = winner_profile.team_value
+                        team_updates.append({
+                            "team": match.winner.name,
+                            "old_value": old_team_value,
+                            "new_value": new_team_value,
+                            "change": new_team_value - old_team_value
+                        })
+                        logger.info(f"Updated winner team {match.winner.name}: {old_team_value:.1f} → {new_team_value:.1f}")
+            except Exception as e:
+                logger.error(f"Failed to update team value for winner {match.winner.name}: {e}")
+            
+            # Update loser team value
+            try:
+                loser_profile = getattr(match.loser, 'profile', None)
+                if loser_profile:
+                    old_team_value = loser_profile.team_value
+                    if loser_profile.update_team_value():
+                        new_team_value = loser_profile.team_value
+                        team_updates.append({
+                            "team": match.loser.name,
+                            "old_value": old_team_value,
+                            "new_value": new_team_value,
+                            "change": new_team_value - old_team_value
+                        })
+                        logger.info(f"Updated loser team {match.loser.name}: {old_team_value:.1f} → {new_team_value:.1f}")
+            except Exception as e:
+                logger.error(f"Failed to update team value for loser {match.loser.name}: {e}")
+            
+            logger.info(f"Tournament match {match.id} rating updates completed: {len(updates)} players updated, {len(team_updates)} teams updated")
             return {
                 "success": True,
                 "updates": updates,
+                "team_updates": team_updates,
                 "total_players": len(updates)
             }
             
@@ -224,10 +263,38 @@ def update_friendly_game_ratings(friendly_game):
                 except Exception as e:
                     logger.error(f"Failed to update rating for white player {player_profile.player.name}: {e}")
             
-            logger.info(f"Friendly game {friendly_game.id} rating updates completed: {len(updates)} players updated")
+            # ===== UPDATE TEAM VALUES FOR FRIENDLY GAMES =====
+            # Update team values for all teams that had players participate
+            team_updates = []
+            teams_to_update = set()
+            
+            # Collect all teams that had players in this game
+            for player_profile in black_players + white_players:
+                teams_to_update.add(player_profile.player.team)
+            
+            # Update each team's value
+            for team in teams_to_update:
+                try:
+                    team_profile = getattr(team, 'profile', None)
+                    if team_profile:
+                        old_team_value = team_profile.team_value
+                        if team_profile.update_team_value():
+                            new_team_value = team_profile.team_value
+                            team_updates.append({
+                                "team": team.name,
+                                "old_value": old_team_value,
+                                "new_value": new_team_value,
+                                "change": new_team_value - old_team_value
+                            })
+                            logger.info(f"Updated team {team.name}: {old_team_value:.1f} → {new_team_value:.1f}")
+                except Exception as e:
+                    logger.error(f"Failed to update team value for {team.name}: {e}")
+            
+            logger.info(f"Friendly game {friendly_game.id} rating updates completed: {len(updates)} players updated, {len(team_updates)} teams updated")
             return {
                 "success": True,
                 "updates": updates,
+                "team_updates": team_updates,
                 "total_players": len(updates)
             }
             
@@ -254,4 +321,47 @@ def get_verified_friendly_players_with_profiles(friendly_game, team_color):
             continue
     
     return players_with_profiles
+
+
+
+
+def update_all_team_values():
+    """
+    Utility function to update all team values based on current player ratings.
+    Useful for fixing existing teams or after system changes.
+    
+    Returns:
+        dict: Summary of team value updates performed
+    """
+    try:
+        from teams.models import TeamProfile
+        
+        team_profiles = TeamProfile.objects.all()
+        updates = []
+        
+        for team_profile in team_profiles:
+            try:
+                old_value = team_profile.team_value
+                if team_profile.update_team_value():
+                    new_value = team_profile.team_value
+                    updates.append({
+                        "team": team_profile.team.name,
+                        "old_value": old_value,
+                        "new_value": new_value,
+                        "change": new_value - old_value
+                    })
+                    logger.info(f"Updated team {team_profile.team.name}: {old_value:.1f} → {new_value:.1f}")
+            except Exception as e:
+                logger.error(f"Failed to update team value for {team_profile.team.name}: {e}")
+        
+        logger.info(f"Bulk team value update completed: {len(updates)} teams updated")
+        return {
+            "success": True,
+            "updates": updates,
+            "total_teams": len(updates)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update all team values: {e}")
+        return {"success": False, "reason": str(e)}
 

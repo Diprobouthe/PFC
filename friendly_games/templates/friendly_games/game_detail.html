@@ -39,11 +39,69 @@
                             </ul>
                         </div>
                         <div class="col-md-6">
-                            <h5>Match Number</h5>
+                            <h5>Match Number & Sharing</h5>
                             <div class="alert alert-info">
                                 {% if game.match_number %}
                                 <h4 class="alert-heading">#{{ game.match_number }}</h4>
-                                <p class="mb-0">Share this match number for others to join!</p>
+                                <p class="mb-2">Share this match number for others to join!</p>
+                                
+                                <!-- Conditional Sharing Section -->
+                                {% if game.status != 'ACTIVE' and game.status != 'COMPLETED' %}
+                                <div class="mt-3">
+                                    <h6 class="mb-2">📱 Share on Social Media</h6>
+                                    
+                                    <!-- Pre-formatted sharing text -->
+                                    <div class="card bg-light mb-3">
+                                        <div class="card-body p-2">
+                                            <small class="text-muted">Ready to copy & paste:</small>
+                                            <div id="shareText" class="mt-1 p-2 bg-white border rounded" style="font-family: monospace; font-size: 0.9em;">
+🎯 Join my Petanque game: "{{ game.name }}"<br>
+🔗 Link: {{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}<br>
+🎮 Game Code: {{ game.match_number }}<br>
+Let's play! 🥎
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Copy and Share Buttons -->
+                                    <div class="d-grid gap-2">
+                                        <button class="btn btn-primary btn-sm" onclick="copyShareText()">
+                                            <i class="fas fa-copy"></i> Copy Invitation Text
+                                        </button>
+                                        
+                                        <div class="row g-1">
+                                            <div class="col-4">
+                                                <a href="https://wa.me/?text={{ 'Join my Petanque game: '|urlencode }}{{ game.name|urlencode }}%0A{{ 'Link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}%0A{{ 'Game Code: '|urlencode }}{{ game.match_number }}%0A{{ 'Let\'s play! 🥎'|urlencode }}" 
+                                                   target="_blank" class="btn btn-success btn-sm w-100">
+                                                    <i class="fab fa-whatsapp"></i> WhatsApp
+                                                </a>
+                                            </div>
+                                            <div class="col-4">
+                                                <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}&quote={{ 'Join my Petanque game: '|urlencode }}{{ game.name|urlencode }}{{ ' - Game Code: '|urlencode }}{{ game.match_number }}" 
+                                                   target="_blank" class="btn btn-primary btn-sm w-100">
+                                                    <i class="fab fa-facebook"></i> Facebook
+                                                </a>
+                                            </div>
+                                            <div class="col-4">
+                                                <a href="viber://forward?text={{ 'Join my Petanque game: '|urlencode }}{{ game.name|urlencode }}%0A{{ 'Link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}%0A{{ 'Game Code: '|urlencode }}{{ game.match_number }}%0A{{ 'Let\'s play! 🥎'|urlencode }}" 
+                                                   target="_blank" class="btn btn-secondary btn-sm w-100">
+                                                    <i class="fab fa-viber"></i> Viber
+                                                </a>
+                                            </div>
+                                        </div>
+                                        
+                                        <small class="text-muted text-center mt-1">
+                                            <i class="fas fa-info-circle"></i> Players use the link + code to join your game
+                                        </small>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="mt-3">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i> <strong>Game is {{ game.get_status_display|lower }}</strong> - Use the live scoreboard below to track the game.
+                                    </div>
+                                </div>
+                                {% endif %}
                                 {% else %}
                                 <h4 class="alert-heading">No Match Number</h4>
                                 <p class="mb-0">This game was created with the legacy system.</p>
@@ -51,6 +109,52 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Live Scoreboard Section for Active and Completed Games -->
+                    {% if game.live_scoreboard and game.status == 'ACTIVE' or game.status == 'COMPLETED' %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-line"></i> Live Scoreboard</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-8">
+                                            <p class="mb-1">
+                                                <strong>Live Score:</strong> 
+                                                <span class="badge bg-dark">{{ game.live_scoreboard.team1_score }}</span>
+                                                <span class="mx-1">-</span>
+                                                <span class="badge bg-light text-dark">{{ game.live_scoreboard.team2_score }}</span>
+                                            </p>
+                                            {% if game.live_scoreboard.last_updated_by %}
+                                                <small class="text-muted">
+                                                    Updated {{ game.live_scoreboard.updated_at|timesince }} ago
+                                                </small>
+                                            {% endif %}
+                                            <div class="mt-1">
+                                                <span class="badge {% if game.live_scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %} badge-sm">
+                                                    {% if game.live_scoreboard.is_active %}Live{% else %}Final{% endif %}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4 text-end">
+                                            <a href="{% url 'scoreboard_detail' game.live_scoreboard.id %}" class="btn btn-sm btn-info me-1">
+                                                <i class="fas fa-edit"></i> Update
+                                            </a>
+                                            <a href="{% url 'scoreboard_embed' game.live_scoreboard.id %}" class="btn btn-sm btn-outline-info" target="_blank">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-warning mt-2 mb-0 py-1">
+                                        <small><i class="fas fa-info-circle"></i> Unofficial scores for spectator convenience only.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
 
                     {% if game.status == 'COMPLETED' %}
                     <div class="row mt-4">
@@ -225,5 +329,54 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+function copyShareText() {
+    // Get the share text content
+    const shareTextElement = document.getElementById('shareText');
+    const shareText = `🎯 Join my Petanque game: "{{ game.name }}"
+🔗 Link: {{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}
+🎮 Game Code: {{ game.match_number }}
+Let's play! 🥎`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareText).then(function() {
+        // Show success feedback
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.classList.remove('btn-primary');
+        button.classList.add('btn-success');
+        
+        // Reset button after 2 seconds
+        setTimeout(function() {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-primary');
+        }, 2000);
+    }).catch(function(err) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = shareText;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        // Show success feedback
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.classList.remove('btn-primary');
+        button.classList.add('btn-success');
+        
+        setTimeout(function() {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-primary');
+        }, 2000);
+    });
+}
+</script>
 {% endblock %}
 

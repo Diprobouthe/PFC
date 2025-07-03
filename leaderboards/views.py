@@ -158,8 +158,11 @@ def update_tournament_leaderboard(tournament):
             entry.points_conceded = points_conceded
             entry.save()
     
-    # Update positions
-    entries = LeaderboardEntry.objects.filter(leaderboard=leaderboard).order_by('-matches_won', '-points_scored')
+    # Update positions - Fixed ranking logic to use points differential
+    # Order by: wins (desc), points differential (desc), points scored (desc)
+    entries = LeaderboardEntry.objects.filter(leaderboard=leaderboard).annotate(
+        points_differential=F('points_scored') - F('points_conceded')
+    ).order_by('-matches_won', '-points_differential', '-points_scored')
     
     for i, entry in enumerate(entries):
         entry.position = i + 1

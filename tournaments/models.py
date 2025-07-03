@@ -4,6 +4,10 @@ from courts.models import Court
 import math
 import random # Import random for shuffling
 import json
+import logging
+
+# Get logger for tournaments app
+logger = logging.getLogger('tournaments')
 
 class Tournament(models.Model):
     """Tournament model for storing tournament information"""
@@ -94,25 +98,25 @@ class Tournament(models.Model):
         if self.is_multi_stage:
             first_stage = self.stages.order_by("stage_number").first()
             if first_stage:
-                print(f"Generating matches for first stage ({first_stage.name}) of {self.name}")
+                logger.info(f"Generating matches for first stage ({first_stage.name}) of {self.name}")
                 matches_created = first_stage.generate_stage_matches()
                 return matches_created if matches_created is not None else 0
             else:
-                print(f"Error: Multi-stage tournament {self.name} has no stages defined.")
+                logger.error(f"Multi-stage tournament {self.name} has no stages defined.")
                 return 0
 
         # --- Single-Stage Logic (Fixed) --- 
         if not self.courts.exists():
-            print(f"Error: No courts assigned to tournament {self.name}. Cannot generate matches.")
+            logger.error(f"No courts assigned to tournament {self.name}. Cannot generate matches.")
             return 0
             
         teams_qs = self.tournamentteam_set.filter(is_active=True).select_related("team")
         teams = list(teams_qs)
         if len(teams) < 2:
-            print(f"Warning: Not enough active teams ({len(teams)}) to generate matches for {self.name}.")
+            logger.warning(f"Not enough active teams ({len(teams)}) to generate matches for {self.name}.")
             return 0
         
-        print(f"Generating matches for single-stage tournament {self.name} (Format: {self.format})")
+        logger.info(f"Generating matches for single-stage tournament {self.name} (Format: {self.format})")
         
         # Create or get the round for single-stage tournaments
         round_obj, created = Round.objects.get_or_create(
@@ -126,9 +130,9 @@ class Tournament(models.Model):
         )
         
         if created:
-            print(f"Created round: {round_obj}")
+            logger.info(f"Created round: {round_obj}")
         else:
-            print(f"Using existing round: {round_obj}")
+            logger.info(f"Using existing round: {round_obj}")
             # Clear existing matches for this round if regenerating
             Match.objects.filter(tournament=self, round=round_obj).delete()
 
@@ -146,7 +150,7 @@ class Tournament(models.Model):
                         status="pending"
                     )
                     matches_created += 1
-                    print(f"  Created match: {teams[i].team} vs {teams[j].team}")
+                    logger.debug(f"Created match: {teams[i].team} vs {teams[j].team}")
                     
         elif self.format == "knockout":
             # Knockout: create brackets and matches for first round
@@ -163,12 +167,12 @@ class Tournament(models.Model):
                     status="pending"
                 )
                 matches_created += 1
-                print(f"  Created match: {teams[i].team} vs {teams[i + 1].team}")
+                logger.debug(f"Created match: {teams[i].team} vs {teams[i + 1].team}")
                 
             # Handle odd number of teams (bye to next round)
             if len(teams) % 2 == 1:
                 bye_team = teams[-1]
-                print(f"  {bye_team.team} advances with a bye")
+                logger.info(f"{bye_team.team} advances with a bye")
                 
         elif self.format == "swiss":
             # Swiss system: pair teams randomly for first round
@@ -184,19 +188,19 @@ class Tournament(models.Model):
                     status="pending"
                 )
                 matches_created += 1
-                print(f"  Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
+                logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
                 
             # Handle odd number of teams (bye)
             if len(teams_copy) % 2 == 1:
                 bye_team = teams_copy[-1]
                 bye_team.received_bye_in_round = 1
                 bye_team.save()
-                print(f"  {bye_team.team} receives a bye")
+                logger.info(f"{bye_team.team} receives a bye")
         else:
-            print(f"Error: Unknown tournament format '{self.format}'")
+            logger.error(f"Unknown tournament format '{self.format}'")
             return 0
             
-        print(f"Created {matches_created} matches for {self.name}")
+        logger.info(f"Created {matches_created} matches for {self.name}")
         
         # Set tournament status
         self.automation_status = "idle"
@@ -214,7 +218,7 @@ class Tournament(models.Model):
             return False, 0, False
             
         if self.automation_status != "idle":
-            print(f"Tournament {self.name} automation is not idle (status: {self.automation_status})")
+            logger.warning(f"Tournament {self.name} automation is not idle (status: {self.automation_status})")
             return False, 0, False
             
         try:
@@ -224,14 +228,14 @@ class Tournament(models.Model):
             # Get current stage
             current_stage = self._get_current_stage()
             if not current_stage:
-                print(f"No current stage found for multi-stage tournament {self.name}")
+                logger.error(f"No current stage found for multi-stage tournament {self.name}")
                 self.automation_status = "idle"
                 self.save()
                 return False, 0, False
                 
             # Check if current stage is complete
             if not self._is_stage_complete(current_stage):
-                print(f"Stage {current_stage.stage_number} is not yet complete")
+                logger.info(f"Stage {current_stage.stage_number} is not yet complete")
                 self.automation_status = "idle"
                 self.save()
                 return False, 0, False
@@ -239,10 +243,19 @@ class Tournament(models.Model):
             # Get winners from current stage
             winners = self._get_stage_winners(current_stage)
             if len(winners) < 2:
-                print(f"Not enough winners ({len(winners)}) to create next stage")
+                logger.warning(f"Not enough winners ({len(winners)}) to create next stage")
                 # Tournament might be complete
                 self.automation_status = "completed"
                 self.save()
+                
+                # Assign tournament badges
+                try:
+                    from .completion import check_and_complete_tournament
+                    check_and_complete_tournament(self)
+                    logger.info(f"Tournament badges assigned for completed multi-stage tournament {self.id}")
+                except Exception as e:
+                    logger.exception(f"Error assigning badges for completed multi-stage tournament {self.id}: {e}")
+                
                 return False, 0, True
                 
             # Create next stage
@@ -253,11 +266,11 @@ class Tournament(models.Model):
             self.automation_status = "idle"
             self.save()
             
-            print(f"Advanced to stage {current_stage.stage_number + 1}, created {matches_created} matches")
+            logger.info(f"Advanced to stage {current_stage.stage_number + 1}, created {matches_created} matches")
             return True, matches_created, False
             
         except Exception as e:
-            print(f"Error advancing tournament {self.name}: {e}")
+            logger.error(f"Error advancing tournament {self.name}: {e}")
             self.automation_status = "error"
             self.save()
             return False, 0, False
@@ -271,12 +284,14 @@ class Tournament(models.Model):
         """Get the current stage being played."""
         if not self.is_multi_stage:
             return None
-        # Get the highest stage number that has matches
-        return self.stages.filter(matches__isnull=False).order_by('-stage_number').first()
+        # Get the highest stage number that has rounds with matches
+        return self.stages.filter(rounds__matches__isnull=False).order_by('-stage_number').first()
     
     def _is_stage_complete(self, stage):
         """Check if all matches in a stage are completed."""
-        stage_matches = stage.matches.all()
+        # Get all matches in this stage through rounds
+        from matches.models import Match
+        stage_matches = Match.objects.filter(round__stage=stage)
         if not stage_matches.exists():
             return False
             
@@ -288,8 +303,10 @@ class Tournament(models.Model):
     
     def _get_stage_winners(self, stage):
         """Get all winners from a completed stage."""
+        from matches.models import Match
         winners = []
-        for match in stage.matches.filter(status="completed"):
+        stage_matches = Match.objects.filter(round__stage=stage, status="completed")
+        for match in stage_matches:
             if match.winner:
                 winners.append(match.winner)
         return winners
@@ -298,14 +315,33 @@ class Tournament(models.Model):
         """Create matches for the next stage with the given winners."""
         from tournaments.models import Stage
         
-        # Create new stage
-        new_stage = Stage.objects.create(
+        # Get or create the next stage
+        next_stage, created = Stage.objects.get_or_create(
             tournament=self,
             stage_number=stage_number,
-            name=f"Stage {stage_number}",
-            format="knockout",  # Next stages are typically knockout
-            num_qualifiers=1  # Winner advances (or 0 for final stage)
+            defaults={
+                'name': f"Stage {stage_number}",
+                'format': "knockout",  # Next stages are typically knockout
+                'num_qualifiers': 1  # Winner advances (or 0 for final stage)
+            }
         )
+        
+        # Create a round for this stage
+        from tournaments.models import Round
+        round_obj, round_created = Round.objects.get_or_create(
+            tournament=self,
+            stage=next_stage,
+            number_in_stage=1,
+            defaults={
+                'number': self._get_next_round_number(),
+                'name': f"Round 1"
+            }
+        )
+        
+        # Clear existing matches if regenerating
+        if not round_created:
+            from matches.models import Match
+            Match.objects.filter(tournament=self, round=round_obj).delete()
         
         # Create matches between winners
         matches_created = 0
@@ -317,14 +353,26 @@ class Tournament(models.Model):
                 from matches.models import Match
                 match = Match.objects.create(
                     tournament=self,
-                    stage=new_stage,
+                    round=round_obj,
                     team1=team1,
                     team2=team2,
                     status="pending"
                 )
                 matches_created += 1
                 
+        # Update teams' current stage number
+        for winner in winners:
+            tournament_team = self.tournamentteam_set.filter(team=winner).first()
+            if tournament_team:
+                tournament_team.current_stage_number = stage_number
+                tournament_team.save()
+                
         return matches_created
+
+    def _get_next_round_number(self):
+        """Get the next available round number for the tournament."""
+        last_round = self.rounds.order_by('-number').first()
+        return (last_round.number + 1) if last_round else 1
 
     # === KNOCKOUT TOURNAMENT AUTOMATION ===
     
@@ -338,7 +386,7 @@ class Tournament(models.Model):
             return False, 0, False
             
         if self.automation_status != "idle":
-            print(f"Tournament {self.name} automation is not idle (status: {self.automation_status})")
+            logger.info(f"Tournament {self.name} automation is not idle (status: {self.automation_status})")
             return False, 0, False
             
         try:
@@ -347,30 +395,30 @@ class Tournament(models.Model):
             
             current_round = self._get_current_knockout_round()
             if not current_round:
-                print(f"No current round found for knockout tournament {self.name}")
+                logger.error(f"No current round found for knockout tournament {self.name}")
                 self.automation_status = "idle"
                 self.save()
                 return False, 0, False
                 
             # Check if current round is complete
             if not self._is_knockout_round_complete(current_round):
-                print(f"Round {current_round.number} is not yet complete")
+                logger.info(f"Round {current_round.number} is not yet complete")
                 self.automation_status = "idle"
                 self.save()
                 return False, 0, False
                 
-            print(f"Round {current_round.number} is complete! Advancing to next round...")
+            logger.info(f"Round {current_round.number} is complete! Advancing to next round...")
             
             # Get winners from current round
             winners = self._get_round_winners(current_round)
-            print(f"Winners from round {current_round.number}: {[w.name for w in winners]}")
+            logger.info(f"Winners from round {current_round.number}: {[w.name for w in winners]}")
             
             # Check if tournament is complete (only 1 winner left)
             if len(winners) == 1:
                 self._complete_knockout_tournament(winners[0])
                 self.automation_status = "completed"
                 self.save()
-                print(f"Tournament {self.name} completed! Champion: {winners[0].name}")
+                logger.info(f"Tournament {self.name} completed! Champion: {winners[0].name}")
                 return True, 0, True
                 
             # Create next round and matches
@@ -378,11 +426,11 @@ class Tournament(models.Model):
             
             self.automation_status = "idle"
             self.save()
-            print(f"Advanced to next round with {matches_created} new matches")
+            logger.info(f"Advanced to next round with {matches_created} new matches")
             return True, matches_created, False
             
         except Exception as e:
-            print(f"Error in knockout advancement: {e}")
+            logger.error(f"Error in knockout advancement: {e}")
             self.automation_status = "error"
             self.save()
             return False, 0, False
@@ -456,12 +504,12 @@ class Tournament(models.Model):
                 status="pending"
             )
             matches_created += 1
-            print(f"  Created next round match: {winners[i].name} vs {winners[i + 1].name}")
+            logger.debug(f"Created next round match: {winners[i].name} vs {winners[i + 1].name}")
         
         # Handle odd number of winners (bye)
         if len(winners) % 2 == 1:
             bye_team = winners[-1]
-            print(f"  {bye_team.name} receives a bye to the following round")
+            logger.debug(f"{bye_team.name} receives a bye to the following round")
             # For bye, we could create a "bye match" or handle it in the next iteration
             # For now, we'll handle it in the next round generation
         
@@ -473,7 +521,7 @@ class Tournament(models.Model):
     
     def _complete_knockout_tournament(self, champion):
         """Mark the knockout tournament as complete with the given champion."""
-        print(f"Tournament {self.name} completed! Champion: {champion.name}")
+        logger.info(f"Tournament {self.name} completed! Champion: {champion.name}")
         # You could add a champion field to Tournament model if needed
         # self.champion = champion
         self.current_round_number = -1  # Special value indicating completion
@@ -603,7 +651,7 @@ class Stage(models.Model):
         import random
         import math
         
-        print(f"Generating matches for {self}")
+        logger.info(f"Generating matches for {self}")
         
         # Get active teams for this stage
         teams_qs = self.tournament.tournamentteam_set.filter(
@@ -613,14 +661,14 @@ class Stage(models.Model):
         teams = list(teams_qs)
         
         if len(teams) < 2:
-            print(f"Warning: Not enough active teams ({len(teams)}) for stage {self.stage_number}")
+            logger.warning(f" Not enough active teams ({len(teams)}) for stage {self.stage_number}")
             return 0
             
-        print(f"Found {len(teams)} teams for stage {self.stage_number}")
+        logger.info(f"Found {len(teams)} teams for stage {self.stage_number}")
         
         # Check if tournament has courts
         if not self.tournament.courts.exists():
-            print(f"Error: No courts assigned to tournament {self.tournament.name}")
+            logger.error(f" No courts assigned to tournament {self.tournament.name}")
             return 0
             
         # Get or create the round for this stage
@@ -635,9 +683,9 @@ class Stage(models.Model):
         )
         
         if created:
-            print(f"Created round: {round_obj}")
+            logger.info(f"Created round: {round_obj}")
         else:
-            print(f"Using existing round: {round_obj}")
+            logger.info(f"Using existing round: {round_obj}")
             # Clear existing matches for this round if regenerating
             Match.objects.filter(tournament=self.tournament, round=round_obj).delete()
         
@@ -652,10 +700,10 @@ class Stage(models.Model):
         elif self.format == "poule":
             matches_created = self._generate_poule_matches(teams, round_obj)
         else:
-            print(f"Error: Unknown stage format '{self.format}'")
+            logger.error(f" Unknown stage format '{self.format}'")
             return 0
             
-        print(f"Created {matches_created} matches for {self}")
+        logger.info(f"Created {matches_created} matches for {self}")
         return matches_created
             
     def _get_next_round_number(self):
@@ -667,7 +715,7 @@ class Stage(models.Model):
         """Generate round-robin matches where each team plays every other team."""
         from matches.models import Match
         
-        print(f"Generating round-robin matches for {len(teams)} teams")
+        logger.info(f"Generating round-robin matches for {len(teams)} teams")
         matches_created = 0
         
         for i in range(len(teams)):
@@ -680,16 +728,16 @@ class Stage(models.Model):
                     status="pending"
                 )
                 matches_created += 1
-                print(f"  Created match: {teams[i].team} vs {teams[j].team}")
+                logger.debug(f"Created match: {teams[i].team} vs {teams[j].team}")
                 
-        print(f"Created {matches_created} round-robin matches")
+        logger.info(f"Created {matches_created} round-robin matches")
         return matches_created
         
     def _generate_swiss_matches(self, teams, round_obj):
         """Generate Swiss system matches for the first round."""
         from matches.models import Match
         
-        print(f"Generating Swiss matches for {len(teams)} teams")
+        logger.info(f"Generating Swiss matches for {len(teams)} teams")
         
         # For first round, pair teams randomly or by seeding
         teams_copy = teams.copy()
@@ -705,23 +753,23 @@ class Stage(models.Model):
                 status="pending"
             )
             matches_created += 1
-            print(f"  Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
+            logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
             
         # Handle odd number of teams (bye)
         if len(teams_copy) % 2 == 1:
             bye_team = teams_copy[-1]
             bye_team.received_bye_in_round = round_obj.number_in_stage
             bye_team.save()
-            print(f"  {bye_team.team} receives a bye")
+            logger.debug(f"{bye_team.team} receives a bye")
             
-        print(f"Created {matches_created} Swiss matches")
+        logger.info(f"Created {matches_created} Swiss matches")
         return matches_created
         
     def _generate_knockout_matches(self, teams, round_obj):
         """Generate knockout matches with proper bracket structure."""
         from matches.models import Match
         
-        print(f"Generating knockout matches for {len(teams)} teams")
+        logger.info(f"Generating knockout matches for {len(teams)} teams")
         
         # Shuffle teams for random bracket
         teams_copy = teams.copy()
@@ -738,14 +786,14 @@ class Stage(models.Model):
                 status="pending"
             )
             matches_created += 1
-            print(f"  Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
+            logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
             
         # Handle odd number of teams (bye to next round)
         if len(teams_copy) % 2 == 1:
             bye_team = teams_copy[-1]
-            print(f"  {bye_team.team} advances with a bye")
+            logger.debug(f"{bye_team.team} advances with a bye")
             
-        print(f"Created {matches_created} knockout matches")
+        logger.info(f"Created {matches_created} knockout matches")
         return matches_created
         
     def _generate_poule_matches(self, teams, round_obj):

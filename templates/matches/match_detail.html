@@ -40,7 +40,11 @@
                             {% endif %}
                             {% if match.status == 'pending_verification' %}
                                 {% for activation in match.activations.all %}
-                                    <p><strong>Initiated by:</strong> <span class="badge bg-info">{{ activation.team.name }}</span></p>
+                                    {% if activation.is_initiator %}
+                                        <p><strong>Initiated by:</strong> <span class="badge bg-primary">{{ activation.team.name }}</span></p>
+                                    {% else %}
+                                        <p><strong>Validated by:</strong> <span class="badge bg-success">{{ activation.team.name }}</span></p>
+                                    {% endif %}
                                 {% endfor %}
                             {% endif %}
                             {% if match.round %}
@@ -82,6 +86,52 @@
                                                 <h3>{{ match.team2.name }}</h3>
                                                 <h1 class="display-1">{{ match.team2_score }}</h1>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Live Scoreboard Section -->
+                    {% if match.live_scoreboard %}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white">
+                                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Live Scoreboard</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-8">
+                                                <p class="mb-2">
+                                                    <strong>Current Score:</strong> 
+                                                    <span class="badge bg-primary fs-6">{{ match.live_scoreboard.team1_score }}</span>
+                                                    <span class="mx-2">-</span>
+                                                    <span class="badge bg-success fs-6">{{ match.live_scoreboard.team2_score }}</span>
+                                                </p>
+                                                {% if match.live_scoreboard.last_updated_by %}
+                                                    <small class="text-muted">
+                                                        Last updated {{ match.live_scoreboard.updated_at|timesince }} ago by {{ match.live_scoreboard.last_updated_by }}
+                                                    </small>
+                                                {% endif %}
+                                                <div class="mt-2">
+                                                    <span class="badge {% if match.live_scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {% if match.live_scoreboard.is_active %}Live Scoring Active{% else %}Scoring Completed{% endif %}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <a href="{% url 'scoreboard_detail' match.live_scoreboard.id %}" class="btn btn-info me-2">
+                                                    <i class="fas fa-edit"></i> Update Scores
+                                                </a>
+                                                <a href="{% url 'scoreboard_embed' match.live_scoreboard.id %}" class="btn btn-outline-info" target="_blank">
+                                                    <i class="fas fa-external-link-alt"></i> Full Screen
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div class="alert alert-warning mt-3 mb-0">
+                                            <small><i class="fas fa-info-circle"></i> Live scores are unofficial and for spectator convenience only.</small>
                                         </div>
                                     </div>
                                 </div>

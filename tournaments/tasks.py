@@ -224,7 +224,15 @@ def generate_next_knockout_round(tournament):
                 tournament.automation_status = "completed"
                 tournament.current_round_number = None # Mark as finished
                 tournament.save()
-                # TODO: Add notification/final standings update?
+                
+                # Assign tournament badges
+                try:
+                    from .completion import check_and_complete_tournament
+                    check_and_complete_tournament(tournament)
+                    logger.info(f"Tournament badges assigned for completed tournament {tournament.id}")
+                except Exception as e:
+                    logger.exception(f"Error assigning badges for completed tournament {tournament.id}: {e}")
+                
                 return
             elif num_advancing == 0:
                  logger.error(f"No teams advanced to round {next_round_num} for tournament {tournament.id}. This might indicate an issue with match results or bye handling. Setting status to error.")
@@ -449,7 +457,7 @@ def check_round_completion(tournament_id):
                     generate_next_swiss_round(tournament)
                 elif tournament.format == "knockout":
                     generate_next_knockout_round(tournament)
-                elif tournament.format == "combo":
+                elif tournament.format == "multi_stage":
                     generate_next_combo_round(tournament)
                 else:
                     logger.error(f"Unknown tournament format 	{tournament.format}	 for tournament {tournament.id}. Cannot generate next round.")
@@ -468,6 +476,15 @@ def check_round_completion(tournament_id):
 
             else:
                 logger.info(f"Round {current_round} in tournament {tournament.id} is not yet complete. Waiting for remaining matches.")
+            
+            # Check if tournament is completed and assign badges if needed
+            # This runs after all match generation logic to avoid interference
+            try:
+                from .completion import check_and_complete_tournament
+                check_and_complete_tournament(tournament)
+            except Exception as e:
+                logger.exception(f"Error checking tournament completion for {tournament.id}: {e}")
+                # Don't fail the entire automation if badge assignment fails
 
     except Tournament.DoesNotExist:
         logger.error(f"Tournament with ID {tournament_id} not found during completion check.")
