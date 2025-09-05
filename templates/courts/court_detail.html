@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ court }} - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'court_list' %}">Courts</a></li>
+                    {% if court_complex %}
+                        <li class="breadcrumb-item"><a href="{% url 'court_complex_detail' court_complex.id %}">{{ court_complex.name }}</a></li>
+                    {% endif %}
+                    <li class="breadcrumb-item active">{{ court }}</li>
+                </ol>
+            </nav>
+            
+            <h1 class="mb-4">
+                <i class="fas fa-circle me-2"></i>{{ court }}
+            </h1>
+            
+            <!-- Court Complex Link (if assigned) -->
+            {% if court_complex %}
+            <div class="alert alert-info mb-4">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-building fa-2x me-3"></i>
+                    <div>
+                        <h6 class="mb-1">Part of Court Complex</h6>
+                        <a href="{% url 'court_complex_detail' court_complex.id %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>{{ court_complex.name }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Court Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Number:</strong> {{ court.number }}</p>
+                            {% if court.name %}
+                                <p><strong>Name:</strong> {{ court.name }}</p>
+                            {% endif %}
+                            {% if court.location_description %}
+                                <p><strong>Information:</strong> {{ court.location_description|linebreaksbr }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                {% if court.is_active %}
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-play me-1"></i>Currently in use
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>Available
+                                    </span>
+                                {% endif %}
+                            </p>
+                            
+                            {% if court_complex %}
+                                <p><strong>Complex:</strong> 
+                                    <a href="{% url 'court_complex_detail' court_complex.id %}" class="text-decoration-none">
+                                        {{ court_complex.name }}
+                                    </a>
+                                </p>
+                            {% else %}
+                                <p><strong>Complex:</strong> 
+                                    <span class="text-muted">Not assigned to any complex</span>
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {# Placeholder for picture if added later. ImageField requires Pillow installation. #}
+
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'court_list' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back to Courts
+                    </a>
+                    {% if court_complex %}
+                        <a href="{% url 'court_complex_detail' court_complex.id %}" class="btn btn-info btn-sm ms-2">
+                            <i class="fas fa-building"></i> View Complex
+                        </a>
+                    {% endif %}
+                    {# Add edit/admin links if needed #}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

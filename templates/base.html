@@ -1,0 +1,190 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petanque Platform (PFC)</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+    <!-- Team PIN Auto-Fill CSS -->
+    <link href="{% static 'css/team_pin_autofill_simple.css' %}" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/"><img src="{% static 'pfcLOGOHwhitetext.svg' %}" alt="PFC Logo" style="height: 40px; width: auto;"></a>
+            
+            <!-- Always visible icons for mobile -->
+            <div class="d-flex align-items-center">
+                <!-- Billboard Icon - Always Visible -->
+                <a class="btn btn-outline-light btn-sm me-2" href="{% url 'billboard:list' %}" title="Billboard">
+                    <i class="fas fa-bullhorn"></i>
+                </a>
+                
+                <!-- Refresh Icon - Always Visible -->
+                <button class="btn btn-outline-light btn-sm me-2" onclick="refreshPage()" title="Refresh to see latest match states">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                
+                <!-- Burger Menu Toggle -->
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            </div>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <!-- Live Scores Link -->
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{% url 'live_scores_list' %}">
+                            <i class="fas fa-chart-line me-1"></i>Live Scores
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <!-- Player Codename Authentication Status -->
+                    {% if session_codename %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-white" href="#" id="playerDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user-check me-1"></i>{{ player_name|default:session_codename }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="playerDropdown">
+                                <li><h6 class="dropdown-header"><i class="fas fa-info-circle me-1"></i>Player Session</h6></li>
+                                <li><span class="dropdown-item-text small text-muted">Logged in as: <strong>{{ player_name|default:session_codename }}</strong></span></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="{% url 'codename_logout' %}">
+                                    <i class="fas fa-sign-out-alt me-1"></i>Logout Player
+                                </a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#quickLoginModal">
+                                <i class="fas fa-user me-1"></i>Player Login
+                            </button>
+                        </li>
+                    {% endif %}
+                    
+                    <!-- Team PIN Authentication Status -->
+                    <div id="teamNavSection">
+                        {% if team_session.is_logged_in %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-warning" href="#" id="teamDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-users me-1"></i>{{ team_session.team_name|default:team_session.team_pin }}
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="teamDropdown">
+                                    <li><h6 class="dropdown-header"><i class="fas fa-info-circle me-1"></i>Team Session</h6></li>
+                                    <li><span class="dropdown-item-text small text-muted">Team: <strong>{{ team_session.team_name|default:team_session.team_pin }}</strong></span></li>
+                                    <li><span class="dropdown-item-text small text-muted">PIN: <strong>******</strong></span></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="logoutTeam()">
+                                        <i class="fas fa-sign-out-alt me-1"></i>Logout Team
+                                    </a></li>
+                                </ul>
+                            </li>
+                        {% else %}
+                            <li class="nav-item">
+                                <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#teamLoginModal">
+                                    <i class="fas fa-users me-1"></i>Team Login
+                                </button>
+                            </li>
+                        {% endif %}
+                    </div>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/"><i class="fas fa-user-shield me-1"></i> Admin</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="py-4">
+        {% if messages %}
+        <div class="container mt-3">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="text-white mb-3">PFC</h5>
+                    <p class="text-light">Organizing petanque, connecting community<br>[Created by PetA]</p>
+                </div>
+                <div class="col-md-3">
+                    <h5 class="text-white mb-3">Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{% url 'tournament_list' %}" class="text-light">Tournaments</a></li>
+                        <li><a href="{% url 'match_list' %}" class="text-light">Matches</a></li>
+                        <li><a href="{% url 'team_list' %}" class="text-light">Teams</a></li>
+                        <li><a href="{% url 'court_list' %}" class="text-light">Courts</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5 class="text-white mb-3">Players & Admin</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{% url 'player_leaderboard' %}" class="text-light">Player Leaderboard</a></li>
+                        <li><a href="/admin/" class="text-light">Admin Portal</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="bg-light">
+            <div class="text-center text-light">
+                <p>© 2025 Petanque Platform (PFC)</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Include Quick Login Modal -->
+    {% include 'auth/quick_login_modal.html' %}
+    
+    <!-- Include Team Login Modal -->
+    {% include 'auth/team_login_modal.html' %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Refresh Page Function -->
+    <script>
+        function refreshPage() {
+            // Add a subtle loading indicator
+            const refreshBtn = document.querySelector('button[onclick="refreshPage()"]');
+            if (refreshBtn) {
+                const originalContent = refreshBtn.innerHTML;
+                refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Refreshing...';
+                refreshBtn.disabled = true;
+                
+                // Small delay to show the loading state, then refresh
+                setTimeout(() => {
+                    location.reload();
+                }, 300);
+            } else {
+                // Fallback if button not found
+                location.reload();
+            }
+        }
+    </script>
+    
+    <!-- Team PIN Auto-Fill JavaScript -->
+    <script src="{% static 'js/team_pin_autofill.js' %}"></script>
+</body>
+</html>

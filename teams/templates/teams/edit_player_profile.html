@@ -1,0 +1,559 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Player Profile - PFC{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Edit Your Player Profile
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if not authenticated_player %}
+                        <p class="text-muted mb-4">Please verify your identity to edit your profile.</p>
+                    {% else %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Welcome, <strong>{{ authenticated_player.name }}</strong>! You can now edit your profile.
+                        </div>
+                    {% endif %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                    
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        {% if not authenticated_player %}
+                            <!-- Authentication Section -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Identity Verification</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="{{ form.player_name_search.id_for_label }}" class="form-label">
+                                            <i class="fas fa-user me-1"></i>{{ form.player_name_search.label }}
+                                        </label>
+                                        {{ form.player_name_search }}
+                                        {% if form.player_name_search.help_text %}
+                                            <div class="form-text">{{ form.player_name_search.help_text }}</div>
+                                        {% endif %}
+                                        
+                                        <!-- Search Results -->
+                                        <div id="player-search-results" class="player-search-results" style="display: none;"></div>
+                                        
+                                        <!-- Selected Player Display -->
+                                        <div id="selected-player-display" class="selected-player-display" style="display: none;">
+                                            <div class="alert alert-success d-flex justify-content-between align-items-center">
+                                                <span class="selected-player-name"></span>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary clear-selection">
+                                                    <i class="fas fa-times"></i> Clear
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Hidden field for selected player ID -->
+                                        {{ form.player_name }}
+                                        
+                                        {% if form.player_name_search.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.player_name_search.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        {% if form.player_name.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.player_name.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="{{ form.codename.id_for_label }}" class="form-label">
+                                            <i class="fas fa-key me-1"></i>{{ form.codename.label }}
+                                        </label>
+                                        {{ form.codename }}
+                                        {% if form.codename.help_text %}
+                                            <div class="form-text">{{ form.codename.help_text }}</div>
+                                        {% endif %}
+                                        {% if form.codename.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.codename.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <!-- Hidden fields to maintain authentication -->
+                            <input type="hidden" name="player_name" value="{{ authenticated_player.id }}">
+                            <input type="hidden" name="codename" value="{{ authenticated_player.codename_profile.codename }}">
+                            
+                            <!-- Current Profile Information -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Current Profile</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            {% if player_profile and player_profile.profile_picture %}
+                                                <img src="{{ player_profile.profile_picture.url }}" 
+                                                     alt="{{ authenticated_player.name }}" 
+                                                     class="img-fluid rounded-circle mb-2"
+                                                     style="max-width: 100px; max-height: 100px; object-fit: cover;">
+                                            {% else %}
+                                                <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center mb-2" 
+                                                     style="width: 100px; height: 100px;">
+                                                    <i class="fas fa-user fa-2x text-white"></i>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-9">
+                                            <h5>{{ authenticated_player.name }}</h5>
+                                            <p class="text-muted mb-1">
+                                                <i class="fas fa-users me-1"></i>
+                                                Current Team: <strong>{{ authenticated_player.team.name }}</strong>
+                                            </p>
+                                            {% if player_profile %}
+                                                <p class="text-muted mb-1">
+                                                    <i class="fas fa-trophy me-1"></i>
+                                                    Matches Played: {{ player_profile.matches_played }}
+                                                </p>
+                                                <p class="text-muted mb-0">
+                                                    <i class="fas fa-percentage me-1"></i>
+                                                    Win Rate: {{ player_profile.win_rate }}%
+                                                </p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Profile Picture Update -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-camera me-2"></i>Update Profile Picture</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="{{ form.profile_picture.id_for_label }}" class="form-label">
+                                            <i class="fas fa-upload me-1"></i>{{ form.profile_picture.label }}
+                                        </label>
+                                        {{ form.profile_picture }}
+                                        {% if form.profile_picture.help_text %}
+                                            <div class="form-text">{{ form.profile_picture.help_text }}</div>
+                                        {% endif %}
+                                        {% if form.profile_picture.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.profile_picture.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Team Change Section -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-exchange-alt me-2"></i>Change Team</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            {{ form.change_team }}
+                                            <label class="form-check-label" for="{{ form.change_team.id_for_label }}">
+                                                {{ form.change_team.label }}
+                                            </label>
+                                        </div>
+                                        {% if form.change_team.help_text %}
+                                            <div class="form-text">{{ form.change_team.help_text }}</div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Team Change Fields (hidden by default) -->
+                                    <div id="team-change-fields" style="display: none;">
+                                        <div class="mb-3">
+                                            <label for="{{ form.new_team_search.id_for_label }}" class="form-label">
+                                                <i class="fas fa-search me-1"></i>{{ form.new_team_search.label }}
+                                            </label>
+                                            {{ form.new_team_search }}
+                                            {% if form.new_team_search.help_text %}
+                                                <div class="form-text">{{ form.new_team_search.help_text }}</div>
+                                            {% endif %}
+                                            
+                                            <!-- Search Results -->
+                                            <div id="new-team-search-results" class="team-search-results" style="display: none;"></div>
+                                            
+                                            <!-- Selected Team Display -->
+                                            <div id="new-selected-team-display" class="selected-team-display" style="display: none;">
+                                                <div class="alert alert-success d-flex justify-content-between align-items-center">
+                                                    <span class="selected-team-name"></span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary clear-new-selection">
+                                                        <i class="fas fa-times"></i> Clear
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            {% if form.new_team_search.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ form.new_team_search.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Hidden field for selected team ID -->
+                                        {{ form.new_team_id }}
+                                        
+                                        <div class="mb-3">
+                                            <label for="{{ form.new_team_pin.id_for_label }}" class="form-label">
+                                                <i class="fas fa-key me-1"></i>{{ form.new_team_pin.label }}
+                                            </label>
+                                            {{ form.new_team_pin }}
+                                            {% if form.new_team_pin.help_text %}
+                                                <div class="form-text">{{ form.new_team_pin.help_text }}</div>
+                                            {% endif %}
+                                            {% if form.new_team_pin.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ form.new_team_pin.errors.0 }}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Submit Button -->
+                        <div class="d-grid gap-2">
+                            {% if not authenticated_player %}
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Verify Identity
+                                </button>
+                            {% else %}
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fas fa-save me-2"></i>Update Profile
+                                </button>
+                            {% endif %}
+                            <a href="{% url 'team_list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Help Card -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-lightbulb me-2"></i>How it works
+                    </h6>
+                    <ul class="mb-0">
+                        <li><strong>Step 1:</strong> Select your name from the dropdown and enter your codename</li>
+                        <li><strong>Step 2:</strong> Update your profile picture if desired</li>
+                        <li><strong>Step 3:</strong> Optionally change teams by providing the new team's PIN</li>
+                        <li><strong>Security:</strong> Only you can edit your profile using your unique codename</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Player search functionality
+    const playerSearchInput = document.getElementById('player-name-search-input');
+    const playerSearchResults = document.getElementById('player-search-results');
+    const selectedPlayerDisplay = document.getElementById('selected-player-display');
+    const playerIdInput = document.getElementById('player-name-id');
+    const clearSelectionBtn = document.querySelector('.clear-selection');
+    let playerSearchTimeout;
+    
+    if (playerSearchInput) {
+        playerSearchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            
+            clearTimeout(playerSearchTimeout);
+            
+            if (query.length < 2) {
+                playerSearchResults.style.display = 'none';
+                return;
+            }
+            
+            playerSearchTimeout = setTimeout(() => {
+                fetch(`/teams/api/player-search/?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        displayPlayerSearchResults(data.players || []);
+                    })
+                    .catch(error => {
+                        console.error('Player search error:', error);
+                        playerSearchResults.innerHTML = '<div class="player-search-no-results">Search error occurred</div>';
+                        playerSearchResults.style.display = 'block';
+                    });
+            }, 300);
+        });
+    }
+    
+    function displayPlayerSearchResults(players) {
+        if (players.length === 0) {
+            playerSearchResults.innerHTML = '<div class="player-search-no-results">No players found</div>';
+        } else {
+            playerSearchResults.innerHTML = players.map(player => 
+                `<div class="player-search-result" data-player-id="${player.id}" data-player-name="${player.display_name}">
+                    <i class="fas fa-user player-icon"></i>
+                    <span class="player-name">${player.display_name}</span>
+                </div>`
+            ).join('');
+            
+            // Add click handlers to results
+            playerSearchResults.querySelectorAll('.player-search-result').forEach(result => {
+                result.addEventListener('click', function() {
+                    selectPlayer(this.dataset.playerId, this.dataset.playerName);
+                });
+            });
+        }
+        playerSearchResults.style.display = 'block';
+    }
+    
+    function selectPlayer(playerId, playerName) {
+        // Hide search results
+        playerSearchResults.style.display = 'none';
+        
+        // Update search input
+        playerSearchInput.value = playerName;
+        
+        // Set hidden field
+        playerIdInput.value = playerId;
+        
+        // Show selected player display
+        selectedPlayerDisplay.querySelector('.selected-player-name').textContent = `Selected: ${playerName}`;
+        selectedPlayerDisplay.style.display = 'flex';
+        
+        // Hide search input
+        playerSearchInput.style.display = 'none';
+    }
+    
+    if (clearSelectionBtn) {
+        clearSelectionBtn.addEventListener('click', function() {
+            // Clear selection
+            playerSearchInput.value = '';
+            playerIdInput.value = '';
+            playerSearchInput.style.display = 'block';
+            selectedPlayerDisplay.style.display = 'none';
+            playerSearchResults.style.display = 'none';
+        });
+    }
+    
+    // Hide search results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!playerSearchInput?.contains(e.target) && !playerSearchResults?.contains(e.target)) {
+            playerSearchResults.style.display = 'none';
+        }
+    });
+
+    // Team change checkbox handling
+    const changeTeamCheckbox = document.getElementById('change-team-checkbox');
+    const teamChangeFields = document.getElementById('team-change-fields');
+    
+    if (changeTeamCheckbox) {
+        changeTeamCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                teamChangeFields.style.display = 'block';
+            } else {
+                teamChangeFields.style.display = 'none';
+                // Clear team change fields
+                document.getElementById('new-team-search-input').value = '';
+                document.getElementById('new-team-id').value = '';
+                document.querySelector('input[name="new_team_pin"]').value = '';
+                document.getElementById('new-selected-team-display').style.display = 'none';
+                document.getElementById('new-team-search-results').style.display = 'none';
+            }
+        });
+    }
+    
+    // New team search functionality
+    const newTeamSearchInput = document.getElementById('new-team-search-input');
+    const newTeamSearchResults = document.getElementById('new-team-search-results');
+    const newSelectedTeamDisplay = document.getElementById('new-selected-team-display');
+    const newTeamIdInput = document.getElementById('new-team-id');
+    const clearNewSelectionBtn = document.querySelector('.clear-new-selection');
+    let newSearchTimeout;
+    
+    if (newTeamSearchInput) {
+        newTeamSearchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            
+            clearTimeout(newSearchTimeout);
+            
+            if (query.length < 2) {
+                newTeamSearchResults.style.display = 'none';
+                return;
+            }
+            
+            newSearchTimeout = setTimeout(() => {
+                fetch(`/teams/api/search/?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        displayNewSearchResults(data.teams || []);
+                    })
+                    .catch(error => {
+                        console.error('Search error:', error);
+                        newTeamSearchResults.innerHTML = '<div class="team-search-no-results">Search error occurred</div>';
+                        newTeamSearchResults.style.display = 'block';
+                    });
+            }, 300);
+        });
+    }
+    
+    function displayNewSearchResults(teams) {
+        if (teams.length === 0) {
+            newTeamSearchResults.innerHTML = '<div class="team-search-no-results">No teams found</div>';
+        } else {
+            newTeamSearchResults.innerHTML = teams.map(team => 
+                `<div class="team-search-result" data-team-id="${team.id}" data-team-name="${team.name}">
+                    <i class="fas fa-users team-icon"></i>
+                    <span class="team-name">${team.name}</span>
+                </div>`
+            ).join('');
+            
+            // Add click handlers to results
+            newTeamSearchResults.querySelectorAll('.team-search-result').forEach(result => {
+                result.addEventListener('click', function() {
+                    selectNewTeam(this.dataset.teamId, this.dataset.teamName);
+                });
+            });
+        }
+        newTeamSearchResults.style.display = 'block';
+    }
+    
+    function selectNewTeam(teamId, teamName) {
+        // Hide search results
+        newTeamSearchResults.style.display = 'none';
+        
+        // Update search input
+        newTeamSearchInput.value = teamName;
+        
+        // Set hidden field
+        newTeamIdInput.value = teamId;
+        
+        // Show selected team display
+        newSelectedTeamDisplay.querySelector('.selected-team-name').textContent = `Selected Team: ${teamName}`;
+        newSelectedTeamDisplay.style.display = 'flex';
+        
+        // Hide search input
+        newTeamSearchInput.style.display = 'none';
+    }
+    
+    if (clearNewSelectionBtn) {
+        clearNewSelectionBtn.addEventListener('click', function() {
+            // Clear selection
+            newTeamSearchInput.value = '';
+            newTeamIdInput.value = '';
+            newTeamSearchInput.style.display = 'block';
+            newSelectedTeamDisplay.style.display = 'none';
+            newTeamSearchResults.style.display = 'none';
+        });
+    }
+    
+    // Hide search results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!newTeamSearchInput?.contains(e.target) && !newTeamSearchResults?.contains(e.target)) {
+            newTeamSearchResults.style.display = 'none';
+        }
+    });
+});
+</script>
+
+<style>
+.player-search-results {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+    margin-top: 2px;
+}
+
+.player-search-result {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.player-search-result:hover {
+    background-color: #f8f9fa;
+}
+
+.player-search-result:last-child {
+    border-bottom: none;
+}
+
+.player-search-no-results {
+    padding: 10px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.selected-player-display {
+    margin-top: 10px;
+}
+
+.team-search-results {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+    margin-top: 2px;
+}
+
+.team-search-result {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.team-search-result:hover {
+    background-color: #f8f9fa;
+}
+
+.team-search-result:last-child {
+    border-bottom: none;
+}
+
+.team-search-no-results {
+    padding: 10px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.selected-team-display {
+    margin-top: 10px;
+}
+</style>
+{% endblock %}
+

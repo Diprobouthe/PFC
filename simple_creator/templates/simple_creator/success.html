@@ -1,0 +1,247 @@
+{% extends 'simple_creator/base.html' %}
+
+{% block title %}Tournament Created{% endblock %}
+
+{% block header %}
+<div class="header-section">
+    <h1><i class="bi bi-check-circle"></i> Tournament Created!</h1>
+    <p>Your tournament is ready to go</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="success-card">
+    <h3 class="mb-3">
+        <i class="bi bi-trophy fs-1 d-block mb-2"></i>
+        {{ simple_tournament.tournament.name }}
+    </h3>
+    <p class="mb-0">Tournament successfully created and configured!</p>
+</div>
+
+<div class="row g-4">
+    <!-- Tournament Details -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Tournament Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Scenario:</strong>
+                    <span class="ms-2">{{ simple_tournament.scenario.display_name }}</span>
+                    {% if simple_tournament.scenario.is_free %}
+                        <span class="badge-free scenario-badge ms-2">Free</span>
+                    {% else %}
+                        <span class="badge-voucher scenario-badge ms-2">Voucher</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Format:</strong>
+                    <span class="ms-2">{{ simple_tournament.format_type|title }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Court Complex:</strong>
+                    <span class="ms-2">{{ simple_tournament.court_complex.name }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Start Time:</strong>
+                    <span class="ms-2">{{ simple_tournament.auto_start_date|date:"M d, Y \a\t g:i A" }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>End Time:</strong>
+                    <span class="ms-2">{{ simple_tournament.auto_end_date|date:"M d, Y \a\t g:i A" }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Max Players:</strong>
+                    <span class="ms-2">{{ simple_tournament.get_max_players }}</span>
+                </div>
+                
+                {% if simple_tournament.voucher_used %}
+                <div class="mb-3">
+                    <strong>Voucher Used:</strong>
+                    <span class="ms-2 font-monospace">{{ simple_tournament.voucher_used.code }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Team PINs -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-key"></i>
+                    Team PINs
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if team_pins %}
+                    <p class="text-muted mb-3">Share these PINs with team captains:</p>
+                    {% for team_pin in team_pins %}
+                    <div class="pin-card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>{{ team_pin.name }}</strong>
+                            <span class="pin-code">{{ team_pin.pin }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="bi bi-hourglass-split fs-2 d-block mb-2"></i>
+                        <p>Team PINs will be generated when players register and admin creates teams.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assigned Courts -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-geo-alt"></i>
+                    Assigned Courts
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if assigned_courts %}
+                    <div class="row g-3">
+                        {% for court in assigned_courts %}
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">{{ court.name }}</h6>
+                                    <p class="card-text text-muted">Court #{{ court.court_number }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="bi bi-exclamation-triangle fs-2 d-block mb-2"></i>
+                        <p>No courts were automatically assigned. Please assign courts manually in the admin panel.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Next Steps -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i>
+                    Next Steps
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="bi bi-person-plus fs-2 text-primary d-block mb-2"></i>
+                            <h6>1. Player Registration</h6>
+                            <p class="text-muted small">Players register for the mêlée tournament using the tournament link</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="bi bi-people fs-2 text-success d-block mb-2"></i>
+                            <h6>2. Generate Teams</h6>
+                            <p class="text-muted small">Admin generates mêlée teams using the configured draft type</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <i class="bi bi-play-circle fs-2 text-info d-block mb-2"></i>
+                            <h6>3. Start Tournament</h6>
+                            <p class="text-muted small">Teams use their PINs to participate in matches</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="text-center mt-5">
+    <a href="{% url 'simple_creator:detail' simple_tournament.pk %}" class="btn btn-primary me-3">
+        <i class="bi bi-eye"></i>
+        View Tournament Details
+    </a>
+    
+    <a href="/admin/tournaments/tournament/{{ simple_tournament.tournament.id }}/change/" class="btn btn-outline-secondary me-3" target="_blank">
+        <i class="bi bi-gear"></i>
+        Admin Panel
+    </a>
+    
+    <a href="{% url 'simple_creator:create' %}" class="btn btn-outline-primary">
+        <i class="bi bi-plus-circle"></i>
+        Create Another Tournament
+    </a>
+</div>
+
+<!-- Tournament Link -->
+<div class="mt-4 p-3 bg-light rounded">
+    <h6><i class="bi bi-link-45deg"></i> Tournament Registration Link</h6>
+    <div class="input-group">
+        <input type="text" class="form-control" 
+               value="{{ request.build_absolute_uri }}/tournaments/{{ simple_tournament.tournament.id }}/" 
+               id="tournament-link" readonly>
+        <button class="btn btn-outline-secondary" type="button" onclick="copyLink()">
+            <i class="bi bi-clipboard"></i>
+            Copy
+        </button>
+    </div>
+    <small class="text-muted">Share this link with players for registration</small>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyLink() {
+    const linkInput = document.getElementById('tournament-link');
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        
+        // Show feedback
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        button.classList.add('btn-success');
+        button.classList.remove('btn-outline-secondary');
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+        
+    } catch (err) {
+        console.error('Failed to copy link:', err);
+    }
+}
+</script>
+{% endblock %}
+

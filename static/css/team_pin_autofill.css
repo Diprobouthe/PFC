@@ -1,0 +1,242 @@
+/* Team PIN Auto-Fill Styles and JavaScript */
+
+/* Auto-filled field styling */
+.team-pin-field.auto-filled {
+    background-color: #fff3cd !important;
+    border-color: #ffc107 !important;
+    color: #856404 !important;
+}
+
+.team-pin-field.auto-filled:focus {
+    background-color: #fff3cd !important;
+    border-color: #ffc107 !important;
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+}
+
+.team-auto-fill-indicator {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: #856404;
+}
+
+.team-auto-fill-indicator i {
+    color: #ffc107;
+}
+
+/* Team login modal enhancements */
+#teamLoginModal .modal-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
+}
+
+#teamLoginModal .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#teamLoginModal .btn-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
+    border: none;
+}
+
+#teamLoginModal .btn-primary:hover {
+    background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+    transform: translateY(-1px);
+}
+
+/* Navigation team dropdown styling */
+.navbar .dropdown-toggle.text-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+}
+
+.navbar .dropdown-toggle.text-warning:hover {
+    background-color: rgba(255, 193, 7, 0.2);
+}
+
+<script>
+// Team PIN Auto-Fill JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Check team session status and auto-fill fields
+    checkTeamSessionAndAutoFill();
+    
+    // Auto-fill team PIN fields when team logs in
+    function autoFillTeamPinFields(teamPin) {
+        if (!teamPin) return;
+        
+        // Find all team PIN input fields
+        const teamPinFields = document.querySelectorAll('.team-pin-field, input[name="pin"], input[name="team_pin"]');
+        
+        teamPinFields.forEach(field => {
+            // Only auto-fill if field is empty or not already auto-filled
+            if (!field.value || !field.classList.contains('auto-filled')) {
+                field.value = teamPin;
+                field.classList.add('auto-filled');
+                
+                // Add visual indicator if not already present
+                addTeamAutoFillIndicator(field);
+                
+                // Trigger change event for any listeners
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+    }
+    
+    // Add visual indicator for auto-filled team PIN fields
+    function addTeamAutoFillIndicator(field) {
+        // Check if indicator already exists
+        const existingIndicator = field.parentNode.querySelector('.team-auto-fill-indicator');
+        if (existingIndicator) return;
+        
+        const indicator = document.createElement('small');
+        indicator.className = 'team-auto-fill-indicator';
+        indicator.innerHTML = '<i class="fas fa-users me-1"></i>Auto-filled from team session';
+        
+        // Insert after the field
+        if (field.parentNode) {
+            field.parentNode.appendChild(indicator);
+        }
+    }
+    
+    // Remove auto-fill styling and indicators
+    function clearTeamAutoFill() {
+        // Remove auto-filled class from all team PIN fields
+        document.querySelectorAll('.team-pin-field.auto-filled').forEach(field => {
+            field.classList.remove('auto-filled');
+            field.value = '';
+        });
+        
+        // Remove all team auto-fill indicators
+        document.querySelectorAll('.team-auto-fill-indicator').forEach(indicator => {
+            indicator.remove();
+        });
+    }
+    
+    // Check team session status and auto-fill if logged in
+    function checkTeamSessionAndAutoFill() {
+        fetch('/auth/team/status/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data.is_logged_in) {
+                // Update navigation if needed
+                updateTeamNavigation(data.data.team_name, data.data.team_pin);
+                
+                // Auto-fill team PIN fields
+                autoFillTeamPinFields(data.data.team_pin);
+            }
+        })
+        .catch(error => {
+            console.error('Team session check error:', error);
+        });
+    }
+    
+    // Update team navigation display
+    function updateTeamNavigation(teamName, teamPin) {
+        const teamNavSection = document.getElementById('teamNavSection');
+        if (teamNavSection && teamName && teamPin) {
+            teamNavSection.innerHTML = `
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-warning" href="#" id="teamDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-users me-1"></i>${teamName}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="teamDropdown">
+                        <li><h6 class="dropdown-header"><i class="fas fa-info-circle me-1"></i>Team Session</h6></li>
+                        <li><span class="dropdown-item-text small text-muted">Team: <strong>${teamName}</strong></span></li>
+                        <li><span class="dropdown-item-text small text-muted">PIN: <strong>${teamPin}</strong></span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="logoutTeam()">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout Team
+                        </a></li>
+                    </ul>
+                </li>
+            `;
+        }
+    }
+    
+    // Global team logout function
+    window.logoutTeam = function() {
+        fetch('/auth/team/logout/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update navigation to show login button
+                const teamNavSection = document.getElementById('teamNavSection');
+                if (teamNavSection) {
+                    teamNavSection.innerHTML = `
+                        <li class="nav-item">
+                            <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#teamLoginModal">
+                                <i class="fas fa-users me-1"></i>Team Login
+                            </button>
+                        </li>
+                    `;
+                }
+                
+                // Clear auto-filled fields and indicators
+                clearTeamAutoFill();
+                
+                // Show success message if possible
+                showTeamMessage('success', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Team logout error:', error);
+            showTeamMessage('error', 'Logout failed. Please try again.');
+        });
+    };
+    
+    // Show team-related messages
+    function showTeamMessage(type, message) {
+        // Try to find existing message container
+        let messageContainer = document.querySelector('.alert-container');
+        
+        // If no container exists, create one
+        if (!messageContainer) {
+            messageContainer = document.createElement('div');
+            messageContainer.className = 'alert-container container mt-3';
+            
+            // Insert after navigation or at top of main content
+            const main = document.querySelector('main');
+            if (main) {
+                main.insertBefore(messageContainer, main.firstChild);
+            }
+        }
+        
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+        
+        messageContainer.innerHTML = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <i class="fas fa-${icon} me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            const alert = messageContainer.querySelector('.alert');
+            if (alert) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
+        }, 5000);
+    }
+    
+    // Listen for team login events from the modal
+    document.addEventListener('teamLoginSuccess', function(event) {
+        const { teamName, teamPin } = event.detail;
+        updateTeamNavigation(teamName, teamPin);
+        autoFillTeamPinFields(teamPin);
+    });
+    
+    // Auto-fill fields when page loads if team is already logged in
+    setTimeout(checkTeamSessionAndAutoFill, 100);
+});
+</script>
+

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Score - {{ scoreboard.get_match_name }}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        .scoreboard-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        
+        .match-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .score-display {
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 3rem;
+            margin: 2rem 0;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .team-name {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .players-list {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        }
+        
+        .player-item {
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+        
+        .player-name {
+            font-weight: 600;
+        }
+        
+        .player-position {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-left: 0.5rem;
+        }
+        
+        .position-icon {
+            margin-right: 0.3rem;
+        }
+        
+        .score {
+            font-size: 8rem;
+            font-weight: bold;
+            line-height: 1;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+        }
+        
+        .vs-separator {
+            font-size: 4rem;
+            opacity: 0.7;
+            margin: 0 2rem;
+        }
+        
+        .status-info {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .last-update {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.3);
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .disclaimer {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(255,193,7,0.2);
+            color: #ffc107;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(5px);
+        }
+        
+        @media (max-width: 768px) {
+            .match-title { font-size: 1.8rem; }
+            .team-name { font-size: 1.5rem; }
+            .players-list { font-size: 0.85rem; }
+            .player-position { font-size: 0.75rem; }
+            .score { font-size: 5rem; }
+            .vs-separator { font-size: 2.5rem; margin: 0 1rem; }
+            .score-display { padding: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scoreboard-container">
+        <!-- Status Info -->
+        <div class="status-info">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-circle {% if scoreboard.is_active %}text-success{% else %}text-secondary{% endif %} me-2"></i>
+                <span>{% if scoreboard.is_active %}LIVE{% else %}FINAL{% endif %}</span>
+            </div>
+        </div>
+        
+        <!-- Match Title -->
+        <div class="match-title">
+            {{ scoreboard.get_match_name }}
+        </div>
+        
+        <!-- Score Display -->
+        <div class="score-display">
+            <div class="row align-items-center">
+                <div class="col-5">
+                    <div class="team-name">{{ scoreboard.get_team1_name }}</div>
+                    {% if scoreboard.get_team1_players %}
+                        <div class="players-list">
+                            {% for player in scoreboard.get_team1_players %}
+                                <span class="player-item">
+                                    {% if scoreboard.tournament_match %}
+                                        <span class="player-name">{{ player.player.name }}</span>
+                                        {% if player.role %}
+                                            <span class="player-position">
+                                                {% if player.role == 'tirer' %}
+                                                    Tireur
+                                                {% elif player.role == 'pointer' %}
+                                                    Pointer
+                                                {% elif player.role == 'milieu' %}
+                                                    Milieu
+                                                {% elif player.role == 'flex' %}
+                                                    Flex
+                                                {% else %}
+                                                    {{ player.get_role_display }}
+                                                {% endif %}
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="player-name">{{ player.player.name }}</span>
+                                        {% if player.position %}
+                                            <span class="player-position">
+                                                {% if player.position == 'TIRER' %}
+                                                    Tireur
+                                                {% elif player.position == 'POINTEUR' %}
+                                                    Pointer
+                                                {% elif player.position == 'MILIEU' %}
+                                                    Milieu
+                                                {% else %}
+                                                    {{ player.position }}
+                                                {% endif %}
+                                            </span>
+                                        {% endif %}
+                                    {% endif %}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="score text-primary" id="team1-score">{{ scoreboard.team1_score }}</div>
+                </div>
+                <div class="col-2">
+                    <div class="vs-separator">-</div>
+                </div>
+                <div class="col-5">
+                    <div class="team-name">{{ scoreboard.get_team2_name }}</div>
+                    {% if scoreboard.get_team2_players %}
+                        <div class="players-list">
+                            {% for player in scoreboard.get_team2_players %}
+                                <span class="player-item">
+                                    {% if scoreboard.tournament_match %}
+                                        <span class="player-name">{{ player.player.name }}</span>
+                                        {% if player.role %}
+                                            <span class="player-position">
+                                                {% if player.role == 'tirer' %}
+                                                    Tireur
+                                                {% elif player.role == 'pointer' %}
+                                                    Pointer
+                                                {% elif player.role == 'milieu' %}
+                                                    Milieu
+                                                {% elif player.role == 'flex' %}
+                                                    Flex
+                                                {% else %}
+                                                    {{ player.get_role_display }}
+                                                {% endif %}
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="player-name">{{ player.player.name }}</span>
+                                        {% if player.position %}
+                                            <span class="player-position">
+                                                {% if player.position == 'TIRER' %}
+                                                    Tireur
+                                                {% elif player.position == 'POINTEUR' %}
+                                                    Pointer
+                                                {% elif player.position == 'MILIEU' %}
+                                                    Milieu
+                                                {% else %}
+                                                    {{ player.position }}
+                                                {% endif %}
+                                            </span>
+                                        {% endif %}
+                                    {% endif %}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="score {% if scoreboard.friendly_game %}text-warning{% else %}text-success{% endif %}" id="team2-score">{{ scoreboard.team2_score }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Last Update Info -->
+        {% if scoreboard.get_last_updated_by_name %}
+            <div class="last-update">
+                <i class="fas fa-clock me-2"></i>
+                Last updated {{ scoreboard.updated_at|timesince }} ago by {{ scoreboard.get_last_updated_by_name }}
+            </div>
+        {% endif %}
+        
+        <!-- Disclaimer -->
+        <div class="disclaimer">
+            <i class="fas fa-info-circle me-1"></i>
+            Unofficial Score
+        </div>
+    </div>
+    
+    <!-- Auto-refresh script -->
+    <script>
+        // Auto-refresh every 10 seconds to get latest scores
+        setInterval(function() {
+            location.reload();
+        }, 10000);
+        
+        // Add some visual effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate score changes
+            const team1Score = document.getElementById('team1-score');
+            const team2Score = document.getElementById('team2-score');
+            
+            // Store initial scores
+            let lastTeam1Score = parseInt(team1Score.textContent);
+            let lastTeam2Score = parseInt(team2Score.textContent);
+            
+            // Check for score changes on refresh
+            function checkScoreChanges() {
+                const currentTeam1Score = parseInt(team1Score.textContent);
+                const currentTeam2Score = parseInt(team2Score.textContent);
+                
+                if (currentTeam1Score !== lastTeam1Score) {
+                    team1Score.style.animation = 'pulse 1s ease-in-out';
+                    setTimeout(() => team1Score.style.animation = '', 1000);
+                    lastTeam1Score = currentTeam1Score;
+                }
+                
+                if (currentTeam2Score !== lastTeam2Score) {
+                    team2Score.style.animation = 'pulse 1s ease-in-out';
+                    setTimeout(() => team2Score.style.animation = '', 1000);
+                    lastTeam2Score = currentTeam2Score;
+                }
+            }
+            
+            // Add pulse animation CSS
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes pulse {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        });
+    </script>
+</body>
+</html>
+

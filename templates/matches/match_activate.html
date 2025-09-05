@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Activate Match as {{ team.name }}</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            {{ match.team1.name }} vs {{ match.team2.name }}
+        </div>
+        <div class="card-body">
+            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
+            <p><strong>Round:</strong> {{ match.round|default:"None" }}</p>
+            <p><strong>Status:</strong> <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'pending_verification' %}bg-warning{% elif match.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ match.get_status_display }}</span></p>
+        </div>
+    </div>
+    
+    {% if error_message %}
+    <div class="alert alert-danger">
+        <h4 class="alert-heading">Match Format Error!</h4>
+        <p>{{ error_message }}</p>
+        <hr>
+        <p class="mb-0">Please adjust your player selection to match the tournament requirements.</p>
+    </div>
+    {% endif %}
+    
+    {% if prompt_assign_anyway %}
+    {# Prompt shown when first team activates and no courts are free #}
+    <div class="alert alert-warning">
+        <h4 class="alert-heading">No Courts Available!</h4>
+        <p>All courts for this tournament are currently in use.</p>
+        <p>Would you like to confirm your activation anyway? The match will start automatically when a court becomes free and the other team also activates.</p>
+        
+        <hr>
+        <form method="post">
+            {% csrf_token %}
+            <!-- Preserve the original form data -->
+            <input type="hidden" name="pin" value="{{ form.cleaned_data.pin }}">
+            {% for player in form.cleaned_data.players %}
+            <input type="hidden" name="players" value="{{ player.id }}">
+            {% endfor %}
+            
+            <!-- Flag to indicate user confirmed to assign anyway -->
+            <input type="hidden" name="assign_anyway" value="1">
+            
+            <button type="submit" class="btn btn-primary">Yes, Activate Anyway</button>
+            <a href="{% url 'match_detail' match_id=match.id %}" class="btn btn-secondary">No, Cancel Activation</a>
+        </form>
+    </div>
+    {% else %}
+    {# Standard activation form #}
+    <form method="post" id="matchActivationForm">
+        {% csrf_token %}
+        
+        <div class="mb-3">
+            <label for="id_pin" class="form-label">Enter Team PIN to Activate:</label>
+            <input type="password" name="pin" maxlength="6" class="form-control" placeholder="Enter your 6-digit PIN" required id="id_pin">
+            <div class="form-text">Enter your team's 6-digit PIN to confirm match activation.</div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label">Select Players:</label>
+            {% if is_validating %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <strong>Match Format Rules:</strong> This tournament requires specific match formats.
+                {% if match.tournament.allowed_match_types %}
+                <ul class="mb-0 mt-2">
+                    {% for type in match.tournament.allowed_match_types.allowed_match_types %}
+                        <li>
+                            {% if type == 'doublet' %}Doublet (2 players){% endif %}
+                            {% if type == 'triplet' %}Triplet (3 players){% endif %}
+                            {% if type == 'tete_a_tete' %}Tête-à-tête (1 player){% endif %}
+                        </li>
+                    {% endfor %}
+                    <li>Mixed formats: {% if match.tournament.allowed_match_types.allow_mixed %}Allowed{% else %}Not allowed{% endif %}</li>
+                </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="player-selection">
+                {% for player in form.players %}
+                <div class="player-item mb-3">
+                    <div class="player-checkbox form-check mb-2">
+                        {{ player }}
+                    </div>
+                    
+                    <div class="player-roles ms-4" id="roles-{{ player.data.value }}" style="display: none;">
+                        <div class="role-title mb-2">
+                            <small class="text-muted">Select role:</small>
+                        </div>
+                        <div class="role-options d-flex flex-wrap">
+                            <div class="form-check me-3">
+                                <input type="radio" name="role_{{ player.data.value }}" value="pointer" 
+                                       id="id_role_{{ player.data.value }}_pointer" 
+                                       class="form-check-input role-radio">
+                                <label for="id_role_{{ player.data.value }}_pointer" class="form-check-label">
+                                    Pointer
+                                </label>
+                            </div>
+                            <div class="form-check me-3">
+                                <input type="radio" name="role_{{ player.data.value }}" value="milieu" 
+                                       id="id_role_{{ player.data.value }}_milieu" 
+                                       class="form-check-input role-radio">
+                                <label for="id_role_{{ player.data.value }}_milieu" class="form-check-label">
+                                    Milieu
+                                </label>
+                            </div>
+                            <div class="form-check me-3">
+                                <input type="radio" name="role_{{ player.data.value }}" value="tirer" 
+                                       id="id_role_{{ player.data.value }}_tirer" 
+                                       class="form-check-input role-radio">
+                                <label for="id_role_{{ player.data.value }}_tirer" class="form-check-label">
+                                    Shooter
+                                </label>
+                            </div>
+                        </div>
+                        <div class="role-help mt-1">
+                            <small class="text-muted">If no role is selected, player will be assigned as "Flex"</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="form-text">Select the players who will participate in this match.</div>
+            <div id="roleError" class="alert alert-danger mt-2" style="display: none;">
+                Each player can only have one role selected.
+            </div>
+            
+            {% if is_validating %}
+            <div class="player-count-info alert alert-warning mt-3">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Important:</strong> The other team has selected 
+                <span id="otherTeamPlayerCount">{{ first_team_match_players|length }}</span> player(s).
+                {% if not match.tournament.allowed_match_types.allow_mixed %}
+                Your selection should match this count to comply with tournament rules.
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Both teams must activate the match before it can begin. A court will be automatically assigned when both teams have activated.
+        </div>
+        
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-play-fill"></i> Activate Match
+        </button>
+        <a href="{% url 'match_detail' match_id=match.id %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Match
+        </a>
+    </form>
+    {% endif %}
+</div>
+
+<style>
+    /* Mobile-friendly styles for player selection */
+    .player-item {
+        padding: 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+    
+    .player-item.selected {
+        border-color: #0d6efd;
+        background-color: #f0f7ff;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .player-checkbox .form-check-input {
+        width: 22px;
+        height: 22px;
+        margin-right: 10px;
+    }
+    
+    .player-checkbox .form-check-label {
+        font-size: 16px;
+        font-weight: 500;
+    }
+    
+    .player-roles {
+        padding-top: 10px;
+        border-top: 1px dashed #dee2e6;
+        margin-top: 10px;
+    }
+    
+    .role-options {
+        padding: 5px 0;
+    }
+    
+    .role-options .form-check {
+        margin-bottom: 8px;
+    }
+    
+    .role-options .form-check-input {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .role-options .form-check-label {
+        font-size: 14px;
+        padding-left: 5px;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 576px) {
+        .role-options {
+            flex-direction: column;
+        }
+        
+        .role-options .form-check {
+            margin-right: 0;
+            margin-bottom: 10px;
+        }
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get all player checkboxes
+    const playerCheckboxes = document.querySelectorAll('.player-checkbox input[type="checkbox"]');
+    
+    // Add event listeners to each checkbox
+    playerCheckboxes.forEach(function(checkbox) {
+        // Get the player ID from the checkbox value
+        const playerId = checkbox.value;
+        // Get the roles container for this player
+        const rolesContainer = document.getElementById('roles-' + playerId);
+        // Get the parent player-item div
+        const playerItem = checkbox.closest('.player-item');
+        
+        // Add change event listener
+        checkbox.addEventListener('change', function() {
+            // Show/hide roles based on checkbox state
+            if (this.checked) {
+                rolesContainer.style.display = 'block';
+                playerItem.classList.add('selected');
+            } else {
+                rolesContainer.style.display = 'none';
+                playerItem.classList.remove('selected');
+                
+                // Uncheck all role radios for this player
+                const roleRadios = rolesContainer.querySelectorAll('input[type="radio"]');
+                roleRadios.forEach(function(radio) {
+                    radio.checked = false;
+                });
+            }
+            
+            // Update selected player count
+            updateSelectedPlayerCount();
+        });
+    });
+    
+    // Function to update selected player count
+    function updateSelectedPlayerCount() {
+        const selectedCount = document.querySelectorAll('.player-checkbox input[type="checkbox"]:checked').length;
+        const otherTeamCount = document.getElementById('otherTeamPlayerCount');
+        
+        if (otherTeamCount) {
+            // If other team count exists, check if counts match
+            const otherCount = parseInt(otherTeamCount.textContent);
+            const playerCountInfo = document.querySelector('.player-count-info');
+            
+            if (playerCountInfo) {
+                if (selectedCount !== otherCount) {
+                    playerCountInfo.classList.remove('alert-warning');
+                    playerCountInfo.classList.add('alert-danger');
+                } else {
+                    playerCountInfo.classList.remove('alert-danger');
+                    playerCountInfo.classList.add('alert-warning');
+                }
+            }
+        }
+    }
+    
+    // Form validation
+    const form = document.getElementById('matchActivationForm');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            let hasError = false;
+            const roleError = document.getElementById('roleError');
+            
+            // Reset error display
+            roleError.style.display = 'none';
+            
+            // Check each selected player
+            playerCheckboxes.forEach(function(checkbox) {
+                if (checkbox.checked) {
+                    const playerId = checkbox.value;
+                    const rolesContainer = document.getElementById('roles-' + playerId);
+                    const roleRadios = rolesContainer.querySelectorAll('input[type="radio"]:checked');
+                    
+                    // If more than one role is selected, show error
+                    if (roleRadios.length > 1) {
+                        hasError = true;
+                        roleError.style.display = 'block';
+                    }
+                }
+            });
+            
+            // Prevent form submission if there are errors
+            if (hasError) {
+                event.preventDefault();
+            }
+        });
+    }
+    
+    // Initialize player count display
+    updateSelectedPlayerCount();
+});
+</script>
+
+{% endblock %}

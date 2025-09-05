@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Score - Team {{ team.name }} - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Success/Error Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Submit Score - Team {{ team.name }}</h1>
+        <a href="{% url 'team_login' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Login
+        </a>
+    </div>
+
+    {% if has_matches %}
+        {% if system_recommendation %}
+            <!-- System Recommendation -->
+            <div class="card mb-4 border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-star-fill"></i> System Recommendation
+                    </h5>
+                    <small>Your top priority match for score submission</small>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h4 class="mb-2">
+                                <strong>{{ system_recommendation.team1.name }} vs {{ system_recommendation.team2.name }}</strong>
+                            </h4>
+                            <p class="mb-1">
+                                <strong>Tournament:</strong> {{ system_recommendation.tournament.name }}
+                            </p>
+                            {% if system_recommendation.round %}
+                                <p class="mb-1">
+                                    <strong>Round:</strong> {{ system_recommendation.round.name }}
+                                </p>
+                            {% endif %}
+                            {% if system_recommendation.court %}
+                                <p class="mb-1">
+                                    <strong>Court:</strong> {{ system_recommendation.court.name }}
+                                </p>
+                            {% endif %}
+                            {% if system_recommendation.status == 'active' %}
+                                <div class="alert alert-success mt-2 mb-0">
+                                    <i class="bi bi-play-circle"></i> 
+                                    <strong>Active Match:</strong> Currently in progress - ready for score submission
+                                </div>
+                            {% elif system_recommendation.status == 'waiting_validation' %}
+                                <div class="alert alert-warning mt-2 mb-0">
+                                    <i class="bi bi-clock"></i> 
+                                    <strong>Waiting Validation:</strong> Score submitted, awaiting confirmation
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{% url 'match_detail' system_recommendation.id %}" class="btn btn-success btn-lg">
+                                <i class="bi bi-clipboard-check"></i> Submit Score
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- All Available Matches for Score Submission -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> All Matches for Score Submission
+                </h5>
+                <small>Complete list of matches requiring score submission</small>
+            </div>
+            <div class="card-body">
+                {% for match in all_matches %}
+                    <div class="card mb-3 {% if match == system_recommendation %}border-success{% endif %}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6 class="mb-2">
+                                        <strong>{{ match.team1.name }} vs {{ match.team2.name }}</strong>
+                                        {% if match == system_recommendation %}
+                                            <span class="badge bg-success ms-2">Recommended</span>
+                                        {% endif %}
+                                    </h6>
+                                    <p class="mb-1">
+                                        <small class="text-muted">
+                                            Tournament: {{ match.tournament.name }}
+                                            {% if match.round %} | Round: {{ match.round.name }}{% endif %}
+                                            {% if match.court %} | Court: {{ match.court.name }}{% endif %}
+                                        </small>
+                                    </p>
+                                </div>
+                                <div class="text-end">
+                                    {% if match.status == 'active' %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% elif match.status == 'waiting_validation' %}
+                                        <span class="badge bg-warning">Waiting Validation</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if match.status == 'waiting_validation' %}
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle"></i> 
+                                        Score has been submitted and is awaiting validation from the other team.
+                                    </small>
+                                </div>
+                            {% endif %}
+                            <div class="mt-2">
+                                <a href="{% url 'match_detail' match.id %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye"></i> View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Match Statistics Summary -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">{{ active_matches|length }}</h5>
+                        <p class="card-text">Active Matches</p>
+                        <small class="text-muted">Ready for score submission</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">{{ waiting_validation|length }}</h5>
+                        <p class="card-text">Waiting Validation</p>
+                        <small class="text-muted">Awaiting confirmation</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- No Matches Available -->
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-clipboard-x fa-3x text-muted mb-3"></i>
+                <h3>No Matches for Score Submission</h3>
+                <p class="text-muted mb-4">Your team {{ team.name }} doesn't have any active matches or matches waiting for score submission at the moment.</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a href="{% url 'tournament_list' %}" class="btn btn-primary">
+                        <i class="bi bi-trophy"></i> View Tournaments
+                    </a>
+                    <a href="{% url 'match_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-list"></i> All Matches
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h6 class="mb-0">Quick Actions</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <a href="{% url 'match_list' %}" class="btn btn-outline-success w-100">
+                        <i class="bi bi-list"></i> View All Matches
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{% url 'tournament_list' %}" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-trophy"></i> View Tournaments
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{% url 'team_detail' team.id %}" class="btn btn-outline-warning w-100">
+                        <i class="bi bi-people"></i> Team Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

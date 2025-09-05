@@ -1,0 +1,339 @@
+{% extends 'base.html' %}
+
+{% block title %}Team PIN - {{ team.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pin-display-container {
+        max-width: 600px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+    
+    .pin-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 3rem 2rem;
+        text-align: center;
+        color: white;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .pin-card h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+    }
+    
+    .team-name {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+    }
+    
+    .pin-display {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 15px;
+        padding: 2rem;
+        margin: 2rem 0;
+        backdrop-filter: blur(10px);
+    }
+    
+    .pin-label {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        opacity: 0.9;
+    }
+    
+    .pin-number {
+        font-size: 4rem;
+        font-weight: 900;
+        letter-spacing: 0.5rem;
+        font-family: 'Courier New', monospace;
+        background: linear-gradient(45deg, #fff, #f0f0f0);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .copy-pin-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 1rem;
+    }
+    
+    .copy-pin-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+    }
+    
+    .instructions-card {
+        background: white;
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .instructions-card h3 {
+        color: #2c3e50;
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+    }
+    
+    .instruction-step {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border-left: 4px solid #3f51b5;
+    }
+    
+    .step-number {
+        background: #3f51b5;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .step-text {
+        flex: 1;
+        color: #2c3e50;
+    }
+    
+    .action-buttons {
+        text-align: center;
+        margin-top: 2rem;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #3f51b5, #2196f3);
+        border: none;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 50px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+        margin: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(63, 81, 181, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-secondary {
+        background: #6c757d;
+        border: none;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 50px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+        margin: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-secondary:hover {
+        background: #5a6268;
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .success-message {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+    
+    .warning-box {
+        background: linear-gradient(135deg, #ffc107, #fd7e14);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-top: 2rem;
+        text-align: center;
+    }
+    
+    .warning-box strong {
+        display: block;
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pin-display-container">
+    {% if is_team_creation and team_created_info %}
+        <div class="success-message">
+            🎉 Congratulations {{ team_created_info.player_name }}! Your team "{{ team_created_info.team_name }}" has been created successfully!
+        </div>
+    {% endif %}
+    
+    <div class="pin-card">
+        <h1>🏆 Team PIN</h1>
+        <div class="team-name">{{ team.name }}</div>
+        
+        <div class="pin-display">
+            <div class="pin-label">Your Team PIN is:</div>
+            <div class="pin-number" id="team-pin">{{ team.pin }}</div>
+            <button class="copy-pin-btn" onclick="copyPin()">
+                📋 Copy PIN
+            </button>
+        </div>
+    </div>
+    
+    <div class="instructions-card">
+        <h3>📝 How to Use Your Team PIN</h3>
+        
+        <div class="instruction-step">
+            <div class="step-number">1</div>
+            <div class="step-text">
+                <strong>Save this PIN safely!</strong> You'll need it to access your team and for other players to join.
+            </div>
+        </div>
+        
+        <div class="instruction-step">
+            <div class="step-number">2</div>
+            <div class="step-text">
+                <strong>Share with team members:</strong> Give this PIN to players who want to join your team.
+            </div>
+        </div>
+        
+        <div class="instruction-step">
+            <div class="step-number">3</div>
+            <div class="step-text">
+                <strong>Team Login:</strong> Use this PIN to log in as a team for matches and tournaments.
+            </div>
+        </div>
+        
+        <div class="instruction-step">
+            <div class="step-number">4</div>
+            <div class="step-text">
+                <strong>Player Registration:</strong> New players can use this PIN when creating their profiles to join your team.
+            </div>
+        </div>
+    </div>
+    
+    <div class="warning-box">
+        <strong>⚠️ Important!</strong>
+        Keep this PIN secure and only share it with trusted team members. Anyone with this PIN can access your team.
+    </div>
+    
+    <div class="action-buttons">
+        {% if is_team_creation %}
+            <a href="{% url 'player_profile' team_created_info.player_id %}" class="btn-primary">
+                👤 Go to My Profile
+            </a>
+        {% endif %}
+        <a href="{% url 'team_detail' team.id %}" class="btn-primary">
+            🏆 View Team Details
+        </a>
+        <a href="{% url 'home' %}" class="btn-secondary">
+            🏠 Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyPin() {
+    const pinText = document.getElementById('team-pin').textContent;
+    
+    // Try to use the modern clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(pinText).then(function() {
+            showCopySuccess();
+        }).catch(function() {
+            fallbackCopyTextToClipboard(pinText);
+        });
+    } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(pinText);
+    }
+}
+
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showCopySuccess();
+        } else {
+            showCopyError();
+        }
+    } catch (err) {
+        showCopyError();
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+function showCopySuccess() {
+    const button = document.querySelector('.copy-pin-btn');
+    const originalText = button.innerHTML;
+    button.innerHTML = '✅ Copied!';
+    button.style.background = 'rgba(40, 167, 69, 0.8)';
+    
+    setTimeout(() => {
+        button.innerHTML = originalText;
+        button.style.background = 'rgba(255, 255, 255, 0.2)';
+    }, 2000);
+}
+
+function showCopyError() {
+    const button = document.querySelector('.copy-pin-btn');
+    const originalText = button.innerHTML;
+    button.innerHTML = '❌ Copy Failed';
+    button.style.background = 'rgba(220, 53, 69, 0.8)';
+    
+    setTimeout(() => {
+        button.innerHTML = originalText;
+        button.style.background = 'rgba(255, 255, 255, 0.2)';
+    }, 2000);
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,446 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Post Activity - PFC Billboard{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="d-flex align-items-center mb-4">
+                <a href="{% url 'billboard:list' %}" class="btn btn-outline-secondary me-3">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Billboard
+                </a>
+                <div>
+                    <h1 class="h2 mb-1">Post Activity</h1>
+                    <p class="text-muted mb-0">Declare your court activity to coordinate with other players</p>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bullhorn me-2"></i>
+                        New Billboard Entry
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="billboard-form">
+                        {% csrf_token %}
+                        
+                        <!-- Codename Field -->
+                        <div class="mb-4">
+                            <label for="{{ form.codename.id_for_label }}" class="form-label">
+                                <i class="fas fa-user me-2"></i>Your Codename *
+                            </label>
+                            {{ form.codename }}
+                            {% if form.codename.help_text %}
+                                <div class="form-text">{{ form.codename.help_text }}</div>
+                            {% endif %}
+                            {% if form.codename.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.codename.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Action Type Field -->
+                        <div class="mb-4">
+                            <label for="{{ form.action_type.id_for_label }}" class="form-label">
+                                <i class="fas fa-list me-2"></i>Activity Type *
+                            </label>
+                            {{ form.action_type }}
+                            {% if form.action_type.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.action_type.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Court Complex Field -->
+                        <div class="mb-4">
+                            <label for="{{ form.court_complex.id_for_label }}" class="form-label">
+                                <i class="fas fa-building me-2"></i>Court Complex *
+                            </label>
+                            {{ form.court_complex }}
+                            {% if form.court_complex.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.court_complex.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Conditional Fields -->
+                        <div id="time-field" class="mb-4" style="display: none;">
+                            <label for="{{ form.scheduled_time.id_for_label }}" class="form-label">
+                                <i class="fas fa-clock me-2"></i>Scheduled Time
+                            </label>
+                            {{ form.scheduled_time }}
+                            {% if form.scheduled_time.help_text %}
+                                <div class="form-text">{{ form.scheduled_time.help_text }}</div>
+                            {% endif %}
+                            {% if form.scheduled_time.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.scheduled_time.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div id="date-field" class="mb-4" style="display: none;">
+                            <label for="{{ form.scheduled_date.id_for_label }}" class="form-label">
+                                <i class="fas fa-calendar me-2"></i>Scheduled Date
+                            </label>
+                            {{ form.scheduled_date }}
+                            {% if form.scheduled_date.help_text %}
+                                <div class="form-text">{{ form.scheduled_date.help_text }}</div>
+                            {% endif %}
+                            {% if form.scheduled_date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.scheduled_date.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div id="opponent-field" class="mb-4" style="display: none;">
+                            <label for="{{ form.team_search.id_for_label }}" class="form-label">
+                                <i class="fas fa-users me-2"></i>Opponent Team *
+                            </label>
+                            
+                            <!-- Team Search Input -->
+                            {{ form.team_search }}
+                            <div class="form-text">Search and select the opponent team</div>
+                            
+                            <!-- Search Results Dropdown -->
+                            <div id="team-search-results" class="dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;">
+                                <!-- Results will be populated by JavaScript -->
+                            </div>
+                            
+                            <!-- Selected Team Display -->
+                            <div id="selected-team-display" class="mt-2" style="display: none;">
+                                <div class="alert alert-success d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        <strong>Selected Team:</strong> <span id="selected-team-name"></span>
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="clear-team-selection">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Hidden fields for form submission -->
+                            {{ form.selected_team_id }}
+                            {{ form.opponent_team }}
+                            
+                            {% if form.team_search.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.team_search.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Message Field -->
+                        <div class="mb-4">
+                            <label for="{{ form.message.id_for_label }}" class="form-label">
+                                <i class="fas fa-comment me-2"></i>Message (Optional)
+                            </label>
+                            {{ form.message }}
+                            <div class="form-text">Add any additional details or context</div>
+                            {% if form.message.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.message.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Form Errors -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Submit Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'billboard:list' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-2"></i>Post to Billboard
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="card mt-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        How it Works
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6 class="text-success">
+                                <i class="fas fa-map-marker-alt me-2"></i>I'm at the courts
+                            </h6>
+                            <p class="small text-muted">
+                                Let others know you're currently at a court complex. 
+                                Other players can join you by clicking "I'm there too!"
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-warning">
+                                <i class="fas fa-clock me-2"></i>I'm going to the courts
+                            </h6>
+                            <p class="small text-muted">
+                                Plan a visit to the courts at a specific time. 
+                                Others can join your planned session.
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-info">
+                                <i class="fas fa-trophy me-2"></i>Looking for tournament match
+                            </h6>
+                            <p class="small text-muted">
+                                Coordinate with opponents to schedule pending tournament matches. 
+                                Only specified opponents can accept.
+                            </p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-primary">
+                                <i class="fas fa-rules me-2"></i>Rules
+                            </h6>
+                            <ul class="small text-muted mb-0">
+                                <li>Valid player codename required for all activities</li>
+                                <li>Maximum 2 entries per activity type per day</li>
+                                <li>Entries automatically expire after 24 hours</li>
+                                <li>You can edit or delete your own entries</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for dynamic form behavior -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const actionTypeSelect = document.getElementById('{{ form.action_type.id_for_label }}');
+    const timeField = document.getElementById('time-field');
+    const dateField = document.getElementById('date-field');
+    const opponentField = document.getElementById('opponent-field');
+    const timeInput = document.getElementById('{{ form.scheduled_time.id_for_label }}');
+    const dateInput = document.getElementById('{{ form.scheduled_date.id_for_label }}');
+    const opponentInput = document.getElementById('{{ form.opponent_team.id_for_label }}');
+    
+    function toggleFields() {
+        const selectedAction = actionTypeSelect.value;
+        
+        // Hide all conditional fields first
+        timeField.style.display = 'none';
+        dateField.style.display = 'none';
+        opponentField.style.display = 'none';
+        
+        // Clear values
+        timeInput.value = '';
+        dateInput.value = '';
+        opponentInput.value = '';
+        
+        // Show relevant fields based on selection
+        if (selectedAction === 'GOING_TO_COURTS') {
+            timeField.style.display = 'block';
+            dateField.style.display = 'block';
+            timeInput.required = true;
+            dateInput.required = true;
+            document.getElementById('{{ form.selected_team_id.id_for_label }}').required = false;
+        } else if (selectedAction === 'LOOKING_FOR_MATCH') {
+            timeField.style.display = 'block';
+            dateField.style.display = 'block';
+            opponentField.style.display = 'block';
+            timeInput.required = true;
+            dateInput.required = true;
+            document.getElementById('{{ form.selected_team_id.id_for_label }}').required = true;
+        } else {
+            timeInput.required = false;
+            dateInput.required = false;
+            document.getElementById('{{ form.selected_team_id.id_for_label }}').required = false;
+        }
+    }
+    
+    // Initial setup
+    toggleFields();
+    
+    // Listen for changes
+    actionTypeSelect.addEventListener('change', toggleFields);
+    
+    // Team search functionality
+    const teamSearchInput = document.getElementById('{{ form.team_search.id_for_label }}');
+    const teamSearchResults = document.getElementById('team-search-results');
+    const selectedTeamDisplay = document.getElementById('selected-team-display');
+    const selectedTeamName = document.getElementById('selected-team-name');
+    const selectedTeamIdInput = document.getElementById('{{ form.selected_team_id.id_for_label }}');
+    const opponentTeamInput = document.getElementById('{{ form.opponent_team.id_for_label }}');
+    const clearTeamButton = document.getElementById('clear-team-selection');
+    
+    let searchTimeout;
+    let selectedTeam = null;
+    
+    // Team search with debounce
+    teamSearchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 2) {
+            teamSearchResults.style.display = 'none';
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            fetch(`/billboard/api/search/?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    displayTeamResults(data.teams);
+                })
+                .catch(error => {
+                    console.error('Team search error:', error);
+                    teamSearchResults.style.display = 'none';
+                });
+        }, 300);
+    });
+    
+    // Display team search results
+    function displayTeamResults(teams) {
+        teamSearchResults.innerHTML = '';
+        
+        if (teams.length === 0) {
+            teamSearchResults.innerHTML = '<div class="dropdown-item-text text-muted">No teams found</div>';
+        } else {
+            teams.forEach(team => {
+                const item = document.createElement('a');
+                item.className = 'dropdown-item d-flex align-items-center';
+                item.href = '#';
+                item.innerHTML = `
+                    <i class="fas fa-users me-2 text-primary"></i>
+                    <span>${team.name}</span>
+                `;
+                
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    selectTeam(team);
+                });
+                
+                teamSearchResults.appendChild(item);
+            });
+        }
+        
+        teamSearchResults.style.display = 'block';
+    }
+    
+    // Select a team
+    function selectTeam(team) {
+        selectedTeam = team;
+        selectedTeamIdInput.value = team.id;
+        opponentTeamInput.value = team.name;
+        selectedTeamName.textContent = team.name;
+        
+        // Hide search results and show selected team
+        teamSearchResults.style.display = 'none';
+        selectedTeamDisplay.style.display = 'block';
+        teamSearchInput.value = '';
+    }
+    
+    // Clear team selection
+    clearTeamButton.addEventListener('click', function() {
+        selectedTeam = null;
+        selectedTeamIdInput.value = '';
+        opponentTeamInput.value = '';
+        selectedTeamDisplay.style.display = 'none';
+        teamSearchInput.value = '';
+        teamSearchInput.focus();
+    });
+    
+    // Hide search results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!teamSearchInput.contains(e.target) && !teamSearchResults.contains(e.target)) {
+            teamSearchResults.style.display = 'none';
+        }
+    });
+    const codenameInput = document.getElementById('{{ form.codename.id_for_label }}');
+    codenameInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+    
+    // Form validation
+    document.getElementById('billboard-form').addEventListener('submit', function(e) {
+        const codename = codenameInput.value.trim();
+        const actionType = actionTypeSelect.value;
+        
+        if (!codename) {
+            e.preventDefault();
+            alert('Please enter your codename');
+            codenameInput.focus();
+            return;
+        }
+        
+        if (codename.length !== 6) {
+            e.preventDefault();
+            alert('Codename must be exactly 6 characters');
+            codenameInput.focus();
+            return;
+        }
+        
+        if (actionType === 'GOING_TO_COURTS' && !timeInput.value) {
+            e.preventDefault();
+            alert('Please select a time for your court visit');
+            timeInput.focus();
+            return;
+        }
+        
+        if (actionType === 'LOOKING_FOR_MATCH') {
+            if (!timeInput.value) {
+                e.preventDefault();
+                alert('Please select a time for the match appointment');
+                timeInput.focus();
+                return;
+            }
+            
+            if (!selectedTeamIdInput.value) {
+                e.preventDefault();
+                alert('Please search and select an opponent team');
+                teamSearchInput.focus();
+                return;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Score - Petanque Platform (PFC){% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">
+                        <i class="fas fa-clipboard-check"></i> Submit Final Score
+                    </h3>
+                    <small>Match #{{ game.match_number }}</small>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="scoreForm">
+                        {% csrf_token %}
+                        
+                        <!-- Score Input Section -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card bg-dark text-white">
+                                    <div class="card-body text-center">
+                                        <h4>Black Team</h4>
+                                        <div class="mb-3">
+                                            <label for="black_score" class="form-label">Final Score</label>
+                                            <input type="number" class="form-control form-control-lg text-center" 
+                                                   id="black_score" name="black_score" min="0" max="13" required>
+                                        </div>
+                                        <small class="text-muted">
+                                            Players: 
+                                            {% for player in black_players %}
+                                                {{ player.player.name }}{% if not forloop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h4>White Team</h4>
+                                        <div class="mb-3">
+                                            <label for="white_score" class="form-label">Final Score</label>
+                                            <input type="number" class="form-control form-control-lg text-center" 
+                                                   id="white_score" name="white_score" min="0" max="13" required>
+                                        </div>
+                                        <small class="text-muted">
+                                            Players: 
+                                            {% for player in white_players %}
+                                                {{ player.player.name }}{% if not forloop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Team Selection Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">Submitting Team</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="submitting_team" 
+                                                   id="black_team" value="BLACK" required checked>
+                                            <label class="form-check-label" for="black_team">
+                                                <strong>Black Team is submitting</strong>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="submitting_team" 
+                                                   id="white_team" value="WHITE" required>
+                                            <label class="form-check-label" for="white_team">
+                                                <strong>White Team is submitting</strong>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Optional Codename Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">Optional: Validate Your Participation</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="submitter_codename" class="form-label">
+                                        <strong>Your Codename (Optional)</strong>
+                                    </label>
+                                    <input type="text" class="form-control" id="submitter_codename" 
+                                           name="submitter_codename" placeholder="Enter your 6-character codename"
+                                           maxlength="6" style="text-transform: uppercase;"
+                                           value="{% if session_codename %}{{ session_codename }}{% endif %}">
+                                    <div class="form-text">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Providing your codename helps validate your participation for statistics.
+                                        The other team will also have the option to validate when they confirm the result.
+                                        {% if session_codename %}
+                                        <br><small class="text-success">
+                                            <i class="fas fa-check-circle"></i> Auto-filled from your session
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-warning btn-lg">
+                                <i class="fas fa-paper-plane"></i> Submit Score for Validation
+                            </button>
+                        </div>
+
+                        <!-- Back Button -->
+                        <div class="text-center mt-3">
+                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Game
+                            </a>
+                        </div>
+                        
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-detect team on page load if codename is already filled
+document.addEventListener('DOMContentLoaded', function() {
+    const codenameInput = document.getElementById('submitter_codename');
+    const existingCodename = codenameInput.value.trim();
+    
+    // If codename is pre-filled from session, auto-detect team immediately
+    if (existingCodename && existingCodename.length === 6) {
+        autoDetectTeam(existingCodename);
+    }
+});
+
+// Auto-uppercase codename input and auto-detect team
+document.getElementById('submitter_codename').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+    
+    // Auto-detect team when codename is complete (6 characters)
+    if (e.target.value.length === 6) {
+        autoDetectTeam(e.target.value);
+    } else {
+        clearAutoSelectionIndicator();
+    }
+});
+
+// Auto-detect and select team based on codename
+function autoDetectTeam(codename) {
+    // Make AJAX call to check which team the codename belongs to
+    fetch(`/friendly-games/{{ game.id }}/check-codename/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({codename: codename})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.team) {
+            selectTeam(data.team, data.player_name);
+        } else {
+            clearAutoSelectionIndicator();
+        }
+    })
+    .catch(error => {
+        console.log('Codename check failed:', error);
+        clearAutoSelectionIndicator();
+    });
+}
+
+// Select team and show auto-selection indicator
+function selectTeam(team, playerName) {
+    const teamRadio = document.getElementById(team.toLowerCase() + '_team');
+    if (teamRadio) {
+        teamRadio.checked = true;
+        showAutoSelectionIndicator(team, playerName);
+    }
+}
+
+// Show auto-selection indicator
+function showAutoSelectionIndicator(team, playerName) {
+    clearAutoSelectionIndicator();
+    
+    // Add indicator after the codename input
+    const codenameCard = document.querySelector('#submitter_codename').closest('.card-body');
+    const indicator = document.createElement('div');
+    indicator.className = 'auto-selection-indicator mt-3';
+    indicator.innerHTML = `
+        <div class="alert alert-success mb-0 p-2">
+            <i class="fas fa-magic"></i> 
+            <strong>Auto-selected:</strong> ${playerName} is on ${team.charAt(0) + team.slice(1).toLowerCase()} team
+        </div>
+    `;
+    codenameCard.appendChild(indicator);
+}
+
+// Clear auto-selection indicator
+function clearAutoSelectionIndicator() {
+    const indicator = document.querySelector('.auto-selection-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+// Form validation
+document.getElementById('scoreForm').addEventListener('submit', function(e) {
+    const blackScore = parseInt(document.getElementById('black_score').value);
+    const whiteScore = parseInt(document.getElementById('white_score').value);
+    
+    if (blackScore === whiteScore) {
+        e.preventDefault();
+        alert('Scores cannot be tied. One team must win.');
+        return false;
+    }
+    
+    const submittingTeam = document.querySelector('input[name="submitting_team"]:checked');
+    if (!submittingTeam) {
+        e.preventDefault();
+        alert('Please select which team is submitting the score.');
+        return false;
+    }
+    
+    const codename = document.getElementById('submitter_codename').value.trim();
+    if (codename && codename.length !== 6) {
+        e.preventDefault();
+        alert('Codename must be exactly 6 characters long.');
+        return false;
+    }
+});
+</script>
+{% endblock %}
+

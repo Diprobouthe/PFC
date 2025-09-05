@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Home - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+
+    <!-- Welcome Message - Large and Clear -->
+    <div class="text-center mb-4">
+        <h2 class="mb-2" style="font-weight: 600; font-size: 2rem;">Let's play petanque!</h2>
+    </div>
+
+    <!-- PRIORITY 1: Tournament Games - LARGE for accessibility -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-12 col-lg-10">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0"><i class="fas fa-trophy me-3"></i>Tournament Games</h3>
+                        <button class="btn btn-outline-light btn-sm" onclick="togglePinInput()" id="togglePinBtn">
+                            <i class="fas fa-key me-1"></i>Show PIN
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body py-4">
+                    <form method="post" action="{% url 'team_login' %}">
+                        {% csrf_token %}
+                        <div id="pinInputSection" style="display: none;">
+                            <div class="mb-4">
+                                <input type="text" name="pin" class="form-control form-control-lg" 
+                                       style="font-size: 1.8rem; padding: 1.2rem; text-align: center; letter-spacing: 0.5rem; height: 80px;" 
+                                       placeholder="******" maxlength="6" required>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <button type="submit" name="action" value="find_next" 
+                                        class="btn btn-primary w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
+                                    <i class="fas fa-search fa-lg me-3"></i><br>Find Match
+                                </button>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <button type="submit" name="action" value="submit_score" 
+                                        class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
+                                    <i class="fas fa-clipboard-check fa-lg me-3"></i><br>Submit Score
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRIORITY 3: Friendly Games - LARGE Section -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-12 col-lg-10">
+            <div class="card border-success shadow-lg">
+                <div class="card-header bg-success text-white py-3">
+                    <h3 class="mb-0 text-center"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 32px; width: auto; margin-right: 12px;">Friendly Games</h3>
+                </div>
+                <div class="card-body py-4">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <a href="{% url 'friendly_games:create_game' %}" 
+                               class="btn btn-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-plus-circle fa-lg me-3"></i>
+                                <span>Create Game</span>
+                            </a>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <a href="{% url 'friendly_games:join_game' %}" 
+                               class="btn btn-outline-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-users fa-lg me-3"></i>
+                                <span>Join Game</span>
+                            </a>
+                        </div>
+                    </div>
+                    <p class="text-center mt-3 mb-0" style="font-size: 1.1rem; font-weight: 500;">
+                        <strong>No team restrictions - play with anyone!</strong>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scroll Indicator - Clear Visual Cue -->
+    <div class="text-center mb-4">
+        <div class="scroll-hint">
+            <p class="text-muted mb-2" style="font-size: 1.1rem;">
+                <i class="fas fa-chevron-down fa-lg"></i>
+            </p>
+            <p class="text-muted" style="font-size: 1rem;">More options below</p>
+            <p class="text-muted">
+                <i class="fas fa-chevron-down fa-lg"></i>
+            </p>
+        </div>
+    </div>
+
+    <!-- TOURNAMENTS: Collapsible Section -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-12 col-lg-10">
+            <div class="card border-warning shadow-lg">
+                <div class="card-header bg-warning text-dark py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#tournamentsSection" aria-expanded="false" aria-controls="tournamentsSection">
+                    <h3 class="mb-0 text-center">
+                        <i class="fas fa-trophy me-3"></i>Tournaments
+                        <i class="fas fa-chevron-down float-end" id="tournamentsChevron"></i>
+                    </h3>
+                </div>
+                <div class="collapse" id="tournamentsSection">
+                    <div class="card-body py-4">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <a href="/simple/" 
+                                   class="btn btn-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-plus-circle fa-lg me-3"></i>
+                                    <span>Create Tournament</span>
+                                </a>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <a href="/signin/" 
+                                   class="btn btn-warning w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-sign-in-alt fa-lg me-3"></i>
+                                    <span>Join Tournament</span>
+                                </a>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <a href="{% url 'tournament_list' %}" 
+                                   class="btn btn-outline-warning w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-eye fa-lg me-2"></i>View Tournaments
+                                </a>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <a href="{% url 'player_leaderboard' %}" 
+                                   class="btn btn-outline-warning w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-chart-line fa-lg me-2"></i>Tournament Players
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECONDARY FUNCTIONS: Management & Viewing - LARGE Cards -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-12 col-lg-10">
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="card h-100 shadow">
+                        <div class="card-body text-center py-4">
+                            <img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 48px; width: auto;" class="mb-3">
+                            <h4 class="card-title mb-3">Matches</h4>
+                            <a href="{% url 'match_list' %}" class="btn btn-info w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-eye fa-lg me-2"></i>View Matches
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADDITIONAL FUNCTIONS: Teams & Admin - LARGE Cards -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-12 col-lg-10">
+            <div class="row g-4">
+                <div class="col-12 col-md-6">
+                    <div class="card h-100 shadow">
+                        <div class="card-body text-center py-4">
+                            <i class="fas fa-users fa-3x mb-3 text-primary"></i>
+                            <h4 class="card-title mb-3">Teams</h4>
+                            <a href="{% url 'team_list' %}" class="btn btn-primary w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-eye fa-lg me-2"></i>View Teams
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="card h-100 shadow">
+                        <div class="card-body text-center py-4">
+                            <i class="fas fa-users fa-3x mb-3 text-success"></i>
+                            <h4 class="card-title mb-3">Friendly Game Statistics</h4>
+                            <a href="{% url 'friendly_games_leaderboard' %}" class="btn btn-success w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-chart-line fa-lg me-2"></i>Friendly Game Statistics
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FINAL FUNCTIONS: Courts & AI Umpire - LARGE Cards -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-12 col-lg-10">
+            <div class="row g-4">
+                <div class="col-12 col-md-6">
+                    <div class="card h-100 shadow">
+                        <div class="card-body text-center py-4">
+                            <i class="fas fa-building fa-3x mb-3 text-danger"></i>
+                            <h4 class="card-title mb-3">Court Complex</h4>
+                            <a href="{% url 'court_complex_list' %}" class="btn btn-danger w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-eye fa-lg me-2"></i>View Court Complex
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="card h-100 shadow">
+                        <div class="card-body text-center py-4">
+                            <img src="{% static 'petaump.webp' %}" alt="PetA UMP" style="height: 48px; width: auto;" class="mb-3">
+                            <h4 class="card-title mb-3">AI Umpire (petA UMP)</h4>
+                            <a href="https://chatgpt.com/g/g-67b6e4fb426881918b6bb98d4b0238e0-peta-ump" target="_blank" class="btn btn-dark w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <img src="{% static 'petaump.webp' %}" alt="PetA UMP" style="height: 24px; width: auto;" class="me-2">AI Umpire (petA UMP)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced CSS for accessibility and larger buttons -->
+<style>
+/* Accessibility improvements for older users */
+.btn {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+}
+
+.card {
+    border-radius: 12px !important;
+    transition: all 0.2s ease !important;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important;
+}
+
+/* Smooth scrolling hint animation */
+.scroll-hint {
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-5px);
+    }
+    60% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Chevron rotation for collapsible sections */
+#tournamentsChevron {
+    transition: transform 0.3s ease;
+}
+
+.collapsed #tournamentsChevron {
+    transform: rotate(0deg);
+}
+
+#tournamentsSection.show ~ .card-header #tournamentsChevron {
+    transform: rotate(180deg);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .container-fluid {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    
+    .btn {
+        font-size: 1.1rem !important;
+        min-height: 60px !important;
+    }
+    
+    h2 {
+        font-size: 1.6rem !important;
+    }
+    
+    h3 {
+        font-size: 1.4rem !important;
+    }
+    
+    h4 {
+        font-size: 1.2rem !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .btn {
+        border: 2px solid !important;
+    }
+    
+    .card {
+        border: 2px solid #333 !important;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .scroll-hint {
+        animation: none;
+    }
+    
+    .btn:hover, .card:hover {
+        transform: none;
+    }
+    
+    #tournamentsChevron {
+        transition: none;
+    }
+}
+</style>
+
+<script>
+// Handle chevron rotation for tournaments section
+document.addEventListener('DOMContentLoaded', function() {
+    const tournamentsSection = document.getElementById('tournamentsSection');
+    const tournamentsChevron = document.getElementById('tournamentsChevron');
+    
+    if (tournamentsSection && tournamentsChevron) {
+        tournamentsSection.addEventListener('show.bs.collapse', function() {
+            tournamentsChevron.style.transform = 'rotate(180deg)';
+        });
+        
+        tournamentsSection.addEventListener('hide.bs.collapse', function() {
+            tournamentsChevron.style.transform = 'rotate(0deg)';
+        });
+    }
+});
+
+// Toggle PIN input visibility
+function togglePinInput() {
+    const pinSection = document.getElementById('pinInputSection');
+    const toggleBtn = document.getElementById('togglePinBtn');
+    
+    if (pinSection.style.display === 'none') {
+        pinSection.style.display = 'block';
+        toggleBtn.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide PIN';
+    } else {
+        pinSection.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-key me-1"></i>Show PIN';
+    }
+}
+</script>
+{% endblock %}
+

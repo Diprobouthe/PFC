@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Created - PFC Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .main-container { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); margin: 2rem auto; max-width: 900px; }
+        .header-section { background: linear-gradient(135deg, #059669, #10b981); color: white; padding: 2rem; border-radius: 20px 20px 0 0; text-align: center; }
+        .info-card { background: white; border: 2px solid #e2e8f0; border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .pin-code { font-family: 'Courier New', monospace; font-size: 1.2rem; font-weight: bold; color: #2563eb; }
+        .btn-primary { background: linear-gradient(135deg, #2563eb, #3b82f6); border: none; border-radius: 10px; padding: 0.75rem 2rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <div class="header-section">
+                <h1><i class="bi bi-check-circle fs-1 d-block mb-3"></i> Tournament Created!</h1>
+                <h3>{{ tournament_info.tournament_name }}</h3>
+                <p class="mb-0">Your tournament is ready to go</p>
+            </div>
+            
+            <div class="p-4">
+                <div class="row g-4">
+                    <!-- Tournament Details -->
+                    <div class="col-md-6">
+                        <div class="info-card">
+                            <h5 class="text-primary mb-3"><i class="bi bi-info-circle"></i> Tournament Details</h5>
+                            <div class="mb-2"><strong>Scenario:</strong> {{ tournament_info.scenario }}</div>
+                            <div class="mb-2"><strong>Format:</strong> {{ tournament_info.format }}</div>
+                            <div class="mb-2"><strong>Court Complex:</strong> {{ tournament_info.court_complex }}</div>
+                            <div class="mb-2"><strong>Start:</strong> {{ tournament_info.start_date }}</div>
+                            {% if tournament_info.voucher_used %}
+                            <div class="mb-2"><strong>Voucher Used:</strong> <code>{{ tournament_info.voucher_used }}</code></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Selected Courts -->
+                    <div class="col-md-6">
+                        <div class="info-card">
+                            <h5 class="text-success mb-3"><i class="bi bi-geo-alt"></i> Selected Courts</h5>
+                            {% for court in tournament_info.selected_courts %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>{{ court.name }}</span>
+                                <span class="text-muted">Court #{{ court.number }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Team PINs -->
+                <div class="info-card text-center">
+                    <h5 class="text-muted mb-3"><i class="bi bi-hourglass-split"></i> Team PINs</h5>
+                    <p class="text-muted">Team PINs will be generated when you start the tournament after players register.</p>
+                    <a href="{{ tournament_info.management_link }}" class="btn btn-success">
+                        <i class="bi bi-gear"></i> Manage Tournament
+                    </a>
+                </div>
+                
+                <!-- Registration Link -->
+                <div class="info-card">
+                    <h5 class="text-info mb-3"><i class="bi bi-link-45deg"></i> Registration Link</h5>
+                    <div class="input-group">
+                        <input type="text" class="form-control" 
+                               value="{{ request.build_absolute_uri }}{{ tournament_info.registration_link }}" 
+                               id="registration-link" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyLink()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                    <small class="text-muted">Share this link with players for registration</small>
+                </div>
+                
+                <!-- Next Steps -->
+                <div class="info-card">
+                    <h5 class="text-dark mb-3"><i class="bi bi-list-check"></i> Next Steps</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4 text-center">
+                            <i class="bi bi-person-plus fs-2 text-primary d-block mb-2"></i>
+                            <h6>1. Player Registration</h6>
+                            <small class="text-muted">Players register using the link above</small>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <i class="bi bi-people fs-2 text-success d-block mb-2"></i>
+                            <h6>2. Generate Teams</h6>
+                            <small class="text-muted">Admin generates MELE teams</small>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <i class="bi bi-play-circle fs-2 text-info d-block mb-2"></i>
+                            <h6>3. Start Playing</h6>
+                            <small class="text-muted">Teams use PINs to participate</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="text-center">
+                    <a href="{{ tournament_info.management_link }}" 
+                       class="btn btn-primary me-3">
+                        <i class="bi bi-gear"></i> Manage Tournament
+                    </a>
+                    <a href="{% url 'simple_creator_home' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle"></i> Create Another
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function copyLink() {
+            const linkInput = document.getElementById('registration-link');
+            linkInput.select();
+            linkInput.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                button.classList.add('btn-success');
+                button.classList.remove('btn-outline-secondary');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('btn-success');
+                    button.classList.add('btn-outline-secondary');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy link:', err);
+            }
+        }
+    </script>
+</body>
+</html>
+

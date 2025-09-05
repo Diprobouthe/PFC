@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Register for Mêlée - {{ tournament.name }} - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-plus"></i> Register for Mêlée Tournament
+                    </h4>
+                    <small class="text-muted">{{ tournament.name }}</small>
+                </div>
+                <div class="card-body">
+                    <!-- Tournament Info -->
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Tournament Information</h6>
+                        <p class="mb-1"><strong>Format:</strong> {{ tournament.get_melee_format_display }}</p>
+                        <p class="mb-1"><strong>Team Size:</strong> {{ team_size }} players per team</p>
+                        <p class="mb-0"><strong>Start Date:</strong> {{ tournament.start_date|date:"F j, Y g:i A" }}</p>
+                    </div>
+
+                    <!-- Registration Status -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">{{ registration_count }}</h5>
+                                    <p class="card-text">Players Registered</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">{{ estimated_teams }}</h5>
+                                    <p class="card-text">Complete Teams</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">{{ leftover_players }}</h5>
+                                    <p class="card-text">Players in Queue</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Registration Form -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="{{ form.player_codename.id_for_label }}" class="form-label">
+                                {{ form.player_codename.label }}
+                            </label>
+                            {{ form.player_codename }}
+                            {% if form.player_codename.help_text %}
+                                <div class="form-text">{{ form.player_codename.help_text }}</div>
+                            {% endif %}
+                            {% if form.player_codename.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.player_codename.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-arrow-left"></i> Back to Tournament
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus"></i> Register
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Current Registrations -->
+            {% if current_registrations %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users"></i> Current Registrations ({{ registration_count }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for registration in current_registrations %}
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-user text-muted me-2"></i>
+                                    <span>Player {{ forloop.counter }}</span>
+                                    <small class="text-muted ms-auto">
+                                        {{ registration.registered_at|date:"M j, g:i A" }}
+                                    </small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-shield-alt"></i>
+                        <strong>Privacy Protection:</strong> Player identities are kept private during registration. Names will be revealed when teams are formed.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- How it Works -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle"></i> How Mêlée Mode Works
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <ol>
+                        <li><strong>Individual Registration:</strong> Players register individually using their codename.</li>
+                        <li><strong>Team Formation:</strong> When registration closes, players are randomly grouped into teams of {{ team_size }}.</li>
+                        <li><strong>Tournament Play:</strong> Teams compete in the tournament using the standard format.</li>
+                        <li><strong>Fair Play:</strong> Random team assignment ensures balanced competition.</li>
+                    </ol>
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Note:</strong> Once teams are generated, no new registrations will be accepted.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

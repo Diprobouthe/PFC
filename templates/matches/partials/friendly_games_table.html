@@ -1,0 +1,220 @@
+{% load static %}
+<!-- Friendly Games Table -->
+<div class="p-3">
+    <div class="row">
+        <div class="col-12">
+            <h5 class="text-success mb-3"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 20px; width: auto; margin-right: 8px;"> Friendly Games Overview</h5>
+            
+            <!-- Sub-tabs for friendly games -->
+            <ul class="nav nav-pills nav-fill mb-3" id="friendlyGamesTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="friendly-waiting-tab" data-bs-toggle="pill" data-bs-target="#friendly-waiting" type="button" role="tab" aria-controls="friendly-waiting" aria-selected="true">
+                        <span class="text-warning">⏳ Waiting for Players</span>
+                        <span class="badge bg-warning text-dark ms-1">{{ friendly_waiting|length }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="friendly-active-tab" data-bs-toggle="pill" data-bs-target="#friendly-active" type="button" role="tab" aria-controls="friendly-active" aria-selected="false">
+                        <span class="text-success">🟢 Active</span>
+                        <span class="badge bg-success ms-1">{{ friendly_active|length }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="friendly-pending-tab" data-bs-toggle="pill" data-bs-target="#friendly-pending" type="button" role="tab" aria-controls="friendly-pending" aria-selected="false">
+                        <span class="text-warning">⚠️ Pending Validation</span>
+                        <span class="badge bg-warning text-dark ms-1">{{ friendly_pending_validation|length }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="friendly-completed-tab" data-bs-toggle="pill" data-bs-target="#friendly-completed" type="button" role="tab" aria-controls="friendly-completed" aria-selected="false">
+                        <span class="text-secondary">✅ Completed</span>
+                        <span class="badge bg-secondary ms-1">{{ friendly_completed|length }}</span>
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="friendlyGamesTabContent">
+                <!-- Waiting for Players -->
+                <div class="tab-pane fade show active" id="friendly-waiting" role="tabpanel" aria-labelledby="friendly-waiting-tab">
+                    {% if friendly_waiting %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-warning">
+                                    <tr>
+                                        <th>Match #</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                        <th>Expires</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in friendly_waiting %}
+                                    <tr>
+                                        <td>
+                                            <strong class="text-primary">#{{ game.match_number }}</strong>
+                                        </td>
+                                        <td>{{ game.created_at|date:"M d, H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ game.expires_at|date:"M d, H:i" }}</small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No friendly games waiting for players.</p>
+                            <a href="{% url 'friendly_games:create_game' %}" class="btn btn-success">Create Friendly Game</a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Active Games -->
+                <div class="tab-pane fade" id="friendly-active" role="tabpanel" aria-labelledby="friendly-active-tab">
+                    {% if friendly_active %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-success">
+                                    <tr>
+                                        <th>Match #</th>
+                                        <th>Started</th>
+                                        <th>Actions</th>
+                                        <th>Duration</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in friendly_active %}
+                                    <tr>
+                                        <td>
+                                            <strong class="text-primary">#{{ game.match_number }}</strong>
+                                        </td>
+                                        <td>{{ game.started_at|date:"M d, H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-success">View</a>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ game.started_at|timesince }} ago</small>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No active friendly games.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Pending Validation Games -->
+                <div class="tab-pane fade" id="friendly-pending" role="tabpanel" aria-labelledby="friendly-pending-tab">
+                    {% if friendly_pending_validation %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-warning">
+                                    <tr>
+                                        <th>Match #</th>
+                                        <th>Submitted</th>
+                                        <th>Score</th>
+                                        <th>Submitted By</th>
+                                        <th>Needs Validation From</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in friendly_pending_validation %}
+                                    <tr>
+                                        <td>
+                                            <strong class="text-primary">#{{ game.match_number }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if game.result.submitted_at %}
+                                                {{ game.result.submitted_at|date:"M d, H:i" }}
+                                            {% else %}
+                                                <small class="text-muted">Unknown</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-dark">{{ game.black_team_score }}</span>
+                                            <small class="text-muted">-</small>
+                                            <span class="badge bg-light text-dark">{{ game.white_team_score }}</span>
+                                        </td>
+                                        <td>
+                                            {% if game.result.submitted_by_team == 'BLACK' %}
+                                                <span class="badge bg-dark">Black Team</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">White Team</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if game.result.submitted_by_team == 'BLACK' %}
+                                                <span class="badge bg-light text-dark">White Team</span>
+                                            {% else %}
+                                                <span class="badge bg-dark">Black Team</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-sm btn-warning">Validate</a>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No friendly games pending validation.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Completed Games -->
+                <div class="tab-pane fade" id="friendly-completed" role="tabpanel" aria-labelledby="friendly-completed-tab">
+                    {% if friendly_completed %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-secondary">
+                                    <tr>
+                                        <th>Match #</th>
+                                        <th>Completed</th>
+                                        <th>Actions</th>
+                                        <th>Final Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in friendly_completed %}
+                                    <tr>
+                                        <td>
+                                            <strong class="text-primary">#{{ game.match_number }}</strong>
+                                        </td>
+                                        <td>{{ game.completed_at|date:"M d, H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-secondary">View</a>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-dark">{{ game.black_team_score }}</span>
+                                            <small class="text-muted">-</small>
+                                            <span class="badge bg-light text-dark">{{ game.white_team_score }}</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No completed friendly games.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

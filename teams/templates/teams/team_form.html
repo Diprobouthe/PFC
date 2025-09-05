@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-users me-2"></i>{{ title }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if 'pending_player' in request.session %}
+                        <div class="alert alert-info mb-4">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Creating team for player:</strong> {{ request.session.pending_player.name }} ({{ request.session.pending_player.codename }})
+                        </div>
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.name.id_for_label }}" class="form-label">
+                                <i class="fas fa-tag me-1"></i>Team Name
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.name.errors.0 }}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                Choose a unique name for your team
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus me-2"></i>Create Team
+                            </button>
+                            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            {% if 'pending_player' in request.session %}
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-lightbulb me-2"></i>What happens next?
+                        </h6>
+                        <ul class="mb-0">
+                            <li>Your team will be created with a unique PIN</li>
+                            <li>Your player profile will be automatically added to the team</li>
+                            <li>You'll be logged in and ready to play!</li>
+                        </ul>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

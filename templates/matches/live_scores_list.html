@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}Live Scores - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-chart-line text-primary"></i> Live Scores</h1>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2">{{ total_active }} Active</span>
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshPage()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Disclaimer -->
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle"></i>
+                <strong>Live Scores Disclaimer:</strong> These scores are unofficial and provided for spectator convenience only. 
+                They have no effect on official match results or tournament progression.
+            </div>
+            
+            {% if total_active == 0 %}
+                <div class="text-center py-5">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h3 class="text-muted">No Active Live Scores</h3>
+                    <p class="text-muted">Live scoreboards will appear here when matches are in progress.</p>
+                </div>
+            {% else %}
+                <!-- Tournament Matches -->
+                {% if tournament_scoreboards %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-trophy"></i> Tournament Matches</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Match</th>
+                                            <th>Score</th>
+                                            <th>Status</th>
+                                            <th>Last Updated</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for scoreboard in tournament_scoreboards %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ scoreboard.get_team1_name }}</strong>
+                                                    <span class="text-muted">vs</span>
+                                                    <strong>{{ scoreboard.get_team2_name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">{{ scoreboard.tournament_match.tournament.name }}</small>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-dark fs-6 me-2">{{ scoreboard.team1_score }}</span>
+                                                        <span class="text-muted">-</span>
+                                                        <span class="badge bg-dark fs-6 ms-2">{{ scoreboard.team2_score }}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="badge {% if scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {% if scoreboard.is_active %}Active{% else %}Completed{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% if scoreboard.last_updated_by %}
+                                                        <small>{{ scoreboard.updated_at|timesince }} ago</small><br>
+                                                        <small class="text-muted">{% with player_name=scoreboard.get_last_updated_by_name %}{% if player_name %}by {{ player_name }}{% else %}by unknown player{% endif %}{% endwith %}</small>
+                                                    {% else %}
+                                                        <small class="text-muted">Not updated</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <a href="{% url 'scoreboard_detail' scoreboard.id %}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-edit"></i> Update
+                                                    </a>
+                                                    <a href="{% url 'scoreboard_embed' scoreboard.id %}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                                                        <i class="fas fa-external-link-alt"></i> View
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <!-- Friendly Games -->
+                {% if friendly_scoreboards %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-handshake"></i> Friendly Games</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Game</th>
+                                            <th>Score</th>
+                                            <th>Status</th>
+                                            <th>Last Updated</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for scoreboard in friendly_scoreboards %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ scoreboard.friendly_game.name }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        {% if scoreboard.friendly_game.match_number %}
+                                                            Match #{{ scoreboard.friendly_game.match_number }}
+                                                        {% elif scoreboard.friendly_game.game_pin %}
+                                                            PIN: {{ scoreboard.friendly_game.game_pin }}
+                                                        {% endif %}
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-dark fs-6 me-1">{{ scoreboard.team1_score }}</span>
+                                                        <small class="text-muted mx-1">Black</small>
+                                                        <span class="text-muted">-</span>
+                                                        <small class="text-muted mx-1">White</small>
+                                                        <span class="badge bg-light text-dark fs-6 ms-1">{{ scoreboard.team2_score }}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="badge {% if scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                                        {% if scoreboard.is_active %}Active{% else %}Completed{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% if scoreboard.last_updated_by %}
+                                                        <small>{{ scoreboard.updated_at|timesince }} ago</small><br>
+                                                        <small class="text-muted">{% with player_name=scoreboard.get_last_updated_by_name %}{% if player_name %}by {{ player_name }}{% else %}by unknown player{% endif %}{% endwith %}</small>
+                                                    {% else %}
+                                                        <small class="text-muted">Not updated</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <a href="{% url 'scoreboard_detail' scoreboard.id %}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-edit"></i> Update
+                                                    </a>
+                                                    <a href="{% url 'scoreboard_embed' scoreboard.id %}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                                                        <i class="fas fa-external-link-alt"></i> View
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshPage() {
+    location.reload();
+}
+
+// Auto-refresh every 30 seconds
+setInterval(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}
+

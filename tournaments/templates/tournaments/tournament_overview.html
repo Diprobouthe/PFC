@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Overview - {{ tournament.name }}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        
+        .tournament-header {
+            text-align: center;
+            padding: 2rem 0;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 2rem;
+        }
+        
+        .tournament-title {
+            font-size: 3rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 0.5rem;
+        }
+        
+        .tournament-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+        
+        .status-badge {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            backdrop-filter: blur(5px);
+        }
+        
+        .matches-grid {
+            padding: 0 2rem 2rem;
+        }
+        
+        .match-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .match-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        
+        .match-header {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .match-number {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+        
+        .match-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .status-active {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+        
+        .status-pending {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+        
+        .score-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 1rem 0;
+        }
+        
+        .team-section {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .team-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .players-list {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
+        }
+        
+        .player-item {
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        .player-name {
+            font-weight: 500;
+        }
+        
+        .player-position {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin-left: 0.2rem;
+        }
+        
+        .position-icon {
+            margin-right: 0.2rem;
+        }
+        
+        .team-score {
+            font-size: 3rem;
+            font-weight: bold;
+            line-height: 1;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .score-separator {
+            font-size: 2rem;
+            opacity: 0.7;
+            margin: 0 1rem;
+        }
+        
+        .match-info {
+            text-align: center;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 1rem;
+        }
+        
+        .no-matches {
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+        
+        .no-matches-icon {
+            font-size: 4rem;
+            opacity: 0.5;
+            margin-bottom: 1rem;
+        }
+        
+        .no-matches-text {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+        
+        .refresh-info {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0,0,0,0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+            font-size: 0.9rem;
+        }
+        
+        .live-indicator {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .tournament-title { font-size: 2rem; }
+            .tournament-subtitle { font-size: 1rem; }
+            .team-score { font-size: 2rem; }
+            .team-name { font-size: 1rem; }
+            .players-list { font-size: 0.8rem; }
+            .player-position { font-size: 0.7rem; }
+            .matches-grid { padding: 0 1rem 1rem; }
+            .match-card { padding: 1rem; }
+        }
+        
+        /* Grid layout for multiple matches */
+        @media (min-width: 992px) {
+            .matches-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                gap: 1.5rem;
+            }
+            .match-card {
+                margin-bottom: 0;
+            }
+        }
+        
+        /* Animation for score updates */
+        @keyframes scoreUpdate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .score-updated {
+            animation: scoreUpdate 0.6s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <!-- Advertisement Banner -->
+    {% if tournament.banner_enabled and tournament.banner_image and tournament.banner_target_url %}
+    <div class="advertisement-banner" style="margin-bottom: 1rem;">
+        <a href="{{ tournament.banner_target_url }}" 
+           target="_blank" 
+           rel="nofollow noreferrer noopener"
+           style="display: block; text-decoration: none;">
+            <img src="{{ tournament.banner_image.url }}" 
+                 alt="{{ tournament.banner_alt_text|default:'Advertisement' }}"
+                 style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);"
+                 class="img-fluid">
+        </a>
+    </div>
+    {% endif %}
+    
+    <!-- Live Indicator -->
+    <div class="live-indicator">
+        <i class="fas fa-circle text-success me-2"></i>
+        LIVE TOURNAMENT
+    </div>
+    
+    <!-- Auto-refresh Info -->
+    <div class="refresh-info">
+        <i class="fas fa-sync-alt me-2"></i>
+        Auto-refresh: 15s
+    </div>
+    
+    <!-- Tournament Header -->
+    <div class="tournament-header">
+        <div class="tournament-title">{{ tournament.name }}</div>
+        <div class="tournament-subtitle">Tournament Overview</div>
+        <div class="status-badge">
+            <i class="fas fa-trophy me-2"></i>
+            {{ total_matches }} Active Match{{ total_matches|pluralize:"es" }}
+        </div>
+    </div>
+    
+    <!-- Matches Grid -->
+    <div class="matches-grid">
+        {% if has_active_matches %}
+            {% for match_data in tournament_scoreboards %}
+                <div class="match-card">
+                    <!-- Match Header -->
+                    <div class="match-header">
+                        <div class="match-number">Match #{{ match_data.match.id }}</div>
+                        <div class="match-status {% if match_data.match.status == 'active' %}status-active{% else %}status-pending{% endif %}">
+                            {% if match_data.match.status == 'active' %}
+                                <i class="fas fa-play me-1"></i>ACTIVE
+                            {% else %}
+                                <i class="fas fa-clock me-1"></i>PENDING
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Score Section -->
+                    <div class="score-section">
+                        <div class="team-section">
+                            <div class="team-name">{{ match_data.team1_name }}</div>
+                            {% if match_data.team1_players %}
+                                <div class="players-list">
+                                    {% for player in match_data.team1_players %}
+                                        <span class="player-item">
+                                            <span class="player-name">{{ player.player.name }}</span>
+                                            {% if player.role %}
+                                                <span class="player-position">
+                                                    {% if player.role == 'tirer' %}
+                                                        Tireur
+                                                    {% elif player.role == 'pointer' %}
+                                                        Pointer
+                                                    {% elif player.role == 'milieu' %}
+                                                        Milieu
+                                                    {% elif player.role == 'flex' %}
+                                                        Flex
+                                                    {% else %}
+                                                        {{ player.get_role_display }}
+                                                    {% endif %}
+                                                </span>
+                                            {% endif %}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="team-score text-primary" data-match-id="{{ match_data.match.id }}" data-team="1">
+                                {% if match_data.scoreboard %}{{ match_data.scoreboard.team1_score }}{% else %}0{% endif %}
+                            </div>
+                        </div>
+                        <div class="score-separator">-</div>
+                        <div class="team-section">
+                            <div class="team-name">{{ match_data.team2_name }}</div>
+                            {% if match_data.team2_players %}
+                                <div class="players-list">
+                                    {% for player in match_data.team2_players %}
+                                        <span class="player-item">
+                                            <span class="player-name">{{ player.player.name }}</span>
+                                            {% if player.role %}
+                                                <span class="player-position">
+                                                    {% if player.role == 'tirer' %}
+                                                        Tireur
+                                                    {% elif player.role == 'pointer' %}
+                                                        Pointer
+                                                    {% elif player.role == 'milieu' %}
+                                                        Milieu
+                                                    {% elif player.role == 'flex' %}
+                                                        Flex
+                                                    {% else %}
+                                                        {{ player.get_role_display }}
+                                                    {% endif %}
+                                                </span>
+                                            {% endif %}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="team-score text-warning" data-match-id="{{ match_data.match.id }}" data-team="2">
+                                {% if match_data.scoreboard %}{{ match_data.scoreboard.team2_score }}{% else %}0{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Match Info -->
+                    <div class="match-info">
+                        {% if match_data.scoreboard and match_data.scoreboard.get_last_updated_by_name %}
+                            <i class="fas fa-clock me-1"></i>
+                            Updated {{ match_data.scoreboard.updated_at|timesince }} ago by {{ match_data.scoreboard.get_last_updated_by_name }}
+                        {% else %}
+                            <i class="fas fa-info-circle me-1"></i>
+                            No live score updates yet
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <!-- No Active Matches -->
+            <div class="no-matches">
+                <div class="no-matches-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="no-matches-text">
+                    No active matches in this tournament
+                </div>
+                <div style="margin-top: 1rem; opacity: 0.6;">
+                    Check back later for live match updates
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Auto-refresh and Animation Script -->
+    <script>
+        // Store previous scores for animation
+        let previousScores = {};
+        
+        // Initialize previous scores
+        document.addEventListener('DOMContentLoaded', function() {
+            const scoreElements = document.querySelectorAll('[data-match-id]');
+            scoreElements.forEach(element => {
+                const matchId = element.getAttribute('data-match-id');
+                const team = element.getAttribute('data-team');
+                const key = `${matchId}-${team}`;
+                previousScores[key] = parseInt(element.textContent) || 0;
+            });
+        });
+        
+        // Auto-refresh every 15 seconds
+        setInterval(function() {
+            // Store current scores before refresh
+            const currentScores = {};
+            const scoreElements = document.querySelectorAll('[data-match-id]');
+            scoreElements.forEach(element => {
+                const matchId = element.getAttribute('data-match-id');
+                const team = element.getAttribute('data-team');
+                const key = `${matchId}-${team}`;
+                currentScores[key] = parseInt(element.textContent) || 0;
+            });
+            
+            // Reload page
+            location.reload();
+        }, 15000);
+        
+        // Add visual feedback for page refresh
+        let refreshCounter = 15;
+        const refreshInfo = document.querySelector('.refresh-info');
+        
+        setInterval(function() {
+            refreshCounter--;
+            if (refreshCounter <= 0) {
+                refreshCounter = 15;
+            }
+            refreshInfo.innerHTML = `<i class="fas fa-sync-alt me-2"></i>Auto-refresh: ${refreshCounter}s`;
+        }, 1000);
+        
+        // Add hover effects
+        document.querySelectorAll('.match-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-5px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>
+

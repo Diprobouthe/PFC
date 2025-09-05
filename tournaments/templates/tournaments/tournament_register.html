@@ -1,0 +1,349 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}Register for {{ tournament.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Tournament Header -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>
+                        Register for {{ tournament.name }}
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Format:</strong> {{ tournament.get_format_display }}</p>
+                            <p><strong>Play Format:</strong> {{ tournament.get_play_format_display }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Start Date:</strong> {{ tournament.start_date|date:"M d, Y H:i" }}</p>
+                            <p><strong>End Date:</strong> {{ tournament.end_date|date:"M d, Y H:i" }}</p>
+                        </div>
+                    </div>
+                    {% if tournament.description %}
+                        <p class="mt-2">{{ tournament.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Registration Form -->
+            {% if registration_type == 'pin_entry' %}
+                <!-- Step 1: PIN Entry -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-key me-2"></i>
+                            Step 1: Enter Team PIN
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" class="needs-validation" novalidate>
+                            {% csrf_token %}
+                            <div class="mb-4">
+                                <label for="{{ form.team_pin.id_for_label }}" class="form-label h5">
+                                    Team PIN
+                                </label>
+                                {{ form.team_pin }}
+                                {% if form.team_pin.help_text %}
+                                    <div class="form-text">{{ form.team_pin.help_text }}</div>
+                                {% endif %}
+                                {% if form.team_pin.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.team_pin.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-arrow-right me-2"></i>
+                                    Continue to Registration Options
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            {% elif registration_type == 'choice' %}
+                <!-- Step 2: Registration Choice -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-users me-2"></i>
+                            Step 2: Choose Registration Type
+                        </h4>
+                        <small class="text-muted">Team: {{ team.name }}</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Simple Registration -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100 border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-bolt me-2"></i>
+                                            Quick Registration
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Register your team as-is without creating subteams.</p>
+                                        <ul class="list-unstyled">
+                                            <li><i class="fas fa-check text-success me-2"></i>Fast and simple</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>Use all {{ team.players.count }} players</li>
+                                            <li><i class="fas fa-check text-success me-2"></i>Player assignment during matches</li>
+                                        </ul>
+                                    </div>
+                                    <div class="card-footer">
+                                        <form method="post" action="{% url 'tournament_register' tournament.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="team_pin" value="{{ team.pin }}">
+                                            <button type="submit" class="btn btn-success w-100">
+                                                <i class="fas fa-rocket me-2"></i>
+                                                Quick Register
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Subteam Registration -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card h-100 border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-cogs me-2"></i>
+                                            Subteam Registration
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Create multiple subteams for different formats.</p>
+                                        <ul class="list-unstyled">
+                                            <li><i class="fas fa-check text-primary me-2"></i>Multiple tournament entries</li>
+                                            <li><i class="fas fa-check text-primary me-2"></i>Format-specific teams</li>
+                                            <li><i class="fas fa-check text-primary me-2"></i>Reuse existing subteams</li>
+                                        </ul>
+                                        
+                                        <!-- Show existing subteams if any -->
+                                        {% if subteam_options.recommendations %}
+                                            <div class="mt-3">
+                                                <h6>Available Options:</h6>
+                                                {% for rec in subteam_options.recommendations %}
+                                                    <small class="d-block text-muted">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        {{ rec.message }}
+                                                    </small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="card-footer">
+                                        <a href="{% url 'tournament_register_subteams' tournament.id %}?pin={{ team.pin }}" 
+                                           class="btn btn-primary w-100">
+                                            <i class="fas fa-cogs me-2"></i>
+                                            Configure Subteams
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% elif registration_type == 'subteam_config' %}
+                <!-- Step 3: Subteam Configuration -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>
+                            Step 3: Configure Subteams
+                        </h4>
+                        <small class="text-muted">Team: {{ team.name }} ({{ team.players.count }} players)</small>
+                    </div>
+                    <div class="card-body">
+                        <!-- Tournament Format Info -->
+                        <div class="alert alert-info mb-4">
+                            <h6><i class="fas fa-info-circle me-2"></i>Tournament Format Requirements</h6>
+                            <p class="mb-2"><strong>{{ tournament.name }}</strong> allows only:</p>
+                            <ul class="mb-2">
+                                {% if tournament.has_triplets %}
+                                    <li><strong>Triplets</strong> (3 players per team)</li>
+                                {% endif %}
+                                {% if tournament.has_doublets %}
+                                    <li><strong>Doublettes</strong> (2 players per team)</li>
+                                {% endif %}
+                                {% if tournament.has_tete_a_tete %}
+                                    <li><strong>Tête-à-tête</strong> (1 player per team)</li>
+                                {% endif %}
+                            </ul>
+                            <small class="text-muted">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                You can only create subteams in the formats allowed by this tournament.
+                            </small>
+                        </div>
+
+                        <form method="post" class="needs-validation" novalidate>
+                            {% csrf_token %}
+                            
+                            {% for field in form %}
+                                {% if 'count' in field.name %}
+                                    {% with format_type=field.name|slice:":-6" %}
+                                        <div class="card mb-3">
+                                            <div class="card-header">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-users me-2"></i>
+                                                    {{ format_type|title|slice:":-1" }}s
+                                                    <small class="text-muted">
+                                                        ({{ subteam_options.format_options|lookup:format_type|lookup:"players_per_team" }} players each)
+                                                    </small>
+                                                </h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <label for="{{ field.id_for_label }}" class="form-label">
+                                                            {{ field.label }}
+                                                        </label>
+                                                        {{ field }}
+                                                        {% if field.help_text %}
+                                                            <div class="form-text">{{ field.help_text }}</div>
+                                                        {% endif %}
+                                                        {% if field.errors %}
+                                                            <div class="invalid-feedback d-block">
+                                                                {% for error in field.errors %}
+                                                                    {{ error }}
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    
+                                                    <!-- Reuse existing field -->
+                                                    {% for reuse_field in form %}
+                                                        {% if reuse_field.name == format_type|add:"_reuse" %}
+                                                            <div class="col-md-6">
+                                                                <div class="form-check mt-4">
+                                                                    {{ reuse_field }}
+                                                                    <label for="{{ reuse_field.id_for_label }}" class="form-check-label">
+                                                                        {{ reuse_field.label }}
+                                                                    </label>
+                                                                </div>
+                                                                {% if reuse_field.help_text %}
+                                                                    <div class="form-text">{{ reuse_field.help_text }}</div>
+                                                                {% endif %}
+                                                                
+                                                                <!-- Show existing subteams -->
+                                                                {% with existing=form.existing_subteams|lookup:format_type %}
+                                                                    {% if existing %}
+                                                                        <div class="mt-2">
+                                                                            <small class="text-muted">Existing subteams:</small>
+                                                                            {% for subteam in existing %}
+                                                                                <div class="badge bg-secondary me-1">{{ subteam.name }}</div>
+                                                                            {% endfor %}
+                                                                        </div>
+                                                                    {% endif %}
+                                                                {% endwith %}
+                                                            </div>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endwith %}
+                                {% endif %}
+                            {% endfor %}
+
+                            <!-- Form Errors -->
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger">
+                                    {% for error in form.non_field_errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <!-- Submit Buttons -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{% url 'tournament_register_choice' tournament.id %}?pin={{ team.pin }}" 
+                                   class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>
+                                    Back
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-check me-2"></i>
+                                    Register Subteams
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Back to Tournament -->
+            <div class="text-center mt-4">
+                <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    Back to Tournament Details
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom JavaScript for form validation -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Bootstrap form validation
+    const forms = document.querySelectorAll('.needs-validation');
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    });
+    
+    // Dynamic subteam count validation
+    const countFields = document.querySelectorAll('input[name$="_count"]');
+    countFields.forEach(field => {
+        field.addEventListener('input', function() {
+            updateTotalCount();
+        });
+    });
+    
+    function updateTotalCount() {
+        let totalSubteams = 0;
+        let totalPlayers = 0;
+        
+        countFields.forEach(field => {
+            const count = parseInt(field.value) || 0;
+            const formatType = field.name.replace('_count', '');
+            let playersPerTeam = 3; // default
+            
+            if (formatType.includes('doublette')) playersPerTeam = 2;
+            if (formatType.includes('tete_a_tete')) playersPerTeam = 1;
+            
+            totalSubteams += count;
+            totalPlayers += count * playersPerTeam;
+        });
+        
+        // Update display if elements exist
+        const totalDisplay = document.getElementById('total-subteams');
+        const playersDisplay = document.getElementById('total-players');
+        
+        if (totalDisplay) totalDisplay.textContent = totalSubteams;
+        if (playersDisplay) playersDisplay.textContent = totalPlayers;
+    }
+});
+</script>
+{% endblock %}
+

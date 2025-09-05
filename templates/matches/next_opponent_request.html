@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Find Next Opponent - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Find Your Next Opponent</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ requesting_team.name }} - Tournament: {{ tournament.name }}</h5>
+                </div>
+                <div class="card-body">
+                    {% if available_matches.exists %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> You have {{ available_matches.count }} pending match(es). Enter your team PIN to view your next opponent.
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> You don't have any pending matches. Enter your team PIN to find a new opponent.
+                        </div>
+                    {% endif %}
+                    
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="id_pin"><strong>Enter Team PIN:</strong></label>
+                            <input type="password" name="pin" maxlength="6" class="form-control" required id="id_pin" placeholder="Enter your 6-digit PIN">
+                            <small class="form-text text-muted">Enter your team's 6-digit PIN to find your next opponent.</small>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search"></i> Find Next Opponent
+                            </button>
+                            <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Tournament
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

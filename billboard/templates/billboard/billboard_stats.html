@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Billboard Statistics - PFC{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'billboard:list' %}" class="btn btn-outline-secondary me-3">
+            <i class="fas fa-arrow-left me-2"></i>Back to Billboard
+        </a>
+        <div>
+            <h1 class="h2 mb-1">
+                <i class="fas fa-chart-bar me-2"></i>
+                Billboard Statistics
+            </h1>
+            <p class="text-muted mb-0">Activity overview for the last 24 hours</p>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.total_entries }}</h4>
+                            <p class="mb-0">Total Entries</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-bullhorn fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.at_courts_count }}</h4>
+                            <p class="mb-0">At Courts</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-map-marker-alt fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.going_to_courts_count }}</h4>
+                            <p class="mb-0">Going to Courts</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.looking_for_match_count }}</h4>
+                            <p class="mb-0">Tournament Matches</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-trophy fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Response Statistics -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-reply me-2"></i>
+                        Response Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="text-primary mb-0">{{ stats.total_responses }}</h3>
+                            <p class="text-muted mb-0">Total Responses</p>
+                        </div>
+                        <div>
+                            <i class="fas fa-users fa-3x text-muted"></i>
+                        </div>
+                    </div>
+                    {% if stats.total_entries > 0 %}
+                        <hr>
+                        <div class="small text-muted">
+                            <i class="fas fa-calculator me-1"></i>
+                            Average: {{ stats.total_responses|floatformat:1 }} responses per {{ stats.total_entries }} entries
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        System Settings
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="text-center">
+                                <h4 class="text-info mb-0">{{ settings.max_entries_per_day }}</h4>
+                                <p class="small text-muted mb-0">Max entries per day</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-center">
+                                <h4 class="text-info mb-0">{{ settings.entry_expiry_hours }}h</h4>
+                                <p class="small text-muted mb-0">Entry expiry time</p>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="text-center">
+                        {% if settings.is_enabled %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Module Enabled
+                            </span>
+                        {% else %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-times me-1"></i>Module Disabled
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Breakdown -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        Activity Breakdown
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if stats.total_entries > 0 %}
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <div class="progress mb-2" style="height: 20px;">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {% widthratio stats.at_courts_count stats.total_entries 100 %}%">
+                                            {{ stats.at_courts_count }}
+                                        </div>
+                                    </div>
+                                    <p class="small text-muted mb-0">
+                                        <i class="fas fa-map-marker-alt me-1"></i>
+                                        At Courts ({% widthratio stats.at_courts_count stats.total_entries 100 %}%)
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <div class="progress mb-2" style="height: 20px;">
+                                        <div class="progress-bar bg-warning" role="progressbar" 
+                                             style="width: {% widthratio stats.going_to_courts_count stats.total_entries 100 %}%">
+                                            {{ stats.going_to_courts_count }}
+                                        </div>
+                                    </div>
+                                    <p class="small text-muted mb-0">
+                                        <i class="fas fa-clock me-1"></i>
+                                        Going to Courts ({% widthratio stats.going_to_courts_count stats.total_entries 100 %}%)
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center">
+                                    <div class="progress mb-2" style="height: 20px;">
+                                        <div class="progress-bar bg-info" role="progressbar" 
+                                             style="width: {% widthratio stats.looking_for_match_count stats.total_entries 100 %}%">
+                                            {{ stats.looking_for_match_count }}
+                                        </div>
+                                    </div>
+                                    <p class="small text-muted mb-0">
+                                        <i class="fas fa-trophy me-1"></i>
+                                        Tournament Matches ({% widthratio stats.looking_for_match_count stats.total_entries 100 %}%)
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No activity data available for the last 24 hours</p>
+                            <a href="{% url 'billboard:create' %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Post First Activity
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{% url 'billboard:create' %}" class="btn btn-success">
+                            <i class="fas fa-plus me-2"></i>Post New Activity
+                        </a>
+                        <a href="{% url 'billboard:list' %}" class="btn btn-primary">
+                            <i class="fas fa-bullhorn me-2"></i>View Billboard
+                        </a>
+                        <button onclick="window.location.reload()" class="btn btn-outline-secondary">
+                            <i class="fas fa-sync me-2"></i>Refresh Stats
+                        </button>
+                        {% if user.is_staff %}
+                            <a href="{% url 'admin:billboard_billboardentry_changelist' %}" class="btn btn-outline-info">
+                                <i class="fas fa-cog me-2"></i>Admin Panel
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auto-refresh notice -->
+<div class="container mt-3">
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Note:</strong> Statistics are updated in real-time and show activity from the last 24 hours only.
+    </div>
+</div>
+{% endblock %}
+

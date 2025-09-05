@@ -1,0 +1,159 @@
+{% extends 'simple_creator/base.html' %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4">
+    <h2 class="mb-3">Welcome to Simple Tournament Creation</h2>
+    <p class="lead text-muted">Create professional tournaments in seconds, not hours</p>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h4 class="card-title mb-4">
+                    <i class="bi bi-lightning-charge text-warning"></i>
+                    Quick Features
+                </h4>
+                
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="bi bi-clock text-primary fs-4"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">No Date/Time Setup</h6>
+                                <small class="text-muted">Automatically scheduled for tomorrow</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="bi bi-gear text-success fs-4"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Auto-Configuration</h6>
+                                <small class="text-muted">Teams, PINs, and matches created automatically</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="bi bi-trophy text-warning fs-4"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Professional Results</h6>
+                                <small class="text-muted">Complete tournament management system</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <i class="bi bi-shield-check text-info fs-4"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Auto-Cleanup</h6>
+                                <small class="text-muted">Automatic post-tournament cleanup</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-10 mx-auto">
+        <h4 class="mb-4 text-center">Available Scenarios</h4>
+        
+        <div class="row g-4">
+            {% for scenario in scenarios %}
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm scenario-preview">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="card-title">{{ scenario.display_name }}</h5>
+                            {% if scenario.is_free %}
+                                <span class="badge-free scenario-badge">Free</span>
+                            {% else %}
+                                <span class="badge-voucher scenario-badge">Voucher Required</span>
+                            {% endif %}
+                        </div>
+                        
+                        <p class="card-text text-muted">{{ scenario.description }}</p>
+                        
+                        <div class="scenario-details">
+                            <small class="text-muted d-block">
+                                <i class="bi bi-people"></i>
+                                Doubles: ≤{{ scenario.max_doubles_players }} players | 
+                                Triples: ≤{{ scenario.max_triples_players }} players
+                            </small>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-diagram-3"></i>
+                                {{ scenario.get_tournament_type_display }} | 
+                                {{ scenario.get_draft_type_display }} Draft
+                            </small>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-trophy"></i>
+                                {% if scenario.tournament_type == 'swiss' %}
+                                    {{ scenario.num_rounds }} Swiss rounds
+                                {% else %}
+                                    {{ scenario.matches_per_team }} games per team
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="text-center mt-5">
+    <a href="{% url 'simple_creator:create' %}" class="btn btn-primary btn-lg">
+        <i class="bi bi-plus-circle"></i>
+        Create Tournament Now
+    </a>
+</div>
+
+<div class="text-center mt-4">
+    <a href="{% url 'simple_creator:list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-list"></i>
+        View All Tournaments
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .scenario-preview {
+        transition: all 0.3s ease;
+    }
+    
+    .scenario-preview:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+    }
+    
+    .scenario-details {
+        border-top: 1px solid #e2e8f0;
+        padding-top: 0.75rem;
+        margin-top: 0.75rem;
+    }
+    
+    .scenario-details small {
+        margin-bottom: 0.25rem;
+    }
+</style>
+{% endblock %}
+

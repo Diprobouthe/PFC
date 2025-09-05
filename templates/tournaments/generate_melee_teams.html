@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Mêlée Teams - {{ tournament.name }} - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-users-cog"></i> Generate Mêlée Teams
+                    </h4>
+                    <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back to Tournament
+                    </a>
+                </div>
+                <div class="card-body">
+                    <!-- Tournament Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>{{ tournament.name }}</h5>
+                            <p class="text-muted mb-1">{{ tournament.get_melee_format_display }} Tournament</p>
+                            <p class="text-muted">{{ tournament.start_date|date:"F j, Y g:i A" }}</p>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <span class="badge bg-info fs-6">
+                                <i class="fas fa-users"></i> {{ registration_count }} Players Registered
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h4 class="card-title">{{ registration_count }}</h4>
+                                    <p class="card-text">Total Players</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h4 class="card-title">{{ estimated_teams }}</h4>
+                                    <p class="card-text">Complete Teams</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h4 class="card-title">{{ team_size }}</h4>
+                                    <p class="card-text">Players per Team</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h4 class="card-title">{{ leftover_players }}</h4>
+                                    <p class="card-text">Unassigned</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Algorithm Selection -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-cogs"></i> Team Generation Algorithm
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="algorithm" id="random" value="random" checked>
+                                                    <label class="form-check-label" for="random">
+                                                        <h6><i class="fas fa-random text-primary"></i> Random Assignment</h6>
+                                                    </label>
+                                                </div>
+                                                <p class="small text-muted mt-2">
+                                                    Players are randomly shuffled and assigned to teams. 
+                                                    Simple and fair for casual tournaments.
+                                                </p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-success">Fast</span>
+                                                    <span class="badge bg-info">Fair</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="algorithm" id="balanced" value="balanced">
+                                                    <label class="form-check-label" for="balanced">
+                                                        <h6><i class="fas fa-balance-scale text-success"></i> Balanced by Skill</h6>
+                                                    </label>
+                                                </div>
+                                                <p class="small text-muted mt-2">
+                                                    Teams are balanced based on player ratings and skill levels. 
+                                                    Creates more competitive matches.
+                                                </p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-warning">Competitive</span>
+                                                    <span class="badge bg-primary">Skill-based</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="algorithm" id="snake_draft" value="snake_draft">
+                                                    <label class="form-check-label" for="snake_draft">
+                                                        <h6><i class="fas fa-sort-amount-down text-warning"></i> Snake Draft</h6>
+                                                    </label>
+                                                </div>
+                                                <p class="small text-muted mt-2">
+                                                    Players are ranked by skill and distributed in snake pattern. 
+                                                    Ensures balanced team strength distribution.
+                                                </p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-danger">Advanced</span>
+                                                    <span class="badge bg-secondary">Strategic</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confirmation -->
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle"></i> Important Notes</h6>
+                            <ul class="mb-0">
+                                <li>Once teams are generated, they cannot be changed without admin intervention</li>
+                                <li>{{ leftover_players }} player(s) will not be assigned to teams due to incomplete team size</li>
+                                <li>All registered players will receive team assignments and can begin tournament play</li>
+                                <li>Team generation will close individual registration for this tournament</li>
+                            </ul>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary me-md-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary" onclick="return confirm('Are you sure you want to generate teams? This action cannot be undone.')">
+                                <i class="fas fa-users-cog"></i> Generate Teams
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Current Registrations -->
+            {% if registrations %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Registered Players ({{ registration_count }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for registration in registrations %}
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-user text-primary me-2"></i>
+                                    <div class="flex-grow-1">
+                                        <strong>{{ registration.player.name }}</strong>
+                                        {% if registration.player.profile %}
+                                            <br>
+                                            <small class="text-muted">
+                                                Rating: {{ registration.player.profile.value|floatformat:1 }} | 
+                                                Level: {{ registration.player.profile.get_skill_level_display }}
+                                            </small>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">
+                                        {{ registration.registered_at|date:"M j" }}
+                                    </small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

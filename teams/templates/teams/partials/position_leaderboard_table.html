@@ -1,0 +1,118 @@
+{% if position_players %}
+<div class="p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">
+            {% if position_name == 'Pointer' %}
+                <span style="color: #28a745;"><i class="bi bi-bullseye"></i> Pointer Leaderboard</span>
+            {% elif position_name == 'Milieu' %}
+                <span style="color: #17a2b8;"><i class="bi bi-arrow-left-right"></i> Milieu Leaderboard</span>
+            {% elif position_name == 'Shooter' %}
+                <span style="color: #dc3545;"><i class="bi bi-bomb"></i> Shooter Leaderboard</span>
+            {% elif position_name == 'Flex' %}
+                <span style="color: #fd7e14;"><i class="bi bi-arrow-repeat"></i> Flex Leaderboard</span>
+            {% endif %}
+        </h6>
+        <span class="badge bg-secondary">{{ position_players|length }} Players</span>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Team</th>
+                    <th scope="col">Skill Level</th>
+                    <th scope="col">Matches</th>
+                    <th scope="col">Wins</th>
+                    <th scope="col">Win Rate</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pos_player in position_players %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            {% if pos_player.profile.profile_picture %}
+                                <img src="{{ pos_player.profile.profile_picture.url }}" alt="{{ pos_player.name }}" class="rounded-circle me-2" width="35" height="35">
+                            {% else %}
+                                <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                                    <span class="text-white small">{{ pos_player.name|slice:":1" }}</span>
+                                </div>
+                            {% endif %}
+                            <div>
+                                <div class="fw-bold">{{ pos_player.name }}</div>
+                                {% if pos_player.is_captain %}
+                                    <span class="badge bg-warning text-dark">Captain</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ pos_player.team.name }}</td>
+                    <td>
+                        {% if pos_player.profile.skill_level == 1 %}
+                            <span class="badge bg-secondary">Beginner</span>
+                        {% elif pos_player.profile.skill_level == 2 %}
+                            <span class="badge bg-info">Intermediate</span>
+                        {% elif pos_player.profile.skill_level == 3 %}
+                            <span class="badge bg-primary">Advanced</span>
+                        {% elif pos_player.profile.skill_level == 4 %}
+                            <span class="badge bg-success">Expert</span>
+                        {% elif pos_player.profile.skill_level == 5 %}
+                            <span class="badge bg-danger">Professional</span>
+                        {% else %}
+                            <span class="badge bg-light text-dark">Not Set</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ pos_player.matches_played }}</td>
+                    <td>{{ pos_player.matches_won }}</td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                {% if position_name == 'Pointer' %}
+                                    <div class="progress-bar" style="background-color: #28a745;" role="progressbar" style="width: {{ pos_player.win_rate }}%"></div>
+                                {% elif position_name == 'Milieu' %}
+                                    <div class="progress-bar" style="background-color: #17a2b8;" role="progressbar" style="width: {{ pos_player.win_rate }}%"></div>
+                                {% elif position_name == 'Shooter' %}
+                                    <div class="progress-bar" style="background-color: #dc3545;" role="progressbar" style="width: {{ pos_player.win_rate }}%"></div>
+                                {% elif position_name == 'Flex' %}
+                                    <div class="progress-bar" style="background-color: #fd7e14;" role="progressbar" style="width: {{ pos_player.win_rate }}%"></div>
+                                {% else %}
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ pos_player.win_rate }}%"></div>
+                                {% endif %}
+                            </div>
+                            <span>{{ pos_player.win_rate }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <a href="{% url 'player_profile' pos_player.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-person-badge"></i> View Profile
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="p-4 text-center">
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i> 
+        No players have played matches in the 
+        {% if position_name == 'Pointer' %}
+            <strong style="color: #28a745;">Pointer</strong>
+        {% elif position_name == 'Milieu' %}
+            <strong style="color: #17a2b8;">Milieu</strong>
+        {% elif position_name == 'Shooter' %}
+            <strong style="color: #dc3545;">Shooter</strong>
+        {% elif position_name == 'Flex' %}
+            <strong style="color: #fd7e14;">Flex</strong>
+        {% endif %}
+        position yet.
+    </div>
+</div>
+{% endif %}
+

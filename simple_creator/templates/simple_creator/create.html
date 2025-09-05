@@ -1,0 +1,294 @@
+{% extends 'simple_creator/base.html' %}
+
+{% block title %}Create Tournament{% endblock %}
+
+{% block header %}
+<div class="header-section">
+    <h1><i class="bi bi-plus-circle"></i> Create Tournament</h1>
+    <p>Just 4 simple choices - we handle the rest!</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="tournament-form">
+    {% csrf_token %}
+    
+    <!-- Step 1: Choose Scenario -->
+    <div class="mb-5">
+        <h4 class="mb-3">
+            <span class="badge bg-primary rounded-pill me-2">1</span>
+            Choose Scenario
+        </h4>
+        
+        <div class="row g-3">
+            {% for scenario in form.scenario.field.queryset %}
+            <div class="col-md-6">
+                <div class="scenario-card" data-scenario-id="{{ scenario.id }}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="scenario" 
+                                   value="{{ scenario.id }}" id="scenario_{{ scenario.id }}"
+                                   data-requires-voucher="{{ scenario.requires_voucher|yesno:'true,false' }}"
+                                   data-is-free="{{ scenario.is_free|yesno:'true,false' }}">
+                            <label class="form-check-label fw-bold" for="scenario_{{ scenario.id }}">
+                                {{ scenario.display_name }}
+                            </label>
+                        </div>
+                        {% if scenario.is_free %}
+                            <span class="badge-free scenario-badge">Free</span>
+                        {% else %}
+                            <span class="badge-voucher scenario-badge">Voucher Required</span>
+                        {% endif %}
+                    </div>
+                    
+                    <p class="text-muted mb-2">{{ scenario.description }}</p>
+                    
+                    <div class="scenario-details">
+                        <small class="text-muted d-block">
+                            <i class="bi bi-diagram-3"></i>
+                            {{ scenario.get_tournament_type_display }} | {{ scenario.get_draft_type_display }} Draft
+                        </small>
+                        <small class="text-muted d-block">
+                            <i class="bi bi-trophy"></i>
+                            {% if scenario.tournament_type == 'swiss' %}
+                                {{ scenario.num_rounds }} Swiss rounds
+                            {% else %}
+                                {{ scenario.matches_per_team }} games per team
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if form.scenario.errors %}
+            <div class="text-danger mt-2">
+                {% for error in form.scenario.errors %}
+                    <small>{{ error }}</small>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Step 2: Choose Format -->
+    <div class="mb-5">
+        <h4 class="mb-3">
+            <span class="badge bg-primary rounded-pill me-2">2</span>
+            Choose Format
+        </h4>
+        
+        <div class="row g-3">
+            {% for value, label in form.format_type.field.choices %}
+            <div class="col-md-6">
+                <div class="format-option" data-format="{{ value }}">
+                    <div class="form-check text-center">
+                        <input class="form-check-input" type="radio" name="format_type" 
+                               value="{{ value }}" id="format_{{ value }}">
+                        <label class="form-check-label fw-bold d-block" for="format_{{ value }}">
+                            <i class="bi bi-people fs-2 d-block mb-2 text-primary"></i>
+                            {{ label }}
+                        </label>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if form.format_type.errors %}
+            <div class="text-danger mt-2">
+                {% for error in form.format_type.errors %}
+                    <small>{{ error }}</small>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Step 3: Choose Court Complex -->
+    <div class="mb-5">
+        <h4 class="mb-3">
+            <span class="badge bg-primary rounded-pill me-2">3</span>
+            Choose Court Complex
+        </h4>
+        
+        <div class="row">
+            <div class="col-md-8">
+                {{ form.court_complex }}
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i>
+                    System will automatically assign up to 3 available courts
+                </div>
+                
+                {% if form.court_complex.errors %}
+                    <div class="text-danger mt-2">
+                        {% for error in form.court_complex.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Step 4: Voucher Code (conditional) -->
+    <div class="mb-5 voucher-section" id="voucher-section" style="display: none;">
+        <h4 class="mb-3">
+            <span class="badge bg-warning rounded-pill me-2">4</span>
+            Enter Voucher Code
+        </h4>
+        
+        <div class="row">
+            <div class="col-md-6">
+                {{ form.voucher_code }}
+                <div class="form-text">
+                    <i class="bi bi-ticket-perforated"></i>
+                    Required for paid scenarios
+                </div>
+                
+                <div id="voucher-feedback" class="mt-2"></div>
+                
+                {% if form.voucher_code.errors %}
+                    <div class="text-danger mt-2">
+                        {% for error in form.voucher_code.errors %}
+                            <small>{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Form Errors -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+                {{ error }}
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    <!-- Submit Button -->
+    <div class="text-center">
+        <button type="submit" class="btn btn-primary btn-lg" id="create-btn">
+            <i class="bi bi-rocket-takeoff"></i>
+            Create Tournament
+        </button>
+    </div>
+    
+    <!-- Auto-filled Information -->
+    <div class="mt-4 p-3 bg-light rounded">
+        <h6><i class="bi bi-info-circle"></i> Auto-Filled Information</h6>
+        <small class="text-muted">
+            <strong>Start Date:</strong> Tomorrow at 9:00 AM<br>
+            <strong>End Date:</strong> Tomorrow at 6:00 PM<br>
+            <strong>Registration Deadline:</strong> Tomorrow at 8:00 AM<br>
+            <strong>Team PINs:</strong> Generated automatically<br>
+            <strong>Court Assignment:</strong> Up to 3 available courts assigned<br>
+            <strong>Match Generation:</strong> Created when admin generates teams
+        </small>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scenarioCards = document.querySelectorAll('.scenario-card');
+    const formatOptions = document.querySelectorAll('.format-option');
+    const voucherSection = document.getElementById('voucher-section');
+    const voucherInput = document.querySelector('input[name="voucher_code"]');
+    const voucherFeedback = document.getElementById('voucher-feedback');
+    
+    // Handle scenario selection
+    scenarioCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const radio = card.querySelector('input[type="radio"]');
+            radio.checked = true;
+            
+            // Update visual selection
+            scenarioCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            
+            // Show/hide voucher section
+            const requiresVoucher = radio.dataset.requiresVoucher === 'true';
+            const isFree = radio.dataset.isFree === 'true';
+            
+            if (requiresVoucher && !isFree) {
+                voucherSection.style.display = 'block';
+                voucherInput.required = true;
+            } else {
+                voucherSection.style.display = 'none';
+                voucherInput.required = false;
+                voucherInput.value = '';
+                voucherFeedback.innerHTML = '';
+            }
+        });
+    });
+    
+    // Handle format selection
+    formatOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            const radio = option.querySelector('input[type="radio"]');
+            radio.checked = true;
+            
+            // Update visual selection
+            formatOptions.forEach(o => o.classList.remove('selected'));
+            option.classList.add('selected');
+        });
+    });
+    
+    // Handle voucher validation
+    if (voucherInput) {
+        voucherInput.addEventListener('blur', function() {
+            const voucherCode = this.value.trim();
+            const selectedScenario = document.querySelector('input[name="scenario"]:checked');
+            
+            if (voucherCode && selectedScenario) {
+                validateVoucher(voucherCode, selectedScenario.value);
+            }
+        });
+    }
+    
+    function validateVoucher(voucherCode, scenarioId) {
+        const formData = new FormData();
+        formData.append('voucher_code', voucherCode);
+        formData.append('scenario_id', scenarioId);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        fetch('{% url "simple_creator:validate_voucher" %}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                voucherFeedback.innerHTML = `
+                    <div class="alert alert-success py-2">
+                        <i class="bi bi-check-circle"></i> ${data.message}
+                    </div>
+                `;
+            } else {
+                voucherFeedback.innerHTML = `
+                    <div class="alert alert-danger py-2">
+                        <i class="bi bi-exclamation-circle"></i> ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error validating voucher:', error);
+        });
+    }
+    
+    // Pre-select if only one option available
+    if (scenarioCards.length === 1) {
+        scenarioCards[0].click();
+    }
+    
+    if (formatOptions.length === 1) {
+        formatOptions[0].click();
+    }
+});
+</script>
+{% endblock %}
+

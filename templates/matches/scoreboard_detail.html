@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+
+{% block title %}Live Scoreboard - {{ scoreboard.get_match_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-chart-line text-primary"></i> Live Scoreboard</h1>
+                <div>
+                    <a href="{% url 'live_scores_list' %}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-arrow-left"></i> Back to List
+                    </a>
+                    <a href="{% url 'scoreboard_embed' scoreboard.id %}" class="btn btn-outline-primary me-2" target="_blank">
+                        <i class="fas fa-external-link-alt"></i> Full Screen
+                    </a>
+                    {% if scoreboard.friendly_game %}
+                        <a href="{% url 'friendly_games:submit_score' scoreboard.friendly_game.id %}" class="btn btn-success">
+<!-- DEBUG: Template updated with Submit Score button -->
+                            <i class="fas fa-trophy"></i> Submit Score
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Disclaimer -->
+            <div class="alert alert-warning mb-4">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Unofficial Scores:</strong> This scoreboard is for spectator convenience only and has no effect on official match results.
+            </div>
+            
+            <!-- Match Information -->
+            <div class="card mb-4">
+                <div class="card-header {% if scoreboard.tournament_match %}bg-primary{% else %}bg-success{% endif %} text-white">
+                    <h5 class="mb-0">{{ scoreboard.get_match_name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                <span class="badge {% if scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {% if scoreboard.is_active %}Live Scoring Active{% else %}Scoring Completed{% endif %}
+                                </span>
+                            </p>
+                            {% if scoreboard.tournament_match %}
+                                <p><strong>Tournament:</strong> {{ scoreboard.tournament_match.tournament.name }}</p>
+                                <p><strong>Match Status:</strong> {{ scoreboard.tournament_match.get_status_display }}</p>
+                            {% elif scoreboard.friendly_game %}
+                                <p><strong>Game Type:</strong> Friendly Game</p>
+                                <p><strong>Game Status:</strong> {{ scoreboard.friendly_game.get_status_display }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {% if scoreboard.last_updated_by %}
+                                <p><strong>Last Updated:</strong> {{ scoreboard.updated_at|timesince }} ago</p>
+                                {% with player_name=scoreboard.get_last_updated_by_name %}
+                                    {% if player_name %}
+                                        <p><strong>Updated By:</strong> {{ player_name }}</p>
+                                    {% else %}
+                                        <p><strong>Updated By:</strong> Unknown player</p>
+                                    {% endif %}
+                                {% endwith %}
+                            {% else %}
+                                <p><strong>Last Updated:</strong> <span class="text-muted">Never</span></p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Live Score Display -->
+            <div class="card mb-4">
+                <div class="card-body text-center">
+                    <div class="row">
+                        <div class="col-5">
+                            <h3 class="text-primary">{{ scoreboard.get_team1_name }}</h3>
+                            <div class="display-1 text-primary fw-bold" id="team1-score">{{ scoreboard.team1_score }}</div>
+                        </div>
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            <div class="display-4 text-muted">-</div>
+                        </div>
+                        <div class="col-5">
+                            <h3 class="{% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %}">{{ scoreboard.get_team2_name }}</h3>
+                            <div class="display-1 {% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %} fw-bold" id="team2-score">{{ scoreboard.team2_score }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Official Actions Section -->
+            {% if has_submit_links %}
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-clipboard-check"></i> Submit Official Score</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if scoreboard.tournament_match %}
+                            <p class="text-muted mb-3">
+                                <i class="fas fa-info-circle"></i>
+                                Submit official match results (affects rankings and tournament progression)
+                            </p>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="{% url 'match_submit_result' match_id team1_id %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-upload"></i> Submit Result for {{ team1_name }}
+                                </a>
+                                <a href="{% url 'match_submit_result' match_id team2_id %}" class="btn btn-outline-success">
+                                    <i class="fas fa-upload"></i> Submit Result for {{ team2_name }}
+                                </a>
+                            </div>
+                        {% elif scoreboard.friendly_game %}
+                            <p class="text-muted mb-3">
+                                <i class="fas fa-info-circle"></i>
+                                Ready to submit the official score? Click below to go directly to the score submission page.
+                            </p>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="{% url 'friendly_games:submit_score' match_id %}" class="btn btn-success btn-lg">
+                                    <i class="fas fa-trophy"></i> Submit Official Score
+                                </a>
+                                <a href="{% url 'friendly_games:game_detail' match_id %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-info-circle"></i> Game Details
+                                </a>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                <i class="fas fa-lightbulb"></i> 
+                                <strong>Tip:</strong> The submit score page will use the current scoreboard scores as a starting point.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+            
+            <!-- Score Update Form -->
+            {% if scoreboard.is_active %}
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-edit"></i> Update Scores</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="score-update-form">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="codename" class="form-label"><strong>Your Codename</strong></label>
+                                    {% if player_logged_in and session_codename %}
+                                        <input type="text" class="form-control" id="codename" value="{{ session_codename }}" maxlength="6" required readonly>
+                                        <div class="form-text text-success">
+                                            <i class="fas fa-check-circle"></i> Auto-filled from your login{% if player_name %} ({{ player_name }}){% endif %}
+                                        </div>
+                                    {% else %}
+                                        <input type="text" class="form-control" id="codename" placeholder="Enter your 6-character codename" maxlength="6" required>
+                                        <div class="form-text text-warning">
+                                            <i class="fas fa-exclamation-triangle"></i> Please <a href="#" onclick="showPlayerLogin()">login with your codename</a> for easier access
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-5">
+                                    <label class="form-label"><strong>{{ scoreboard.get_team1_name }} Score</strong></label>
+                                    <select class="form-select form-select-lg" id="team1-score-select">
+                                        {% for score in score_range %}
+                                            <option value="{{ score }}" {% if score == scoreboard.team1_score %}selected{% endif %}>{{ score }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end justify-content-center">
+                                    <div class="fs-3 text-muted mb-2">-</div>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label"><strong>{{ scoreboard.get_team2_name }} Score</strong></label>
+                                    <select class="form-select form-select-lg" id="team2-score-select">
+                                        {% for score in score_range %}
+                                            <option value="{{ score }}" {% if score == scoreboard.team2_score %}selected{% endif %}>{{ score }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Update Scores
+                                </button>
+                                <button type="button" class="btn btn-warning" id="reset-scores-btn">
+                                    <i class="fas fa-undo"></i> Reset to 0-0
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-secondary">
+                    <i class="fas fa-info-circle"></i>
+                    Live scoring has been completed for this match. Scores can no longer be updated.
+                </div>
+            {% endif %}
+            
+            <!-- Score History -->
+            {% if recent_updates %}
+                <div class="card mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0"><i class="fas fa-history"></i> Recent Updates</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Score</th>
+                                        <th>Updated By</th>
+                                        <th>Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for update in recent_updates %}
+                                        <tr>
+                                            <td>{{ update.timestamp|timesince }} ago</td>
+                                            <td>{{ update.team1_score }}-{{ update.team2_score }}</td>
+                                            <td>
+                                                {% with scorekeeper_name=update.get_scorekeeper_name %}
+                                                    {% if scorekeeper_name %}
+                                                        {{ scorekeeper_name }}
+                                                    {% else %}
+                                                        Unknown player
+                                                    {% endif %}
+                                                {% endwith %}
+                                            </td>
+                                            <td>
+                                                <span class="badge {% if update.update_type == 'reset' %}bg-warning{% else %}bg-info{% endif %}">
+                                                    {{ update.get_update_type_display }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Success/Error Messages -->
+<div id="message-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('score-update-form');
+    const resetBtn = document.getElementById('reset-scores-btn');
+    const messageContainer = document.getElementById('message-container');
+    
+    function showMessage(message, type = 'success') {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        messageContainer.appendChild(alertDiv);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+    
+    function updateScoreDisplay(team1Score, team2Score) {
+        document.getElementById('team1-score').textContent = team1Score;
+        document.getElementById('team2-score').textContent = team2Score;
+    }
+    
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const codename = document.getElementById('codename').value.trim().toUpperCase();
+            const team1Score = parseInt(document.getElementById('team1-score-select').value);
+            const team2Score = parseInt(document.getElementById('team2-score-select').value);
+            
+            if (!codename) {
+                showMessage('Please enter your codename', 'danger');
+                return;
+            }
+            
+            // Send update request
+            fetch('{% url "update_scoreboard" scoreboard.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    team1_score: team1Score,
+                    team2_score: team2Score,
+                    codename: codename
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateScoreDisplay(data.team1_score, data.team2_score);
+                    showMessage(data.message || 'Scores updated successfully!', 'success');
+                    
+                    if (!data.is_active) {
+                        // Reload page if game completed
+                        setTimeout(() => location.reload(), 2000);
+                    }
+                } else {
+                    showMessage(data.error || 'Failed to update scores', 'danger');
+                }
+            })
+            .catch(error => {
+                showMessage('Network error occurred', 'danger');
+                console.error('Error:', error);
+            });
+        });
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            const codename = document.getElementById('codename').value.trim().toUpperCase();
+            
+            if (!codename) {
+                showMessage('Please enter your codename to reset scores', 'danger');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to reset scores to 0-0?')) {
+                return;
+            }
+            
+            fetch('{% url "reset_scoreboard" scoreboard.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    codename: codename
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateScoreDisplay(0, 0);
+                    document.getElementById('team1-score-select').value = 0;
+                    document.getElementById('team2-score-select').value = 0;
+                    showMessage(data.message || 'Scores reset successfully!', 'success');
+                    
+                    // Reload page to refresh status
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showMessage(data.error || 'Failed to reset scores', 'danger');
+                }
+            })
+            .catch(error => {
+                showMessage('Network error occurred', 'danger');
+                console.error('Error:', error);
+            });
+        });
+    }
+});
+
+// Add CSRF token to all requests
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrfToken) {
+        const metaTag = document.createElement('input');
+        metaTag.type = 'hidden';
+        metaTag.name = 'csrfmiddlewaretoken';
+        metaTag.value = '{{ csrf_token }}';
+        document.body.appendChild(metaTag);
+    }
+});
+</script>
+{% endblock %}
+

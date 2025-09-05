@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Tournament Creator - PFC Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .main-container { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); margin: 2rem auto; max-width: 800px; }
+        .header-section { background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; padding: 2rem; border-radius: 20px 20px 0 0; text-align: center; }
+        .scenario-card { border: 2px solid #e2e8f0; border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; transition: all 0.3s ease; cursor: pointer; }
+        .scenario-card:hover, .scenario-card.selected { border-color: #2563eb; background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(59, 130, 246, 0.05)); }
+        .format-card { border: 2px solid #e2e8f0; border-radius: 10px; padding: 1rem; text-align: center; transition: all 0.3s ease; cursor: pointer; }
+        .format-card:hover, .format-card.selected { border-color: #2563eb; background: rgba(37, 99, 235, 0.05); }
+        .badge-free { background: #059669; color: white; padding: 0.25rem 0.75rem; border-radius: 50px; font-size: 0.8rem; font-weight: 600; }
+        .badge-voucher { background: #d97706; color: white; padding: 0.25rem 0.75rem; border-radius: 50px; font-size: 0.8rem; font-weight: 600; }
+        .btn-primary { background: linear-gradient(135deg, #2563eb, #3b82f6); border: none; border-radius: 10px; padding: 0.75rem 2rem; font-weight: 600; }
+        .form-control, .form-select { border-radius: 10px; border: 2px solid #e2e8f0; padding: 0.75rem 1rem; }
+        .voucher-section { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; }
+        .court-info { background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <div class="header-section">
+                <h1><i class="bi bi-plus-circle"></i> Simple Tournament Creator</h1>
+                <p>Create MELE tournaments in 4 simple steps</p>
+            </div>
+            
+            <div class="p-4">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <form method="post" action="{% url 'create_simple_tournament' %}" id="tournament-form">
+                    {% csrf_token %}
+                    
+                    <!-- Step 1: Select Scenario -->
+                    <div class="mb-4">
+                        <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">1</span> Select Scenario</h4>
+                        <div class="row g-3">
+                            {% for key, scenario in scenarios.items %}
+                            <div class="col-md-6">
+                                <div class="scenario-card" data-scenario="{{ key }}" data-requires-voucher="{% if not scenario.is_free %}true{% else %}false{% endif %}">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="scenario" value="{{ key }}" id="scenario_{{ key }}">
+                                            <label class="form-check-label fw-bold" for="scenario_{{ key }}">{{ scenario.name }}</label>
+                                        </div>
+                                        {% if scenario.is_free %}
+                                            <span class="badge-free">Free</span>
+                                        {% else %}
+                                            <span class="badge-voucher">Voucher</span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="text-muted mb-0">{{ scenario.description }}</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Step 2: Select Format -->
+                    <div class="mb-4">
+                        <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">2</span> Select Format</h4>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="format-card" data-format="doubles">
+                                    <input class="form-check-input" type="radio" name="format" value="doubles" id="format_doubles">
+                                    <label class="form-check-label fw-bold d-block" for="format_doubles">
+                                        <i class="bi bi-people fs-2 d-block mb-2 text-primary"></i>
+                                        Doubles
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="format-card" data-format="triples">
+                                    <input class="form-check-input" type="radio" name="format" value="triples" id="format_triples">
+                                    <label class="form-check-label fw-bold d-block" for="format_triples">
+                                        <i class="bi bi-people fs-2 d-block mb-2 text-primary"></i>
+                                        Triples
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 3: Select Court Complex -->
+                    <div class="mb-4">
+                        <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">3</span> Select Court Complex</h4>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <select class="form-select" name="court_complex" id="court_complex" required>
+                                    <option value="">Choose court complex...</option>
+                                    {% for complex in court_complexes %}
+                                        <option value="{{ complex.id }}">{{ complex.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i>
+                                    System will randomly select up to 3 available courts
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="court-info" id="court-info">
+                            <h6><i class="bi bi-geo-alt"></i> Available Courts</h6>
+                            <div id="court-list"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 4: Voucher Code (conditional) -->
+                    <div class="voucher-section" id="voucher-section">
+                        <h4 class="mb-3"><span class="badge bg-warning rounded-pill me-2">4</span> Enter Voucher Code</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" name="voucher_code" id="voucher_code" placeholder="Enter voucher code">
+                                <div class="form-text">
+                                    <i class="bi bi-ticket-perforated"></i>
+                                    Required for paid scenarios
+                                </div>
+                                <div id="voucher-feedback" class="mt-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="create-btn">
+                            <i class="bi bi-rocket-takeoff"></i>
+                            Create Tournament
+                        </button>
+                    </div>
+                    
+                    <!-- Auto-filled Information -->
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h6><i class="bi bi-info-circle"></i> Auto-Filled Information</h6>
+                        <small class="text-muted">
+                            <strong>Start:</strong> Tomorrow 9:00 AM | 
+                            <strong>End:</strong> Tomorrow 6:00 PM | 
+                            <strong>Registration Deadline:</strong> Tomorrow 8:00 AM<br>
+                            <strong>Team PINs:</strong> Generated automatically | 
+                            <strong>Courts:</strong> Randomly selected from available
+                        </small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const scenarioCards = document.querySelectorAll('.scenario-card');
+            const formatCards = document.querySelectorAll('.format-card');
+            const courtComplexSelect = document.getElementById('court_complex');
+            const courtInfo = document.getElementById('court-info');
+            const courtList = document.getElementById('court-list');
+            const voucherSection = document.getElementById('voucher-section');
+            const voucherInput = document.getElementById('voucher_code');
+            const voucherFeedback = document.getElementById('voucher-feedback');
+            
+            // Handle scenario selection
+            scenarioCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const radio = card.querySelector('input[type="radio"]');
+                    radio.checked = true;
+                    
+                    scenarioCards.forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    
+                    // Show/hide voucher section
+                    const requiresVoucher = card.dataset.requiresVoucher === 'true';
+                    if (requiresVoucher) {
+                        voucherSection.style.display = 'block';
+                        voucherInput.required = true;
+                    } else {
+                        voucherSection.style.display = 'none';
+                        voucherInput.required = false;
+                        voucherInput.value = '';
+                        voucherFeedback.innerHTML = '';
+                    }
+                });
+            });
+            
+            // Handle format selection
+            formatCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const radio = card.querySelector('input[type="radio"]');
+                    radio.checked = true;
+                    
+                    formatCards.forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                });
+            });
+            
+            // Handle court complex selection
+            courtComplexSelect.addEventListener('change', function() {
+                const complexId = this.value;
+                if (complexId) {
+                    fetch(`/simple/courts/?complex_id=${complexId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                courtList.innerHTML = `
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span><strong>${data.count}</strong> available courts</span>
+                                        <small class="text-muted">Up to 3 will be randomly selected</small>
+                                    </div>
+                                `;
+                                courtInfo.style.display = 'block';
+                            } else {
+                                courtList.innerHTML = '<div class="text-danger">Error loading courts</div>';
+                                courtInfo.style.display = 'block';
+                            }
+                        })
+                        .catch(error => {
+                            courtList.innerHTML = '<div class="text-danger">Error loading courts</div>';
+                            courtInfo.style.display = 'block';
+                        });
+                } else {
+                    courtInfo.style.display = 'none';
+                }
+            });
+            
+            // Handle voucher validation
+            voucherInput.addEventListener('blur', function() {
+                const voucherCode = this.value.trim();
+                const selectedScenario = document.querySelector('input[name="scenario"]:checked');
+                
+                if (voucherCode && selectedScenario) {
+                    const formData = new FormData();
+                    formData.append('voucher_code', voucherCode);
+                    formData.append('scenario', selectedScenario.value);
+                    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                    
+                    fetch('/simple/validate-voucher/', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            voucherFeedback.innerHTML = `
+                                <div class="alert alert-success py-2">
+                                    <i class="bi bi-check-circle"></i> ${data.message}
+                                </div>
+                            `;
+                        } else {
+                            voucherFeedback.innerHTML = `
+                                <div class="alert alert-danger py-2">
+                                    <i class="bi bi-exclamation-circle"></i> ${data.error}
+                                </div>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error validating voucher:', error);
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

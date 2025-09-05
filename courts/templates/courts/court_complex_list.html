@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Court Complexes - Petanque Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4"><i class="fas fa-building me-3"></i>Court Complexes</h1>
+            <p class="lead">Discover petanque facilities with detailed information and user reviews</p>
+        </div>
+    </div>
+
+    {% if complexes %}
+        <div class="row">
+            {% for complex in complexes %}
+            <div class="col-12 col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    {% if complex.photos.first %}
+                        <img src="{{ complex.photos.first.image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ complex.name }}">
+                    {% else %}
+                        <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                            <i class="fas fa-image text-muted fa-3x"></i>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">{{ complex.name }}</h5>
+                        <p class="card-text text-muted flex-grow-1">
+                            {{ complex.description|truncatewords:20 }}
+                        </p>
+                        
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="text-warning me-2">
+                                    {% for i in "12345" %}
+                                        {% if forloop.counter <= complex.average_rating %}
+                                            <i class="fas fa-star"></i>
+                                        {% elif forloop.counter <= complex.average_rating|add:0.5 %}
+                                            <i class="fas fa-star-half-alt"></i>
+                                        {% else %}
+                                            <i class="far fa-star"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </span>
+                                <small class="text-muted">
+                                    ({{ complex.rating_count }} review{{ complex.rating_count|pluralize }})
+                                </small>
+                            </div>
+                            
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <small class="text-muted">Courts</small><br>
+                                    <strong>{{ complex.courts.count }}</strong>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Access</small><br>
+                                    <span class="text-warning">
+                                        {% for i in "12345" %}
+                                            {% if forloop.counter <= complex.public_accessibility %}
+                                                <i class="fas fa-star"></i>
+                                            {% else %}
+                                                <i class="far fa-star"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <a href="{% url 'court_complex_detail' complex.id %}" class="btn btn-primary mt-auto">
+                            <i class="fas fa-info-circle me-1"></i> View Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h4>No Court Complexes Yet</h4>
+                    <p>Court complexes will be added soon to help you discover the best petanque facilities.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
