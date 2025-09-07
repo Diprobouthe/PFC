@@ -168,8 +168,8 @@ def create_simple_tournament(request):
             messages.error(request, f'No available courts at {court_complex.name}')
             return redirect('simple_creator_home')
         
-        # Randomly select up to 3 available courts
-        selected_courts = random.sample(available_courts, min(3, len(available_courts)))
+        # Randomly select up to 5 available courts
+        selected_courts = random.sample(available_courts, min(5, len(available_courts)))
         
         # Auto-generate dates (next day)
         tomorrow = timezone.now().date() + timedelta(days=1)

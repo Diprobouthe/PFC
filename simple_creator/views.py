@@ -122,11 +122,11 @@ def _create_simple_tournament(form_data):
         is_complete=False
     )
     
-    # Auto-assign courts (up to 3 available courts)
+    # Auto-assign courts (up to 5 available courts)
     available_courts = Court.objects.filter(
         court_complex=court_complex,
         is_available=True
-    )[:3]  # Limit to 3 courts as specified
+    )[:5]  # Limit to 5 courts as specified
     
     for court in available_courts:
         tournament.courts.add(court)
