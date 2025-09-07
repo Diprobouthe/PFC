@@ -25,7 +25,7 @@ class TournamentCreationForm(forms.Form):
     
     court_complex = forms.ModelChoiceField(
         queryset=CourtComplex.objects.all(),
-        help_text="Select court complex (system will auto-assign up to 3 available courts)"
+        help_text="Select court complex (system will auto-assign up to 5 available courts)"
     )
     
     voucher_code = forms.CharField(

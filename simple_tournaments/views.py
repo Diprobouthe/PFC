@@ -122,11 +122,11 @@ def _create_tournament(data):
         is_active=True
     )
     
-    # Auto-assign courts (up to 3 available courts)
+    # Auto-assign courts (up to 5 available courts)
     available_courts = Court.objects.filter(
         complex=court_complex,
         is_available=True
-    )[:3]
+    )[:5]
     
     if not available_courts:
         raise ValueError(f"No available courts in {court_complex.name}")
