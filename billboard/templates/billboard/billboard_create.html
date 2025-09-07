@@ -398,6 +398,32 @@ document.addEventListener('DOMContentLoaded', function() {
         this.value = this.value.toUpperCase();
     });
     
+    // Auto-fill codename from session
+    {% if session_codename %}
+    setTimeout(function() {
+        const codenameField = document.getElementById('{{ form.codename.id_for_label }}');
+        if (codenameField && !codenameField.value) {
+            codenameField.value = '{{ session_codename }}';
+            
+            // Add success styling and message
+            codenameField.style.borderColor = '#28a745';
+            codenameField.style.backgroundColor = '#d4edda';
+            
+            // Create and show success message
+            const existingMessage = document.querySelector('.codename-autofill-message');
+            if (existingMessage) {
+                existingMessage.remove();
+            }
+            
+            const successMessage = document.createElement('div');
+            successMessage.className = 'alert alert-success mt-2 codename-autofill-message';
+            successMessage.innerHTML = '<i class="fas fa-check-circle me-2"></i>Auto-filled! Your codename has been automatically filled from your login session.';
+            
+            codenameField.parentNode.appendChild(successMessage);
+        }
+    }, 100);
+    {% endif %}
+    
     // Form validation
     document.getElementById('billboard-form').addEventListener('submit', function(e) {
         const codename = codenameInput.value.trim();
