@@ -4,14 +4,23 @@
 <div class="container mt-4">
     <h2>Activate Match as {{ team.name }}</h2>
     
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            {{ match.team1.name }} vs {{ match.team2.name }}
-        </div>
-        <div class="card-body">
-            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
-            <p><strong>Round:</strong> {{ match.round|default:"None" }}</p>
-            <p><strong>Status:</strong> <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'pending_verification' %}bg-warning{% elif match.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ match.get_status_display }}</span></p>
+    <!-- Collapsible Details Section -->
+    <div class="mb-3">
+        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#matchDetails" aria-expanded="false" aria-controls="matchDetails">
+            <i class="bi bi-info-circle me-1"></i> Show Details
+        </button>
+    </div>
+    
+    <div class="collapse" id="matchDetails">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                {{ match.team1.name }} vs {{ match.team2.name }}
+            </div>
+            <div class="card-body">
+                <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
+                <p><strong>Round:</strong> {{ match.round|default:"None" }}</p>
+                <p><strong>Status:</strong> <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'pending_verification' %}bg-warning{% elif match.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ match.get_status_display }}</span></p>
+            </div>
         </div>
     </div>
     
@@ -55,29 +64,10 @@
         <div class="mb-3">
             <label for="id_pin" class="form-label">Enter Team PIN to Activate:</label>
             <input type="password" name="pin" maxlength="6" class="form-control" placeholder="Enter your 6-digit PIN" required id="id_pin">
-            <div class="form-text">Enter your team's 6-digit PIN to confirm match activation.</div>
         </div>
         
         <div class="mb-3">
             <label class="form-label">Select Players:</label>
-            {% if is_validating %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle-fill me-2"></i>
-                <strong>Match Format Rules:</strong> This tournament requires specific match formats.
-                {% if match.tournament.allowed_match_types %}
-                <ul class="mb-0 mt-2">
-                    {% for type in match.tournament.allowed_match_types.allowed_match_types %}
-                        <li>
-                            {% if type == 'doublet' %}Doublet (2 players){% endif %}
-                            {% if type == 'triplet' %}Triplet (3 players){% endif %}
-                            {% if type == 'tete_a_tete' %}Tête-à-tête (1 player){% endif %}
-                        </li>
-                    {% endfor %}
-                    <li>Mixed formats: {% if match.tournament.allowed_match_types.allow_mixed %}Allowed{% else %}Not allowed{% endif %}</li>
-                </ul>
-                {% endif %}
-            </div>
-            {% endif %}
             
             <div class="player-selection">
                 {% for player in form.players %}
@@ -123,25 +113,9 @@
                 </div>
                 {% endfor %}
             </div>
-            <div class="form-text">Select the players who will participate in this match.</div>
             <div id="roleError" class="alert alert-danger mt-2" style="display: none;">
                 Each player can only have one role selected.
             </div>
-            
-            {% if is_validating %}
-            <div class="player-count-info alert alert-warning mt-3">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <strong>Important:</strong> The other team has selected 
-                <span id="otherTeamPlayerCount">{{ first_team_match_players|length }}</span> player(s).
-                {% if not match.tournament.allowed_match_types.allow_mixed %}
-                Your selection should match this count to comply with tournament rules.
-                {% endif %}
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> Both teams must activate the match before it can begin. A court will be automatically assigned when both teams have activated.
         </div>
         
         <button type="submit" class="btn btn-primary">
@@ -151,6 +125,50 @@
             <i class="bi bi-arrow-left"></i> Back to Match
         </a>
     </form>
+    
+    <!-- Additional Details in Collapsible Section -->
+    <div class="collapse" id="matchDetails">
+        <div class="alert alert-info mt-3">
+            <i class="bi bi-info-circle"></i> Both teams must activate the match before it can begin. A court will be automatically assigned when both teams have activated.
+        </div>
+        
+        {% if is_validating %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            <strong>Match Format Rules:</strong> This tournament requires specific match formats.
+            {% if match.tournament.allowed_match_types %}
+            <ul class="mb-0 mt-2">
+                {% for type in match.tournament.allowed_match_types.allowed_match_types %}
+                    <li>
+                        {% if type == 'doublet' %}Doublet (2 players){% endif %}
+                        {% if type == 'triplet' %}Triplet (3 players){% endif %}
+                        {% if type == 'tete_a_tete' %}Tête-à-tête (1 player){% endif %}
+                    </li>
+                {% endfor %}
+                <li>Mixed formats: {% if match.tournament.allowed_match_types.allow_mixed %}Allowed{% else %}Not allowed{% endif %}</li>
+            </ul>
+            {% endif %}
+        </div>
+        
+        <div class="player-count-info alert alert-warning">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Important:</strong> The other team has selected 
+            <span id="otherTeamPlayerCount">{{ first_team_match_players|length }}</span> player(s).
+            {% if not match.tournament.allowed_match_types.allow_mixed %}
+            Your selection should match this count to comply with tournament rules.
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="form-text mb-2">
+            <strong>Instructions:</strong>
+        </div>
+        <ul class="form-text">
+            <li>Enter your team's 6-digit PIN to confirm match activation</li>
+            <li>Select the players who will participate in this match</li>
+            <li>Choose player roles if needed (optional - defaults to "Flex")</li>
+        </ul>
+    </div>
     {% endif %}
 </div>
 
