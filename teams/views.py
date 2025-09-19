@@ -973,42 +973,42 @@ def player_profile(request, player_id):
                 # Define skill level ranges with 10 subdivisions per category
                 skill_ranges = []
                 
-                # Novice: 0-199 (10 subdivisions of 20 points each)
+                # Novice: 0-110 (10 subdivisions of 11 points each)
                 for i in range(10):
                     skill_ranges.append({
                         'name': f'Novice {i+1}',
-                        'min': i * 20,
-                        'max': (i + 1) * 20 - 1,
+                        'min': i * 11,
+                        'max': (i + 1) * 11 - 1,
                         'color': '#28a745',
                         'category': 'Novice'
                     })
                 
-                # Intermediate: 200-399 (10 subdivisions of 20 points each)
+                # Intermediate: 111-151 (10 subdivisions of 4 points each)
                 for i in range(10):
                     skill_ranges.append({
                         'name': f'Intermediate {i+1}',
-                        'min': 200 + i * 20,
-                        'max': 200 + (i + 1) * 20 - 1,
+                        'min': 111+ i * 4,
+                        'max': 111 + (i + 1) * 4 - 1,
                         'color': '#ffc107',
                         'category': 'Intermediate'
                     })
                 
-                # Advanced: 400-699 (10 subdivisions of 30 points each)
+                # Advanced: 152-202 (10 subdivisions of 5 points each)
                 for i in range(10):
                     skill_ranges.append({
                         'name': f'Advanced {i+1}',
-                        'min': 400 + i * 30,
-                        'max': 400 + (i + 1) * 30 - 1,
+                        'min': 152 + i * 5,
+                        'max': 152 + (i + 1) * 5 - 1,
                         'color': '#fd7e14',
                         'category': 'Advanced'
                     })
                 
-                # Pro: 700-1000 (10 subdivisions of 30 points each)
+                # Pro: 203-1003 (10 subdivisions of 80 points each)
                 for i in range(10):
                     skill_ranges.append({
                         'name': f'Pro {i+1}',
-                        'min': 700 + i * 30,
-                        'max': 700 + (i + 1) * 30 - 1,
+                        'min': 203 + i * 80,
+                        'max': 203 + (i + 1) * 80 - 1,
                         'color': '#dc3545',
                         'category': 'Pro'
                     })
