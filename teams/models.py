@@ -174,10 +174,11 @@ class PlayerProfile(models.Model):
         max_length=20,
         choices=[
             ('pointer', 'Pointer'),
-            ('middle', 'Middle'),
-            ('shooter', 'Shooter'),
-            ('versatile', 'Versatile')
+            ('milieu', 'Milieu'),
+            ('tirer', 'Tirer'),
+            ('flex', 'Flex')
         ],
+        default='milieu',
         blank=True,
         null=True
     )
@@ -222,22 +223,120 @@ class PlayerProfile(models.Model):
         return f"Profile for {self.player}"
     
     def win_rate(self):
-        """Calculate and return the player's win rate as a percentage"""
-        if self.matches_played == 0:
-            return 0
-        return round((self.matches_won / self.matches_played) * 100, 1)
+        """Calculate and return the player's win rate as a percentage using participation data"""
+        stats = self.get_accurate_match_statistics()
+        return stats['win_rate']
+    
+    def get_accurate_match_statistics(self):
+        """
+        Get accurate match statistics based on actual participation data.
+        This replaces the flawed team roster-based calculation.
+        """
+        try:
+            from matches.models_participant import TeamMatchParticipant
+            return TeamMatchParticipant.get_player_statistics(self.player)
+        except ImportError:
+            # Fallback to old method if TeamMatchParticipant not available
+            if self.matches_played == 0:
+                return {
+                    'matches_played': 0,
+                    'matches_won': 0,
+                    'matches_lost': 0,
+                    'matches_drawn': 0,
+                    'win_rate': 0.0,
+                }
+            return {
+                'matches_played': self.matches_played,
+                'matches_won': self.matches_won,
+                'matches_lost': self.matches_played - self.matches_won,
+                'matches_drawn': 0,
+                'win_rate': round((self.matches_won / self.matches_played) * 100, 1),
+            }
     
     def update_match_stats(self, won=False):
-        """Update player match statistics"""
+        """
+        DEPRECATED: This method is deprecated in favor of participation-based statistics.
+        Use sync_statistics_from_participation() instead.
+        """
+        # Keep for backward compatibility but mark as deprecated
+        import warnings
+        warnings.warn(
+            "update_match_stats is deprecated. Use sync_statistics_from_participation() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.matches_played += 1
         if won:
             self.matches_won += 1
         self.save()
     
+    def sync_statistics_from_participation(self):
+        """
+        Sync player statistics from TeamMatchParticipant data.
+        This is the new, accurate way to calculate player statistics.
+        """
+        try:
+            stats = self.get_accurate_match_statistics()
+            
+            # Update the stored statistics
+            old_played = self.matches_played
+            old_won = self.matches_won
+            
+            self.matches_played = stats['matches_played']
+            self.matches_won = stats['matches_won']
+            
+            # Only save if there are changes
+            if old_played != self.matches_played or old_won != self.matches_won:
+                self.save()
+                return True
+            
+            return False
+            
+        except Exception as e:
+            print(f"Error syncing statistics for player {self.player.name}: {e}")
+            return False
+    
     # Enhanced statistics methods for position and match format analysis
     def get_position_stats(self):
-        """Return statistics grouped by playing position from MatchPlayer data"""
+        """Return statistics grouped by playing position from TeamMatchParticipant data"""
         try:
+            from matches.models_participant import TeamMatchParticipant
+            
+            # Get all participation records for this player where they actually played
+            participations = TeamMatchParticipant.objects.filter(
+                player=self.player,
+                played=True
+            ).select_related('match')
+            
+            position_stats = {}
+            
+            for participation in participations:
+                if participation.match.status != 'completed':
+                    continue
+                
+                position = participation.position
+                if position not in position_stats:
+                    position_stats[position] = {
+                        'matches_played': 0,
+                        'matches_won': 0,
+                        'win_rate': 0
+                    }
+                
+                position_stats[position]['matches_played'] += 1
+                
+                # Check if player won this match
+                if participation.did_win:
+                    position_stats[position]['matches_won'] += 1
+            
+            # Calculate win rates
+            for position, stats in position_stats.items():
+                if stats['matches_played'] > 0:
+                    stats['win_rate'] = round((stats['matches_won'] / stats['matches_played']) * 100, 1)
+            
+            return position_stats
+            
+        except ImportError:
+            # Fallback to old MatchPlayer-based method
             from matches.models import MatchPlayer, Match
             
             # Get all MatchPlayer records for this player
@@ -247,34 +346,76 @@ class PlayerProfile(models.Model):
             
             position_stats = {}
             
-            for mp in match_players:
-                role = mp.role or 'flex'
-                if role not in position_stats:
-                    position_stats[role] = {
+            for match_player in match_players:
+                match = match_player.match
+                if match.status != 'completed':
+                    continue
+                
+                position = match_player.role
+                if position not in position_stats:
+                    position_stats[position] = {
                         'matches_played': 0,
                         'matches_won': 0,
                         'win_rate': 0
                     }
                 
-                position_stats[role]['matches_played'] += 1
+                position_stats[position]['matches_played'] += 1
                 
-                # Check if this match was won
-                if mp.match.status == 'completed' and mp.match.winner == self.player.team:
-                    position_stats[role]['matches_won'] += 1
+                # Check if player's team won
+                if match.winner == match_player.team:
+                    position_stats[position]['matches_won'] += 1
             
             # Calculate win rates
-            for role in position_stats:
-                stats = position_stats[role]
+            for position, stats in position_stats.items():
                 if stats['matches_played'] > 0:
                     stats['win_rate'] = round((stats['matches_won'] / stats['matches_played']) * 100, 1)
             
             return position_stats
-        except Exception:
+            
+        except Exception as e:
+            print(f"Error getting position stats for {self.player.name}: {e}")
             return {}
     
-    def get_match_format_stats(self):
-        """Return statistics grouped by match format from MatchPlayer data"""
+    def get_format_stats(self):
+        """Return statistics grouped by match format from TeamMatchParticipant data"""
         try:
+            from matches.models_participant import TeamMatchParticipant
+            
+            # Get all participation records for this player where they actually played
+            participations = TeamMatchParticipant.objects.filter(
+                player=self.player,
+                played=True
+            ).select_related('match')
+            
+            format_stats = {}
+            
+            for participation in participations:
+                if participation.match.status != 'completed':
+                    continue
+                
+                match_format = participation.match.match_type or 'unknown'
+                if match_format not in format_stats:
+                    format_stats[match_format] = {
+                        'matches_played': 0,
+                        'matches_won': 0,
+                        'win_rate': 0
+                    }
+                
+                format_stats[match_format]['matches_played'] += 1
+                
+                # Check if player won this match
+                if participation.did_win:
+                    format_stats[match_format]['matches_won'] += 1
+            
+            # Calculate win rates
+            for format_type, stats in format_stats.items():
+                if stats['matches_played'] > 0:
+                    stats['win_rate'] = round((stats['matches_won'] / stats['matches_played']) * 100, 1)
+            
+            return format_stats
+            
+        except ImportError:
+            # Fallback to old MatchPlayer-based method
             from matches.models import MatchPlayer, Match
             
             # Get all MatchPlayer records for this player
@@ -377,10 +518,14 @@ class PlayerProfile(models.Model):
     
     def get_accurate_statistics(self):
         """
-        Get accurate statistics by checking if sync is needed and returning current stats.
-        This method ensures statistics are up-to-date without breaking existing functionality.
+        Get accurate statistics using participation-based calculation.
+        This method uses TeamMatchParticipant data for accurate statistics.
         """
         try:
+            # Use the new participation-based statistics
+            return self.get_accurate_match_statistics()
+        except Exception:
+            # Fallback to old method if there's an error
             from matches.models import Match
             
             # Check if statistics need updating by comparing with actual match count
@@ -414,24 +559,13 @@ class PlayerProfile(models.Model):
     @property
     def level(self):
         """Return player level based on rating value"""
-        if self.value <= 110:
-            return 'novice'
-        elif self.value <= 150:
-            return 'intermediate'  
-        elif self.value <= 200:
-            return 'advanced'
-        else:
-            return 'pro'
+        from .rating_thresholds import get_player_category
+        return get_player_category(self.value)
     
     def get_level_display(self):
         """Return formatted level display with color coding"""
-        level_map = {
-            'novice': ('Novice', 'secondary'),
-            'intermediate': ('Intermediate', 'info'),
-            'advanced': ('Advanced', 'primary'), 
-            'pro': ('Professional', 'success')
-        }
-        return level_map.get(self.level, ('Unknown', 'light'))
+        from .rating_thresholds import get_category_display
+        return get_category_display(self.level)
     
     def calculate_rating_change(self, opponent_value, own_score, opponent_score):
         """

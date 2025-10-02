@@ -421,6 +421,17 @@ def match_validate_result(request, match_id, team_id):
                     match.loser = None
                 match.save()
                 
+                # ===== PARTICIPATION TRACKING =====
+                # Create TeamMatchParticipant records from MatchPlayer data
+                try:
+                    from .models_participant import TeamMatchParticipant
+                    participants_created = TeamMatchParticipant.create_from_match_players(match)
+                    logger.info(f"Match {match.id} completion: Created {participants_created} participation records")
+                except Exception as e:
+                    logger.error(f"Failed to create participation records for match {match.id}: {e}")
+                    # Continue with match completion - participation tracking failures don't break matches
+                # ===== END PARTICIPATION TRACKING =====
+                
                 # ===== TOURNAMENT PROGRESSION CHECK =====
                 # Check if tournament should advance to next stage/round after match completion
                 try:

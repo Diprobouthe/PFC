@@ -93,27 +93,23 @@
                         </div>
                     </div>
                     
-                    <!-- Step 3: Select Court Complex -->
+                    <!-- Step 3: Number of Courts -->
                     <div class="mb-4">
-                        <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">3</span> Select Court Complex</h4>
+                        <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">3</span> Number of Courts</h4>
                         <div class="row">
-                            <div class="col-md-8">
-                                <select class="form-select" name="court_complex" id="court_complex" required>
-                                    <option value="">Choose court complex...</option>
-                                    {% for complex in court_complexes %}
-                                        <option value="{{ complex.id }}">{{ complex.name }}</option>
-                                    {% endfor %}
+                            <div class="col-md-6">
+                                <select class="form-select" name="num_courts" id="num_courts" required>
+                                    <option value="">Choose number of courts...</option>
+                                    <option value="1">1 court</option>
+                                    <option value="2">2 courts</option>
+                                    <option value="3" selected>3 courts</option>
+                                    <option value="4">4 courts</option>
                                 </select>
                                 <div class="form-text">
                                     <i class="bi bi-info-circle"></i>
-                                    System will randomly select up to 3 available courts
+                                    Matches run on virtual courts. If more games are scheduled than your selected courts, they will queue automatically.
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="court-info" id="court-info">
-                            <h6><i class="bi bi-geo-alt"></i> Available Courts</h6>
-                            <div id="court-list"></div>
                         </div>
                     </div>
                     
@@ -148,11 +144,8 @@
                             <strong>End:</strong> Tomorrow 6:00 PM | 
                             <strong>Registration Deadline:</strong> Tomorrow 8:00 AM<br>
                             <strong>Team PINs:</strong> Generated automatically | 
-                            <strong>Courts:</strong> Randomly selected from available
-                        </small>
-                    </div>
-                </form>
-            </div>
+                            <strong>Virtual Courts:</strong> Tournament-specific courts (VC-1, VC-2, etc.)<br>
+                            <strong>Match Generation:</strong> Created when admin generates teams>
         </div>
     </div>
     

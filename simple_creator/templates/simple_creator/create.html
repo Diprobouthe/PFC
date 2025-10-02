@@ -104,24 +104,24 @@
         {% endif %}
     </div>
     
-    <!-- Step 3: Choose Court Complex -->
+    <!-- Step 3: Choose Number of Courts -->
     <div class="mb-5">
         <h4 class="mb-3">
             <span class="badge bg-primary rounded-pill me-2">3</span>
-            Choose Court Complex
+            Number of Courts
         </h4>
         
         <div class="row">
             <div class="col-md-8">
-                {{ form.court_complex }}
+                {{ form.num_courts }}
                 <div class="form-text">
                     <i class="bi bi-info-circle"></i>
-                    System will automatically assign up to 3 available courts
+                    Matches run on virtual courts. If more games are scheduled than your selected courts, they will queue automatically.
                 </div>
                 
-                {% if form.court_complex.errors %}
+                {% if form.num_courts.errors %}
                     <div class="text-danger mt-2">
-                        {% for error in form.court_complex.errors %}
+                        {% for error in form.num_courts.errors %}
                             <small>{{ error }}</small>
                         {% endfor %}
                     </div>
@@ -183,7 +183,7 @@
             <strong>End Date:</strong> Tomorrow at 6:00 PM<br>
             <strong>Registration Deadline:</strong> Tomorrow at 8:00 AM<br>
             <strong>Team PINs:</strong> Generated automatically<br>
-            <strong>Court Assignment:</strong> Up to 3 available courts assigned<br>
+            <strong>Virtual Courts:</strong> Tournament-specific courts (VC-1, VC-2, etc.)<br>
             <strong>Match Generation:</strong> Created when admin generates teams
         </small>
     </div>
@@ -291,4 +291,63 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+
+
+<script>
+// Add dynamic court selection based on scenario
+document.addEventListener('DOMContentLoaded', function() {
+    const scenarioInputs = document.querySelectorAll('input[name="scenario"]');
+    const courtsSelect = document.querySelector('select[name="num_courts"]');
+    
+    // Scenario data for court limits
+    const scenarioData = {
+        {% for scenario in form.scenario.field.queryset %}
+        {{ scenario.id }}: {
+            max_courts: {{ scenario.max_courts }},
+            recommended_courts: {{ scenario.recommended_courts }}
+        },
+        {% endfor %}
+    };
+    
+    function updateCourtOptions(scenarioId) {
+        if (!scenarioId || !scenarioData[scenarioId]) return;
+        
+        const scenario = scenarioData[scenarioId];
+        const currentValue = courtsSelect.value;
+        
+        // Clear existing options
+        courtsSelect.innerHTML = '';
+        
+        // Add new options based on scenario limits
+        for (let i = 1; i <= scenario.max_courts; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i + (i === 1 ? ' court' : ' courts');
+            courtsSelect.appendChild(option);
+        }
+        
+        // Set recommended value or keep current if valid
+        if (currentValue && parseInt(currentValue) <= scenario.max_courts) {
+            courtsSelect.value = currentValue;
+        } else {
+            courtsSelect.value = scenario.recommended_courts;
+        }
+    }
+    
+    // Handle scenario change
+    scenarioInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            if (this.checked) {
+                updateCourtOptions(this.value);
+            }
+        });
+    });
+    
+    // Initialize with selected scenario
+    const selectedScenario = document.querySelector('input[name="scenario"]:checked');
+    if (selectedScenario) {
+        updateCourtOptions(selectedScenario.value);
+    }
+});
+</script>
 

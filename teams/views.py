@@ -5,6 +5,7 @@ from django.db.models import Q, Count, Prefetch
 from django.http import JsonResponse
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile
 from .forms import TeamForm, PlayerForm, TeamAvailabilityForm, PublicPlayerForm, EditPlayerProfileForm
+from .utils import get_recent_matches_with_participation, get_player_participation_summary
 from matches.models import Match, MatchActivation
 from pfc_core.session_utils import CodenameSessionManager
 from friendly_games.models import PlayerCodename
@@ -768,10 +769,35 @@ def player_profile(request, player_id):
     for team in player_teams:
         team_queries |= Q(team1=team) | Q(team2=team)
     
-    tournament_matches = Match.objects.filter(
-        team_queries,
-        status='completed'  # Only show completed matches
-    ).select_related('team1', 'team2', 'tournament', 'round').order_by('-end_time')
+    # Get only matches where the player actually participated
+    try:
+        from matches.models_participant import TeamMatchParticipant
+        
+        # Get matches where player has participation records
+        participated_match_ids = TeamMatchParticipant.objects.filter(
+            player=player,
+            played=True
+        ).values_list('match_id', flat=True)
+        
+        tournament_matches = Match.objects.filter(
+            id__in=participated_match_ids,
+            status='completed'  # Only show completed matches
+        ).select_related('team1', 'team2', 'tournament', 'round').order_by('-end_time')
+        
+        # Add position information from TeamMatchParticipant records
+        for match in tournament_matches:
+            try:
+                participant = TeamMatchParticipant.objects.get(match=match, player=player)
+                match.position = participant.get_position_display()
+            except TeamMatchParticipant.DoesNotExist:
+                match.position = "N/A"
+        
+    except ImportError:
+        # Fallback to old method if TeamMatchParticipant not available
+        tournament_matches = Match.objects.filter(
+            team_queries,
+            status='completed'  # Only show completed matches
+        ).select_related('team1', 'team2', 'tournament', 'round').order_by('-end_time')
     
     # Get friendly game matches (for Friendly Games tab)
     friendly_matches = []
@@ -820,14 +846,21 @@ def player_profile(request, player_id):
         if hasattr(player, 'profile') and player.profile.has_enhanced_stats():
             enhanced_stats = {
                 'position_stats': player.profile.get_position_stats(),
-                'format_stats': player.profile.get_match_format_stats(),
+                'format_stats': player.profile.get_format_stats(),
                 'role_distribution': player.profile.get_role_distribution(),
-                'has_data': True
+                'has_data': True,
+                'recent_matches': get_recent_matches_with_participation(player, tournament_matches[:10])
             }
         else:
-            enhanced_stats = {'has_data': False}
+            enhanced_stats = {
+                'has_data': False,
+                'recent_matches': get_recent_matches_with_participation(player, tournament_matches[:10])
+            }
     except Exception:
-        enhanced_stats = {'has_data': False}
+        enhanced_stats = {
+            'has_data': False,
+            'recent_matches': get_recent_matches_with_participation(player, tournament_matches[:10])
+        }
     
     # Get friendly game statistics
     friendly_stats = {}
@@ -951,12 +984,17 @@ def player_profile(request, player_id):
     bell_curve_data = {}
     try:
         if hasattr(player, 'profile') and player.profile:
+            # Import the single source of truth for thresholds
+            from .rating_thresholds import get_all_categories, get_player_category, get_category_color
+            
             # Get all player profiles with ratings
             all_profiles = PlayerProfile.objects.exclude(value__isnull=True).exclude(value=0)
-            
             if all_profiles.count() > 0:
                 # Get current player's rating
                 current_rating = float(player.profile.value)
+                
+                # Get current player's category
+                current_player_category = get_player_category(current_rating)
                 
                 # Get all ratings for distribution calculation
                 all_ratings = [float(p.value) for p in all_profiles]
@@ -966,96 +1004,93 @@ def player_profile(request, player_id):
                 lower_count = sum(1 for rating in all_ratings if rating < current_rating)
                 percentile = round((lower_count / len(all_ratings)) * 100, 1)
                 
-                # Calculate average rating
-                avg_rating = sum(all_ratings) / len(all_ratings)
+                # Get all categories with correct thresholds
+                categories = get_all_categories()
                 
-                # Create histogram bins for actual distribution
-                # Define skill level ranges with 10 subdivisions per category
-                skill_ranges = []
+                # Create histogram data for global player distribution
+                import numpy as np
                 
-                # Novice: 0-110 (10 subdivisions of 11 points each)
-                for i in range(10):
-                    skill_ranges.append({
-                        'name': f'Novice {i+1}',
-                        'min': i * 11,
-                        'max': (i + 1) * 11 - 1,
-                        'color': '#28a745',
-                        'category': 'Novice'
-                    })
-                
-                # Intermediate: 111-151 (10 subdivisions of 4 points each)
-                for i in range(10):
-                    skill_ranges.append({
-                        'name': f'Intermediate {i+1}',
-                        'min': 111+ i * 4,
-                        'max': 111 + (i + 1) * 4 - 1,
-                        'color': '#ffc107',
-                        'category': 'Intermediate'
-                    })
-                
-                # Advanced: 152-202 (10 subdivisions of 5 points each)
-                for i in range(10):
-                    skill_ranges.append({
-                        'name': f'Advanced {i+1}',
-                        'min': 152 + i * 5,
-                        'max': 152 + (i + 1) * 5 - 1,
-                        'color': '#fd7e14',
-                        'category': 'Advanced'
-                    })
-                
-                # Pro: 203-1003 (10 subdivisions of 80 points each)
-                for i in range(10):
-                    skill_ranges.append({
-                        'name': f'Pro {i+1}',
-                        'min': 203 + i * 80,
-                        'max': 203 + (i + 1) * 80 - 1,
-                        'color': '#dc3545',
-                        'category': 'Pro'
-                    })
-                
-                # Count players in each skill range
-                distribution = []
-                for skill_range in skill_ranges:
-                    count = sum(1 for rating in all_ratings 
-                              if skill_range['min'] <= rating <= skill_range['max'])
-                    percentage = (count / len(all_ratings)) * 100 if len(all_ratings) > 0 else 0
-                    distribution.append({
-                        'name': skill_range['name'],
-                        'count': count,
-                        'percentage': round(percentage, 1),
-                        'color': skill_range['color'],
-                        'min': skill_range['min'],
-                        'max': skill_range['max']
-                    })
-                
-                # Find which range the current player is in
-                current_player_range = None
-                for i, skill_range in enumerate(skill_ranges):
-                    if skill_range['min'] <= current_rating <= skill_range['max']:
-                        current_player_range = i
-                        break
-                
-                # Calculate position within the range where players actually exist
+                # Create histogram bins - use 20 bins for good granularity
                 min_rating = min(all_ratings)
                 max_rating = max(all_ratings)
                 
-                # Calculate player's position relative to actual data range
-                if max_rating > min_rating:
-                    position = ((current_rating - min_rating) / (max_rating - min_rating)) * 100
-                else:
-                    position = 50  # Middle if all ratings are the same
+                # Ensure we have a reasonable range
+                rating_range = max_rating - min_rating
+                if rating_range < 50:
+                    # Expand range if too narrow
+                    padding = (50 - rating_range) / 2
+                    min_rating -= padding
+                    max_rating += padding
+                
+                # Create 20 bins for histogram
+                bins = np.linspace(min_rating, max_rating, 21)  # 21 edges = 20 bins
+                hist_counts, bin_edges = np.histogram(all_ratings, bins=bins)
+                
+                # Create histogram data for chart with proper positioning
+                histogram_data = []
+                max_count = max(hist_counts) if len(hist_counts) > 0 else 1
+                
+                for i in range(len(hist_counts)):
+                    bin_start = bin_edges[i]
+                    bin_end = bin_edges[i + 1]
+                    count = int(hist_counts[i])
+                    
+                    # Calculate positions for SVG (800px wide chart, 20px margins)
+                    x_pos = 20 + ((bin_start - min_rating) / (max_rating - min_rating)) * 760
+                    width = ((bin_end - bin_start) / (max_rating - min_rating)) * 760
+                    height = (count / max_count) * 100 if count > 0 else 0  # Max height 100px
+                    y_pos = 160 - height  # Start from bottom (y=160) and go up
+                    
+                    histogram_data.append({
+                        'bin_start': round(bin_start, 1),
+                        'bin_end': round(bin_end, 1),
+                        'count': count,
+                        'x_pos': x_pos,
+                        'y_pos': y_pos,
+                        'width': width,
+                        'height': height
+                    })
+                
+                # Calculate current player position
+                current_player_x = 20 + ((current_rating - min_rating) / (max_rating - min_rating)) * 760
+                
+                # Create category bands with proper positioning
+                category_bands = []
+                for category in categories:
+                    # Calculate band positions
+                    band_min = max(category['min'], min_rating)
+                    band_max = min(category['max'] if category['max'] != float('inf') else max_rating + 50, max_rating + 50)
+                    
+                    if band_min <= max_rating:
+                        x_start = 20 + ((band_min - min_rating) / (max_rating - min_rating)) * 760
+                        x_end = 20 + ((band_max - min_rating) / (max_rating - min_rating)) * 760
+                        
+                        category_bands.append({
+                            'key': category['key'],
+                            'display_name': category['display_name'],
+                            'min': category['min'],
+                            'max': category['max'],
+                            'x_start': x_start,
+                            'x_end': x_end,
+                            'width': x_end - x_start,
+                            'label_x': (x_start + x_end) / 2,
+                            'color': category['color']
+                        })
+                
+                # Calculate average rating
+                avg_rating = round(sum(all_ratings) / len(all_ratings), 1)
                 
                 bell_curve_data = {
                     'current_rating': current_rating,
+                    'current_player_x': current_player_x,
+                    'current_player_category': current_player_category,
                     'percentile': percentile,
-                    'avg_rating': round(avg_rating, 1),
+                    'avg_rating': avg_rating,
                     'min_rating': min_rating,
                     'max_rating': max_rating,
                     'total_players': len(all_ratings),
-                    'position': round(position, 1),
-                    'distribution': distribution,
-                    'current_player_range': current_player_range,
-                    'all_ratings': all_ratings,
+                    'histogram_data': histogram_data,
+                    'categories': category_bands,
                     'has_data': True
                 }
             else:

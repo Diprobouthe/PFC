@@ -141,73 +141,79 @@
                                                         <p class="text-muted">Compared to {{ bell_curve_data.total_players }} players in the community</p>
                                                     </div>
                                                     
-                                                    <!-- Bell Curve Visualization -->
-                                                    <div class="text-center mb-3">
-                                                        <svg width="100%" height="200" viewBox="0 0 800 200" style="max-width: 800px;">
-                                                            <!-- Create histogram bars based on actual distribution -->
-                                                            {% for dist in bell_curve_data.distribution %}
-                                                                {% if dist.count > 0 %}
-                                                                    <!-- Calculate positions for 40 bars (10 per category) -->
-                                                                    {% widthratio dist.percentage 100 120 as bar_height %}
-                                                                    {% widthratio forloop.counter0 40 760 as x_start %}
-                                                                    
-                                                                    <!-- Bar representing actual player count -->
-                                                                    <rect x="{{ x_start|add:'20' }}" 
-                                                                          y="40" 
-                                                                          width="18" 
-                                                                          height="{{ bar_height }}" 
-                                                                          fill="{{ dist.color }}" 
-                                                                          opacity="0.7"/>
-                                                                    
-                                                                    <!-- Player count label on top of bar (only show if count > 0) -->
-                                                                    {% if dist.count > 0 %}
-                                                                    <text x="{{ x_start|add:'29' }}" 
-                                                                          y="30" 
-                                                                          text-anchor="middle" 
-                                                                          font-size="8" 
-                                                                          font-weight="bold" 
-                                                                          fill="#333">{{ dist.count }}</text>
-                                                                    {% endif %}
-                                                                {% else %}
-                                                                    <!-- Empty range - show minimal bar -->
-                                                                    {% widthratio forloop.counter0 40 760 as x_start %}
-                                                                    <rect x="{{ x_start|add:'20' }}" 
-                                                                          y="158" 
-                                                                          width="18" 
-                                                                          height="2" 
-                                                                          fill="{{ dist.color }}" 
-                                                                          opacity="0.3"/>
-                                                                {% endif %}
-                                                            {% endfor %}
-                                                            
-                                                            <!-- Skill level labels (major categories) -->
-                                                            <text x="110" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Novice</text>
-                                                            <text x="300" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Intermediate</text>
-                                                            <text x="490" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Advanced</text>
-                                                            <text x="680" y="195" text-anchor="middle" font-size="12" fill="#666" font-weight="bold">Pro</text>
-                                                            
-                                                            <!-- Player position marker -->
-                                                            {% if bell_curve_data.current_player_range is not None %}
-                                                                {% widthratio bell_curve_data.current_player_range 40 760 as range_x %}
-                                                                <circle cx="{{ range_x|add:'29' }}" 
-                                                                        cy="180" 
-                                                                        r="8" 
-                                                                        fill="#17a2b8" 
-                                                                        stroke="#fff" 
-                                                                        stroke-width="2"/>
-                                                                <text x="{{ range_x|add:'29' }}" 
-                                                                      y="175" 
-                                                                      text-anchor="middle" 
-                                                                      font-size="10" 
-                                                                      font-weight="bold" 
-                                                                      fill="#17a2b8">YOU</text>
-                                                            {% endif %}
-                                                            
-                                                            <!-- Range labels -->
-                                                            <text x="20" y="175" font-size="10" fill="#666">{{ bell_curve_data.min_rating|floatformat:0 }}</text>
-                                                            <text x="380" y="175" text-anchor="end" font-size="10" fill="#666">{{ bell_curve_data.max_rating|floatformat:0 }}</text>
-                                                        </svg>
-                                                    </div>
+                                    <!-- Bell Curve Visualization -->
+                                    <div class="text-center mb-3 skill-histogram">
+                                        <svg width="100%" height="220" viewBox="0 0 800 220" style="max-width: 800px;" 
+                                             role="img" 
+                                             aria-label="Player skill distribution histogram showing your rating of {{ bell_curve_data.current_rating|floatformat:1 }} compared to {{ bell_curve_data.total_players }} players in the community. You rank in the {{ bell_curve_data.percentile }} percentile."
+                                             aria-describedby="histogram-description">
+                                            <!-- Category background bands -->
+                                            {% for category in bell_curve_data.categories %}
+                                                <rect x="{{ category.x_start }}" 
+                                                      y="40" 
+                                                      width="{{ category.width }}" 
+                                                      height="120" 
+                                                      fill="{{ category.color }}" 
+                                                      opacity="0.15" 
+                                                      rx="4"/>
+                                            {% endfor %}
+                                            
+                                            <!-- Histogram bars -->
+                                            {% for bin in bell_curve_data.histogram_data %}
+                                                {% if bin.count > 0 %}
+                                                    <rect x="{{ bin.x_pos }}" 
+                                                          y="{{ bin.y_pos }}" 
+                                                          width="{{ bin.width }}" 
+                                                          height="{{ bin.height }}" 
+                                                          fill="#3498db" 
+                                                          opacity="0.7" 
+                                                          stroke="#2980b9" 
+                                                          stroke-width="1"/>
+                                                {% endif %}
+                                            {% endfor %}
+                                            
+                                            <!-- Current player red vertical line -->
+                                            <line x1="{{ bell_curve_data.current_player_x }}" 
+                                                  y1="40" 
+                                                  x2="{{ bell_curve_data.current_player_x }}" 
+                                                  y2="160" 
+                                                  stroke="#e74c3c" 
+                                                  stroke-width="2" 
+                                                  style="z-index: 10;">
+                                                <title>Rating: {{ bell_curve_data.current_rating|floatformat:1 }} — {{ bell_curve_data.current_player_category|upper }}</title>
+                                            </line>
+                                            
+                                            <!-- Category labels at bottom -->
+                                            {% for category in bell_curve_data.categories %}
+                                                <text x="{{ category.label_x }}" 
+                                                      y="185" 
+                                                      text-anchor="middle" 
+                                                      font-size="16" 
+                                                      font-weight="bold" 
+                                                      fill="#2c3e50" 
+                                                      class="category-label">{{ category.display_name|upper }}</text>
+                                            {% endfor %}
+                                            
+                                            <!-- Rating scale -->
+                                            <text x="20" 
+                                                  y="205" 
+                                                  font-size="12" 
+                                                  fill="#6c757d">{{ bell_curve_data.min_rating|floatformat:0 }}</text>
+                                            <text x="780" 
+                                                  y="205" 
+                                                  text-anchor="end" 
+                                                  font-size="12" 
+                                                  fill="#6c757d">{{ bell_curve_data.max_rating|floatformat:0 }}</text>
+                                        </svg>
+                                        
+                                        <!-- Hidden description for screen readers -->
+                                        <div id="histogram-description" class="sr-only">
+                                            This histogram shows the distribution of player ratings across the community. 
+                                            Your rating of {{ bell_curve_data.current_rating|floatformat:1 }} is marked with a red vertical line, 
+                                            placing you in the {{ bell_curve_data.current_player_category }} category and the {{ bell_curve_data.percentile }} percentile. 
+                                            The chart shows {{ bell_curve_data.total_players }} total players with an average rating of {{ bell_curve_data.avg_rating }}.
+                                        </div>
+                                    </div>
                                                     
                                                     <!-- Stats Summary -->
                                                     <div class="row text-center">
@@ -268,7 +274,7 @@
                                                                         {% endif %}
                                                                     </td>
                                                                     <td><a href="/matches/detail/{{ match.id }}/" class="text-decoration-none">{{ match.team1_score }}-{{ match.team2_score }}</a></td>
-                                                                    <td>{{ player.position|default:"N/A" }}</td>
+                                                                    <td>{{ match.position|default:"N/A" }}</td>
                                                                     <td>
                                                                         {% if match.winner == player.team %}
                                                                             <span class="badge badge-success">W</span>
@@ -391,12 +397,22 @@
                                                                     <td>{{ match.date|date:"M d" }}</td>
                                                                     <td>{{ match.opponent_team }}</td>
                                                                     <td>{{ match.team_score }}-{{ match.opponent_score }}</td>
-                                                                    <td>{{ match.position|default:"N/A" }}</td>
                                                                     <td>
-                                                                        {% if match.won %}
-                                                                            <span class="badge badge-success">W</span>
+                                                                        {% if match.played %}
+                                                                            {{ match.position|default:"N/A" }}
                                                                         {% else %}
-                                                                            <span class="badge badge-danger">L</span>
+                                                                            <span class="badge badge-secondary" title="Did Not Play">DNP</span>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td>
+                                                                        {% if match.played %}
+                                                                            {% if match.won %}
+                                                                                <span class="badge badge-success">W</span>
+                                                                            {% else %}
+                                                                                <span class="badge badge-danger">L</span>
+                                                                            {% endif %}
+                                                                        {% else %}
+                                                                            <span class="badge badge-light text-muted" title="Did Not Play">-</span>
                                                                         {% endif %}
                                                                     </td>
                                                                 </tr>
@@ -523,4 +539,47 @@
     </div>
 </div>
 {% endblock %}
+
+
+                                    <!-- Mobile responsive CSS for histogram -->
+                                    <style>
+                                        @media (max-width: 768px) {
+                                            .skill-histogram svg {
+                                                height: 180px;
+                                            }
+                                            .skill-histogram text {
+                                                font-size: 14px !important;
+                                            }
+                                            .skill-histogram .category-label {
+                                                font-size: 12px !important;
+                                            }
+                                        }
+                                        
+                                        @media (max-width: 480px) {
+                                            .skill-histogram svg {
+                                                height: 160px;
+                                            }
+                                            .skill-histogram text {
+                                                font-size: 12px !important;
+                                            }
+                                            .skill-histogram .category-label {
+                                                font-size: 10px !important;
+                                            }
+                                        }
+                                        
+                                        /* Tooltip styling */
+                                        .skill-histogram line:hover {
+                                            stroke-width: 3px;
+                                            cursor: pointer;
+                                        }
+                                        
+                                        /* High contrast for accessibility */
+                                        .skill-histogram {
+                                            background: #ffffff;
+                                        }
+                                        
+                                        .skill-histogram text {
+                                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                        }
+                                    </style>
 

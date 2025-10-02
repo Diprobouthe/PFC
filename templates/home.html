@@ -15,39 +15,44 @@
     <div class="row justify-content-center mb-5">
         <div class="col-12 col-lg-10">
             <div class="card shadow-lg">
-                <div class="card-header bg-primary text-white py-3">
+                <div class="card-header bg-primary text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#tournamentGamesSection" aria-expanded="true" aria-controls="tournamentGamesSection">
                     <div class="d-flex justify-content-between align-items-center">
                         <h3 class="mb-0"><i class="fas fa-trophy me-3"></i>Tournament Games</h3>
-                        <button class="btn btn-outline-light btn-sm" onclick="togglePinInput()" id="togglePinBtn">
-                            <i class="fas fa-key me-1"></i>Show PIN
-                        </button>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-outline-light btn-sm me-3" onclick="togglePinInput()" id="togglePinBtn">
+                                <i class="fas fa-key me-1"></i>Show PIN
+                            </button>
+                            <i class="fas fa-chevron-down" id="tournamentGamesChevron"></i>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body py-4">
-                    <form method="post" action="{% url 'team_login' %}">
-                        {% csrf_token %}
-                        <div id="pinInputSection" style="display: none;">
-                            <div class="mb-4">
-                                <input type="text" name="pin" class="form-control form-control-lg" 
-                                       style="font-size: 1.8rem; padding: 1.2rem; text-align: center; letter-spacing: 0.5rem; height: 80px;" 
-                                       placeholder="******" maxlength="6" required>
+                <div class="collapse show" id="tournamentGamesSection">
+                    <div class="card-body py-4">
+                        <form method="post" action="{% url 'team_login' %}">
+                            {% csrf_token %}
+                            <div id="pinInputSection" style="display: none;">
+                                <div class="mb-4">
+                                    <input type="text" name="pin" class="form-control form-control-lg" 
+                                           style="font-size: 1.8rem; padding: 1.2rem; text-align: center; letter-spacing: 0.5rem; height: 80px;" 
+                                           placeholder="******" maxlength="6" required>
+                                </div>
                             </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-6">
-                                <button type="submit" name="action" value="find_next" 
-                                        class="btn btn-primary w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
-                                    <i class="fas fa-search fa-lg me-3"></i><br>Find Match
-                                </button>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <button type="submit" name="action" value="find_next" 
+                                            class="btn btn-primary w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
+                                        <i class="fas fa-search fa-lg me-3"></i><br>Find Match
+                                    </button>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <button type="submit" name="action" value="submit_score" 
+                                            class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
+                                        <i class="fas fa-clipboard-check fa-lg me-3"></i><br>Submit Score
+                                    </button>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-6">
-                                <button type="submit" name="action" value="submit_score" 
-                                        class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
-                                    <i class="fas fa-clipboard-check fa-lg me-3"></i><br>Submit Score
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -57,29 +62,34 @@
     <div class="row justify-content-center mb-5">
         <div class="col-12 col-lg-10">
             <div class="card border-success shadow-lg">
-                <div class="card-header bg-success text-white py-3">
-                    <h3 class="mb-0 text-center"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 32px; width: auto; margin-right: 12px;">Friendly Games</h3>
-                </div>
-                <div class="card-body py-4">
-                    <div class="row g-3">
-                        <div class="col-12 col-md-6">
-                            <a href="{% url 'friendly_games:create_game' %}" 
-                               class="btn btn-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                <i class="fas fa-plus-circle fa-lg me-3"></i>
-                                <span>Create Game</span>
-                            </a>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <a href="{% url 'friendly_games:join_game' %}" 
-                               class="btn btn-outline-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                <i class="fas fa-users fa-lg me-3"></i>
-                                <span>Join Game</span>
-                            </a>
-                        </div>
+                <div class="card-header bg-success text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#friendlyGamesSection" aria-expanded="true" aria-controls="friendlyGamesSection">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 32px; width: auto; margin-right: 12px;">Friendly Games</h3>
+                        <i class="fas fa-chevron-down" id="friendlyGamesChevron"></i>
                     </div>
-                    <p class="text-center mt-3 mb-0" style="font-size: 1.1rem; font-weight: 500;">
-                        <strong>No team restrictions - play with anyone!</strong>
-                    </p>
+                </div>
+                <div class="collapse show" id="friendlyGamesSection">
+                    <div class="card-body py-4">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <a href="{% url 'friendly_games:create_game' %}" 
+                                   class="btn btn-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-plus-circle fa-lg me-3"></i>
+                                    <span>Create Game</span>
+                                </a>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <a href="{% url 'friendly_games:join_game' %}" 
+                                   class="btn btn-outline-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-users fa-lg me-3"></i>
+                                    <span>Join Game</span>
+                                </a>
+                            </div>
+                        </div>
+                        <p class="text-center mt-3 mb-0" style="font-size: 1.1rem; font-weight: 500;">
+                            <strong>No team restrictions - play with anyone!</strong>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -266,15 +276,17 @@
 }
 
 /* Chevron rotation for collapsible sections */
-#tournamentsChevron {
+#tournamentsChevron, #tournamentGamesChevron, #friendlyGamesChevron {
     transition: transform 0.3s ease;
 }
 
-.collapsed #tournamentsChevron {
+.collapsed #tournamentsChevron, .collapsed #tournamentGamesChevron, .collapsed #friendlyGamesChevron {
     transform: rotate(0deg);
 }
 
-#tournamentsSection.show ~ .card-header #tournamentsChevron {
+#tournamentsSection.show ~ .card-header #tournamentsChevron,
+#tournamentGamesSection.show ~ .card-header #tournamentGamesChevron,
+#friendlyGamesSection.show ~ .card-header #friendlyGamesChevron {
     transform: rotate(180deg);
 }
 
@@ -331,8 +343,37 @@
 </style>
 
 <script>
-// Handle chevron rotation for tournaments section
+// Handle chevron rotation for collapsible sections
 document.addEventListener('DOMContentLoaded', function() {
+    // Tournament Games section
+    const tournamentGamesSection = document.getElementById('tournamentGamesSection');
+    const tournamentGamesChevron = document.getElementById('tournamentGamesChevron');
+    
+    if (tournamentGamesSection && tournamentGamesChevron) {
+        tournamentGamesSection.addEventListener('show.bs.collapse', function() {
+            tournamentGamesChevron.style.transform = 'rotate(180deg)';
+        });
+        
+        tournamentGamesSection.addEventListener('hide.bs.collapse', function() {
+            tournamentGamesChevron.style.transform = 'rotate(0deg)';
+        });
+    }
+    
+    // Friendly Games section
+    const friendlyGamesSection = document.getElementById('friendlyGamesSection');
+    const friendlyGamesChevron = document.getElementById('friendlyGamesChevron');
+    
+    if (friendlyGamesSection && friendlyGamesChevron) {
+        friendlyGamesSection.addEventListener('show.bs.collapse', function() {
+            friendlyGamesChevron.style.transform = 'rotate(180deg)';
+        });
+        
+        friendlyGamesSection.addEventListener('hide.bs.collapse', function() {
+            friendlyGamesChevron.style.transform = 'rotate(0deg)';
+        });
+    }
+    
+    // Tournaments section (existing)
     const tournamentsSection = document.getElementById('tournamentsSection');
     const tournamentsChevron = document.getElementById('tournamentsChevron');
     

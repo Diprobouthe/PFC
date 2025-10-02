@@ -25,7 +25,7 @@ def generate_team_pins(teams, pin_length=4):
                     break
 
 
-def auto_assign_courts(tournament, court_complex, max_courts=5):
+def auto_assign_courts(tournament, court_complex, max_courts=3):
     """Automatically assign available courts to tournament"""
     available_courts = Court.objects.filter(
         court_complex=court_complex,

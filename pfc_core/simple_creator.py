@@ -97,12 +97,12 @@ def simple_creator_home(request):
     """Simple tournament creator home page"""
     return render(request, 'simple_creator.html', {
         'scenarios': get_available_scenarios(),
-        'court_complexes': CourtComplex.objects.all()
+        # No longer need court_complexes for virtual courts
     })
 
 
 def create_simple_tournament(request):
-    """Create a simple tournament using existing admin infrastructure"""
+    """Create a simple tournament using virtual courts"""
     if request.method != 'POST':
         return redirect('simple_creator_home')
     
@@ -110,11 +110,11 @@ def create_simple_tournament(request):
         # Get form data
         scenario_key = request.POST.get('scenario')
         format_type = request.POST.get('format')
-        court_complex_id = request.POST.get('court_complex')
+        num_courts = int(request.POST.get('num_courts', 3))
         voucher_code = request.POST.get('voucher_code', '').strip()
         
         # Validate inputs
-        if not all([scenario_key, format_type, court_complex_id]):
+        if not all([scenario_key, format_type, num_courts]):
             messages.error(request, 'Please fill all required fields')
             return redirect('simple_creator_home')
         
@@ -152,38 +152,19 @@ def create_simple_tournament(request):
                     messages.error(request, 'Invalid or already used voucher code')
                     return redirect('simple_creator_home')
         
-        # Get court complex and available courts
-        try:
-            court_complex = CourtComplex.objects.get(id=court_complex_id)
-        except CourtComplex.DoesNotExist:
-            messages.error(request, 'Invalid court complex selected')
-            return redirect('simple_creator_home')
-        
-        available_courts = list(Court.objects.filter(
-            courtcomplex=court_complex,
-            is_available=True
-        ))
-        
-        if not available_courts:
-            messages.error(request, f'No available courts at {court_complex.name}')
-            return redirect('simple_creator_home')
-        
-        # Randomly select up to 5 available courts
-        selected_courts = random.sample(available_courts, min(5, len(available_courts)))
-        
         # Auto-generate dates (next day)
         tomorrow = timezone.now().date() + timedelta(days=1)
         start_datetime = timezone.make_aware(datetime.combine(tomorrow, datetime.min.time().replace(hour=9)))
         end_datetime = timezone.make_aware(datetime.combine(tomorrow, datetime.min.time().replace(hour=18)))
         
-        # Create tournament using existing admin infrastructure
+        # Create tournament using virtual courts
         max_teams = scenario[f'max_{format_type}']
         max_players = scenario[f'max_{format_type}']  # Use scenario limit for max participants
         tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
         
         tournament = Tournament.objects.create(
             name=tournament_name,
-            description=f"Simple {scenario['name']} tournament",
+            description=f"Simple {scenario['name']} tournament with {num_courts} virtual courts",
             start_date=start_datetime,
             end_date=end_datetime,
             format="multi_stage",
@@ -197,6 +178,15 @@ def create_simple_tournament(request):
             automation_status="idle",
             max_participants=max_players  # Set registration limit based on scenario
         )
+        
+        # Create virtual courts for this tournament
+        try:
+            from simple_creator.models import VirtualCourt
+            VirtualCourt.create_for_tournament(tournament, num_courts)
+        except ImportError:
+            # Fallback: create simple virtual court records in tournament description
+            tournament.description += f" | Virtual Courts: {num_courts} courts (VC-1 to VC-{num_courts})"
+            tournament.save()
         
         # Create tournament stage
         stage = Stage.objects.create(
@@ -215,9 +205,7 @@ def create_simple_tournament(request):
             stage.num_matches_per_team = scenario['matches_per_team']
         stage.save()
         
-        # Assign selected courts
-        for court in selected_courts:
-            tournament.courts.add(court)
+        # No real court assignment needed for virtual courts
         
         # Use voucher if provided
         if not scenario['is_free'] and voucher_code:
@@ -233,13 +221,16 @@ def create_simple_tournament(request):
                 VOUCHER_CODES[voucher_code]['used'] = True
         
         # Store creation info for success page
+        virtual_courts = [{'name': f'VC-{i}', 'number': i} for i in range(1, num_courts + 1)]
+        
         request.session['simple_tournament_info'] = {
             'tournament_id': tournament.id,
             'tournament_name': tournament.name,
             'scenario': scenario['name'],
             'format': format_type.title(),
-            'court_complex': court_complex.name,
-            'selected_courts': [{'name': c.name, 'number': c.number} for c in selected_courts],
+            'court_complex': 'Virtual Courts',
+            'selected_courts': virtual_courts,
+            'num_courts': num_courts,
             'start_date': start_datetime.strftime('%Y-%m-%d %H:%M'),
             'voucher_used': voucher_code if not scenario['is_free'] else None,
             'registration_link': f'/tournaments/{tournament.id}/',
@@ -247,7 +238,7 @@ def create_simple_tournament(request):
             'status': 'created',  # Tournament created but not started
         }
         
-        messages.success(request, f'Tournament "{tournament_name}" created successfully!')
+        messages.success(request, f'Tournament "{tournament_name}" created successfully with {num_courts} virtual courts!')
         return redirect('simple_creator_success')
         
     except Exception as e:

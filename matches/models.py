@@ -3,6 +3,9 @@ from django.utils import timezone
 from courts.models import Court
 from teams.models import Player
 
+# Import the TeamMatchParticipant model
+from .models_participant import TeamMatchParticipant
+
 class Match(models.Model):
     """Match model for storing match information"""
     STATUS_CHOICES = [

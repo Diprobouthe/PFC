@@ -15,6 +15,11 @@ class TournamentScenario(models.Model):
     max_doubles_players = models.IntegerField(default=12)
     max_triples_players = models.IntegerField(default=18)
     
+    # Virtual courts configuration
+    max_courts = models.PositiveIntegerField(default=4, help_text="Maximum number of courts this scenario can use")
+    recommended_courts = models.PositiveIntegerField(default=3, help_text="Default/recommended number of courts for this scenario")
+    stages = models.JSONField(blank=True, null=True, help_text="Multi-stage tournament configuration (JSON format)")
+    
     # Tournament configuration
     tournament_type = models.CharField(max_length=20, choices=[
         ('swiss', 'Swiss'),
@@ -32,6 +37,10 @@ class TournamentScenario(models.Model):
     
     def __str__(self):
         return f"{self.display_name} ({'Free' if self.is_free else 'Voucher Required'})"
+    
+    def get_court_range(self):
+        """Get the valid range of courts for this scenario"""
+        return range(1, self.max_courts + 1)
 
 
 class VoucherCode(models.Model):
@@ -63,7 +72,13 @@ class SimpleTournament(models.Model):
         ('doubles', 'Doubles'),
         ('triples', 'Triples'),
     ])
-    court_complex = models.ForeignKey(CourtComplex, on_delete=models.CASCADE)
+    
+    # Court configuration - either real or virtual
+    court_complex = models.ForeignKey(CourtComplex, null=True, blank=True, on_delete=models.CASCADE, 
+                                     help_text="Real court complex (for advanced tournaments)")
+    uses_virtual_courts = models.BooleanField(default=True, help_text="Whether this tournament uses virtual courts")
+    num_courts = models.PositiveIntegerField(default=3, help_text="Number of virtual courts for this tournament")
+    
     voucher_used = models.ForeignKey(VoucherCode, null=True, blank=True, on_delete=models.SET_NULL)
     
     # Auto-generated fields
@@ -80,7 +95,8 @@ class SimpleTournament(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"{self.scenario.display_name} - {self.format_type.title()} ({self.tournament.name})"
+        court_info = f"{self.num_courts} virtual courts" if self.uses_virtual_courts else f"{self.court_complex.name}"
+        return f"{self.scenario.display_name} - {self.format_type.title()} ({court_info})"
     
     @classmethod
     def get_auto_dates(cls):
@@ -134,3 +150,41 @@ class SimpleTournament(models.Model):
         except Exception as e:
             # Log error but don't break the system
             print(f"Error during auto cleanup for tournament {self.tournament.id}: {e}")
+
+
+
+class VirtualCourt(models.Model):
+    """Virtual court for tournament-scoped court management"""
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='virtual_courts',
+                                  help_text="Tournament this virtual court belongs to")
+    name = models.CharField(max_length=50, help_text="Virtual court name (e.g., VC-1, VC-2)")
+    order = models.PositiveIntegerField(help_text="Display order of the court")
+    is_active = models.BooleanField(default=True, help_text="Whether this virtual court is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['tournament', 'order']
+        unique_together = [('tournament', 'order')]
+    
+    def __str__(self):
+        return f"{self.name} ({self.tournament.name})"
+    
+    @classmethod
+    def create_for_tournament(cls, tournament, num_courts):
+        """Create virtual courts for a tournament"""
+        virtual_courts = []
+        for i in range(1, num_courts + 1):
+            virtual_court = cls.objects.create(
+                tournament=tournament,
+                name=f"VC-{i}",
+                order=i
+            )
+            virtual_courts.append(virtual_court)
+        return virtual_courts
+    
+    def get_court_number(self):
+        """Get the court number from the name (for compatibility)"""
+        if self.name.startswith('VC-'):
+            return int(self.name.split('-')[1])
+        return self.order
+

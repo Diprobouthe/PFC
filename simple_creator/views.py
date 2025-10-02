@@ -59,8 +59,13 @@ def tournament_success(request, pk):
             'pin': team.pin
         })
     
-    # Get assigned courts
-    assigned_courts = simple_tournament.tournament.courts.all()
+    # Get virtual courts or real courts
+    if simple_tournament.uses_virtual_courts:
+        virtual_courts = simple_tournament.tournament.virtual_courts.all()
+        assigned_courts = [{'name': vc.name, 'is_virtual': True} for vc in virtual_courts]
+    else:
+        real_courts = simple_tournament.tournament.courts.all()
+        assigned_courts = [{'name': str(court), 'is_virtual': False} for court in real_courts]
     
     return render(request, 'simple_creator/success.html', {
         'simple_tournament': simple_tournament,
@@ -70,10 +75,10 @@ def tournament_success(request, pk):
 
 
 def _create_simple_tournament(form_data):
-    """Create a simple tournament using existing admin functions"""
+    """Create a simple tournament using virtual courts"""
     scenario = form_data['scenario']
     format_type = form_data['format_type']
-    court_complex = form_data['court_complex']
+    num_courts = form_data['num_courts']
     voucher_object = form_data.get('voucher_object')
     
     # Generate auto dates (next day)
@@ -84,35 +89,41 @@ def _create_simple_tournament(form_data):
     
     tournament = Tournament.objects.create(
         name=tournament_name,
-        description=f"Auto-generated {scenario.display_name} tournament",
+        description=f"Auto-generated {scenario.display_name} tournament with {num_courts} virtual courts",
         start_date=start_date,
         end_date=end_date,
-        tournament_format="multi_stage",  # Use multi-stage for flexibility
+        format="multi_stage",  # Use multi-stage for flexibility
         play_format="triplets" if format_type == "triples" else "doublets",
-        is_open=True,
-        max_teams=scenario.max_triples_players if format_type == "triples" else scenario.max_doubles_players,
-        registration_deadline=start_date - timedelta(hours=1),  # 1 hour before start
+        is_active=True,
+        max_participants=scenario.max_triples_players if format_type == "triples" else scenario.max_doubles_players,
         is_melee=True,  # This is a mêlée tournament
         melee_teams_generated=False,
         automation_status="idle"
     )
     
-    # Create the simple tournament record
+    # Create the simple tournament record with virtual courts
     simple_tournament = SimpleTournament.objects.create(
         tournament=tournament,
         scenario=scenario,
         format_type=format_type,
-        court_complex=court_complex,
+        uses_virtual_courts=True,
+        num_courts=num_courts,
+        court_complex=None,  # No real court complex
         voucher_used=voucher_object,
         auto_start_date=start_date,
         auto_end_date=end_date
     )
+    
+    # Create virtual courts for this tournament
+    from .models import VirtualCourt
+    VirtualCourt.create_for_tournament(tournament, num_courts)
     
     # Use voucher if provided
     if voucher_object:
         voucher_object.use_voucher(tournament)
     
     # Create tournament stage based on scenario
+    from tournaments.models import Stage
     stage = Stage.objects.create(
         tournament=tournament,
         name="Main Stage",
@@ -122,17 +133,27 @@ def _create_simple_tournament(form_data):
         is_complete=False
     )
     
-    # Auto-assign courts (up to 5 available courts)
-    available_courts = Court.objects.filter(
-        court_complex=court_complex,
-        is_available=True
-    )[:5]  # Limit to 5 courts as specified
+    # Handle multi-stage scenarios if defined
+    if scenario.stages:
+        try:
+            import json
+            stages_config = json.loads(scenario.stages) if isinstance(scenario.stages, str) else scenario.stages
+            
+            # Create additional stages based on configuration
+            for i, stage_config in enumerate(stages_config[1:], start=2):  # Skip first stage already created
+                Stage.objects.create(
+                    tournament=tournament,
+                    name=stage_config.get('name', f"Stage {i}"),
+                    stage_number=i,
+                    stage_type=stage_config.get('type', 'knockout'),
+                    num_qualifiers=stage_config.get('qualifiers', 1),
+                    is_complete=False
+                )
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # If stages configuration is invalid, continue with single stage
+            pass
     
-    for court in available_courts:
-        tournament.courts.add(court)
-    
-    # Auto-generate teams and matches will be handled by the existing tournament system
-    # when players register and admin generates teams
+    # No real court assignment needed - virtual courts handle scheduling
     
     return simple_tournament
 

@@ -22,20 +22,25 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-
 # CSRF settings - Updated for current sandbox environment
 CSRF_TRUSTED_ORIGINS = [
-    'https://8000-iqd98zjzq213e7x1u31hk-908ffe97.manusvm.computer',
-    'http://8000-iqd98zjzq213e7x1u31hk-908ffe97.manusvm.computer',
-    'https://8000-if21d44nqqdhofeh2y7zo-3c47e11f.manusvm.computer',
-    'http://8000-if21d44nqqdhofeh2y7zo-3c47e11f.manusvm.computer',
-    'https://8000-iwpeq0a73zt4mt2cil2d3-e13a6181.manusvm.computer',
+    'https://8002-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
+    'http://8002-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
     'http://8000-iwpeq0a73zt4mt2cil2d3-e13a6181.manusvm.computer',
     'https://8000-i3q9kvn4gyetxflstjfd1-f772f046.manusvm.computer',
     'http://8000-i3q9kvn4gyetxflstjfd1-f772f046.manusvm.computer',
+    'https://8004-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'http://8004-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'https://8002-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'http://8002-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
     'https://8000-ix35km4n03pk93pr4fg2p-29d41066.manusvm.computer',
+    'http://8000-ix35km4n03pk93pr4fg2p-29d41066.manusvm.computer',
     'https://8000-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
     'http://8000-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'https://8009-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'http://8009-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'https://8003-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
+    'http://8003-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
     'https://pfc-platform.onrender.com',
     'http://localhost:8000',
     'https://localhost:8000',
@@ -45,8 +50,6 @@ CSRF_TRUSTED_ORIGINS = [
     'https://localhost:8003',
     'http://127.0.0.1:8003',
     'https://127.0.0.1:8003',
-    'https://8000-ix35km4n03pk93pr4fg2p-29d41066.manusvm.computer',
-    'http://8000-ix35km4n03pk93pr4fg2p-29d41066.manusvm.computer',
 ]
 
 # Application definition
