@@ -24,32 +24,21 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF settings - Updated for current sandbox environment
 CSRF_TRUSTED_ORIGINS = [
+    'https://8001-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
+    'http://8001-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
+    'https://8000-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
+    'http://8000-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
     'https://8002-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
     'http://8002-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
-    'http://8000-iwpeq0a73zt4mt2cil2d3-e13a6181.manusvm.computer',
-    'https://8000-i3q9kvn4gyetxflstjfd1-f772f046.manusvm.computer',
-    'http://8000-i3q9kvn4gyetxflstjfd1-f772f046.manusvm.computer',
-    'https://8004-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'http://8004-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'https://8002-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'http://8002-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'https://8000-ix35km4n03pk93pr4fg2p-29d41066.manusvm.computer',
-    'http://8000-ix35km4n03pk93pr4fg2p-29d41066.manusvm.computer',
-    'https://8000-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'http://8000-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'https://8009-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'http://8009-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'https://8003-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
-    'http://8003-ipn5q61pkrxdzwoxmlr4z-98ba4971.manusvm.computer',
     'https://pfc-platform.onrender.com',
     'http://localhost:8000',
     'https://localhost:8000',
     'http://127.0.0.1:8000',
     'https://127.0.0.1:8000',
-    'http://localhost:8003',
-    'https://localhost:8003',
-    'http://127.0.0.1:8003',
-    'https://127.0.0.1:8003',
+    'http://localhost:8001',
+    'https://localhost:8001',
+    'http://127.0.0.1:8001',
+    'https://127.0.0.1:8001',
 ]
 
 # Application definition
@@ -164,7 +153,7 @@ STATICFILES_DIRS = [
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/var/media"
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

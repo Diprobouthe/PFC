@@ -50,163 +50,25 @@ def generate_next_round_robin_round(tournament):
 
 
 def generate_next_swiss_round(tournament, stage=None):
-    logger.info(f"Attempting to generate next Swiss round for tournament {tournament.id}")
+    """
+    Generate next Swiss round using the appropriate algorithm.
+    Dispatches to Standard Swiss or Smart Swiss based on tournament/stage format.
+    """
+    from .swiss_algorithms import generate_standard_swiss_round, generate_smart_swiss_round
     
-    try:
-        with transaction.atomic():
-            current_round = tournament.current_round_number
-            next_round_num = current_round + 1
-            logger.info(f"Current round: {current_round}, generating for round: {next_round_num}")
-
-            # --- 1. Update Swiss Points and Buchholz (if necessary) ---
-            # Note: Buchholz calculation is complex and often done after all points are updated.
-            # We might need a separate step or recalculate it here based on *current* opponent points.
-            active_teams_tt = list(TournamentTeam.objects.filter(tournament=tournament, is_active=True).select_related("team"))
-            for tt in active_teams_tt:
-                tt.update_swiss_stats() # Recalculate points based on completed matches
-            
-            # Optional: Recalculate Buchholz globally here if needed
-            # calculate_buchholz_scores(tournament)
-
-            # --- 2. Determine Stage Context and Get Sorted Active Teams ---
-            # Determine stage context if not provided
-            if stage is None:
-                # Try to determine stage from current round
-                current_round_obj = tournament.rounds.filter(number=current_round).first()
-                if current_round_obj and current_round_obj.stage:
-                    stage = current_round_obj.stage
-                    logger.info(f"Determined stage from current round: Stage {stage.stage_number}")
-            
-            # Get teams for pairing (stage-aware filtering)
-            if stage:
-                teams_to_pair = list(TournamentTeam.objects.filter(
-                    tournament=tournament, 
-                    is_active=True,
-                    current_stage_number=stage.stage_number
-                ).order_by("-swiss_points", "-buchholz_score", "id"))
-                logger.info(f"Stage-aware filtering: {len(teams_to_pair)} teams in stage {stage.stage_number}")
-            else:
-                # Single-stage tournament fallback
-                teams_to_pair = list(TournamentTeam.objects.filter(
-                    tournament=tournament, 
-                    is_active=True
-                ).order_by("-swiss_points", "-buchholz_score", "id"))
-                logger.info(f"Single-stage filtering: {len(teams_to_pair)} teams")
-            
-            num_teams = len(teams_to_pair)
-            logger.debug(f"Teams to pair ({num_teams}): {[t.team.name for t in teams_to_pair]}")
-
-            if num_teams < 2:
-                logger.warning(f"Not enough active teams ({num_teams}) to generate next round for {tournament.name}. Marking tournament as completed.")
-                tournament.automation_status = "completed"
-                tournament.save()
-                return
-
-            # --- 3. Handle Bye --- 
-            bye_team_tt = None
-            if num_teams % 2 != 0:
-                # Find the lowest-ranked team that hasn't received a bye yet
-                for i in range(num_teams - 1, -1, -1):
-                    candidate = teams_to_pair[i]
-                    if candidate.received_bye_in_round is None:
-                        bye_team_tt = teams_to_pair.pop(i) # Remove from pairing list
-                        break
-                
-                if bye_team_tt:
-                    logger.info(f"Assigning Bye to {bye_team_tt.team.name} in Swiss Round {next_round_num}")
-                    bye_team_tt.received_bye_in_round = next_round_num
-                    bye_team_tt.swiss_points += 3 # Assuming 3 points for a bye win
-                    bye_team_tt.save()
-                else:
-                    # This should ideally not happen if byes are managed correctly across rounds
-                    logger.error(f"Odd number of teams ({num_teams}) but could not assign a bye (all remaining teams may have had one). Manual intervention needed.")
-                    tournament.automation_status = "error"
-                    tournament.save()
-                    return
-
-            # --- 4. Perform Pairing --- 
-            paired_indices = set()
-            matches_created = []
-            
-            for i in range(num_teams):
-                if i in paired_indices:
-                    continue
-                
-                team1_tt = teams_to_pair[i]
-                found_opponent = False
-                for j in range(i + 1, num_teams):
-                    if j in paired_indices:
-                        continue
-                        
-                    team2_tt = teams_to_pair[j]
-                    
-                    # Check if they have played before
-                    if team2_tt.team not in team1_tt.opponents_played.all():
-                        # Create or get the Round object for this round
-                        round_obj, created = Round.objects.get_or_create(
-                            tournament=tournament,
-                            stage=stage,
-                            number=next_round_num,
-                            defaults={'is_complete': False}
-                        )
-                        
-                        # Pair found!
-                        logger.info(f"Pairing {team1_tt.team.name} ({team1_tt.swiss_points} pts) vs {team2_tt.team.name} ({team2_tt.swiss_points} pts) for round {next_round_num}")
-                        match = Match.objects.create(
-                            tournament=tournament,
-                            round=round_obj,
-                            stage=stage,
-                            team1=team1_tt.team,
-                            team2=team2_tt.team,
-                            status="pending"
-                        )
-                        matches_created.append(match)
-                        
-                        # Mark as paired for this round
-                        paired_indices.add(i)
-                        paired_indices.add(j)
-                        
-                        # Update opponents played
-                        team1_tt.opponents_played.add(team2_tt.team)
-                        team2_tt.opponents_played.add(team1_tt.team)
-                        
-                        found_opponent = True
-                        break # Move to the next unpaired team
-                
-                if not found_opponent and i not in paired_indices:
-                    # If we reach here, team i could not be paired with anyone they haven't played
-                    # This requires more complex handling (e.g., allow rematches, pair across score groups)
-                    # For now, log an error and stop generation
-                    logger.error(f"Could not find suitable opponent for {team1_tt.team.name} in round {next_round_num}. All potential opponents may have been played. Manual intervention needed.")
-                    tournament.automation_status = "error"
-                    tournament.save()
-                    # Rollback transaction implicitly via exception or explicit raise
-                    raise Exception(f"Pairing failed for tournament {tournament.id}, round {next_round_num}")
-
-            # --- 5. Finalize Round --- 
-            if len(matches_created) > 0 or bye_team_tt:
-                tournament.current_round_number = next_round_num
-                tournament.automation_status = "idle" # Ready for next check after this round completes
-                tournament.save()
-                logger.info(f"Successfully generated {len(matches_created)} matches for Swiss round {next_round_num} in tournament {tournament.id}.")
-            else:
-                # Should not happen if pairing logic is correct and num_teams >= 2
-                logger.error(f"No matches were created for round {next_round_num} despite having teams. Setting status to error.")
-                tournament.automation_status = "error"
-                tournament.save()
-
-    except Exception as e:
-        logger.exception(f"Error generating Swiss round {tournament.current_round_number + 1} for tournament {tournament.id}: {e}")
-        # Ensure status is set to error if not already
-        try:
-            tournament.refresh_from_db()
-            if tournament.automation_status != "error":
-                tournament.automation_status = "error"
-                tournament.save()
-        except Tournament.DoesNotExist:
-            pass # Tournament might have been deleted
-        # Re-raise the exception to ensure transaction rollback if not handled explicitly
-        raise
+    # Determine which format to use
+    if stage:
+        format_to_check = stage.format
+    else:
+        format_to_check = tournament.format
+    
+    if format_to_check == "smart_swiss":
+        logger.info(f"Using Smart Swiss algorithm for tournament {tournament.id}")
+        return generate_smart_swiss_round(tournament, stage)
+    else:
+        # Use Standard Swiss for "swiss", "swiss_system", or any other Swiss variant
+        logger.info(f"Using Standard Swiss algorithm for tournament {tournament.id}")
+        return generate_standard_swiss_round(tournament, stage)
 
 
 def generate_next_knockout_round(tournament):
@@ -408,7 +270,7 @@ def generate_next_combo_round(tournament):
                 # or filter teams based on current_stage_number.
                 # For now, we call the existing functions, assuming they can be adapted or are sufficient.
                 
-                if stage_format == "swiss":
+                if stage_format == "swiss" or stage_format == "smart_swiss":
                     # Pass stage context for stage-aware team filtering
                     generate_next_swiss_round(tournament, stage=current_stage)
                 elif stage_format == "knockout":
@@ -491,7 +353,7 @@ def check_round_completion(tournament_id):
                 # Trigger next round generation based on format
                 if tournament.format == "round_robin":
                     generate_next_round_robin_round(tournament)
-                elif tournament.format == "swiss":
+                elif tournament.format == "swiss" or tournament.format == "smart_swiss":
                     generate_next_swiss_round(tournament)
                 elif tournament.format == "knockout":
                     generate_next_knockout_round(tournament)

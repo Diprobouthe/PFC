@@ -17,40 +17,76 @@ class TournamentEngine:
         self.current_stage = self.get_current_stage()
         
     def process_automation(self):
-        """Main automation entry point - never sets permanent error state"""
-        old_status = getattr(self.tournament, 'automation_status', 'idle')
+        """Main automation entry point with comprehensive safeguards"""
+        from django.db import transaction
         
         try:
-            logger.info(f"🚀 Processing automation for tournament {self.tournament.id}")
-            
-            # Set status to processing
-            self.tournament.automation_status = "processing"
-            self.tournament.save()
-            
-            # Check if tournament is complete
-            if self.is_tournament_complete():
-                result = self.complete_tournament()
-            # Check if current stage is complete
-            elif self.is_current_stage_complete():
-                result = self.advance_to_next_stage()
-            # Check if we should generate next round
-            elif self.should_generate_next_round():
-                result = self.generate_next_round()
-            else:
-                logger.debug("No automation action needed")
+            with transaction.atomic():
+                # Refresh tournament data to get latest status
+                self.tournament.refresh_from_db()
+                current_status = getattr(self.tournament, 'automation_status', 'idle')
+                
+                # Safeguard 1: Check if automation is already running
+                if current_status != 'idle':
+                    logger.info(f"🔒 Tournament {self.tournament.id} automation already running (status: {current_status}). Skipping.")
+                    return True
+                
+                logger.info(f"🚀 Processing automation for tournament {self.tournament.id}")
+                
+                # Set status to processing with atomic update
+                updated = Tournament.objects.filter(
+                    id=self.tournament.id,
+                    automation_status='idle'
+                ).update(automation_status='processing')
+                
+                if updated == 0:
+                    logger.info(f"🔒 Tournament {self.tournament.id} status changed by another process. Skipping.")
+                    return True
+                
+                # Refresh to get updated status
+                self.tournament.refresh_from_db()
+                
+                # Safeguard 2: Double-check we have processing status
+                if self.tournament.automation_status != 'processing':
+                    logger.warning(f"⚠️ Tournament {self.tournament.id} status not 'processing' after update. Aborting.")
+                    return False
+                
+                # Determine what action to take
                 result = True
-            
-            # Always reset status to idle after processing
-            self.tournament.automation_status = "idle"
-            self.tournament.save()
-            
-            logger.info(f"✅ Automation completed for tournament {self.tournament.id}, status reset to idle")
-            return result
+                action_taken = "none"
+                
+                # Check if tournament is complete
+                if self.is_tournament_complete():
+                    result = self.complete_tournament()
+                    action_taken = "complete_tournament"
+                # Check if current stage is complete
+                elif self.is_current_stage_complete():
+                    result = self.advance_to_next_stage()
+                    action_taken = "advance_stage"
+                # Check if we should generate next round
+                elif self.should_generate_next_round():
+                    result = self.generate_next_round()
+                    action_taken = "generate_round"
+                else:
+                    logger.debug("No automation action needed")
+                    action_taken = "none"
+                
+                # Always reset status to idle after processing
+                self.tournament.automation_status = "idle"
+                self.tournament.save()
+                
+                logger.info(f"✅ Automation completed for tournament {self.tournament.id} (action: {action_taken}), status reset to idle")
+                return result
                 
         except Exception as e:
-            # Reset to idle instead of error to allow retries
-            self.tournament.automation_status = "idle"
-            self.tournament.save()
+            # Ensure status is reset even on error
+            try:
+                self.tournament.refresh_from_db()
+                if self.tournament.automation_status == 'processing':
+                    self.tournament.automation_status = "idle"
+                    self.tournament.save()
+            except:
+                pass
             
             logger.error(f"❌ Automation failed for tournament {self.tournament.id}, status reset to idle for retry")
             return self.handle_automation_error(e)
@@ -210,21 +246,48 @@ class TournamentEngine:
         return False
     
     def advance_to_next_stage(self):
-        """Advance teams to next stage based on admin-configured qualifiers"""
+        """Advance teams to next stage with comprehensive safeguards"""
         try:
             with transaction.atomic():
                 logger.info(f"🔄 Advancing from stage {self.current_stage.stage_number}")
                 
-                # Get qualifiers from current stage
-                qualifiers = self.get_stage_qualifiers(self.current_stage)
-                num_qualifiers = len(qualifiers)
-                
-                logger.info(f"📊 Stage {self.current_stage.stage_number} qualifiers ({num_qualifiers}): {[q.team.name for q in qualifiers]}")
+                # Safeguard 1: Verify current stage is actually complete
+                if not self.is_current_stage_complete():
+                    logger.warning(f"⚠️ Stage {self.current_stage.stage_number} is not complete - cannot advance")
+                    return False
                 
                 # Get next stage
                 next_stage = self.get_next_stage()
                 if not next_stage:
                     logger.info(f"🏁 No next stage found - tournament should be complete")
+                    return self.complete_tournament()
+                
+                # Safeguard 2: Check if next stage already has active teams
+                existing_teams = TournamentTeam.objects.filter(
+                    tournament=self.tournament,
+                    current_stage_number=next_stage.stage_number,
+                    is_active=True
+                ).count()
+                
+                if existing_teams > 0:
+                    logger.warning(f"🔒 Stage {next_stage.stage_number} already has {existing_teams} active teams - skipping advancement")
+                    return True
+                
+                # Get qualifiers from current stage
+                qualifiers = self.get_stage_qualifiers(self.current_stage)
+                num_qualifiers = len(qualifiers)
+                
+                # Safeguard 3: Verify we have the expected number of qualifiers
+                expected_qualifiers = self.current_stage.num_qualifiers
+                if num_qualifiers != expected_qualifiers:
+                    logger.warning(f"⚠️ Expected {expected_qualifiers} qualifiers but got {num_qualifiers}")
+                    # Continue with what we have, but log the discrepancy
+                
+                logger.info(f"📊 Stage {self.current_stage.stage_number} qualifiers ({num_qualifiers}): {[q.team.name for q in qualifiers]}")
+                
+                # Safeguard 4: Ensure we have enough teams for next stage
+                if num_qualifiers < 2:
+                    logger.error(f"❌ Not enough qualifiers ({num_qualifiers}) for next stage")
                     return self.complete_tournament()
                 
                 # Deactivate non-qualifying teams
@@ -249,11 +312,17 @@ class TournamentEngine:
                 self.current_stage = next_stage
                 
                 # Generate first round of next stage
-                return self.generate_stage_round(next_stage, qualifiers, 1)
+                next_round_number = self._get_next_overall_round_number()
+                return self.generate_stage_round(next_stage, qualifiers, next_round_number)
                 
         except Exception as e:
             logger.exception(f"Error advancing to next stage: {e}")
             raise
+    
+    def _get_next_overall_round_number(self):
+        """Get the next overall round number for the tournament"""
+        current_round = self.tournament.current_round_number or 0
+        return current_round + 1
     
     def get_stage_qualifiers(self, stage):
         """Get top N teams from stage based on admin-configured num_qualifiers"""
@@ -299,7 +368,7 @@ class TournamentEngine:
         return next_stage
     
     def generate_next_round(self):
-        """Generate next round within current stage"""
+        """Generate next round within current stage with comprehensive safeguards"""
         if not self.current_stage:
             logger.error("No current stage found")
             return False
@@ -310,7 +379,7 @@ class TournamentEngine:
         
         logger.info(f"🎲 Generating round {next_round_num} for stage {self.current_stage.stage_number}")
         
-        # Check if this round already exists and has matches
+        # Safeguard 1: Check if this round already exists
         existing_round = Round.objects.filter(
             tournament=self.tournament,
             stage=self.current_stage,
@@ -324,8 +393,31 @@ class TournamentEngine:
             ).count()
             
             if existing_matches > 0:
-                logger.warning(f"Round {next_round_num} already exists with {existing_matches} matches - skipping generation")
+                logger.warning(f"🔒 Round {next_round_num} already exists with {existing_matches} matches - skipping generation")
                 return True
+        
+        # Safeguard 2: Check if we've exceeded the maximum rounds for this stage
+        if hasattr(self.current_stage, 'num_rounds_in_stage') and self.current_stage.num_rounds_in_stage:
+            current_stage_rounds = Round.objects.filter(
+                tournament=self.tournament,
+                stage=self.current_stage
+            ).count()
+            
+            if current_stage_rounds >= self.current_stage.num_rounds_in_stage:
+                logger.info(f"🏁 Stage {self.current_stage.stage_number} has reached maximum rounds ({self.current_stage.num_rounds_in_stage})")
+                return True
+        
+        # Safeguard 3: Check if all matches in current round are actually completed
+        if current_round > 0:
+            current_round_matches = Match.objects.filter(
+                tournament=self.tournament,
+                round__number=current_round
+            )
+            
+            incomplete_matches = current_round_matches.exclude(status='completed').count()
+            if incomplete_matches > 0:
+                logger.warning(f"⚠️ Current round {current_round} has {incomplete_matches} incomplete matches - cannot generate next round")
+                return False
         
         # Get active teams in current stage
         active_teams = list(TournamentTeam.objects.filter(
@@ -378,21 +470,26 @@ class TournamentEngine:
                     logger.info(f"📝 Created round {round_number} for stage {stage.stage_number}")
                 
                 # Generate matches based on format
-                if stage.format in ['swiss_system', 'swiss']:
+                if stage.format == 'smart_swiss':
+                    # Use the specialized Smart Swiss algorithm
+                    from .swiss_algorithms import generate_smart_swiss_round
+                    matches_created = generate_smart_swiss_round(self.tournament, stage)
+                elif stage.format in ['swiss_system', 'swiss']:
                     generator = SwissGenerator(self.tournament, stage, round_obj)
+                    matches_created = generator.generate_matches(teams)
                 elif stage.format == 'knockout':
                     generator = KnockoutGenerator(self.tournament, stage, round_obj)
+                    matches_created = generator.generate_matches(teams)
                 elif stage.format == 'round_robin':
                     # Check if this is incomplete round robin
                     if hasattr(stage, 'num_matches_per_team') and stage.num_matches_per_team:
                         generator = IncompleteRoundRobinGenerator(self.tournament, stage, round_obj)
                     else:
                         generator = RoundRobinGenerator(self.tournament, stage, round_obj)
+                    matches_created = generator.generate_matches(teams)
                 else:
                     logger.error(f"Unknown stage format: {stage.format}")
                     return False
-                
-                matches_created = generator.generate_matches(teams)
                 
                 if matches_created > 0:
                     # Update tournament state

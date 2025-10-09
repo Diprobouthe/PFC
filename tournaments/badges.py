@@ -155,7 +155,7 @@ def get_tournament_final_standings(tournament):
         return _get_knockout_standings(tournament, tournament_teams)
     elif tournament.format == "round_robin":
         return _get_round_robin_standings(tournament, tournament_teams)
-    elif tournament.format == "swiss":
+    elif tournament.format == "swiss" or tournament.format == "smart_swiss":
         return _get_swiss_standings(tournament, tournament_teams)
     elif tournament.format == "multi_stage":
         return _get_multi_stage_standings(tournament, tournament_teams)

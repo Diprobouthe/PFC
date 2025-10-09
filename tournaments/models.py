@@ -15,6 +15,7 @@ class Tournament(models.Model):
         ("round_robin", "Round Robin"),
         ("knockout", "Knockout"),
         ("swiss", "Swiss System"),
+        ("smart_swiss", "Smart Swiss System"),
         ("multi_stage", "Multi-Stage"),
     ]
     
@@ -226,8 +227,9 @@ class Tournament(models.Model):
                 bye_team = teams[-1]
                 logger.info(f"{bye_team.team} advances with a bye")
                 
-        elif self.format == "swiss":
+        elif self.format == "swiss" or self.format == "smart_swiss":
             # Swiss system: pair teams randomly for first round
+            # Both regular Swiss and Smart Swiss use random pairing for round 1
             teams_copy = teams.copy()
             random.shuffle(teams_copy)
             
@@ -1102,6 +1104,7 @@ class Stage(models.Model):
     """Model for individual stages within a multi-stage tournament"""
     STAGE_FORMATS = [
         ("swiss", "Swiss System"),
+        ("smart_swiss", "Smart Swiss System"),
         ("poule", "Poules/Groups"),
         ("knockout", "Knockout"),
         ("round_robin", "Round Robin"),
@@ -1214,6 +1217,8 @@ class Stage(models.Model):
             matches_created = self._generate_round_robin_matches(teams, round_obj)
         elif self.format == "swiss":
             matches_created = self._generate_swiss_matches(teams, round_obj)
+        elif self.format == "smart_swiss":
+            matches_created = self._generate_smart_swiss_matches(teams, round_obj)
         elif self.format == "knockout":
             matches_created = self._generate_knockout_matches(teams, round_obj)
         elif self.format == "poule":
@@ -1468,6 +1473,41 @@ class Stage(models.Model):
             logger.debug(f"{bye_team.team} receives a bye")
             
         logger.info(f"Created {matches_created} Swiss matches")
+        return matches_created
+        
+    def _generate_smart_swiss_matches(self, teams, round_obj):
+        """Generate Smart Swiss system matches for the first round."""
+        from matches.models import Match
+        from .swiss_algorithms import generate_smart_swiss_round
+        
+        logger.info(f"Generating Smart Swiss matches for {len(teams)} teams")
+        
+        # For first round of Smart Swiss, we can use random pairing like regular Swiss
+        # The Smart Swiss algorithm is used for subsequent rounds
+        teams_copy = teams.copy()
+        random.shuffle(teams_copy)  # Random pairing for first round
+        
+        matches_created = 0
+        for i in range(0, len(teams_copy) - 1, 2):
+            match = Match.objects.create(
+                tournament=self.tournament,
+                round=round_obj,
+                stage=self,  # Important: set the stage for multi-stage tournaments
+                team1=teams_copy[i].team,
+                team2=teams_copy[i + 1].team,
+                status="pending"
+            )
+            matches_created += 1
+            logger.debug(f"Created Smart Swiss match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
+            
+        # Handle odd number of teams (bye)
+        if len(teams_copy) % 2 == 1:
+            bye_team = teams_copy[-1]
+            bye_team.received_bye_in_round = round_obj.number_in_stage
+            bye_team.save()
+            logger.debug(f"{bye_team.team} receives a bye in Smart Swiss")
+            
+        logger.info(f"Created {matches_created} Smart Swiss matches")
         return matches_created
         
     def _generate_knockout_matches(self, teams, round_obj):

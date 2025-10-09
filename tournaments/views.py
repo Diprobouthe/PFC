@@ -174,6 +174,10 @@ def generate_matches(request, tournament_id):
         _generate_swiss_matches(tournament)
         messages.success(request, f'Swiss system matches generated for "{tournament.name}".')
     
+    elif tournament.format == 'smart_swiss':
+        _generate_swiss_matches(tournament)
+        messages.success(request, f'Smart Swiss system matches generated for "{tournament.name}".')
+    
     elif tournament.format == 'multi_stage':
         # For multi_stage tournaments, generate round-robin matches by default
         _generate_round_robin_matches(tournament)
