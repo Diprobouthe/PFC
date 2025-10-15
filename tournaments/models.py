@@ -16,6 +16,7 @@ class Tournament(models.Model):
         ("knockout", "Knockout"),
         ("swiss", "Swiss System"),
         ("smart_swiss", "Smart Swiss System"),
+        ("wtf", "WTF (πετΑ Index)"),
         ("multi_stage", "Multi-Stage"),
     ]
     
@@ -243,6 +244,30 @@ class Tournament(models.Model):
                 )
                 matches_created += 1
                 logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
+                
+            # Handle odd number of teams (bye)
+            if len(teams_copy) % 2 == 1:
+                bye_team = teams_copy[-1]
+                bye_team.received_bye_in_round = 1
+                bye_team.save()
+                logger.info(f"{bye_team.team} receives a bye")
+                
+        elif self.format == "wtf":
+            # WTF system: pair teams randomly for first round
+            # WTF uses random pairing for round 1, then πετΑ Index-based pairing
+            teams_copy = teams.copy()
+            random.shuffle(teams_copy)
+            
+            for i in range(0, len(teams_copy) - 1, 2):
+                match = Match.objects.create(
+                    tournament=self,
+                    round=round_obj,
+                    team1=teams_copy[i].team,
+                    team2=teams_copy[i + 1].team,
+                    status="pending"
+                )
+                matches_created += 1
+                logger.debug(f"Created WTF match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
                 
             # Handle odd number of teams (bye)
             if len(teams_copy) % 2 == 1:
@@ -1105,6 +1130,7 @@ class Stage(models.Model):
     STAGE_FORMATS = [
         ("swiss", "Swiss System"),
         ("smart_swiss", "Smart Swiss System"),
+        ("wtf", "WTF (πετΑ Index)"),
         ("poule", "Poules/Groups"),
         ("knockout", "Knockout"),
         ("round_robin", "Round Robin"),
@@ -1219,6 +1245,8 @@ class Stage(models.Model):
             matches_created = self._generate_swiss_matches(teams, round_obj)
         elif self.format == "smart_swiss":
             matches_created = self._generate_smart_swiss_matches(teams, round_obj)
+        elif self.format == "wtf":
+            matches_created = self._generate_wtf_matches(teams, round_obj)
         elif self.format == "knockout":
             matches_created = self._generate_knockout_matches(teams, round_obj)
         elif self.format == "poule":
@@ -1508,6 +1536,40 @@ class Stage(models.Model):
             logger.debug(f"{bye_team.team} receives a bye in Smart Swiss")
             
         logger.info(f"Created {matches_created} Smart Swiss matches")
+        return matches_created
+        
+    def _generate_wtf_matches(self, teams, round_obj):
+        """Generate WTF (πετΑ Index) system matches for the first round."""
+        from matches.models import Match
+        import random
+        
+        logger.info(f"Generating WTF matches for {len(teams)} teams")
+        
+        # For first round of WTF, we use random pairing like Swiss
+        # The WTF πετΑ Index algorithm is used for subsequent rounds
+        teams_copy = teams.copy()
+        random.shuffle(teams_copy)  # Random pairing for first round
+        
+        matches_created = 0
+        for i in range(0, len(teams_copy) - 1, 2):
+            match = Match.objects.create(
+                tournament=self.tournament,
+                round=round_obj,
+                stage=self,  # Important: set the stage for multi-stage tournaments
+                team1=teams_copy[i].team,
+                team2=teams_copy[i + 1].team,
+                status="pending"
+            )
+            matches_created += 1
+            logger.debug(f"Created WTF match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
+            
+        # Handle odd number of teams (bye)
+        if len(teams_copy) % 2 == 1:
+            bye_team = teams_copy[-1]
+            # Note: bye handling for multi-stage tournaments may need special logic
+            logger.info(f"{bye_team.team} receives a bye in WTF round 1")
+        
+        logger.info(f"Created {matches_created} WTF matches")
         return matches_created
         
     def _generate_knockout_matches(self, teams, round_obj):

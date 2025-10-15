@@ -474,6 +474,10 @@ class TournamentEngine:
                     # Use the specialized Smart Swiss algorithm
                     from .swiss_algorithms import generate_smart_swiss_round
                     matches_created = generate_smart_swiss_round(self.tournament, stage)
+                elif stage.format == 'wtf':
+                    # Use the specialized WTF algorithm
+                    from .wtf_algorithm import generate_wtf_matches
+                    matches_created = len(generate_wtf_matches(self.tournament, stage, round_number))
                 elif stage.format in ['swiss_system', 'swiss']:
                     generator = SwissGenerator(self.tournament, stage, round_obj)
                     matches_created = generator.generate_matches(teams)

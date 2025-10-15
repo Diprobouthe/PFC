@@ -227,43 +227,58 @@ def generate_standard_swiss_round(tournament: Tournament, stage: Optional[Stage]
                 
                 logger.debug(f"Score groups: {[(score, len(teams)) for score, teams in score_groups.items()]}")
                 
-                # Pair teams using standard Swiss method
+                # Proper Standard Swiss Pairing Algorithm
                 unpaired_teams = teams_to_pair.copy()
                 
+                # Use proper Swiss pairing: pair teams with similar scores
                 while len(unpaired_teams) >= 2:
-                    team1_tt = unpaired_teams[0]
-                    paired = False
+                    # Find the best pairing using Swiss principles
+                    best_pairing = None
+                    best_score_diff = float('inf')
                     
-                    # Try to pair with teams of same score first, then nearby scores
-                    for team2_tt in unpaired_teams[1:]:
-                        # Check if they haven't played before
-                        if team2_tt.team not in team1_tt.opponents_played.all():
-                            # Valid pairing found
-                            logger.info(f"Standard Swiss pairing: {team1_tt.team.name} ({team1_tt.swiss_points} pts) vs {team2_tt.team.name} ({team2_tt.swiss_points} pts)")
+                    for i in range(len(unpaired_teams)):
+                        for j in range(i + 1, len(unpaired_teams)):
+                            team1_tt = unpaired_teams[i]
+                            team2_tt = unpaired_teams[j]
                             
-                            match = Match.objects.create(
-                                tournament=tournament,
-                                round=round_obj,
-                                stage=stage,
-                                team1=team1_tt.team,
-                                team2=team2_tt.team,
-                                status="pending"
-                            )
-                            matches_created.append(match)
-                            
-                            # Update opponents played
-                            team1_tt.opponents_played.add(team2_tt.team)
-                            team2_tt.opponents_played.add(team1_tt.team)
-                            
-                            # Remove both teams from unpaired list
-                            unpaired_teams.remove(team1_tt)
-                            unpaired_teams.remove(team2_tt)
-                            paired = True
-                            break
+                            # Check if they haven't played before
+                            if team2_tt.team not in team1_tt.opponents_played.all():
+                                score_diff = abs(team1_tt.swiss_points - team2_tt.swiss_points)
+                                
+                                # Prefer pairings with smaller score differences (Swiss principle)
+                                if score_diff < best_score_diff:
+                                    best_score_diff = score_diff
+                                    best_pairing = (i, j, team1_tt, team2_tt)
                     
-                    if not paired:
-                        # No valid opponent found without rematch, allow rematch as fallback
+                    if best_pairing:
+                        i, j, team1_tt, team2_tt = best_pairing
+                        logger.info(f"Standard Swiss pairing: {team1_tt.team.name} ({team1_tt.swiss_points} pts) vs {team2_tt.team.name} ({team2_tt.swiss_points} pts) [diff: {best_score_diff}]")
+                        
+                        match = Match.objects.create(
+                            tournament=tournament,
+                            round=round_obj,
+                            stage=stage,
+                            team1=team1_tt.team,
+                            team2=team2_tt.team,
+                            status="pending"
+                        )
+                        matches_created.append(match)
+                        
+                        # Update opponents played
+                        team1_tt.opponents_played.add(team2_tt.team)
+                        team2_tt.opponents_played.add(team1_tt.team)
+                        
+                        # Remove both teams from unpaired list (remove higher index first)
+                        if i > j:
+                            unpaired_teams.pop(i)
+                            unpaired_teams.pop(j)
+                        else:
+                            unpaired_teams.pop(j)
+                            unpaired_teams.pop(i)
+                    else:
+                        # No valid pairing without rematch, allow rematch as fallback
                         if len(unpaired_teams) >= 2:
+                            team1_tt = unpaired_teams[0]
                             team2_tt = unpaired_teams[1]
                             logger.warning(f"Standard Swiss fallback (rematch): {team1_tt.team.name} vs {team2_tt.team.name}")
                             

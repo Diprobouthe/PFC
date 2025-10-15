@@ -24,6 +24,9 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF settings - Updated for current sandbox environment
 CSRF_TRUSTED_ORIGINS = [
+    'https://8004-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
+    'https://8003-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
+    'http://8003-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
     'https://8001-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
     'http://8001-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
     'https://8000-iemas8a378t4fr808mk10-d5e0f7fe.manusvm.computer',
@@ -154,7 +157,6 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = "/var/media"
-
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

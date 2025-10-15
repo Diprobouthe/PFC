@@ -12,7 +12,7 @@ class Leaderboard(models.Model):
         return f"Leaderboard for {self.tournament.name}"
 
 class LeaderboardEntry(models.Model):
-    """Model for individual team entries in a leaderboard with Swiss support"""
+    """Model for individual team entries in a leaderboard"""
     leaderboard = models.ForeignKey(Leaderboard, related_name='entries', on_delete=models.CASCADE)
     team = models.ForeignKey(Team, related_name='leaderboard_entries', on_delete=models.CASCADE)
     position = models.PositiveIntegerField()
@@ -21,10 +21,6 @@ class LeaderboardEntry(models.Model):
     matches_lost = models.PositiveIntegerField(default=0)
     points_scored = models.PositiveIntegerField(default=0)
     points_conceded = models.PositiveIntegerField(default=0)
-    
-    # Swiss-specific fields (populated for Swiss tournaments)
-    swiss_points = models.IntegerField(default=0, help_text="Swiss tournament points (3 per win)")
-    buchholz_score = models.FloatField(default=0.0, help_text="Buchholz tie-breaker score")
     
     class Meta:
         unique_together = ('leaderboard', 'team')
@@ -36,12 +32,6 @@ class LeaderboardEntry(models.Model):
     @property
     def point_difference(self):
         return self.points_scored - self.points_conceded
-    
-    @property
-    def is_swiss_tournament(self):
-        """Check if this entry is for a Swiss tournament"""
-        from .swiss_ranking import is_swiss_tournament
-        return is_swiss_tournament(self.leaderboard.tournament)
 
 class TeamStatistics(models.Model):
     """Model for storing comprehensive team statistics"""
@@ -53,11 +43,6 @@ class TeamStatistics(models.Model):
     total_points_conceded = models.PositiveIntegerField(default=0)
     tournaments_participated = models.PositiveIntegerField(default=0)
     tournaments_won = models.PositiveIntegerField(default=0)
-    
-    # Swiss-specific statistics
-    total_swiss_points = models.IntegerField(default=0, help_text="Total Swiss points across all tournaments")
-    swiss_tournaments_played = models.PositiveIntegerField(default=0, help_text="Number of Swiss tournaments participated in")
-    
     last_updated = models.DateTimeField(auto_now=True)
     
     def __str__(self):
@@ -68,13 +53,6 @@ class TeamStatistics(models.Model):
         if self.total_matches_played == 0:
             return 0
         return (self.total_matches_won / self.total_matches_played) * 100
-    
-    @property
-    def average_swiss_points(self):
-        """Average Swiss points per Swiss tournament"""
-        if self.swiss_tournaments_played == 0:
-            return 0
-        return self.total_swiss_points / self.swiss_tournaments_played
 
 class MatchStatistics(models.Model):
     """Model for storing detailed match statistics"""

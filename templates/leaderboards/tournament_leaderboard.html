@@ -23,6 +23,13 @@
                                         <th>Matches Played</th>
                                         <th>Won</th>
                                         <th>Lost</th>
+                                        {% if is_swiss %}
+                                            <th>Swiss Points</th>
+                                            <th>Buchholz Score</th>
+                                        {% elif is_wtf %}
+                                            <th>Swiss Points</th>
+                                            <th>πετΑ Index</th>
+                                        {% endif %}
                                         <th>Points Scored</th>
                                         <th>Points Conceded</th>
                                     </tr>
@@ -39,6 +46,13 @@
                                             <td>{{ entry.matches_played }}</td>
                                             <td>{{ entry.matches_won }}</td>
                                             <td>{{ entry.matches_lost }}</td>
+                                            {% if is_swiss %}
+                                                <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
+                                                <td>{{ entry.buchholz_score|default:0|floatformat:1 }}</td>
+                                            {% elif is_wtf %}
+                                                <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
+                                                <td><strong>{{ entry.buchholz_score|default:0|floatformat:3 }}</strong></td>
+                                            {% endif %}
                                             <td>{{ entry.points_scored }}</td>
                                             <td>{{ entry.points_conceded }}</td>
                                         </tr>
@@ -46,6 +60,24 @@
                                 </tbody>
                             </table>
                         </div>
+                        
+                        {% if is_swiss %}
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>Swiss Tournament Ranking:</strong> Teams are ranked by Swiss Points (3 per win), 
+                                    then by Buchholz Score (sum of opponents' Swiss points) for tie-breaking.
+                                </small>
+                            </div>
+                        {% elif is_wtf %}
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>WTF (πετΑ Index) Tournament Ranking:</strong> Teams are ranked by πετΑ Index, 
+                                    which considers Strength of Schedule (SoS), Quality of Resistance (QoR), 
+                                    Swiss Soft Factor (SSF), and optional Base Rating (BR). 
+                                    This system rewards quality of opposition and resistance, not just victories.
+                                </small>
+                            </div>
+                        {% endif %}
                     {% else %}
                         <p class="text-muted">No leaderboard entries found.</p>
                     {% endif %}
