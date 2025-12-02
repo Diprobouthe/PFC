@@ -118,7 +118,9 @@
                         
                         <div class="form-group mb-3">
                             <label for="{{ form.pin.id_for_label }}"><strong>{{ form.pin.label }}:</strong></label>
-                            {{ form.pin }}
+                            <input type="password" name="pin" maxlength="6" class="form-control" required id="id_pin" 
+                                   placeholder="Enter your team PIN" 
+                                   value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
                             {% if form.pin.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in form.pin.errors %}
@@ -126,7 +128,13 @@
                                     {% endfor %}
                                 </div>
                             {% endif %}
+                            {% if request.session.team_pin %}
+                            <div class="form-text text-success">
+                                <i class="fas fa-check-circle"></i> Auto-filled from saved PIN
+                            </div>
+                            {% else %}
                             <small class="form-text text-muted">Enter your team's 6-digit PIN to confirm your choice.</small>
+                            {% endif %}
                         </div>
                         
                         <div class="alert alert-info">

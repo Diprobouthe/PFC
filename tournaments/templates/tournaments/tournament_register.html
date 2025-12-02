@@ -44,6 +44,12 @@
                         </h4>
                     </div>
                     <div class="card-body">
+                        {% if team_info %}
+                        <div class="alert alert-success mb-4">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Your Team PIN has been auto-filled:</strong> {{ team_info.team_pin }}
+                        </div>
+                        {% endif %}
                         <form method="post" class="needs-validation" novalidate>
                             {% csrf_token %}
                             <div class="mb-4">

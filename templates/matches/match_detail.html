@@ -146,6 +146,34 @@
                         </div>
                     {% endif %}
                     
+                    <!-- Shot Accuracy Tracker Section -->
+                    {% load shot_tracker_tags %}
+                    {% shot_tracker_enabled as tracker_enabled %}
+                    {% if tracker_enabled and match.status == 'active' %}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center" 
+                                         style="cursor: pointer;" onclick="toggleShotTracker()">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-bullseye"></i> Shot Accuracy Tracker (Beta)
+                                        </h6>
+                                        <button type="button" class="btn btn-sm btn-outline-light" id="toggleShotTrackerBtn">
+                                            <i class="fas fa-eye" id="toggleShotTrackerIcon"></i> 
+                                            <span id="toggleShotTrackerText">Show Tracker</span>
+                                        </button>
+                                    </div>
+                                    <div class="card-body" id="shotTrackerContent" style="display: none;">
+                                        {% shot_tracker_widget mode="ingame" match_id=match.id %}
+                                        <div class="alert alert-info mt-3 mb-0">
+                                            <small><i class="fas fa-info-circle"></i> Track your shooting accuracy during the match. Hit/Miss buttons help improve your game statistics and unlock achievements!</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
                     <!-- Player Roster Section -->
                     <div class="row mt-4">
                         <div class="col-12">
@@ -242,14 +270,30 @@
                         {% if match.status == 'pending' %}
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <a href="{% url 'match_activate' match.id match.team1.id %}" class="btn btn-primary btn-lg btn-block w-100">
-                                        <i class="fas fa-play"></i> Start Match as {{ match.team1.name }}
-                                    </a>
+                                    {% if request.session.team_name == match.team1.name %}
+                                        <!-- Player's team - highlighted in green -->
+                                        <a href="{% url 'match_activate' match.id match.team1.id %}" class="btn btn-success btn-lg btn-block w-100">
+                                            <i class="fas fa-play"></i> Start Match as {{ match.team1.name }}
+                                        </a>
+                                    {% else %}
+                                        <!-- Opponent team - grayed out and disabled -->
+                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                            <i class="fas fa-ban"></i> {{ match.team1.name }} (Not Your Team)
+                                        </button>
+                                    {% endif %}
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <a href="{% url 'match_activate' match.id match.team2.id %}" class="btn btn-primary btn-lg btn-block w-100">
-                                        <i class="fas fa-play"></i> Start Match as {{ match.team2.name }}
-                                    </a>
+                                    {% if request.session.team_name == match.team2.name %}
+                                        <!-- Player's team - highlighted in green -->
+                                        <a href="{% url 'match_activate' match.id match.team2.id %}" class="btn btn-success btn-lg btn-block w-100">
+                                            <i class="fas fa-play"></i> Start Match as {{ match.team2.name }}
+                                        </a>
+                                    {% else %}
+                                        <!-- Opponent team - grayed out and disabled -->
+                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                            <i class="fas fa-ban"></i> {{ match.team2.name }} (Not Your Team)
+                                        </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% elif match.status == 'pending_verification' %}
@@ -275,14 +319,26 @@
                         {% elif match.status == 'active' %}
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <a href="{% url 'match_submit_result' match.id match.team1.id %}" class="btn btn-success btn-lg btn-block w-100">
-                                        <i class="fas fa-check"></i> Submit Score as {{ match.team1.name }}
-                                    </a>
+                                    {% if request.session.team_name == match.team1.name %}
+                                        <a href="{% url 'match_submit_result' match.id match.team1.id %}" class="btn btn-success btn-lg btn-block w-100">
+                                            <i class="fas fa-check"></i> Submit Score as {{ match.team1.name }}
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled>
+                                            <i class="fas fa-ban"></i> {{ match.team1.name }} (Not Your Team)
+                                        </button>
+                                    {% endif %}
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <a href="{% url 'match_submit_result' match.id match.team2.id %}" class="btn btn-success btn-lg btn-block w-100">
-                                        <i class="fas fa-check"></i> Submit Score as {{ match.team2.name }}
-                                    </a>
+                                    {% if request.session.team_name == match.team2.name %}
+                                        <a href="{% url 'match_submit_result' match.id match.team2.id %}" class="btn btn-success btn-lg btn-block w-100">
+                                            <i class="fas fa-check"></i> Submit Score as {{ match.team2.name }}
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled>
+                                            <i class="fas fa-ban"></i> {{ match.team2.name }} (Not Your Team)
+                                        </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% elif match.status == 'waiting_validation' %}
@@ -334,6 +390,28 @@ function toggleLiveScoreboard() {
         content.style.display = 'none';
         icon.className = 'fas fa-eye';
         text.textContent = 'Show Scores';
+        btn.classList.remove('btn-light');
+        btn.classList.add('btn-outline-light');
+    }
+}
+
+// Toggle Shot Tracker Section
+function toggleShotTracker() {
+    const content = document.getElementById('shotTrackerContent');
+    const icon = document.getElementById('toggleShotTrackerIcon');
+    const text = document.getElementById('toggleShotTrackerText');
+    const btn = document.getElementById('toggleShotTrackerBtn');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.className = 'fas fa-eye-slash';
+        text.textContent = 'Hide Tracker';
+        btn.classList.remove('btn-outline-light');
+        btn.classList.add('btn-light');
+    } else {
+        content.style.display = 'none';
+        icon.className = 'fas fa-eye';
+        text.textContent = 'Show Tracker';
         btn.classList.remove('btn-light');
         btn.classList.add('btn-outline-light');
     }

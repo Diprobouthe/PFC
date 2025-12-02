@@ -33,8 +33,14 @@
                         
                         <div class="form-group mb-3">
                             <label for="id_pin"><strong>Enter Team PIN:</strong></label>
-                            <input type="password" name="pin" maxlength="6" class="form-control" required id="id_pin" placeholder="Enter your 6-digit PIN">
+                            <input type="password" name="pin" maxlength="6" class="form-control" required id="id_pin" placeholder="Enter your 6-digit PIN" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
+                            {% if request.session.team_pin %}
+                            <div class="form-text text-success">
+                                <i class="fas fa-check-circle"></i> Auto-filled from saved PIN
+                            </div>
+                            {% else %}
                             <small class="form-text text-muted">Enter your team's 6-digit PIN to confirm score submission.</small>
+                            {% endif %}
                         </div>
                         
                         <div class="row mb-3">

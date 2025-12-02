@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PFC MARKET - Player Rankings{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-4">PFC MARKET</h1>
+            <p class="lead">Live player rankings and performance trends</p>
+        </div>
+    </div>
+
+    <!-- Market Statistics Card -->
+    <div class="row mb-3">
+        <div class="col">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Market Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <!-- Row 1: Total Players, Gainers, Losers -->
+                        <div class="col-md-4 mb-3">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted text-uppercase small mb-2">Total Players</h6>
+                                <h2 class="mb-0 fw-bold">{{ stats.total_players }}</h2>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="text-success text-uppercase small mb-2">Gainers</h6>
+                                <h2 class="mb-0 fw-bold text-success">↑ {{ stats.gainers }}</h2>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="text-danger text-uppercase small mb-2">Losers</h6>
+                                <h2 class="mb-0 fw-bold text-danger">↓ {{ stats.losers }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row text-center">
+                        <!-- Row 2: Average Rating, Top Gainer -->
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3">
+                                <h6 class="text-muted text-uppercase small mb-2">Average Rating</h6>
+                                <h2 class="mb-0 fw-bold text-primary">{{ stats.avg_rating }}</h2>
+                            </div>
+                        </div>
+                        {% if stats.top_gainer %}
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 bg-light">
+                                <h6 class="text-success text-uppercase small mb-2">Top Gainer</h6>
+                                <h2 class="mb-0 fw-bold text-success">{{ stats.top_gainer.player.name }} (+{{ stats.top_gainer.trend_change }})</h2>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sorting Controls -->
+    <div class="row mb-3">
+        <div class="col text-center">
+            <div class="btn-group" role="group">
+                <a href="?sort=rating" class="btn {% if sort_by == 'rating' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    🏆 By Rating
+                </a>
+                <a href="?sort=trend" class="btn {% if sort_by == 'trend' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    📊 By Trend
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Market Rankings Table (Matching Player Leaderboard Style) -->
+    <div class="row">
+        <div class="col">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="mb-0">Player Rankings</h5>
+                        </div>
+                        <div class="col text-end">
+                            <span class="badge bg-primary">{{ stats.total_players }} Players Overall</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">Player</th>
+                                    <th scope="col">Rating</th>
+                                    <th scope="col" class="text-center">Trend</th>
+                                    <th scope="col">Change</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data in market_data %}
+                                <tr>
+                                    <td>{{ data.rank }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if data.player.profile.profile_picture %}
+                                                <img src="{{ data.player.profile.profile_picture.url }}" alt="{{ data.player.name }}" class="rounded-circle me-2" width="40" height="40">
+                                            {% else %}
+                                                <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                    <span class="text-white fw-bold">{{ data.player.name|slice:":1" }}</span>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <div class="fw-bold">{{ data.player.name }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success fs-6">{{ data.rating }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if data.trend_direction == 'up' %}
+                                            <span class="fs-3 fw-bold text-success">↑</span>
+                                        {% elif data.trend_direction == 'down' %}
+                                            <span class="fs-3 fw-bold text-danger">↓</span>
+                                        {% else %}
+                                            <span class="fs-3 fw-bold text-secondary">→</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <span class="fw-bold {% if data.trend_change > 0 %}text-success{% elif data.trend_change < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                                                {% if data.trend_change > 0 %}+{% endif %}{{ data.trend_change }}
+                                            </span>
+                                            <br>
+                                            <small class="text-muted">({{ data.games_analyzed }} games)</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'player_profile' data.player.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-person-badge"></i> View Profile
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="alert alert-info mb-0">
+                                            <i class="bi bi-info-circle me-2"></i> No players found.
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="row mt-4">
+        <div class="col text-center">
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Home
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

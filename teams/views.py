@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from .views_market import pfc_market
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Count, Prefetch
@@ -544,6 +545,16 @@ def player_login(request):
             request.session['player_id'] = player.id
             request.session['team_id'] = player.team.id
             request.session['team_name'] = player.team.name
+            
+            # AUTO-LOGIN AS TEAM: Automatically log the player in as their team
+            # This is crucial for Mêlée events where players are automatically assigned to teams
+            # Users don't need to know or enter PINs - the system handles it automatically
+            from pfc_core.session_utils import TeamPinSessionManager
+            if player.team and player.team.pin:
+                TeamPinSessionManager.login_team(request, player.team.pin)
+                # Also set team session data for compatibility
+                request.session['team_pin'] = player.team.pin
+                request.session['team_session_active'] = True
             
             # Return JSON response for AJAX requests
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1100,6 +1111,51 @@ def player_profile(request, player_id):
     except Exception:
         bell_curve_data = {'has_data': False}
     
+    # Prepare rating history data for chart
+    rating_chart_data = {'has_data': False}
+    try:
+        if hasattr(player, 'profile') and player.profile and player.profile.rating_history:
+            import json
+            from datetime import datetime
+            
+            history = player.profile.rating_history
+            if history and len(history) > 0:
+                # Prepare data for Chart.js
+                labels = []  # Timestamps
+                ratings = []  # Rating values
+                
+                # Add starting point (100.0)
+                labels.append('Start')
+                ratings.append(100.0)
+                
+                # Add each rating change
+                for i, entry in enumerate(history):
+                    # Format timestamp
+                    try:
+                        timestamp = entry.get('timestamp', '')
+                        if timestamp:
+                            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                            label = dt.strftime('%b %d, %Y')
+                        else:
+                            label = f'Match {i+1}'
+                    except:
+                        label = f'Match {i+1}'
+                    
+                    labels.append(label)
+                    ratings.append(entry.get('new_value', 100.0))
+                
+                rating_chart_data = {
+                    'has_data': True,
+                    'labels': json.dumps(labels),
+                    'ratings': json.dumps(ratings),
+                    'current_rating': player.profile.value,
+                    'starting_rating': 100.0,
+                    'total_change': player.profile.value - 100.0,
+                    'total_matches': len(history)
+                }
+    except Exception as e:
+        rating_chart_data = {'has_data': False}
+    
     context = {
         'player': player,
         'matches': tournament_matches,  # Tournament matches for match history table
@@ -1111,6 +1167,8 @@ def player_profile(request, player_id):
         'friendly_position_stats': friendly_position_stats,  # Friendly game position stats
         'friendly_role_distribution': friendly_role_distribution,  # Friendly game role distribution
         'bell_curve_data': bell_curve_data,  # NEW: Bell curve skill comparison data
+        'rating_chart_data': rating_chart_data,  # NEW: Rating progression chart data
+        'tracker_enabled': True,  # Enable shooting practice tracker tab
     }
     
     return render(request, 'teams/player_profile.html', context)

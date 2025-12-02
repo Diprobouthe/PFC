@@ -239,11 +239,41 @@
                            target="_blank" class="btn btn-info">
                             <i class="fas fa-chart-line"></i> Advanced Analytics
                         </a>
+                        {% load shot_tracker_tags %}
+                        {% shot_tracker_enabled as tracker_enabled %}
+                        {% if tracker_enabled %}
+                        <button class="btn btn-success" onclick="togglePracticeTracker()">
+                            <i class="fas fa-bullseye"></i> Practice Shot Tracker
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Practice Shot Tracker Section -->
+    {% load shot_tracker_tags %}
+    {% shot_tracker_enabled as tracker_enabled %}
+    {% if tracker_enabled %}
+    <div class="row mb-4" id="practiceTrackerSection" style="display: none;">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bullseye"></i> Practice Shot Tracker
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% shot_tracker_widget mode="practice" %}
+                    <div class="alert alert-info mt-3 mb-0">
+                        <small><i class="fas fa-info-circle"></i> Practice your shooting accuracy and track your progress. Build streaks and unlock achievements to improve your game!</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Back Button -->
     <div class="row mt-4">
@@ -425,4 +455,23 @@
     color: #212529;
 }
 </style>
+
+<script>
+function togglePracticeTracker() {
+    const section = document.getElementById('practiceTrackerSection');
+    const button = event.target;
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        button.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Practice Tracker';
+        button.classList.remove('btn-success');
+        button.classList.add('btn-warning');
+    } else {
+        section.style.display = 'none';
+        button.innerHTML = '<i class="fas fa-bullseye"></i> Practice Shot Tracker';
+        button.classList.remove('btn-warning');
+        button.classList.add('btn-success');
+    }
+}
+</script>
 {% endblock %}

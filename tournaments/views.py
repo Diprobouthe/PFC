@@ -368,12 +368,25 @@ def tournament_register(request, tournament_id):
             messages.error(request, "Please enter your team PIN to continue.")
             return redirect('tournament_register', tournament_id=tournament.id)
     else:
-        pin_form = QuickTeamRegistrationForm(tournament)
+        # Auto-fill team PIN if player is logged in
+        from teams.utils import get_team_info_from_session
+        team_info = get_team_info_from_session(request)
+        
+        if team_info:
+            # Pre-fill the PIN field
+            pin_form = QuickTeamRegistrationForm(tournament, initial={'team_pin': team_info['team_pin']})
+        else:
+            pin_form = QuickTeamRegistrationForm(tournament)
+    
+    # Get team info for display
+    from teams.utils import get_team_info_from_session
+    team_info = get_team_info_from_session(request)
     
     context = {
         'tournament': tournament,
         'form': pin_form,
-        'registration_type': 'pin_entry'
+        'registration_type': 'pin_entry',
+        'team_info': team_info
     }
     return render(request, 'tournaments/tournament_register.html', context)
 

@@ -1,0 +1,68 @@
+{% if show_stats %}
+<div class="shot-tracker-stats-summary">
+    <h4>Shooting Statistics</h4>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <span class="stat-value">{{ stats.total_sessions }}</span>
+            <span class="stat-label">Sessions</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ stats.total_shots }}</span>
+            <span class="stat-label">Total Shots</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ stats.hit_rate|floatformat:1 }}%</span>
+            <span class="stat-label">Hit Rate</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ stats.best_streak }}</span>
+            <span class="stat-label">Best Streak</span>
+        </div>
+    </div>
+</div>
+
+<style>
+.shot-tracker-stats-summary {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.shot-tracker-stats-summary h4 {
+    margin: 0 0 12px 0;
+    color: #333;
+    font-size: 16px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 12px;
+}
+
+.stats-grid .stat-item {
+    text-align: center;
+    background: white;
+    padding: 12px 8px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stats-grid .stat-value {
+    display: block;
+    font-size: 20px;
+    font-weight: bold;
+    color: #667eea;
+    margin-bottom: 4px;
+}
+
+.stats-grid .stat-label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+</style>
+{% endif %}

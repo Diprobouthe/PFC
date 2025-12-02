@@ -1,0 +1,923 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pointing Practice - Petanque Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Practice-specific styles following PFC design language */
+.practice-container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.session-header {
+    background: linear-gradient(135deg, #3f51b5 0%, #303f9f 100%);
+    color: wfare;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+}
+
+.shot-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.shot-btn {
+    padding: 2rem 1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border: none !important;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.shot-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+}
+
+.shot-btn:active {
+    transform: translateY(0);
+}
+
+/* Remove focus outline from all shot buttons by default */
+.shot-btn:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Remove focus outline when disabled */
+.shot-btn:disabled:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove Bootstrap's default focus styles */
+.shot-btn.btn:focus,
+.shot-btn.btn:active:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* Remove borders from all button states */
+.shot-btn,
+.shot-btn:hover,
+.shot-btn:active,
+.shot-btn:focus,
+.shot-btn:disabled,
+.shot-btn.disabled {
+    border: none !important;
+    outline: none !important;
+}
+
+/* Ensure Bootstrap btn class doesn't add borders */
+.btn.shot-btn,
+.btn.shot-btn:hover,
+.btn.shot-btn:active,
+.btn.shot-btn:focus,
+.btn.shot-btn:disabled {
+    border: none !important;
+    outline: none !important;
+}
+
+.shot-btn-fair {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.shot-btn-fair:hover {
+    background-color: #e0a800;
+    color: #000;
+}
+
+.shot-btn-far {
+    background-color: #28a745;
+    color: wfare;
+}
+
+.shot-btn-far:hover {
+    background-color: #218838;
+    color: wfare;
+}
+
+.shot-btn-perfect {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.shot-btn-perfect:hover {
+    background-color: #e0a800;
+    color: #212529;
+}
+
+.shot-btn-petit-perfect {
+    background-color: #ff9800;
+    color: wfare;
+}
+
+.shot-btn-petit-perfect:hover {
+    background-color: #e68900;
+    color: wfare;
+}
+
+.shot-history {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    min-height: 80px;
+}
+
+.shot-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0.25rem;
+    color: wfare;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.shot-badge:hover {
+    transform: scale(1.1);
+}
+
+.shot-badges-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 0.5rem 0;
+}
+
+.shot-sequence {
+    text-align: center;
+}
+
+.shot-badge-fair {
+    background-color: #ffc107;
+}
+
+.shot-badge-far {
+    background-color: #28a745;
+}
+
+.shot-badge-perfect {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-label-clear {
+    font-size: 1rem;
+    color: #495057;
+    font-weight: 500;
+}
+
+.stat-value-clear {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+/* Legacy grid styles for backward compatibility */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.stat-card {
+    background: wfare;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+    letter-spacing: 0.5px;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+/* Mobile-First Shot Buttons */
+.shot-buttons-mobile {
+    margin: 2rem 0;
+    padding: 0 1rem;
+}
+
+.shot-btn-fair {
+    background-color: #ffc107 !important;
+    border-color: #ffc107 !important;
+    color: #000 !important;
+    min-height: 100px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.shot-btn-far {
+    background-color: #28a745 !important;
+    border-color: #28a745 !important;
+    color: wfare !important;
+    min-height: 100px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.shot-btn-perfect {
+    background-color: #ffc107 !important;
+    border-color: #ffc107 !important;
+    color: #212529 !important;
+    min-height: 100px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.shot-btn-fair:hover, .shot-btn-fair:focus {
+    background-color: #e0a800 !important;
+    border-color: #d39e00 !important;
+    transform: scale(1.02);
+}
+
+.shot-btn-far:hover, .shot-btn-far:focus {
+    background-color: #218838 !important;
+    border-color: #1e7e34 !important;
+    transform: scale(1.02);
+}
+
+.shot-btn-perfect:hover, .shot-btn-perfect:focus {
+    background-color: #e0a800 !important;
+    border-color: #d39e00 !important;
+    transform: scale(1.02);
+}
+
+@media (max-width: 576px) {
+    .shot-buttons {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .shot-btn {
+        padding: 1.5rem 1rem;
+        min-height: 80px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .control-buttons {
+        flex-direction: column;
+    }
+    
+    .shot-buttons-mobile {
+        padding: 0;
+    }
+    
+    .shot-btn-fair, .shot-btn-far, .shot-btn-perfect {
+        min-height: 120px;
+        font-size: 1.1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="practice-container">
+        <!-- Back Navigation -->
+        <div class="mb-3">
+            <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-2"></i>Back to Practice
+            </a>
+        </div>
+
+        <!-- Session Header -->
+        <div class="session-header text-center">
+            <h1 class="h3 mb-2">
+                <i class="fas fa-bullseye me-2"></i>Pointing Practice
+            </h1>
+            <p class="mb-0 opacity-75">{{ player_name|default:session_codename }}</p>
+        </div>
+
+        {% if not active_session %}
+            <!-- Start Session Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-play me-2"></i>Start New Session
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text mb-4 text-center">Configure your practice session settings before starting.</p>
+                    
+                    <!-- Session Attributes Form -->
+                    <div class="mb-4">
+                        <!-- Distance Selection -->
+                        <div class="mb-3">
+                            <label for="sessionDistance" class="form-label fw-bold">
+                                <i class="fas fa-ruler me-2"></i>Throwing Distance
+                            </label>
+                            <select id="sessionDistance" class="form-select form-select-lg">
+                                <option value="6m">6 meters</option>
+                                <option value="7m" selected>7 meters</option>
+                                <option value="8m">8 meters</option>
+                                <option value="9m">9 meters</option>
+                                <option value="10m">10 meters</option>
+                            </select>
+                            <div class="form-text">This distance will apply to all shots in this session.</div>
+                        </div>
+                        
+                        <!-- Sequence Tracking Toggle -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-sort-numeric-down me-2"></i>Sequence Tracking
+                            </label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="sequenceTracking" checked>
+                                <label class="form-check-label" for="sequenceTracking">
+                                    <span id="sequenceTrackingLabel">ON - Shots must be entered in order</span>
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                <strong>ON:</strong> Enforces ordered input (shot #1, #2, #3...).<br>
+                                <strong>OFF:</strong> Allows entering scores in any order.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button id="startSessionBtn" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play me-2"></i>Start Session
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {% if recent_sessions %}
+                <!-- Recent Sessions -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-history me-2"></i>Recent Sessions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for session in recent_sessions %}
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
+                                <div>
+                                    <strong>{{ session.started_at|date:"M d, Y H:i" }}</strong>
+                                    <div class="small text-muted">
+                                        {{ session.total_shots }} shots • {{ session.duration }}
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-success">{{ session.far_percentage|floatformat:1 }}%</span>
+                                    <div>
+                                        <a href="{% url 'practice:session_summary' session.id %}" class="small text-decoration-none">
+                                            View Details <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        {% else %}
+            <!-- Active Session Interface -->
+            <div id="practiceInterface">
+                <!-- Shot History -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-list me-2"></i>Recent Shots
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="shotHistory" class="shot-history">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-info-circle me-2"></i>No shots recorded yet
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Card -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Session Statistics
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="stats-list">
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Total shots:</span>
+                                <span id="totalShots" class="stat-value-clear text-primary fw-bold">{{ active_session.total_shots }}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Far rate:</span>
+                                <span id="farPercentage" class="stat-value-clear text-success fw-bold">{{ active_session.far_percentage|floatformat:1 }}%</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Perfect:</span>
+                                <span id="perfectCount" class="stat-value-clear text-warning fw-bold">{{ active_session.perfects }}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Good:</span>
+                                <span id="goodCount" class="stat-value-clear text-warning fw-bold">{{ active_session.goods }}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Fair:</span>
+                                <span id="fairCount" class="stat-value-clear text-info fw-bold">{{ active_session.fairs }}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Far:</span>
+                                <span id="farCount" class="stat-value-clear text-danger fw-bold">{{ active_session.fars }}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label-clear">Streak:</span>
+                                <span id="currentStreak" class="stat-value-clear text-info fw-bold">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shot Buttons - Full Width, Vertically Stacked -->
+                <div class="shot-buttons-mobile">
+                    <button id="perfectBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-perfect" data-outcome="perfect">
+                        🟢
+                        <div class="fs-4 fw-bold">Perfect</div>
+                        <div class="small">0-10cm from target</div>
+                    </button>
+                    <button id="goodBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-good" data-outcome="good">
+                        🟡
+                        <div class="fs-4 fw-bold">Good</div>
+                        <div class="small">10-30cm from target</div>
+                    </button>
+                    <button id="fairBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-fair" data-outcome="fair">
+                        🔴
+                        <div class="fs-4 fw-bold">Fair</div>
+                        <div class="small">30-50cm from target</div>
+                    </button>
+                    <button id="farBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-far" data-outcome="far">
+                        ⚫
+                        <div class="fs-4 fw-bold">Far</div>
+                        <div class="small">>50cm from target</div>
+                    </button>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="control-buttons">
+                    <button id="undoBtn" class="btn btn-outline-warning">
+                        <i class="fas fa-undo me-2"></i>Undo Last Shot
+                    </button>
+                    <button id="endSessionBtn" class="btn btn-outline-danger">
+                        <i class="fas fa-stop me-2"></i>End Session
+                    </button>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mb-0">Processing...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Pointing Practice JavaScript
+class PointingPractice {
+    constructor() {
+        this.sessionActive = {{ active_session|yesno:"true,false" }};
+        this.sessionId = {% if active_session %}"{{ active_session.id }}"{% else %}null{% endif %};
+        this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+            document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+            '{{ csrf_token }}';
+        
+        // Don't pre-initialize modal, get it fresh each time
+        
+        this.initializeEventListeners();
+        
+        if (this.sessionActive) {
+            this.loadSessionData();
+        }
+    }
+    
+    initializeEventListeners() {
+        // Sequence tracking toggle
+        const sequenceToggle = document.getElementById('sequenceTracking');
+        if (sequenceToggle) {
+            sequenceToggle.addEventListener('change', (e) => {
+                const label = document.getElementById('sequenceTrackingLabel');
+                if (e.target.checked) {
+                    label.textContent = 'ON - Shots must be entered in order';
+                } else {
+                    label.textContent = 'OFF - Scores can be entered in any order';
+                }
+            });
+        }
+        
+        // Start session button
+        const startBtn = document.getElementById('startSessionBtn');
+        if (startBtn) {
+            startBtn.addEventListener('click', () => this.startSession());
+        }
+        
+        // Shot buttons
+        document.querySelectorAll('.shot-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const outcome = e.currentTarget.dataset.outcome;
+                // Remove focus from the button to prevent focus outline
+                e.currentTarget.blur();
+                this.recordShot(outcome);
+            });
+        });
+        
+        // Control buttons
+        const undoBtn = document.getElementById('undoBtn');
+        if (undoBtn) {
+            undoBtn.addEventListener('click', () => this.undoLastShot());
+        }
+        
+        const endBtn = document.getElementById('endSessionBtn');
+        if (endBtn) {
+            endBtn.addEventListener('click', () => this.endSession());
+        }
+    }
+    
+    async startSession() {
+        this.showLoading();
+        
+        // Get session attributes from form
+        const distance = document.getElementById('sessionDistance').value;
+        const sequenceTracking = document.getElementById('sequenceTracking').checked;
+        
+        try {
+            const response = await fetch('{% url "practice:start_session" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken
+                },
+                body: JSON.stringify({
+                    practice_type: 'pointing',
+                    distance: distance,
+                    sequence_tracking: sequenceTracking
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.sessionId = data.session_id;
+                this.sessionActive = true;
+                location.reload(); // Reload to show active session interface
+            } else {
+                this.showError(data.error || 'Failed to start session');
+            }
+        } catch (error) {
+            this.showError('Network error occurred');
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    async recordShot(outcome) {
+        if (!this.sessionActive) return;
+        
+        // Get the clicked button for visual feedback
+        const button = document.querySelector(`[data-outcome="${outcome}"]`);
+        if (button) {
+            // Instant highlight on click
+            button.style.transform = 'scale(0.95)';
+            button.style.filter = 'brightness(1.4)';
+            button.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 25px rgba(255, 255, 255, 0.4)';
+            button.style.transition = 'all 0.1s ease';
+        }
+        
+        // Disable buttons temporarily (excluding the clicked button)
+        this.setButtonsEnabled(false, button);
+        
+        try {
+            const response = await fetch('{% url "practice:record_shot" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken
+                },
+                body: JSON.stringify({ outcome })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.updateInterface(data);
+                this.showShotFeedback(outcome);
+            } else {
+                this.showError(data.error || 'Failed to record shot');
+            }
+        } catch (error) {
+            this.showError('Network error occurred');
+        } finally {
+            // Reset button styles
+            if (button) {
+                setTimeout(() => {
+                    button.style.transform = '';
+                    button.style.filter = '';
+                    button.style.boxShadow = '';
+                }, 400);
+            }
+            this.setButtonsEnabled(true);
+        }
+    }
+    
+    async undoLastShot() {
+        if (!this.sessionActive) return;
+        
+        this.showLoading();
+        
+        try {
+            const response = await fetch('{% url "practice:undo_shot" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                try {
+                    this.updateInterface(data);
+                } catch (updateError) {
+                    console.error('Error updating interface:', updateError);
+                }
+            } else {
+                this.showError(data.error || 'Failed to undo shot');
+            }
+        } catch (error) {
+            console.error('Undo error:', error);
+            this.showError('Network error occurred');
+        } finally {
+            // Force hide modal with multiple attempts
+            setTimeout(() => this.hideLoading(), 100);
+            setTimeout(() => this.hideLoading(), 500);
+            this.hideLoading();
+        }
+    }
+    
+    async endSession() {
+        if (!this.sessionActive) return;
+        
+        if (!confirm('Are you sure you want to end this practice session?')) {
+            return;
+        }
+        
+        this.showLoading();
+        
+        try {
+            const response = await fetch('{% url "practice:end_session" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Redirect to session summary
+                window.location.href = `/practice/session/${data.session_id}/`;
+            } else {
+                this.showError(data.error || 'Failed to end session');
+            }
+        } catch (error) {
+            this.showError('Network error occurred');
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    updateInterface(data) {
+        // Update statistics
+        if (data.session_stats) {
+            const stats = data.session_stats;
+            document.getElementById('totalShots').textContent = stats.total_shots;
+            document.getElementById('farPercentage').textContent = stats.far_percentage + '%';
+            document.getElementById('currentStreak').textContent = stats.current_streak;
+            document.getElementById('perfectCount').textContent = stats.perfects || 0;
+            document.getElementById('goodCount').textContent = stats.goods || 0;
+            document.getElementById('fairCount').textContent = stats.fairs || 0;
+            document.getElementById('farCount').textContent = stats.fars || 0;
+        }
+        
+        // Update shot history
+        if (data.recent_shots) {
+            this.updateShotHistory(data.recent_shots);
+        }
+    }
+    
+    updateShotHistory(shots) {
+        const historyContainer = document.getElementById('shotHistory');
+        
+        if (shots.length === 0) {
+            historyContainer.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-info-circle me-2"></i>No shots recorded yet
+                </div>
+            `;
+            return;
+        }
+        
+        // Show last 15 shots in reverse order (most recent first)
+        const shotBadges = shots.slice(0, 15).map(shot => {
+            const badgeClass = `shot-badge shot-badge-${shot.outcome}`;
+            let displayText, emoji;
+            
+            switch(shot.outcome.toLowerCase()) {
+                case 'far':
+                    displayText = 'F';
+                    emoji = '😳';
+                    break;
+                case 'fair':
+                    displayText = 'Fr';
+                    emoji = '👍';
+                    break;
+                case 'good':
+                    displayText = 'G';
+                    emoji = '💪';
+                    break;
+                case 'perfect':
+                    displayText = 'P';
+                    emoji = '🤩';
+                    break;
+                default:
+                    displayText = '?';
+                    emoji = '❓';
+            }
+            
+            return `<span class="${badgeClass}" title="Shot #${shot.sequence_number}: ${shot.outcome}">${emoji}</span>`;
+        }).join('');
+        
+        historyContainer.innerHTML = `
+            <div class="shot-sequence">
+                <div class="small text-muted mb-2">Recent shots (newest first):</div>
+                <div class="shot-badges-container">${shotBadges}</div>
+            </div>
+        `;
+    }
+    
+    showShotFeedback(outcome) {
+        // Brief visual feedback for shot recording
+        const button = document.querySelector(`[data-outcome="${outcome}"]`);
+        if (button) {
+            button.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                button.style.transform = '';
+            }, 150);
+        }
+    }
+    
+    setButtonsEnabled(enabled, excludeButton = null) {
+        document.querySelectorAll('.shot-btn').forEach(btn => {
+            btn.disabled = !enabled;
+            
+            // ALWAYS remove borders and outlines from ALL buttons
+            btn.style.border = 'none';
+            btn.style.outline = 'none';
+            
+            // Skip styling changes for the excluded button (the one being clicked)
+            if (excludeButton && btn === excludeButton) {
+                return; // Keep the clicked button's highlight visible
+            }
+            
+            if (!enabled) {
+                btn.style.opacity = '0.6';
+                btn.style.cursor = 'not-allowed';
+                // Extra enforcement: remove borders when disabled
+                btn.style.border = 'none';
+                btn.style.outline = 'none';
+            } else {
+                btn.style.opacity = '';
+                btn.style.cursor = '';
+                // Extra enforcement: remove borders when enabled
+                btn.style.border = 'none';
+                btn.style.outline = 'none';
+            }
+        });
+    }
+    
+    showLoading() {
+        const modalElement = document.getElementById('loadingModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+            modal.show();
+        }
+    }
+    
+    hideLoading() {
+        const modalElement = document.getElementById('loadingModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
+            }
+        }
+    }
+    
+    showError(message) {
+        alert('Error: ' + message); // Simple error display for v0.1
+    }
+    
+    loadSessionData() {
+        // Load initial session data if needed
+        // For now, data is provided by Django template
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    window.pointingPractice = new PointingPractice();
+});
+</script>
+{% endblock %}

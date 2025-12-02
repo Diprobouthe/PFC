@@ -66,7 +66,7 @@ class PublicPlayerForm(forms.Form):
     codename = forms.CharField(
         max_length=6,
         min_length=6,
-        widget=forms.PasswordInput(attrs={
+        widget=forms.TextInput(attrs={
             'placeholder': 'Enter 6-character codename',
             'class': 'form-control',
             'style': 'text-transform: uppercase;'

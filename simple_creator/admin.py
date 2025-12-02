@@ -20,6 +20,10 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
         ('Player Limits', {
             'fields': ('max_doubles_players', 'max_triples_players')
         }),
+        ('Court Configuration', {
+            'fields': ('default_court_complex', 'max_courts', 'recommended_courts'),
+            'description': 'Court complex is REQUIRED for all tournaments using this scenario.'
+        }),
         ('Tournament Configuration', {
             'fields': ('tournament_type', 'num_rounds', 'matches_per_team', 'draft_type')
         }),

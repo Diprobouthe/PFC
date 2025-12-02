@@ -6,13 +6,114 @@
 {% block content %}
 <div class="container-fluid px-3 py-3">
 
-    <!-- Welcome Message - Large and Clear -->
-    <div class="text-center mb-4">
-        <h2 class="mb-2" style="font-weight: 600; font-size: 2rem;">Let's play petanque!</h2>
+
+
+    <!-- Team PIN Display - Shows when player is logged in -->
+    {% if team_info %}
+    <div class="row justify-content-center mb-4">
+        <div class="col-12 col-lg-8">
+            <div class="alert alert-info shadow-sm" style="border-left: 5px solid #0dcaf0;">
+                <div class="row align-items-center">
+                    <div class="col-12">
+                        <h5 class="mb-2">
+                            <i class="fas fa-user-circle me-2"></i>
+                            Let's play petanque{% if player_name %}, <strong>{{ player_name }}</strong>{% elif team_info.player_name %}, <strong>{{ team_info.player_name }}</strong>{% else %}, <strong>{{ team_info.team_name }}</strong>{% endif %}!
+                        </h5>
+                        <p class="mb-2">
+                            <i class="fas fa-users me-2"></i>
+                            Team: <strong>{{ team_info.team_name }}</strong>
+                        </p>
+                        
+                        <!-- Court Occupancy Info -->
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-map-marker-alt me-2 text-success"></i>
+                            {% if currently_at_courts > 0 %}
+                                <span><strong>{{ currently_at_courts }}</strong> player{{ currently_at_courts|pluralize }} currently at courts</span>
+                            {% else %}
+                                <span>No one currently at courts</span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Weather Info -->
+                        {% if weather_data %}
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="me-2" style="font-size: 1.2rem;">{{ weather_data.icon }}</span>
+                            <span>
+                                <strong>{{ weather_data.temperature }}°C</strong> - {{ weather_data.description }}
+                                {% if weather_data.wind_speed > 0 %}
+                                    <span class="text-muted" style="font-size: 0.9rem;">(Wind: {{ weather_data.wind_speed }} km/h)</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+
+                        <!-- Billboard Reference -->
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Check the <a href="{% url 'billboard:list' %}" class="text-decoration-none">Billboard</a> for more information
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+    {% endif %}
+    
+    <!-- General Court Info & Weather - Visible to ALL users -->
+    {% if not team_info %}
+    <div class="row justify-content-center mb-4">
+        <div class="col-12 col-lg-8">
+            <div class="alert alert-light shadow-sm" style="border-left: 5px solid #0dcaf0;">
+                <div class="row">
+                    <div class="col-md-12">
+                        <h5 class="mb-3">
+                            <i class="fas fa-info-circle me-2 text-info"></i>
+                            Court Information
+                        </h5>
+                        
+                        <!-- Court Occupancy Info -->
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-map-marker-alt me-2 text-success"></i>
+                            {% if currently_at_courts > 0 %}
+                                <span><strong>{{ currently_at_courts }}</strong> player{{ currently_at_courts|pluralize }} currently at courts</span>
+                            {% else %}
+                                <span>No one currently at courts</span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Weather Info -->
+                        {% if weather_data %}
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="me-2" style="font-size: 1.2rem;">{{ weather_data.icon }}</span>
+                            <span>
+                                <strong>{{ weather_data.temperature }}°C</strong> - {{ weather_data.description }}
+                                {% if weather_data.wind_speed > 0 %}
+                                    <span class="text-muted" style="font-size: 0.9rem;">(Wind: {{ weather_data.wind_speed }} km/h)</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Billboard Reference -->
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-bullhorn me-1"></i>
+                                Check the <a href="{% url 'billboard:list' %}" class="text-decoration-none">Billboard</a> for more information
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- PRIORITY 1: Tournament Games - LARGE for accessibility -->
-    <div class="row justify-content-center mb-5">
+    <!-- HIDDEN: Consolidated into Tournaments section to avoid confusion -->
+    <div class="row justify-content-center mb-5" style="display: none;">
         <div class="col-12 col-lg-10">
             <div class="card shadow-lg">
                 <div class="card-header bg-primary text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#tournamentGamesSection" aria-expanded="true" aria-controls="tournamentGamesSection">
@@ -30,13 +131,8 @@
                     <div class="card-body py-4">
                         <form method="post" action="{% url 'team_login' %}">
                             {% csrf_token %}
-                            <div id="pinInputSection" style="display: none;">
-                                <div class="mb-4">
-                                    <input type="text" name="pin" class="form-control form-control-lg" 
-                                           style="font-size: 1.8rem; padding: 1.2rem; text-align: center; letter-spacing: 0.5rem; height: 80px;" 
-                                           placeholder="******" maxlength="6" required>
-                                </div>
-                            </div>
+                            <!-- Auto-fill PIN from session if team is logged in -->
+                            <input type="hidden" name="pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}" id="hiddenPinInput">
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
                                     <button type="submit" name="action" value="find_next" 
@@ -62,14 +158,15 @@
     <div class="row justify-content-center mb-5">
         <div class="col-12 col-lg-10">
             <div class="card border-success shadow-lg">
-                <div class="card-header bg-success text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#friendlyGamesSection" aria-expanded="true" aria-controls="friendlyGamesSection">
+                <div class="card-header bg-success text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#friendlyGamesSection" aria-expanded="false" aria-controls="friendlyGamesSection">
                     <div class="d-flex justify-content-between align-items-center">
                         <h3 class="mb-0"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 32px; width: auto; margin-right: 12px;">Friendly Games</h3>
                         <i class="fas fa-chevron-down" id="friendlyGamesChevron"></i>
                     </div>
                 </div>
-                <div class="collapse show" id="friendlyGamesSection">
+                <div class="collapse" id="friendlyGamesSection">
                     <div class="card-body py-4">
+                        <!-- 2x2 Button Grid -->
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
                                 <a href="{% url 'friendly_games:create_game' %}" 
@@ -85,6 +182,20 @@
                                     <span>Join Game</span>
                                 </a>
                             </div>
+                            <div class="col-12 col-md-6">
+                                <a href="{% url 'friendly_games:submit_score_list' %}" 
+                                   class="btn btn-warning w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-clipboard-check fa-lg me-3"></i>
+                                    <span>Submit Score</span>
+                                </a>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <a href="{% url 'friendly_games_leaderboard' %}" 
+                                   class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-chart-line fa-lg me-3"></i>
+                                    <span>Friendly Game Statistics</span>
+                                </a>
+                            </div>
                         </div>
                         <p class="text-center mt-3 mb-0" style="font-size: 1.1rem; font-weight: 500;">
                             <strong>No team restrictions - play with anyone!</strong>
@@ -95,31 +206,37 @@
         </div>
     </div>
 
-    <!-- Scroll Indicator - Clear Visual Cue -->
-    <div class="text-center mb-4">
-        <div class="scroll-hint">
-            <p class="text-muted mb-2" style="font-size: 1.1rem;">
-                <i class="fas fa-chevron-down fa-lg"></i>
-            </p>
-            <p class="text-muted" style="font-size: 1rem;">More options below</p>
-            <p class="text-muted">
-                <i class="fas fa-chevron-down fa-lg"></i>
-            </p>
-        </div>
-    </div>
-
     <!-- TOURNAMENTS: Collapsible Section -->
     <div class="row justify-content-center mb-5">
         <div class="col-12 col-lg-10">
             <div class="card border-warning shadow-lg">
                 <div class="card-header bg-warning text-dark py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#tournamentsSection" aria-expanded="false" aria-controls="tournamentsSection">
-                    <h3 class="mb-0 text-center">
-                        <i class="fas fa-trophy me-3"></i>Tournaments
-                        <i class="fas fa-chevron-down float-end" id="tournamentsChevron"></i>
-                    </h3>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0"><i class="fas fa-trophy me-3"></i>Tournaments</h3>
+                        <i class="fas fa-chevron-down" id="tournamentsChevron"></i>
+                    </div>
                 </div>
                 <div class="collapse" id="tournamentsSection">
                     <div class="card-body py-4">
+                        <form method="post" action="{% url 'team_login' %}">
+                            {% csrf_token %}
+                            <!-- Auto-fill PIN from session if team is logged in -->
+                            <input type="hidden" name="pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}" id="hiddenPinInput">
+                            <div class="row g-3 mb-3">
+                                <div class="col-12 col-md-6">
+                                    <button type="submit" name="action" value="find_next" 
+                                            class="btn btn-primary w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
+                                        <i class="fas fa-search fa-lg me-3"></i><br>Find Match
+                                    </button>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <button type="submit" name="action" value="submit_score" 
+                                            class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
+                                        <i class="fas fa-clipboard-check fa-lg me-3"></i><br>Submit Score
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
                                 <a href="/simple/" 
@@ -154,11 +271,23 @@
         </div>
     </div>
 
-    <!-- SECONDARY FUNCTIONS: Management & Viewing - LARGE Cards -->
+    <!-- PRACTICE & MATCHES: Side-by-side Cards -->
     <div class="row justify-content-center mb-4">
         <div class="col-12 col-lg-10">
             <div class="row g-4">
-                <div class="col-12">
+                <div class="col-12 col-md-6">
+                    <div class="card h-100 shadow">
+                        <div class="card-body text-center py-4">
+                            <img src="{% static 'practice_icon.svg' %}" alt="Practice" style="height: 48px; width: auto;" class="mb-3">
+                            <h4 class="card-title mb-3">Practice</h4>
+                            <a href="/practice/" class="btn btn-info w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
+                                <img src="{% static 'practice_icon.svg' %}" alt="Practice" style="height: 24px; width: 24px; margin-right: 8px; filter: brightness(0) invert(1);">
+                                <span>Start Practice</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
                     <div class="card h-100 shadow">
                         <div class="card-body text-center py-4">
                             <img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 48px; width: auto;" class="mb-3">
@@ -189,12 +318,12 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow">
+                    <div class="card h-100 shadow" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #FFD700;">
                         <div class="card-body text-center py-4">
-                            <i class="fas fa-users fa-3x mb-3 text-success"></i>
-                            <h4 class="card-title mb-3">Friendly Game Statistics</h4>
-                            <a href="{% url 'friendly_games_leaderboard' %}" class="btn btn-success w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <i class="fas fa-chart-line fa-lg me-2"></i>Friendly Game Statistics
+                            <i class="fas fa-chart-line fa-3x mb-3" style="color: #FFD700;"></i>
+                            <h4 class="card-title mb-3" style="color: #FFD700; text-transform: uppercase; letter-spacing: 2px;">PFC MARKET</h4>
+                            <a href="{% url 'pfc_market' %}" class="btn w-100" style="background: #FFD700; color: #000000; font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                <i class="fas fa-chart-line fa-lg me-2"></i>PFC MARKET
                             </a>
                         </div>
                     </div>
@@ -373,6 +502,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+
+    
     // Tournaments section (existing)
     const tournamentsSection = document.getElementById('tournamentsSection');
     const tournamentsChevron = document.getElementById('tournamentsChevron');
@@ -400,6 +531,25 @@ function togglePinInput() {
         pinSection.style.display = 'none';
         toggleBtn.innerHTML = '<i class="fas fa-key me-1"></i>Show PIN';
     }
+}
+
+// Toggle PIN visibility (show/hide actual PIN)
+function togglePinVisibility() {
+    const pinDisplay = document.getElementById('pinDisplay');
+    const pinValue = document.getElementById('pinValue');
+    const pinToggleIcon = document.getElementById('pinToggleIcon');
+    
+    if (pinValue.style.display === 'none') {
+        // Show PIN
+        pinDisplay.textContent = pinValue.textContent;
+        pinToggleIcon.className = 'fas fa-eye-slash';
+    } else {
+        // Hide PIN
+        pinDisplay.textContent = '••••••';
+        pinToggleIcon.className = 'fas fa-eye';
+    }
+    // Toggle visibility flag
+    pinValue.style.display = pinValue.style.display === 'none' ? 'inline' : 'none';
 }
 </script>
 {% endblock %}

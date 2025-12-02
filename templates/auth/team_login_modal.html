@@ -69,6 +69,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const teamLoginMessages = document.getElementById('teamLoginMessages');
     const teamPinError = document.getElementById('teamPinError');
     
+    // Auto-fill team PIN from player's team if logged in
+    const playerTeamPin = '{{ team_pin|default:"" }}';
+    if (playerTeamPin && playerTeamPin.length === 6) {
+        teamPinInput.value = playerTeamPin;
+        teamPinInput.classList.add('is-valid');
+        
+        // Add helpful message
+        const helpText = teamPinInput.nextElementSibling;
+        if (helpText) {
+            helpText.innerHTML = '<i class="fas fa-check-circle me-1 text-success"></i>PIN auto-filled from your team ({{ team_name|default:"" }})';
+        }
+    }
+    
     // Auto-format PIN input to uppercase
     teamPinInput.addEventListener('input', function() {
         this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');

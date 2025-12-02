@@ -60,6 +60,12 @@
                                 <li><h6 class="dropdown-header"><i class="fas fa-info-circle me-1"></i>Player Session</h6></li>
                                 <li><span class="dropdown-item-text small text-muted">Logged in as: <strong>{{ player_name|default:session_codename }}</strong></span></li>
                                 <li><hr class="dropdown-divider"></li>
+                                {% if logged_in_player %}
+                                <li><a class="dropdown-item" href="{% url 'player_profile' logged_in_player.id %}#overall">
+                                    <i class="fas fa-user me-1"></i>View Profile
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% endif %}
                                 <li><a class="dropdown-item text-danger" href="{% url 'codename_logout' %}">
                                     <i class="fas fa-sign-out-alt me-1"></i>Logout Player
                                 </a></li>
@@ -186,5 +192,8 @@
     
     <!-- Team PIN Auto-Fill JavaScript -->
     <script src="{% static 'js/team_pin_autofill.js' %}"></script>
+    
+    <!-- Extra JavaScript Block -->
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

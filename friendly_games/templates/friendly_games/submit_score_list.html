@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Submit Friendly Game Scores{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">
+                        <i class="fas fa-clipboard-check"></i> Submit Friendly Game Scores
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if not has_games %}
+                    <!-- No Active Games -->
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle fa-2x mb-3"></i>
+                        <h5>No Active Games</h5>
+                        <p class="mb-0">You don't have any active friendly games that need score submission.</p>
+                        <a href="{% url 'friendly_games:create_game' %}" class="btn btn-success mt-3">
+                            <i class="fas fa-plus-circle"></i> Create New Game
+                        </a>
+                        <a href="{% url 'friendly_games:join_game' %}" class="btn btn-outline-success mt-3 ms-2">
+                            <i class="fas fa-users"></i> Join Game
+                        </a>
+                    </div>
+                    {% else %}
+                    
+                    <!-- Games Needing Score Submission -->
+                    {% if games_needing_scores %}
+                    <div class="mb-4">
+                        <h5 class="text-warning mb-3">
+                            <i class="fas fa-exclamation-triangle"></i> Games Needing Scores ({{ games_needing_scores|length }})
+                        </h5>
+                        <p class="text-muted">These games are in progress and need final scores to be submitted.</p>
+                        
+                        <div class="list-group">
+                            {% for game in games_needing_scores %}
+                            <div class="list-group-item list-group-item-action">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <h6 class="mb-1">
+                                            <span class="badge bg-warning text-dark me-2">#{{ game.match_number }}</span>
+                                            {{ game.name }}
+                                        </h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i> {{ game.created_at|date:"M d, Y H:i" }}
+                                            {% if game.player_team %}
+                                            | <i class="fas fa-users"></i> You're on: 
+                                            <span class="badge {% if game.player_team == 'BLACK' %}bg-dark{% else %}bg-light text-dark{% endif %}">
+                                                {{ game.player_team }} Team
+                                            </span>
+                                            {% endif %}
+                                        </small>
+                                        
+                                        <!-- Players -->
+                                        <div class="mt-2">
+                                            <small>
+                                                <strong>Black Team:</strong> 
+                                                {% for gp in game.players.all %}
+                                                    {% if gp.team == 'BLACK' %}{{ gp.player.name }}{% if not forloop.last %}, {% endif %}{% endif %}
+                                                {% endfor %}
+                                                <br>
+                                                <strong>White Team:</strong> 
+                                                {% for gp in game.players.all %}
+                                                    {% if gp.team == 'WHITE' %}{{ gp.player.name }}{% if not forloop.last %}, {% endif %}{% endif %}
+                                                {% endfor %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <a href="{% url 'friendly_games:submit_score' game.id %}" class="btn btn-warning">
+                                            <i class="fas fa-clipboard-check"></i> Submit Score
+                                        </a>
+                                        <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-outline-secondary btn-sm mt-2">
+                                            <i class="fas fa-eye"></i> View Game
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Games Waiting for Validation -->
+                    {% if games_waiting_validation %}
+                    <div class="mb-4">
+                        <h5 class="text-info mb-3">
+                            <i class="fas fa-hourglass-half"></i> Games Waiting for Validation ({{ games_waiting_validation|length }})
+                        </h5>
+                        <p class="text-muted">Scores have been submitted for these games and are waiting for the other team to validate.</p>
+                        
+                        <div class="list-group">
+                            {% for game in games_waiting_validation %}
+                            <div class="list-group-item">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <h6 class="mb-1">
+                                            <span class="badge bg-info me-2">#{{ game.match_number }}</span>
+                                            {{ game.name }}
+                                        </h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i> {{ game.created_at|date:"M d, Y H:i" }}
+                                            | <i class="fas fa-clock"></i> Submitted: {{ game.result.created_at|date:"M d, H:i" }}
+                                        </small>
+                                        
+                                        <!-- Submitted Scores -->
+                                        <div class="mt-2">
+                                            <small>
+                                                <strong>Submitted Score:</strong> 
+                                                <span class="badge bg-dark">Black: {{ game.result.black_team_score }}</span>
+                                                <span class="badge bg-light text-dark">White: {{ game.result.white_team_score }}</span>
+                                                <br>
+                                                <strong>Submitted by:</strong> {{ game.result.submitted_by_team }} Team
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-info">
+                                            <i class="fas fa-check-circle"></i> Validate
+                                        </a>
+                                        <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-outline-secondary btn-sm mt-2">
+                                            <i class="fas fa-eye"></i> View Game
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% endif %}
+                    
+                    <!-- Back Button -->
+                    <div class="text-center mt-4">
+                        <a href="{% url 'home' %}" class="btn btn-secondary">
+                            <i class="fas fa-home"></i> Back to Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

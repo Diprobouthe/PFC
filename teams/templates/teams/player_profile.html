@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load shot_tracker_tags %}
 
 {% block title %}{{ player.codename }} - Player Profile{% endblock %}
 
@@ -61,7 +62,7 @@
                     </div>
 
                     <!-- Enhanced Statistics Tabs -->
-                    {% if enhanced_stats.has_data or friendly_stats.total_games > 0 %}
+                    {% if enhanced_stats.has_data or friendly_stats.total_games > 0 or tracker_enabled %}
                     <div class="row">
                         <div class="col-12">
                             <ul class="nav nav-tabs" id="playerTabs" role="tablist">
@@ -76,6 +77,12 @@
                                 {% if friendly_stats.total_games > 0 %}
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link" id="friendly-tab" data-toggle="tab" href="#friendly" role="tab" aria-controls="friendly" aria-selected="false">Friendly Games</a>
+                                </li>
+                                {% endif %}
+                {% load shot_tracker_tags %}
+                {% if tracker_enabled %}
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="shooting-tab" data-toggle="tab" href="#shooting" role="tab" aria-controls="shooting" aria-selected="false">🎯 Shot Tracker</a>
                                 </li>
                                 {% endif %}
                             </ul>
@@ -125,6 +132,47 @@
                                             </div>
                                         </div>
                                     </div>
+                                    
+                                    <!-- Rating Progression Chart -->
+                                    {% if rating_chart_data.has_data %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">Rating Progression</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <!-- Rating Summary -->
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-3 text-center">
+                                                            <h5>{{ rating_chart_data.starting_rating|floatformat:0 }}</h5>
+                                                            <small class="text-muted">Starting Rating</small>
+                                                        </div>
+                                                        <div class="col-md-3 text-center">
+                                                            <h5>{{ rating_chart_data.current_rating|floatformat:2 }}</h5>
+                                                            <small class="text-muted">Current Rating</small>
+                                                        </div>
+                                                        <div class="col-md-3 text-center">
+                                                            <h5 class="{% if rating_chart_data.total_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                                {% if rating_chart_data.total_change >= 0 %}+{% endif %}{{ rating_chart_data.total_change|floatformat:2 }}
+                                                            </h5>
+                                                            <small class="text-muted">Total Change</small>
+                                                        </div>
+                                                        <div class="col-md-3 text-center">
+                                                            <h5>{{ rating_chart_data.total_matches }}</h5>
+                                                            <small class="text-muted">Rated Matches</small>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Chart Canvas -->
+                                                    <div style="position: relative; height: 300px;">
+                                                        <canvas id="ratingProgressionChart"></canvas>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                     
                                     <!-- Bell Curve Skill Comparison -->
                                     {% if bell_curve_data.has_data %}
@@ -528,6 +576,30 @@
                                     {% endif %}
                                 </div>
                                 {% endif %}
+                                
+                                <!-- Shot Tracker Tab -->
+                                {% if tracker_enabled %}
+                                <div class="tab-pane fade" id="shooting" role="tabpanel" aria-labelledby="shooting-tab">
+                                    <div class="row mt-3">
+                                        <div class="col-md-8">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">🎯 Practice Shot Tracker</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    {% shot_tracker_widget mode="practice" %}
+                                                    <div class="alert alert-info mt-3 mb-0">
+                                                        <small><i class="fas fa-info-circle"></i> Practice your shooting accuracy and track your improvement over time. Hit/Miss buttons help build muscle memory and unlock achievements!</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            {% shot_stats_summary %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -538,6 +610,105 @@
         </div>
     </div>
 </div>
+
+<!-- Chart.js for Rating Progression -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+{% if rating_chart_data.has_data %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('ratingProgressionChart');
+    if (ctx) {
+        const labels = {{ rating_chart_data.labels|safe }};
+        const ratings = {{ rating_chart_data.ratings|safe }};
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Rating',
+                    data: ratings,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#3498db',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Rating: ' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: Math.floor(Math.min(...ratings) - 5),
+                        max: Math.ceil(Math.max(...ratings) + 5),
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(0);
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Rating',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Match History',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+    }
+});
+{% endif %}
+</script>
+
 {% endblock %}
 
 

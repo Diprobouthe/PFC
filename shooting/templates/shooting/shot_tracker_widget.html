@@ -1,0 +1,50 @@
+{% load static %}
+
+<!-- Shot Accuracy Tracker Widget -->
+<div id="shot-tracker-container" 
+     data-mode="{{ mode|default:'practice' }}" 
+     {% if match_id %}data-match-id="{{ match_id }}"{% endif %}
+     {% if inning %}data-inning="{{ inning }}"{% endif %}>
+    <!-- Widget content will be rendered by JavaScript -->
+</div>
+
+<!-- Include required CSS and JS -->
+<link rel="stylesheet" href="{% static 'shooting/css/shot-tracker.css' %}">
+<script src="{% static 'shooting/js/shot-tracker.js' %}"></script>
+
+<!-- CSRF Token for API calls -->
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<!-- Feature flag check -->
+{% if not feature_shoot_tracker %}
+<style>
+    #shot-tracker-container {
+        display: none;
+    }
+</style>
+{% endif %}
+
+<script>
+// Initialize shot tracker with proper configuration
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Shot Tracker widget loaded');
+    
+    // Get CSRF token from meta tag
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    
+    // Initialize shot tracker if container exists
+    const container = document.getElementById('shot-tracker-container');
+    if (container && typeof ShotTracker !== 'undefined') {
+        const options = {
+            apiBaseUrl: '/api/shoot/',
+            csrfToken: csrfToken,
+            mode: container.dataset.mode || 'practice',
+            matchId: container.dataset.matchId || null,
+            inning: container.dataset.inning || null
+        };
+        
+        // Create global shot tracker instance
+        window.shotTracker = new ShotTracker(container, options);
+    }
+});
+</script>

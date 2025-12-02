@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Session Summary - Petanque Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Session summary specific styles */
+.summary-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.summary-header {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    text-align: center;
+    box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    border: 1px solid #e9ecef;
+}
+
+.stat-card.highlight {
+    border-color: #3f51b5;
+    box-shadow: 0 0.25rem 0.5rem rgba(63, 81, 181, 0.1);
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+.stat-description {
+    font-size: 0.75rem;
+    color: #868e96;
+}
+
+.shot-sequence {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.shot-badge {
+    display: inline-block;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 36px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin: 0.25rem;
+    color: white;
+    position: relative;
+}
+
+.shot-badge-miss {
+    background-color: #dc3545;
+}
+
+.shot-badge-hit {
+    background-color: #28a745;
+}
+
+.shot-badge-carreau {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.shot-badge:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}
+
+.performance-note {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    padding: 1rem;
+    border-radius: 0 0.25rem 0.25rem 0;
+    margin: 1.5rem 0;
+}
+
+.session-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 576px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+    }
+    
+    .session-actions {
+        flex-direction: column;
+    }
+    
+    .shot-badge {
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="summary-container">
+        <!-- Back Navigation -->
+        <div class="mb-3">
+            <a href="{% url 'practice:shooting_practice' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-2"></i>Back to Practice
+            </a>
+        </div>
+
+        <!-- Session Summary Header -->
+        <div class="summary-header">
+            <h1 class="h2 mb-3">
+                <i class="fas fa-chart-line me-2"></i>Session Complete!
+            </h1>
+            <p class="mb-2 opacity-75">{{ session.started_at|date:"F d, Y" }} at {{ session.started_at|time:"H:i" }}</p>
+            <p class="mb-1">
+                <strong>{{ player_name|default:session.player_codename }}</strong> • 
+                Duration: {{ summary.duration }}
+            </p>
+            <p class="mb-0 opacity-75">
+                <i class="fas fa-ruler me-1"></i>Distance: <strong>{{ session.distance }}</strong> • 
+                <i class="fas fa-sort-numeric-down me-1"></i>Sequence Tracking: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong>
+            </p>
+        </div>
+
+        <!-- Main Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card highlight">
+                <div class="stat-value text-primary">{{ summary.total_shots }}</div>
+                <div class="stat-label">Total Shots</div>
+                <div class="stat-description">Shots recorded</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value text-success">{{ summary.hit_percentage }}%</div>
+                <div class="stat-label">Hit Rate</div>
+                <div class="stat-description">Successful shots</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value text-warning">{{ summary.carreau_percentage }}%</div>
+                <div class="stat-label">Carreau Rate</div>
+                <div class="stat-description">Perfect shots</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value text-info">{{ summary.longest_streak }}</div>
+                <div class="stat-label">Best Streak</div>
+                <div class="stat-description">Consecutive hits</div>
+            </div>
+        </div>
+
+        <!-- Performance Insights -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>Performance Insights
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted">Session Breakdown</h6>
+                                <ul class="list-unstyled">
+                                    {% if session.practice_type == 'shooting' %}
+                                        <li class="mb-2">
+                                            <span class="badge bg-warning text-dark me-2">{{ session.carreaux }}</span>
+                                            🤩 Carreaux ({{ session.carreau_percentage|floatformat:1 }}%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <span class="badge bg-info me-2">{{ session.petit_carreaux }}</span>
+                                            💪 Petit Carreaux ({{ session.petit_carreau_percentage|floatformat:1 }}%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <span class="badge bg-success me-2">{{ session.hits }}</span>
+                                            👍 Hits ({{ session.hit_percentage|floatformat:1 }}%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <span class="badge bg-danger me-2">{{ session.misses }}</span>
+                                            😳 Misses ({{ session.miss_percentage|floatformat:1 }}%)
+                                        </li>
+                                    {% else %}
+                                        <li class="mb-2">
+                                            <span class="badge bg-warning text-dark me-2">{{ session.perfects }}</span>
+                                            🤩 Perfect ({{ session.perfect_percentage|floatformat:1 }}%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <span class="badge bg-info me-2">{{ session.goods }}</span>
+                                            💪 Good ({{ session.good_percentage|floatformat:1 }}%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <span class="badge bg-success me-2">{{ session.fairs }}</span>
+                                            👍 Fair ({{ session.fair_percentage|floatformat:1 }}%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <span class="badge bg-danger me-2">{{ session.fars }}</span>
+                                            😳 Far ({{ session.far_percentage|floatformat:1 }}%)
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-muted">Key Metrics</h6>
+                                <ul class="list-unstyled">
+                                    {% if summary.first_miss_position %}
+                                        <li class="mb-2">
+                                            <i class="fas fa-crosshairs text-warning me-2"></i>
+                                            First miss at shot #{{ summary.first_miss_position }}
+                                        </li>
+                                    {% endif %}
+                                    <li class="mb-2">
+                                        <i class="fas fa-fire text-danger me-2"></i>
+                                        Longest streak: {{ summary.longest_streak }} shots
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-clock text-info me-2"></i>
+                                        Session duration: {{ summary.duration }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        {% if summary.performance_note %}
+                            <div class="performance-note">
+                                <h6 class="mb-2">
+                                    <i class="fas fa-chart-line me-2"></i>Performance Pattern
+                                </h6>
+                                <p class="mb-0">{{ summary.performance_note }}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shot Sequence -->
+        {% if shots %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list-ol me-2"></i>Shot Sequence
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="shot-sequence">
+                        {% for shot in shots %}
+                            <span class="shot-badge shot-badge-{{ shot.outcome }}" 
+                                  title="Shot #{{ shot.sequence_number }}: {{ shot.get_outcome_display }} at {{ shot.timestamp|time:'H:i:s' }}">
+                                {% if shot.outcome == 'carreau' %}🤩{% elif shot.outcome == 'petit_carreau' %}💪{% elif shot.outcome == 'hit' %}👍{% else %}😳{% endif %}
+                            </span>
+                            {% if forloop.counter|divisibleby:20 and not forloop.last %}
+                                <br><br>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Hover over badges to see shot details
+                        </small>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Session Actions -->
+        <div class="session-actions">
+            <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary">
+                <i class="fas fa-play me-2"></i>Start New Session
+            </a>
+            <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-home me-2"></i>Practice Home
+            </a>
+            <button class="btn btn-outline-info" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Summary
+            </button>
+        </div>
+
+        <!-- Motivational Message -->
+        <div class="card mt-4 border-success">
+            <div class="card-body text-center">
+                {% if summary.hit_percentage >= 80 %}
+                    <h5 class="text-success mb-2">
+                        <i class="fas fa-trophy me-2"></i>Excellent Performance!
+                    </h5>
+                    <p class="text-muted mb-0">Your accuracy is outstanding. Keep up the great work!</p>
+                {% elif summary.hit_percentage >= 60 %}
+                    <h5 class="text-primary mb-2">
+                        <i class="fas fa-thumbs-up me-2"></i>Good Session!
+                    </h5>
+                    <p class="text-muted mb-0">Solid performance. Practice regularly to improve further.</p>
+                {% else %}
+                    <h5 class="text-warning mb-2">
+                        <i class="fas fa-target me-2"></i>Keep Practicing!
+                    </h5>
+                    <p class="text-muted mb-0">Every session helps you improve. Focus on consistency.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add any session summary specific JavaScript here
+document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to shot badges
+    const shotBadges = document.querySelectorAll('.shot-badge');
+    shotBadges.forEach(badge => {
+        badge.addEventListener('mouseenter', function() {
+            this.style.zIndex = '1000';
+        });
+        badge.addEventListener('mouseleave', function() {
+            this.style.zIndex = '';
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -63,7 +63,12 @@
         
         <div class="mb-3">
             <label for="id_pin" class="form-label">Enter Team PIN to Activate:</label>
-            <input type="password" name="pin" maxlength="6" class="form-control" placeholder="Enter your 6-digit PIN" required id="id_pin">
+            <input type="password" name="pin" maxlength="6" class="form-control" placeholder="Enter your 6-digit PIN" required id="id_pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
+            {% if request.session.team_pin %}
+            <div class="form-text text-success">
+                <i class="fas fa-check-circle"></i> Auto-filled from saved PIN
+            </div>
+            {% endif %}
         </div>
         
         <div class="mb-3">

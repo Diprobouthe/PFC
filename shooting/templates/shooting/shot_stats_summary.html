@@ -1,0 +1,171 @@
+{% load static %}
+
+<!-- Shooting Practice Statistics Summary -->
+{% if has_stats %}
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h6 class="mb-0">
+            <i class="fas fa-chart-line me-2"></i>🎯 Shooting Practice Stats
+        </h6>
+    </div>
+    <div class="card-body">
+        <!-- Overall Statistics -->
+        <div class="row text-center mb-3">
+            <div class="col-6">
+                <div class="border-end">
+                    <h4 class="text-primary mb-1">{{ stats.total_sessions }}</h4>
+                    <small class="text-muted">Sessions</small>
+                </div>
+            </div>
+            <div class="col-6">
+                <h4 class="text-primary mb-1">{{ stats.total_shots }}</h4>
+                <small class="text-muted">Total Shots</small>
+            </div>
+        </div>
+
+        <!-- Accuracy Metrics -->
+        <div class="mb-3">
+            <h6 class="text-muted mb-2" style="font-size: 0.9rem;">Accuracy</h6>
+            
+            <!-- Hit Rate -->
+            <div class="mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small">Hit Rate</span>
+                    <span class="badge bg-success">{{ stats.overall_hit_percentage|floatformat:1 }}%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: {{ stats.overall_hit_percentage }}%;" 
+                         aria-valuenow="{{ stats.overall_hit_percentage }}" 
+                         aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Carreau Rate -->
+            <div class="mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small">Carreau Rate</span>
+                    <span class="badge bg-warning text-dark">{{ stats.overall_carreau_percentage|floatformat:1 }}%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-warning" role="progressbar" 
+                         style="width: {{ stats.overall_carreau_percentage }}%;" 
+                         aria-valuenow="{{ stats.overall_carreau_percentage }}" 
+                         aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shot Breakdown -->
+        <div class="mb-3">
+            <h6 class="text-muted mb-2" style="font-size: 0.9rem;">Shot Breakdown</h6>
+            <div class="row g-2 text-center">
+                <div class="col-4">
+                    <div class="p-2 border rounded">
+                        <div class="h5 mb-0">⭐</div>
+                        <div class="small fw-bold">{{ stats.total_carreaux }}</div>
+                        <div class="x-small text-muted">Carreau</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-2 border rounded">
+                        <div class="h5 mb-0">✅</div>
+                        <div class="small fw-bold">{{ stats.total_hits }}</div>
+                        <div class="x-small text-muted">Hits</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-2 border rounded">
+                        <div class="h5 mb-0">❌</div>
+                        <div class="small fw-bold">{{ stats.total_misses }}</div>
+                        <div class="x-small text-muted">Misses</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Best Streak -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                <span class="small">
+                    <i class="fas fa-fire text-danger me-1"></i>Best Streak
+                </span>
+                <span class="badge bg-danger">{{ stats.best_hit_streak }} shots</span>
+            </div>
+        </div>
+
+        <!-- Recent Sessions -->
+        {% if recent_sessions %}
+        <div class="mb-2">
+            <h6 class="text-muted mb-2" style="font-size: 0.9rem;">Recent Sessions</h6>
+            <div class="list-group list-group-flush">
+                {% for session in recent_sessions %}
+                <a href="{% url 'practice:session_summary' session.id %}" 
+                   class="list-group-item list-group-item-action px-0 py-2 border-0 small">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="far fa-calendar me-1"></i>
+                            {{ session.ended_at|date:"M d, Y" }}
+                        </div>
+                        <div>
+                            <span class="badge badge-sm bg-secondary">{{ session.total_shots }} shots</span>
+                            <span class="badge badge-sm bg-success">{{ session.hit_percentage|floatformat:0 }}%</span>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action Button -->
+        <div class="d-grid mt-3">
+            <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-bullseye me-1"></i>Start Practice Session
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .x-small {
+        font-size: 0.7rem;
+    }
+    .badge-sm {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    .border-end {
+        border-right: 1px solid #dee2e6 !important;
+    }
+    @media (max-width: 768px) {
+        .border-end {
+            border-right: none !important;
+            border-bottom: 1px solid #dee2e6 !important;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+    }
+</style>
+
+{% else %}
+<!-- No Statistics Available -->
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h6 class="mb-0">
+            <i class="fas fa-chart-line me-2"></i>🎯 Shooting Practice Stats
+        </h6>
+    </div>
+    <div class="card-body text-center py-4">
+        <div class="text-muted mb-3">
+            <i class="fas fa-bullseye fa-3x opacity-25"></i>
+        </div>
+        <p class="text-muted mb-3 small">No practice sessions yet</p>
+        <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary btn-sm">
+            <i class="fas fa-play me-1"></i>Start Your First Session
+        </a>
+    </div>
+</div>
+{% endif %}

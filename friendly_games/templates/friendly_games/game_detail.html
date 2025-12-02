@@ -282,6 +282,14 @@ Let's play! 🥎
                                 </small>
                             {% endif %}
                         </div>
+                        
+                        <!-- Rematch Button -->
+                        <a href="{% url 'friendly_games:rematch' game.id %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-redo"></i> Rematch - Play Again
+                        </a>
+                        <small class="text-muted text-center mt-2">
+                            Create a new game with the same players and positions
+                        </small>
                         {% endif %}
                         
                         <a href="{% url 'friendly_games:create_game' %}" class="btn btn-outline-success">

@@ -148,7 +148,14 @@ class BillboardListView(ListView):
         
         # Group entries by action type for better display
         entries = context['entries']
-        context['at_courts'] = [e for e in entries if e.action_type == 'AT_COURTS']
+        
+        # "Currently at Courts" should only show people from the last 4 hours (average court visit time)
+        # Other sections keep the 24-hour window
+        at_courts_cutoff = timezone.now() - timedelta(hours=4)
+        context['at_courts'] = [
+            e for e in entries 
+            if e.action_type == 'AT_COURTS' and e.created_at >= at_courts_cutoff
+        ]
         context['going_to_courts'] = [e for e in entries if e.action_type == 'GOING_TO_COURTS']
         context['looking_for_match'] = [e for e in entries if e.action_type == 'LOOKING_FOR_MATCH']
         

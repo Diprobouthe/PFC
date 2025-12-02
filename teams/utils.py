@@ -135,3 +135,140 @@ def get_player_participation_summary(player):
             'participation_rate': 100.0 if team_matches > 0 else 0
         }
 
+
+
+# ============================================================================
+# Team PIN Automation Utilities
+# ============================================================================
+
+def get_team_pin_from_codename(codename):
+    """
+    Get team PIN for a player based on their codename.
+    
+    Args:
+        codename (str): Player's codename (e.g., "P11111")
+    
+    Returns:
+        dict: Dictionary containing team info and PIN, or None if not found
+        {
+            'team_name': str,
+            'team_pin': str,
+            'player_name': str,
+            'player_id': int,
+            'team_id': int
+        }
+    """
+    try:
+        from friendly_games.models import PlayerCodename
+        
+        # Find the player codename object
+        player_codename = PlayerCodename.objects.select_related(
+            'player__team'
+        ).get(codename=codename)
+        
+        player = player_codename.player
+        team = player.team
+        
+        return {
+            'team_name': team.name,
+            'team_pin': team.pin,
+            'player_name': player.name,
+            'player_id': player.id,
+            'team_id': team.id,
+            'is_captain': player.is_captain
+        }
+    except Exception as e:
+        # Return None if codename not found or any error occurs
+        return None
+
+
+def get_team_pin_from_player(player):
+    """
+    Get team PIN for a player object.
+    
+    Args:
+        player: Player model instance
+    
+    Returns:
+        str: Team PIN or None if player has no team
+    """
+    try:
+        if player and hasattr(player, 'team') and player.team:
+            return player.team.pin
+    except Exception:
+        pass
+    return None
+
+
+def get_player_from_session(request):
+    """
+    Get player object from session data.
+    
+    Args:
+        request: Django request object
+    
+    Returns:
+        Player: Player object or None
+    """
+    try:
+        from teams.models import Player
+        
+        player_id = request.session.get('player_id')
+        if player_id:
+            return Player.objects.select_related('team').get(id=player_id)
+    except Exception:
+        pass
+    return None
+
+
+def get_team_info_from_session(request):
+    """
+    Get complete team information from session.
+    Checks team login, player_id, and codename in session.
+    
+    Args:
+        request: Django request object
+    
+    Returns:
+        dict: Team info dictionary or None
+    """
+    from pfc_core.team_session_utils import TeamSessionManager
+    
+    # First priority: Check if team is logged in directly via Team Login
+    if TeamSessionManager.is_team_logged_in(request):
+        team_pin = TeamSessionManager.get_team_pin(request)
+        team_name = TeamSessionManager.get_team_name(request)
+        
+        # Get full team info from PIN
+        try:
+            from teams.models import Team
+            team = Team.objects.get(pin=team_pin)
+            return {
+                'team_name': team_name,
+                'team_pin': team_pin,
+                'team_id': team.id,
+                'player_name': None,  # No specific player when team logs in
+                'player_id': None,
+                'is_captain': False  # Not applicable for team login
+            }
+        except Team.DoesNotExist:
+            pass
+    
+    # Second priority: Try to get from player_id
+    player = get_player_from_session(request)
+    if player:
+        return {
+            'team_name': player.team.name,
+            'team_pin': player.team.pin,
+            'player_name': player.name,
+            'player_id': player.id,
+            'team_id': player.team.id,
+            'is_captain': player.is_captain
+        }
+    
+    # Third priority: Try to get from codename if player_id not found
+    codename = request.session.get('player_codename')
+    if codename:
+        return get_team_pin_from_codename(codename)
+    
+    return None

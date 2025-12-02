@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from .views_submit_score_list import submit_score_list
 from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Q
@@ -737,3 +738,43 @@ def check_codename(request, game_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+
+
+def rematch(request, game_id):
+    """
+    Create a new friendly game with the same players and configuration as the completed game.
+    This allows for quick rematch without re-entering all player details.
+    """
+    # Get the original game
+    original_game = get_object_or_404(FriendlyGame, id=game_id)
+    
+    # Create new game with same configuration
+    new_game = FriendlyGame.objects.create(
+        name=f"{original_game.name} - Rematch",
+        target_score=original_game.target_score,
+        status='WAITING_FOR_PLAYERS'
+    )
+    
+    # Copy all players with same teams and positions
+    original_players = original_game.players.all()
+    
+    for original_player in original_players:
+        FriendlyGamePlayer.objects.create(
+            game=new_game,
+            player=original_player.player,
+            team=original_player.team,
+            position=original_player.position,
+            provided_codename=original_player.provided_codename,
+            codename_verified=original_player.codename_verified
+        )
+    
+    # Update validation status for new game
+    new_game.update_validation_status()
+    
+    messages.success(
+        request, 
+        f'Rematch created! All players from the previous game have been added. Match #{new_game.match_number}'
+    )
+    
+    # Redirect to the new game detail page
+    return redirect('friendly_games:game_detail', game_id=new_game.id)

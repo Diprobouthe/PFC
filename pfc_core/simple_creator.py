@@ -164,7 +164,7 @@ def create_simple_tournament(request):
         
         tournament = Tournament.objects.create(
             name=tournament_name,
-            description=f"Simple {scenario['name']} tournament with {num_courts} virtual courts",
+            description=f"Simple {scenario['name']} tournament with {num_courts} courts",
             start_date=start_datetime,
             end_date=end_datetime,
             format="multi_stage",
@@ -179,14 +179,34 @@ def create_simple_tournament(request):
             max_participants=max_players  # Set registration limit based on scenario
         )
         
-        # Create virtual courts for this tournament
+        # Assign real courts from scenario's default court complex
+        from tournaments.models import TournamentCourt
         try:
-            from simple_creator.models import VirtualCourt
-            VirtualCourt.create_for_tournament(tournament, num_courts)
-        except ImportError:
-            # Fallback: create simple virtual court records in tournament description
-            tournament.description += f" | Virtual Courts: {num_courts} courts (VC-1 to VC-{num_courts})"
-            tournament.save()
+            scenario_obj = TournamentScenario.objects.get(name=scenario_key)
+            if not scenario_obj.default_court_complex:
+                raise ValueError(f"Scenario '{scenario['name']}' does not have a default court complex assigned")
+            
+            # Get available courts from the scenario's court complex
+            available_courts = Court.objects.filter(
+                courtcomplex=scenario_obj.default_court_complex,
+                is_available=True
+            ).order_by('name')[:num_courts]
+            
+            if available_courts.count() < num_courts:
+                raise ValueError(f"Not enough courts available in {scenario_obj.default_court_complex.name}. Requested: {num_courts}, Available: {available_courts.count()}")
+            
+            # Assign courts to tournament
+            for court in available_courts:
+                TournamentCourt.objects.create(
+                    tournament=tournament,
+                    court=court
+                )
+            
+            print(f"DEBUG: Assigned {available_courts.count()} courts from {scenario_obj.default_court_complex.name}")
+        except Exception as e:
+            print(f"ERROR: Failed to assign courts: {str(e)}")
+            tournament.delete()
+            raise
         
         # Create tournament stage
         stage = Stage.objects.create(
@@ -221,15 +241,15 @@ def create_simple_tournament(request):
                 VOUCHER_CODES[voucher_code]['used'] = True
         
         # Store creation info for success page
-        virtual_courts = [{'name': f'VC-{i}', 'number': i} for i in range(1, num_courts + 1)]
+        real_courts = [{'name': court.name, 'number': idx+1} for idx, court in enumerate(available_courts)]
         
         request.session['simple_tournament_info'] = {
             'tournament_id': tournament.id,
             'tournament_name': tournament.name,
             'scenario': scenario['name'],
             'format': format_type.title(),
-            'court_complex': 'Virtual Courts',
-            'selected_courts': virtual_courts,
+            'court_complex': scenario_obj.default_court_complex.name,
+            'selected_courts': real_courts,
             'num_courts': num_courts,
             'start_date': start_datetime.strftime('%Y-%m-%d %H:%M'),
             'voucher_used': voucher_code if not scenario['is_free'] else None,
@@ -238,7 +258,7 @@ def create_simple_tournament(request):
             'status': 'created',  # Tournament created but not started
         }
         
-        messages.success(request, f'Tournament "{tournament_name}" created successfully with {num_courts} virtual courts!')
+        messages.success(request, f'Tournament "{tournament_name}" created successfully with {num_courts} courts from {scenario_obj.default_court_complex.name}!')
         return redirect('simple_creator_success')
         
     except Exception as e:

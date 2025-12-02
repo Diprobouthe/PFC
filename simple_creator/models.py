@@ -15,6 +15,13 @@ class TournamentScenario(models.Model):
     max_doubles_players = models.IntegerField(default=12)
     max_triples_players = models.IntegerField(default=18)
     
+    # Court complex configuration
+    default_court_complex = models.ForeignKey(
+        CourtComplex,
+        on_delete=models.PROTECT,
+        help_text="Court complex to use for tournaments with this scenario (required)"
+    )
+    
     # Virtual courts configuration
     max_courts = models.PositiveIntegerField(default=4, help_text="Maximum number of courts this scenario can use")
     recommended_courts = models.PositiveIntegerField(default=3, help_text="Default/recommended number of courts for this scenario")
@@ -95,7 +102,7 @@ class SimpleTournament(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        court_info = f"{self.num_courts} virtual courts" if self.uses_virtual_courts else f"{self.court_complex.name}"
+        court_info = self.court_complex.name if self.court_complex else "No courts"
         return f"{self.scenario.display_name} - {self.format_type.title()} ({court_info})"
     
     @classmethod

@@ -19,6 +19,12 @@ urlpatterns = [
     path('friendly-games/', include('friendly_games.urls')),  # New parallel friendly games system
     path('billboard/', include('billboard.urls')),  # Billboard module for player activity declarations
     
+    # Shot Accuracy Tracker API
+    path('api/shoot/', include('shooting.urls')),
+    
+    # Shooting Practice Module (v0.1)
+    path('practice/', include('practice.urls')),
+    
     # Simple Tournament Creator
     path('simple/', simple_creator.simple_creator_home, name='simple_creator_home'),
     path('simple/create/', simple_creator.create_simple_tournament, name='create_simple_tournament'),
