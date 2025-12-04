@@ -90,7 +90,7 @@ class Match(models.Model):
         total_seconds = self.time_limit_minutes * 60
         remaining = total_seconds - elapsed.total_seconds()
         
-        return max(0, remaining)  # Never negative
+        return int(max(0, remaining))  # Never negative
     
     @property
     def time_remaining_display(self):
