@@ -1,6 +1,13 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import TournamentScenario, VoucherCode, SimpleTournament
+from .models import TournamentScenario, VoucherCode, SimpleTournament, ScenarioStage
+
+
+class ScenarioStageInline(admin.TabularInline):
+    model = ScenarioStage
+    extra = 1
+    fields = ['stage_number', 'name', 'format', 'num_rounds_in_stage', 'num_qualifiers', 'num_matches_per_team']
+    ordering = ['stage_number']
 
 
 @admin.register(TournamentScenario)
@@ -27,11 +34,17 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
         ('Tournament Configuration', {
             'fields': ('tournament_type', 'num_rounds', 'matches_per_team', 'draft_type')
         }),
+        ('Match Timer Configuration', {
+            'fields': ('default_time_limit_minutes',),
+            'description': 'Set default time limit for all matches in tournaments using this scenario.'
+        }),
         ('Metadata', {
             'fields': ('created_at',),
             'classes': ('collapse',)
         })
     )
+    
+    inlines = [ScenarioStageInline]
 
 
 @admin.register(VoucherCode)

@@ -31,6 +31,9 @@ class TournamentScenario(models.Model):
     tournament_type = models.CharField(max_length=20, choices=[
         ('swiss', 'Swiss'),
         ('round_robin', 'Round Robin'),
+        ('knockout', 'Knockout'),
+        ('wtf', 'WTF (πετΑ Index)'),
+        ('smart_swiss', 'Smart Swiss'),
     ])
     num_rounds = models.IntegerField(default=3)
     matches_per_team = models.IntegerField(default=3)
@@ -40,6 +43,13 @@ class TournamentScenario(models.Model):
         ('random', 'Random Draft'),
     ])
     
+    # Match timer configuration
+    default_time_limit_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Default time limit in minutes for all matches in this scenario (optional)"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
@@ -48,6 +58,42 @@ class TournamentScenario(models.Model):
     def get_court_range(self):
         """Get the valid range of courts for this scenario"""
         return range(1, self.max_courts + 1)
+
+
+class ScenarioStage(models.Model):
+    """Model for individual stages within a scenario (template for tournament stages)"""
+    STAGE_FORMATS = [
+        ("swiss", "Swiss System"),
+        ("smart_swiss", "Smart Swiss System"),
+        ("wtf", "WTF (πετΑ Index)"),
+        ("poule", "Poules/Groups"),
+        ("knockout", "Knockout"),
+        ("round_robin", "Round Robin"),
+    ]
+    
+    scenario = models.ForeignKey(TournamentScenario, related_name="scenario_stages", on_delete=models.CASCADE)
+    stage_number = models.PositiveIntegerField()
+    name = models.CharField(max_length=100, blank=True)
+    format = models.CharField(max_length=20, choices=STAGE_FORMATS)
+    num_qualifiers = models.PositiveIntegerField(
+        help_text="Number of teams advancing FROM this stage (0 for final stage)"
+    )
+    num_rounds_in_stage = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of rounds within this stage (e.g., for Swiss)"
+    )
+    num_matches_per_team = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of matches per team for Incomplete Round Robin format (leave blank for full Round Robin)"
+    )
+    
+    class Meta:
+        unique_together = ("scenario", "stage_number")
+        ordering = ["stage_number"]
+    
+    def __str__(self):
+        return f"Stage {self.stage_number}: {self.name} ({self.scenario.display_name})"
 
 
 class VoucherCode(models.Model):

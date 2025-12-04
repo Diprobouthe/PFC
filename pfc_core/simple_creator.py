@@ -162,6 +162,15 @@ def create_simple_tournament(request):
         max_players = scenario[f'max_{format_type}']  # Use scenario limit for max participants
         tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
         
+        # Get timer from scenario object if available
+        timer_minutes = None
+        if USE_DYNAMIC_SCENARIOS and 'id' in scenario:
+            try:
+                scenario_obj = TournamentScenario.objects.get(id=scenario['id'])
+                timer_minutes = scenario_obj.default_time_limit_minutes
+            except TournamentScenario.DoesNotExist:
+                pass
+        
         tournament = Tournament.objects.create(
             name=tournament_name,
             description=f"Simple {scenario['name']} tournament with {num_courts} courts",
@@ -176,7 +185,8 @@ def create_simple_tournament(request):
             melee_format="triplets" if format_type == "triples" else "doublets",
             melee_teams_generated=False,
             automation_status="idle",
-            max_participants=max_players  # Set registration limit based on scenario
+            max_participants=max_players,  # Set registration limit based on scenario
+            default_time_limit_minutes=timer_minutes  # Apply scenario timer
         )
         
         # Assign real courts from scenario's default court complex

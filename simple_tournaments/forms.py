@@ -49,6 +49,16 @@ class TournamentCreationForm(forms.Form):
         help_text="Optional: Your name for tournament records"
     )
     
+    time_limit_minutes = forms.IntegerField(
+        required=False,
+        min_value=1,
+        widget=forms.NumberInput(attrs={
+            'placeholder': 'e.g., 45',
+            'class': 'form-control'
+        }),
+        help_text="Optional: Time limit in minutes for all matches (e.g., 45 for 45 minutes)"
+    )
+    
     def clean(self):
         cleaned_data = super().clean()
         scenario = cleaned_data.get('scenario')

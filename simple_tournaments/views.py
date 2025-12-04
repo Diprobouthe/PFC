@@ -89,6 +89,7 @@ def _create_tournament(data):
     court_complex = data['court_complex']
     voucher_code = data.get('voucher_code')
     creator_name = data.get('creator_name', 'Anonymous')
+    time_limit_minutes = data.get('time_limit_minutes')
     
     # Validate and consume voucher if required
     voucher = None
@@ -108,7 +109,8 @@ def _create_tournament(data):
         name=tournament_name,
         tournament_type='melee',
         is_multi_stage=False,
-        status='active'
+        status='active',
+        default_time_limit_minutes=time_limit_minutes
     )
     
     # Create stage

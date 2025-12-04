@@ -52,6 +52,22 @@ class Match(models.Model):
     match_type = models.CharField(max_length=20, choices=MATCH_TYPE_CHOICES, null=True, blank=True, help_text="Type of match based on player count")
     team1_player_count = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Number of players from team 1")
     team2_player_count = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Number of players from team 2")
+    
+    # Timer configuration (admin-configurable)
+    time_limit_minutes = models.PositiveIntegerField(
+        null=True, 
+        blank=True,
+        help_text="Time limit in minutes (optional). Timer starts when both teams activate the match."
+    )
+    timer_expired = models.BooleanField(
+        default=False,
+        help_text="Whether the time limit has been reached"
+    )
+    timer_expired_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the timer expired (if applicable)"
+    )
 
     @property
     def is_draw(self):
@@ -59,6 +75,41 @@ class Match(models.Model):
         if self.team1_score is not None and self.team2_score is not None:
             return self.team1_score == self.team2_score
         return False
+    
+    @property
+    def time_remaining_seconds(self):
+        """Calculate remaining time in seconds. Returns None if no timer set."""
+        if not self.time_limit_minutes or not self.start_time:
+            return None
+        
+        if self.status not in ["active", "waiting_validation"]:
+            return None
+        
+        # Calculate elapsed time
+        elapsed = timezone.now() - self.start_time
+        total_seconds = self.time_limit_minutes * 60
+        remaining = total_seconds - elapsed.total_seconds()
+        
+        return max(0, remaining)  # Never negative
+    
+    @property
+    def time_remaining_display(self):
+        """Human-readable time remaining (MM:SS format)."""
+        remaining = self.time_remaining_seconds
+        if remaining is None:
+            return None
+        
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
+        return f"{minutes:02d}:{seconds:02d}"
+    
+    @property
+    def is_time_expired(self):
+        """Check if timer has expired."""
+        remaining = self.time_remaining_seconds
+        if remaining is None:
+            return False
+        return remaining == 0
 
     def __str__(self):
         round_info = f"R{self.round.number}" if self.round else "" 

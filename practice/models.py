@@ -29,6 +29,7 @@ class PracticeSession(models.Model):
         ('8m', '8 meters'),
         ('9m', '9 meters'),
         ('10m', '10 meters'),
+        ('ing', 'InG'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -101,10 +102,18 @@ class PracticeSession(models.Model):
     
     @property
     def hit_percentage(self):
-        """Calculate hit percentage"""
+        """Calculate hit percentage (success rate for both shooting and pointing)"""
         if self.total_shots == 0:
             return 0.0
-        return (self.hits / self.total_shots) * 100
+        
+        if self.practice_type == 'shooting':
+            # For shooting: hits + petit_carreaux + carreaux = successful shots
+            successful_shots = self.hits + self.petit_carreaux + self.carreaux
+        else:  # pointing
+            # For pointing: perfects + petit_perfects + goods + fairs = successful shots
+            successful_shots = self.perfects + self.petit_perfects + self.goods + self.fairs
+        
+        return (successful_shots / self.total_shots) * 100
     
     @property
     def carreau_percentage(self):
@@ -112,6 +121,13 @@ class PracticeSession(models.Model):
         if self.total_shots == 0:
             return 0.0
         return (self.carreaux / self.total_shots) * 100
+    
+    @property
+    def petit_carreau_percentage(self):
+        """Calculate petit carreau percentage"""
+        if self.total_shots == 0:
+            return 0.0
+        return (self.petit_carreaux / self.total_shots) * 100
     
     @property
     def miss_percentage(self):

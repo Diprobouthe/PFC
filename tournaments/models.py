@@ -108,6 +108,13 @@ class Tournament(models.Model):
         help_text="Alternative text for banner image (for accessibility)"
     )
     
+    # Default timer configuration for all matches in this tournament
+    default_time_limit_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Default time limit in minutes for all matches in this tournament (optional). Applied automatically when matches are created."
+    )
+    
     def __str__(self):
         return self.name
     
@@ -201,7 +208,8 @@ class Tournament(models.Model):
                         round=round_obj,
                         team1=teams[i].team,
                         team2=teams[j].team,
-                        status="pending"
+                        status="pending",
+                        time_limit_minutes=self.default_time_limit_minutes
                     )
                     matches_created += 1
                     logger.debug(f"Created match: {teams[i].team} vs {teams[j].team}")
@@ -218,7 +226,8 @@ class Tournament(models.Model):
                     round=round_obj,
                     team1=teams[i].team,
                     team2=teams[i + 1].team,
-                    status="pending"
+                    status="pending",
+                    time_limit_minutes=self.default_time_limit_minutes
                 )
                 matches_created += 1
                 logger.debug(f"Created match: {teams[i].team} vs {teams[i + 1].team}")
@@ -240,7 +249,8 @@ class Tournament(models.Model):
                     round=round_obj,
                     team1=teams_copy[i].team,
                     team2=teams_copy[i + 1].team,
-                    status="pending"
+                    status="pending",
+                    time_limit_minutes=self.default_time_limit_minutes
                 )
                 matches_created += 1
                 logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
@@ -264,7 +274,8 @@ class Tournament(models.Model):
                     round=round_obj,
                     team1=teams_copy[i].team,
                     team2=teams_copy[i + 1].team,
-                    status="pending"
+                    status="pending",
+                    time_limit_minutes=self.default_time_limit_minutes
                 )
                 matches_created += 1
                 logger.debug(f"Created WTF match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
@@ -847,7 +858,8 @@ class Tournament(models.Model):
                     round=round_obj,
                     team1=team1,
                     team2=team2,
-                    status="pending"
+                    status="pending",
+                    time_limit_minutes=self.default_time_limit_minutes
                 )
                 matches_created += 1
                 
@@ -992,7 +1004,8 @@ class Tournament(models.Model):
                 round=next_round,
                 team1=winners[i],
                 team2=winners[i + 1],
-                status="pending"
+                status="pending",
+                time_limit_minutes=self.default_time_limit_minutes
             )
             matches_created += 1
             logger.debug(f"Created next round match: {winners[i].name} vs {winners[i + 1].name}")
@@ -1290,7 +1303,8 @@ class Stage(models.Model):
                     round=round_obj,
                     team1=teams[i].team,
                     team2=teams[j].team,
-                    status="pending"
+                    status="pending",
+                    time_limit_minutes=self.tournament.default_time_limit_minutes
                 )
                 matches_created += 1
                 logger.debug(f"Created match: {teams[i].team} vs {teams[j].team}")
@@ -1426,7 +1440,8 @@ class Stage(models.Model):
                     round=round_obj,
                     team1=team1.team,
                     team2=team2.team,
-                    status="pending"
+                    status="pending",
+                    time_limit_minutes=self.tournament.default_time_limit_minutes
                 )
                 matches_created += 1
                 
@@ -1488,7 +1503,8 @@ class Stage(models.Model):
                 round=round_obj,
                 team1=teams_copy[i].team,
                 team2=teams_copy[i + 1].team,
-                status="pending"
+                status="pending",
+                time_limit_minutes=self.tournament.default_time_limit_minutes
             )
             matches_created += 1
             logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
@@ -1523,7 +1539,8 @@ class Stage(models.Model):
                 stage=self,  # Important: set the stage for multi-stage tournaments
                 team1=teams_copy[i].team,
                 team2=teams_copy[i + 1].team,
-                status="pending"
+                status="pending",
+                time_limit_minutes=self.tournament.default_time_limit_minutes
             )
             matches_created += 1
             logger.debug(f"Created Smart Swiss match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
@@ -1558,7 +1575,8 @@ class Stage(models.Model):
                 stage=self,  # Important: set the stage for multi-stage tournaments
                 team1=teams_copy[i].team,
                 team2=teams_copy[i + 1].team,
-                status="pending"
+                status="pending",
+                time_limit_minutes=self.tournament.default_time_limit_minutes
             )
             matches_created += 1
             logger.debug(f"Created WTF match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")
@@ -1590,7 +1608,8 @@ class Stage(models.Model):
                 round=round_obj,
                 team1=teams_copy[i].team,
                 team2=teams_copy[i + 1].team,
-                status="pending"
+                status="pending",
+                time_limit_minutes=self.tournament.default_time_limit_minutes
             )
             matches_created += 1
             logger.debug(f"Created match: {teams_copy[i].team} vs {teams_copy[i + 1].team}")

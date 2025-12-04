@@ -294,7 +294,7 @@
                         {% for shot in shots %}
                             <span class="shot-badge shot-badge-{{ shot.outcome }}" 
                                   title="Shot #{{ shot.sequence_number }}: {{ shot.get_outcome_display }} at {{ shot.timestamp|time:'H:i:s' }}">
-                                {% if shot.outcome == 'carreau' %}🤩{% elif shot.outcome == 'petit_carreau' %}💪{% elif shot.outcome == 'hit' %}👍{% else %}😳{% endif %}
+                                {% if shot.outcome == 'carreau' or shot.outcome == 'perfect' %}🤩{% elif shot.outcome == 'petit_carreau' or shot.outcome == 'petit_perfect' %}💪{% elif shot.outcome == 'hit' or shot.outcome == 'good' %}👍{% elif shot.outcome == 'fair' %}😊{% elif shot.outcome == 'far' or shot.outcome == 'very_far' %}😳{% else %}😳{% endif %}
                             </span>
                             {% if forloop.counter|divisibleby:20 and not forloop.last %}
                                 <br><br>

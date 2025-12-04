@@ -66,6 +66,44 @@
                         </div>
                     </div>
                     
+                    <!-- Timer Display Section -->
+                    {% if match.time_limit_minutes and match.status in 'active,waiting_validation' %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card" id="timer-card" style="border: 2px solid {% if match.is_time_expired %}#dc3545{% else %}#28a745{% endif %};">
+                                <div class="card-body text-center">
+                                    {% if match.is_time_expired %}
+                                        <h4 class="text-warning mb-2">
+                                            <i class="bi bi-alarm-fill"></i> Time Expired
+                                        </h4>
+                                        <p class="text-muted mb-0">
+                                            You may continue playing or play a <strong>cosone</strong> (additional round)
+                                        </p>
+                                    {% else %}
+                                        <h5 class="mb-3">
+                                            <i class="bi bi-clock-fill"></i> Time Remaining
+                                        </h5>
+                                        <div class="display-3 fw-bold mb-3" id="timer-display" style="color: #28a745;">
+                                            {{ match.time_remaining_display }}
+                                        </div>
+                                        <div class="progress" style="height: 15px;">
+                                            <div class="progress-bar bg-success" 
+                                                 id="timer-progress"
+                                                 role="progressbar" 
+                                                 style="width: 100%;"
+                                                 aria-valuenow="100" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">Match time limit: {{ match.time_limit_minutes }} minutes</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
                     {% if match.status == 'completed' or match.status == 'waiting_validation' %}
                         <div class="row mt-3">
                             <div class="col-12">
@@ -416,5 +454,146 @@ function toggleShotTracker() {
         btn.classList.add('btn-outline-light');
     }
 }
+
+// ===== TIMER COUNTDOWN SYSTEM =====
+document.addEventListener('DOMContentLoaded', function() {
+    {% if match.time_limit_minutes and match.status in 'active,waiting_validation' and not match.is_time_expired %}
+    
+    // Initial values from server
+    let remainingSeconds = {{ match.time_remaining_seconds|default:0 }};
+    const totalSeconds = {{ match.time_limit_minutes }} * 60;
+    let fiveMinuteWarningPlayed = false;
+    let oneMinuteWarningPlayed = false;
+    
+    // Create audio context for sound alerts
+    function playTimerSound(frequency, duration) {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        } catch (e) {
+            console.log('Audio not supported:', e);
+        }
+    }
+    
+    function playExpiredSound() {
+        // Play a distinctive three-tone alert
+        playTimerSound(800, 0.2);
+        setTimeout(() => playTimerSound(600, 0.2), 250);
+        setTimeout(() => playTimerSound(400, 0.4), 500);
+    }
+    
+    function playWarningSound() {
+        // Play a single beep for warnings
+        playTimerSound(600, 0.15);
+    }
+    
+    function updateTimer() {
+        // Check for warnings
+        if (remainingSeconds === 300 && !fiveMinuteWarningPlayed) {
+            // 5 minutes remaining
+            playWarningSound();
+            fiveMinuteWarningPlayed = true;
+            console.log('⚠️ 5 minutes remaining!');
+        }
+        
+        if (remainingSeconds === 60 && !oneMinuteWarningPlayed) {
+            // 1 minute remaining
+            playWarningSound();
+            setTimeout(() => playWarningSound(), 200); // Double beep
+            oneMinuteWarningPlayed = true;
+            console.log('⚠️ 1 minute remaining!');
+        }
+        
+        if (remainingSeconds <= 0) {
+            // Timer expired - play sound and reload
+            playExpiredSound();
+            
+            // Show browser notification if permission granted
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('⏰ Match Time Expired!', {
+                    body: 'The time limit has been reached. You may continue or play a cosone.',
+                    icon: '/static/images/timer-icon.png',
+                    requireInteraction: true
+                });
+            }
+            
+            setTimeout(() => location.reload(), 1000);
+            return;
+        }
+        
+        // Update display
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = remainingSeconds % 60;
+        const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        const timerDisplay = document.getElementById('timer-display');
+        if (timerDisplay) {
+            timerDisplay.textContent = display;
+        }
+        
+        // Update progress bar
+        const percentage = (remainingSeconds / totalSeconds) * 100;
+        const progressBar = document.getElementById('timer-progress');
+        
+        if (progressBar) {
+            progressBar.style.width = percentage + '%';
+            progressBar.setAttribute('aria-valuenow', percentage);
+            
+            // Change color and card border as time runs out
+            const timerCard = document.getElementById('timer-card');
+            
+            if (percentage < 10) {
+                // Less than 10% - red and urgent
+                progressBar.className = 'progress-bar bg-danger';
+                if (timerDisplay) timerDisplay.style.color = '#dc3545';
+                if (timerCard) timerCard.style.borderColor = '#dc3545';
+            } else if (percentage < 25) {
+                // Less than 25% - orange/warning
+                progressBar.className = 'progress-bar bg-warning';
+                if (timerDisplay) timerDisplay.style.color = '#ffc107';
+                if (timerCard) timerCard.style.borderColor = '#ffc107';
+            } else if (percentage < 50) {
+                // Less than 50% - yellow
+                progressBar.className = 'progress-bar bg-info';
+                if (timerDisplay) timerDisplay.style.color = '#17a2b8';
+                if (timerCard) timerCard.style.borderColor = '#17a2b8';
+            } else {
+                // More than 50% - green
+                progressBar.className = 'progress-bar bg-success';
+                if (timerDisplay) timerDisplay.style.color = '#28a745';
+                if (timerCard) timerCard.style.borderColor = '#28a745';
+            }
+        }
+        
+        // Decrement
+        remainingSeconds--;
+    }
+    
+    // Request notification permission on page load
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+    
+    // Update immediately
+    updateTimer();
+    
+    // Update every second
+    setInterval(updateTimer, 1000);
+    
+    {% endif %}
+});
 </script>
 {% endblock %}

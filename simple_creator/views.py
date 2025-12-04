@@ -186,6 +186,11 @@ def _create_simple_tournament(form_data):
     # Step 5: Create the Tournament
     tournament_name = f"{scenario.display_name} {format_type.title()} - {start_date.strftime('%Y-%m-%d')}"
     
+    # DEBUG: Log timer value
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.error(f"DEBUG: Scenario #{scenario.id} timer = {scenario.default_time_limit_minutes}")
+    
     tournament = Tournament.objects.create(
         name=tournament_name,
         description=f"Auto-generated {scenario.display_name} tournament",
@@ -197,8 +202,12 @@ def _create_simple_tournament(form_data):
         max_participants=scenario.max_triples_players if format_type == "triples" else scenario.max_doubles_players,
         is_melee=True,
         melee_teams_generated=False,
-        automation_status="idle"
+        automation_status="idle",
+        default_time_limit_minutes=scenario.default_time_limit_minutes  # Apply scenario timer
     )
+    
+    # DEBUG: Log created tournament timer
+    logger.error(f"DEBUG: Created tournament #{tournament.id} timer = {tournament.default_time_limit_minutes}")
     
     # Step 6: Assign courts to tournament
     for court in available_courts:
@@ -224,15 +233,33 @@ def _create_simple_tournament(form_data):
     if voucher_object:
         voucher_object.use_voucher(tournament)
     
-    # Step 9: Create tournament stage
-    Stage.objects.create(
-        tournament=tournament,
-        name="Main Stage",
-        stage_number=1,
-        stage_type=scenario.tournament_type,
-        num_qualifiers=1,
-        is_complete=False
-    )
+    # Step 9: Create tournament stages from scenario
+    scenario_stages = scenario.scenario_stages.all()
+    if scenario_stages.exists():
+        # Create stages from scenario template
+        for scenario_stage in scenario_stages:
+            Stage.objects.create(
+                tournament=tournament,
+                stage_number=scenario_stage.stage_number,
+                name=scenario_stage.name,
+                format=scenario_stage.format,
+                num_qualifiers=scenario_stage.num_qualifiers,
+                num_rounds_in_stage=scenario_stage.num_rounds_in_stage,
+                num_matches_per_team=scenario_stage.num_matches_per_team,
+                is_complete=False
+            )
+    else:
+        # Fallback: Create single stage from scenario config
+        Stage.objects.create(
+            tournament=tournament,
+            stage_number=1,
+            name="Main Stage",
+            format=scenario.tournament_type,
+            num_qualifiers=1,
+            num_rounds_in_stage=scenario.num_rounds,
+            num_matches_per_team=scenario.matches_per_team if scenario.tournament_type == 'round_robin' else None,
+            is_complete=False
+        )
     
     return simple_tournament
 

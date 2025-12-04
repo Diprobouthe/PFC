@@ -14,7 +14,7 @@ class MatchResultInline(admin.TabularInline):
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display = ('id', 'tournament', 'team1', 'team2', 'status_badge', 'score_display', 'court_display', 'timing_display', 'actions_display')
+    list_display = ('id', 'tournament', 'team1', 'team2', 'status_badge', 'score_display', 'court_display', 'timer_status', 'timing_display', 'actions_display')
     list_filter = ('status', 'tournament', 'round', 'start_time')
     search_fields = ('team1__name', 'team2__name', 'tournament__name')
     date_hierarchy = 'start_time'
@@ -32,8 +32,12 @@ class MatchAdmin(admin.ModelAdmin):
         ('Scores', {
             'fields': ('team1_score', 'team2_score')
         }),
+        ('Timer Configuration', {
+            'fields': ('time_limit_minutes',),
+            'description': 'Set time limit in minutes (optional). Timer starts when both teams activate the match.'
+        }),
         ('Timing', {
-            'fields': ('start_time', 'end_time', 'duration')
+            'fields': ('start_time', 'end_time', 'duration', 'timer_expired', 'timer_expired_at')
         }),
     )
     actions = ['mark_as_pending', 'mark_as_active', 'mark_as_completed', 'assign_courts']
@@ -65,6 +69,18 @@ class MatchAdmin(admin.ModelAdmin):
                               obj.court.id, obj.court.number)
         return "Not assigned"
     court_display.short_description = "Court"
+    
+    def timer_status(self, obj):
+        """Display timer status in admin list."""
+        if not obj.time_limit_minutes:
+            return "No timer"
+        if obj.status not in ["active", "waiting_validation"]:
+            return format_html('<span style="color: #6c757d;">⏱️ {} min</span>', obj.time_limit_minutes)
+        remaining = obj.time_remaining_display
+        if obj.is_time_expired:
+            return format_html('<span style="color: #dc3545; font-weight: bold;">⏰ EXPIRED</span>')
+        return format_html('<span style="color: #28a745; font-weight: bold;">⏱️ {}</span>', remaining)
+    timer_status.short_description = "Timer"
     
     def timing_display(self, obj):
         if obj.start_time and obj.end_time:

@@ -17,8 +17,13 @@
                 </div>
                 {% if player_logged_in %}
                     <div class="text-end">
-                        <small class="text-muted d-block">Logged in as</small>
-                        <strong class="text-primary">{{ player_name|default:session_codename }}</strong>
+                        <a href="{% url 'practice:session_history' %}" class="btn btn-outline-primary mb-2">
+                            <i class="fas fa-history me-2"></i>View All Sessions
+                        </a>
+                        <div>
+                            <small class="text-muted d-block">Logged in as</small>
+                            <strong class="text-primary">{{ player_name|default:session_codename }}</strong>
+                        </div>
                     </div>
                 {% endif %}
             </div>

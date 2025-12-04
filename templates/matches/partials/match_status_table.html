@@ -20,6 +20,25 @@
                             <small>Round: {{ match.round.number }}</small>
                         {% endif %}
                     {% endif %}
+                    {% if match.time_limit_minutes %}
+                        <div class="mt-1">
+                            {% if status_name == "Active" %}
+                                {% if match.is_time_expired %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-alarm-fill"></i> Time Expired
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-clock-fill"></i> {{ match.time_remaining_display }}
+                                    </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-clock"></i> {{ match.time_limit_minutes }} min
+                                </span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </div>
                 <span class="badge bg-{{ status_badge }} rounded-pill">{{ status_name }}</span>
             </a>

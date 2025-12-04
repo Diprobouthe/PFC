@@ -93,6 +93,11 @@ class TournamentAdmin(admin.ModelAdmin):
             "classes": ("collapse",),
             "description": "Configure advertisement banner for tournament overview page"
         }),
+        ("Match Timer Configuration", {
+            "fields": ("default_time_limit_minutes",),
+            "classes": ("collapse",),
+            "description": "Set default time limit for all matches in this tournament. Timer starts when both teams activate the match."
+        }),
     )
     actions = [
         "make_active", 

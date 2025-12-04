@@ -151,9 +151,9 @@ def start_session(request):
         return JsonResponse({'error': 'Invalid practice type'}, status=400)
     
     # Validate distance
-    valid_distances = ['6m', '7m', '8m', '9m', '10m']
+    valid_distances = ['6m', '7m', '8m', '9m', '10m', 'ing']
     if distance not in valid_distances:
-        return JsonResponse({'error': 'Invalid distance. Must be one of: 6m, 7m, 8m, 9m, 10m'}, status=400)
+        return JsonResponse({'error': 'Invalid distance. Must be one of: 6m, 7m, 8m, 9m, 10m, InG'}, status=400)
     
     # Check for existing active session
     existing_session = PracticeSession.objects.filter(
@@ -428,3 +428,39 @@ def session_summary(request, session_id):
 # Session summary calculation is now handled by utils.calculate_session_summary
 
 
+
+def session_history(request):
+    """
+    Display all practice sessions for the logged-in player
+    """
+    session_context = SessionManager.get_session_context(request)
+    
+    # Require player login
+    if not session_context['player_logged_in']:
+        messages.error(request, "Please log in with your player codename to view session history.")
+        return redirect('practice:practice_home')
+    
+    player_codename = session_context['session_codename']
+    
+    # Get all sessions for this player, ordered by most recent first
+    sessions = PracticeSession.objects.filter(
+        player_codename=player_codename
+    ).order_by('-started_at')
+    
+    # Add summary data for each session
+    sessions_with_summary = []
+    for session in sessions:
+        summary = calculate_session_summary(session)
+        sessions_with_summary.append({
+            'session': session,
+            'summary': summary,
+        })
+    
+    context = {
+        **session_context,
+        'sessions': sessions_with_summary,
+        'total_sessions': sessions.count(),
+        'page_title': 'Practice Session History',
+    }
+    
+    return render(request, 'practice/session_history.html', context)
