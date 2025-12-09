@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ complex.name }} Analytics - PFC{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">📊 {{ complex.name }}</h1>
+        <p class="text-gray-600">Usage analytics from {{ start_date }} to {{ end_date }}</p>
+        <div class="mt-4">
+            <span class="px-4 py-2 bg-green-100 text-green-800 rounded-full text-lg font-semibold">
+                🟢 {{ current_occupancy }} players currently at courts
+            </span>
+        </div>
+    </div>
+
+    <!-- Daily Visitors Chart -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Daily Visitors (Last 30 Days)</h2>
+        <canvas id="dailyChart" height="80"></canvas>
+    </div>
+
+    <!-- Peak Hours -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">🔥 Top 5 Peak Hours</h2>
+        <div class="space-y-3">
+            {% for hour, count in peak_hours %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span class="text-gray-700 font-medium">{{ hour }}:00 - {{ hour|add:1 }}:00</span>
+                <div class="flex items-center">
+                    <div class="w-32 bg-gray-200 rounded-full h-4 mr-3">
+                        <div class="bg-blue-600 h-4 rounded-full" style="width: {{ count|floatformat:0 }}%"></div>
+                    </div>
+                    <span class="font-bold text-gray-900">{{ count|floatformat:1 }} avg</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Weekly Heatmap -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">📅 Weekly Usage Heatmap</h2>
+        <p class="text-gray-600 mb-4">Average visitors by day and hour (last 4 weeks)</p>
+        <div id="heatmap" class="overflow-x-auto"></div>
+    </div>
+
+    <!-- Daily Stats Table -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">📋 Daily Statistics</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visitors</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peak Hour</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peak Count</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for stat in daily_stats %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ stat.date }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ stat.unique_visitors }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {% if stat.peak_hour %}{{ stat.peak_hour }}:00{% else %}-{% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ stat.peak_player_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="text-center">
+        <a href="{% url 'billboard:analytics_dashboard' %}" 
+           class="inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+            ← Back to Analytics Dashboard
+        </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+// Daily Visitors Chart
+fetch("{% url 'billboard:analytics_api' complex.id %}?days=30")
+    .then(response => response.json())
+    .then(data => {
+        const ctx = document.getElementById('dailyChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'Unique Visitors',
+                    data: data.visitors,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    });
+
+// Heatmap
+fetch("{% url 'billboard:heatmap_api' complex.id %}")
+    .then(response => response.json())
+    .then(data => {
+        const heatmapDiv = document.getElementById('heatmap');
+        let html = '<table class="min-w-full border-collapse">';
+        
+        // Header row
+        html += '<tr><th class="border p-2 bg-gray-100"></th>';
+        for (let hour = 0; hour < 24; hour++) {
+            html += `<th class="border p-2 bg-gray-100 text-xs">${hour}</th>`;
+        }
+        html += '</tr>';
+        
+        // Data rows
+        data.days.forEach((day, dayIndex) => {
+            html += `<tr><td class="border p-2 bg-gray-100 font-semibold">${day}</td>`;
+            for (let hour = 0; hour < 24; hour++) {
+                const value = data.heatmap[dayIndex][hour];
+                let color = 'bg-gray-50';
+                if (value > 0) {
+                    const intensity = Math.min(value / 10, 1);
+                    const blue = Math.round(255 - (intensity * 100));
+                    color = `style="background-color: rgb(${blue}, ${blue}, 255)"`;
+                }
+                html += `<td class="border p-2 text-center text-xs" ${color}>${value > 0 ? value : ''}</td>`;
+            }
+            html += '</tr>';
+        });
+        
+        html += '</table>';
+        heatmapDiv.innerHTML = html;
+    });
+</script>
+{% endblock %}

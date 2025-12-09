@@ -5,10 +5,12 @@ from django.conf.urls.static import static
 from . import views
 from . import auth_views
 from . import simple_creator
+from . import my_matches_view
 
 urlpatterns = [
     path('', views.home, name='home'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('my-matches/', my_matches_view.my_active_matches, name='my_active_matches'),
     path('admin/', admin.site.urls),
     path('tournaments/', include('tournaments.urls')),
     path('matches/', include('matches.urls')),
@@ -46,6 +48,7 @@ urlpatterns = [
     path('auth/team/logout/', auth_views.team_pin_logout, name='team_pin_logout'),
     path('auth/team/status/', auth_views.team_pin_status, name='team_pin_status'),
     path('auth/team/modal/', auth_views.team_login_modal, name='team_login_modal'),
+    path('auth/team/check/', views.check_team_session, name='check_team_session'),
 ]
 
 # Serve media files during development and production

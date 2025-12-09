@@ -79,6 +79,10 @@ class Tournament(models.Model):
         default=False,
         help_text="Whether Mêlée teams have been automatically generated"
     )
+    shuffle_players_after_round = models.BooleanField(
+        default=False,
+        help_text="Automatically shuffle players between mêlée teams after each round completes"
+    )
     max_participants = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -382,6 +386,10 @@ class Tournament(models.Model):
                         player.team = melee_player.original_team
                         player.save()
                         logger.info(f"Restored player {player.name} to original team {melee_player.original_team.name}")
+                        
+                        # Refresh the player's session
+                        from pfc_core.session_refresh import refresh_player_team_session
+                        refresh_player_team_session(player)
                 except:
                     logger.warning(f"Could not restore player {player.name} to original team")
             
@@ -547,6 +555,10 @@ class Tournament(models.Model):
             mp.save()
             
             logger.info(f"Transferred player {original_player.name} from {mp.original_team.name if mp.original_team else 'No Team'} to mêlée team {team_name}")
+            
+            # Refresh the player's session so they don't need to logout/login
+            from pfc_core.session_refresh import refresh_player_team_session
+            refresh_player_team_session(original_player)
         
         # Add team to tournament
         TournamentTeam.objects.create(tournament=self, team=team)
@@ -567,6 +579,11 @@ class Tournament(models.Model):
                 mp.player.save()
                 
                 logger.info(f"Restored player {mp.player.name} from {old_melee_team.name} back to {mp.original_team.name}")
+                
+                # Refresh the player's session so they don't need to logout/login
+                from pfc_core.session_refresh import refresh_player_team_session
+                refresh_player_team_session(mp.player)
+                
                 restored_count += 1
         
         logger.info(f"Restored {restored_count} players to their original teams for tournament {self.name}")
@@ -1666,3 +1683,7 @@ class Bracket(models.Model):
         
     def __str__(self):
         return f"Bracket {self.position} - Round {self.round.number} ({self.tournament.name})"
+
+
+# Import partnership tracking models
+from .partnership_models import MeleePartnership, MeleeShuffleHistory

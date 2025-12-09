@@ -165,3 +165,11 @@ class BillboardSettings(models.Model):
         settings, created = cls.objects.get_or_create(pk=1)
         return settings
 
+
+# Import analytics models
+from billboard.analytics_models import (
+    CourtComplexUsageSnapshot,
+    HourlyUsageStats,
+    DailyUsageStats,
+    UsageAnalyticsSummary
+)

@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
 from teams.utils import get_team_info_from_session
 from billboard.models import BillboardEntry
 from django.utils import timezone
@@ -87,3 +89,25 @@ def home(request):
 def dashboard(request):
     """View for the user dashboard"""
     return render(request, 'dashboard.html')
+
+
+@require_http_methods(["GET"])
+def check_team_session(request):
+    """
+    API endpoint to check the current team session data.
+    Used by the frontend to detect team changes and update autofill.
+    """
+    team_pin = request.session.get('team_pin')
+    team_name = request.session.get('team_name')
+    team_id = request.session.get('team_id')
+    is_active = request.session.get('team_session_active', False)
+    
+    return JsonResponse({
+        'success': True,
+        'data': {
+            'is_logged_in': is_active and team_pin is not None,
+            'team_pin': team_pin,
+            'team_name': team_name,
+            'team_id': team_id
+        }
+    })

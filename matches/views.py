@@ -9,12 +9,70 @@ from .models import Match, MatchActivation, MatchPlayer, MatchResult, NextOppone
 from teams.models import Team, Player
 from tournaments.models import Tournament, TournamentTeam, TournamentCourt, Round, Stage
 from courts.models import Court
-from friendly_games.models import FriendlyGame  # Import FriendlyGame model
+from friendly_games.models import FriendlyGame, PlayerCodename  # Import FriendlyGame and PlayerCodename models
+from billboard.models import BillboardEntry  # Import Billboard for auto-registration
 from .forms import MatchActivationForm, MatchResultForm, MatchValidationForm
 from .utils import auto_assign_court, get_court_assignment_status
 from .utils import detect_match_type, validate_match_type  # Import match type utilities
 
 logger = logging.getLogger(__name__)
+
+def auto_register_players_to_billboard(match):
+    """
+    Automatically register all players in a match to the Billboard
+    when the match is activated.
+    """
+    try:
+        # Get the court complex from the match's assigned court
+        if not match.court:
+            logger.warning(f"Match {match.id} has no court assigned for Billboard registration")
+            return
+        
+        # Get court complex that contains this court (reverse ManyToMany relationship)
+        court_complex = match.court.courtcomplex_set.first()
+        if not court_complex:
+            logger.warning(f"Match {match.id}'s court {match.court.number} is not assigned to any court complex")
+            return
+        
+        # Get all players from both teams in the match
+        match_players = MatchPlayer.objects.filter(match=match).select_related('player')
+        
+        for match_player in match_players:
+            player = match_player.player
+            
+            # Get player's codename
+            try:
+                player_codename = PlayerCodename.objects.get(player=player)
+                codename = player_codename.codename
+                
+                # Check if player already has an active "AT_COURTS" entry for this court complex today
+                existing_entry = BillboardEntry.objects.filter(
+                    codename=codename,
+                    action_type='AT_COURTS',
+                    court_complex=court_complex,
+                    created_at__date=timezone.now().date(),
+                    is_active=True
+                ).first()
+                
+                if not existing_entry:
+                    # Create Billboard entry
+                    BillboardEntry.objects.create(
+                        codename=codename,
+                        action_type='AT_COURTS',
+                        court_complex=court_complex,
+                        message=f"Auto-registered via match activation",
+                        is_active=True
+                    )
+                    logger.info(f"Auto-registered player {player.name} (codename: {codename}) to Billboard at {court_complex.name}")
+                else:
+                    logger.debug(f"Player {player.name} already registered at {court_complex.name} today")
+                    
+            except PlayerCodename.DoesNotExist:
+                logger.warning(f"Player {player.name} (ID: {player.id}) has no codename for Billboard registration")
+                continue
+                
+    except Exception as e:
+        logger.error(f"Error auto-registering players to Billboard for match {match.id}: {e}")
 
 def match_list(request, tournament_id=None):
     # Tournament matches (existing functionality)
@@ -286,6 +344,9 @@ def match_activate(request, match_id, team_id):
                     match.waiting_for_court = False
                     match.save()
                     
+                    # Auto-register players to Billboard
+                    auto_register_players_to_billboard(match)
+                    
                     status_message = get_court_assignment_status(match)
                     messages.success(request, f"Match validated and activated! {status_message}")
                 else:
@@ -420,6 +481,34 @@ def match_validate_result(request, match_id, team_id):
                     match.winner = None
                     match.loser = None
                 match.save()
+                
+                # ===== AUTO-SHUFFLE CHECK =====
+                # Check if we should automatically shuffle players after round completion
+                if match.tournament and match.tournament.is_melee and match.tournament.shuffle_players_after_round and match.round:
+                    from tournaments.shuffle_utils import check_if_specific_round_complete, shuffle_melee_players
+                    from tournaments.partnership_models import MeleeShuffleHistory
+                    
+                    # Check if THIS match's round is now complete
+                    if check_if_specific_round_complete(match.tournament, match.round):
+                        # Check if we've already shuffled for this round
+                        already_shuffled = MeleeShuffleHistory.objects.filter(
+                            tournament=match.tournament,
+                            round_number=match.round.number
+                        ).exists()
+                        
+                        if not already_shuffled:
+                            logger.info(f"Round {match.round.number} complete! Triggering auto-shuffle for tournament {match.tournament.name}")
+                            shuffle_result = shuffle_melee_players(
+                                tournament=match.tournament,
+                                shuffle_type='automatic',
+                                shuffled_by=None
+                            )
+                            if shuffle_result and shuffle_result['success']:
+                                logger.info(f"Auto-shuffled players after round {match.round.number} completion: {shuffle_result['message']}")
+                            else:
+                                logger.error(f"Auto-shuffle failed: {shuffle_result.get('message', 'Unknown error')}")
+                        else:
+                            logger.debug(f"Already shuffled for round {match.round.number}, skipping")
                 
                 # ===== PARTICIPATION TRACKING =====
                 # Create TeamMatchParticipant records from MatchPlayer data

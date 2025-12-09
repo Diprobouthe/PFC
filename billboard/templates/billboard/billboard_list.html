@@ -17,6 +17,9 @@
                     <p class="lead text-muted">Real-time player activity and court coordination</p>
                 </div>
                 <div>
+                    <a href="{% url 'billboard:analytics_dashboard' %}" class="btn btn-info btn-lg me-2">
+                        <i class="fas fa-chart-bar me-2"></i>View Analytics
+                    </a>
                     <a href="{% url 'billboard:create' %}" class="btn btn-primary btn-lg">
                         <i class="fas fa-plus me-2"></i>Post Activity
                     </a>
@@ -269,7 +272,7 @@
             <div class="alert alert-info">
                 <i class="fas fa-info-circle me-2"></i>
                 <strong>Live Updates:</strong> This page refreshes automatically every 30 seconds to show the latest activity.
-                "Currently at Courts" shows entries from the last 4 hours. Other sections show entries from the last 24 hours.
+                "Currently at Courts" shows entries from the last 2 hours (auto check-out). Other sections show entries from the last 24 hours.
             </div>
         </div>
     </div>

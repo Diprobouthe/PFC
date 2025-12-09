@@ -20,7 +20,17 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="/"><img src="{% static 'pfcLOGOHwhitetext.svg' %}" alt="PFC Logo" style="height: 40px; width: auto;"></a>
+            <!-- Split logo into two separate buttons -->
+            <div class="navbar-brand d-flex align-items-center">
+                <!-- Black ball icon - Back to main menu -->
+                <a href="/" title="Back to main menu">
+                    <img src="{% static 'pfcLOGO.svg' %}" alt="PFC Ball" style="height: 40px; width: auto;">
+                </a>
+                <!-- PFC text button - My active matches -->
+                <a href="{% url 'my_active_matches' %}" title="My Active Matches">
+                    <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC" style="height: 30px; width: auto; margin-left: 8px;">
+                </a>
+            </div>
             
             <!-- Always visible icons for mobile -->
             <div class="d-flex align-items-center">

@@ -280,6 +280,7 @@ class WTFPairingEngine:
                 'team2': team2_tt.team,
                 'round': round_obj,
                 'status': 'pending',
+                'time_limit_minutes': self.tournament.default_time_limit_minutes,
             }
             
             if self.stage:

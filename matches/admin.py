@@ -29,6 +29,9 @@ class MatchAdmin(admin.ModelAdmin):
         ('Status', {
             'fields': ('status',)
         }),
+        ('Court Assignment', {
+            'fields': ('court', 'proposed_court', 'waiting_for_court')
+        }),
         ('Scores', {
             'fields': ('team1_score', 'team2_score')
         }),

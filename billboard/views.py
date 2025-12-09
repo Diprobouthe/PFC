@@ -149,9 +149,9 @@ class BillboardListView(ListView):
         # Group entries by action type for better display
         entries = context['entries']
         
-        # "Currently at Courts" should only show people from the last 4 hours (average court visit time)
+        # "Currently at Courts" should only show people from the last 2 hours (auto check-out)
         # Other sections keep the 24-hour window
-        at_courts_cutoff = timezone.now() - timedelta(hours=4)
+        at_courts_cutoff = timezone.now() - timedelta(hours=2)
         context['at_courts'] = [
             e for e in entries 
             if e.action_type == 'AT_COURTS' and e.created_at >= at_courts_cutoff
@@ -182,6 +182,12 @@ class BillboardCreateView(CreateView):
     def form_valid(self, form):
         response = super().form_valid(form)
         messages.success(self.request, 'Your entry has been posted to the Billboard!')
+        
+        # Trigger analytics update for AT_COURTS entries
+        if form.instance.action_type == 'AT_COURTS':
+            from billboard.analytics_utils import trigger_analytics_update
+            trigger_analytics_update(form.instance.court_complex)
+        
         return response
     
     def form_invalid(self, form):

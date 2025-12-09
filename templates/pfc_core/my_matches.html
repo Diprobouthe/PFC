@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Active Matches - PFC{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="display-5 mb-2">
+            <i class="fas fa-user-circle text-primary me-3"></i>
+            My Active Matches
+        </h1>
+        <p class="lead text-muted">Your current participations and pending matches</p>
+    </div>
+
+    {% if no_login %}
+        <!-- Not Logged In -->
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Not Logged In:</strong> Please log in with your player codename to see your active matches.
+        </div>
+        <a href="{% url 'codename_login' %}" class="btn btn-primary">
+            <i class="fas fa-sign-in-alt me-2"></i>Login with Codename
+        </a>
+    
+    {% elif no_teams %}
+        <!-- No Teams -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>No Teams:</strong> You're not currently a member of any team. Join or create a team to participate in matches!
+        </div>
+        <a href="/" class="btn btn-primary">
+            <i class="fas fa-home me-2"></i>Back to Home
+        </a>
+    
+    {% elif not matches %}
+        <!-- No Active Matches -->
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>All Clear!</strong> You have no pending or active matches at the moment.
+        </div>
+        <div class="mt-4">
+            <a href="/friendly-games/create/" class="btn btn-primary me-2">
+                <i class="fas fa-plus me-2"></i>Create Friendly Game
+            </a>
+            <a href="/tournaments/" class="btn btn-secondary">
+                <i class="fas fa-trophy me-2"></i>View Tournaments
+            </a>
+        </div>
+    
+    {% else %}
+        <!-- Matches Found -->
+        <div class="alert alert-primary mb-4">
+            <i class="fas fa-list me-2"></i>
+            <strong>{{ total_count }} Active Match{{ total_count|pluralize:"es" }}</strong> found for {{ player.name }}
+        </div>
+
+        {% if recommended_match %}
+        <!-- Recommended Match (Highest Priority) -->
+        <div class="card border-{{ recommended_match.priority_class }} mb-4 shadow">
+            <div class="card-header bg-{{ recommended_match.priority_class }} text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-star me-2"></i>
+                    Recommended: {{ recommended_match.priority_label }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <h4 class="card-title">
+                    {{ recommended_match.team1.name }} vs {{ recommended_match.team2.name }}
+                </h4>
+                
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Status:</strong> 
+                            <span class="badge bg-{{ recommended_match.priority_class }}">{{ recommended_match.status }}</span>
+                        </p>
+                        {% if recommended_match.tournament %}
+                        <p class="mb-1"><strong>Tournament:</strong> {{ recommended_match.tournament.name }}</p>
+                        <p class="mb-1"><strong>Round:</strong> {{ recommended_match.round_number }}</p>
+                        {% else %}
+                        <p class="mb-1"><strong>Type:</strong> Friendly Game</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {% if recommended_match.court %}
+                        <p class="mb-1"><strong>Court:</strong> {{ recommended_match.court.name }}</p>
+                        {% endif %}
+                        {% if recommended_match.scheduled_time %}
+                        <p class="mb-1"><strong>Scheduled:</strong> {{ recommended_match.scheduled_time }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <a href="/matches/detail/{{ recommended_match.id }}/" class="btn btn-{{ recommended_match.priority_class }} btn-lg">
+                        <i class="fas fa-arrow-right me-2"></i>Go to Match
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- All Matches List -->
+        <h3 class="mb-3">All Active Matches</h3>
+        
+        {% for match in matches %}
+        <div class="card mb-3 {% if match == recommended_match %}border-{{ match.priority_class }}{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title mb-2">
+                            {{ match.team1.name }} vs {{ match.team2.name }}
+                        </h5>
+                        
+                        <div class="mb-2">
+                            <span class="badge bg-{{ match.priority_class }} me-2">
+                                {{ match.priority_label }}
+                            </span>
+                            <span class="badge bg-secondary">
+                                {{ match.status }}
+                            </span>
+                        </div>
+
+                        <div class="text-muted small">
+                            {% if match.tournament %}
+                                <i class="fas fa-trophy me-1"></i>{{ match.tournament.name }} - Round {{ match.round_number }}
+                            {% else %}
+                                <i class="fas fa-handshake me-1"></i>Friendly Game
+                            {% endif %}
+                            
+                            {% if match.court %}
+                                <span class="ms-3">
+                                    <i class="fas fa-map-marker-alt me-1"></i>{{ match.court.name }}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <a href="/matches/detail/{{ match.id }}/" class="btn btn-outline-primary">
+                            View Match →
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+    {% endif %}
+
+    <!-- Back Button -->
+    <div class="mt-4">
+        <a href="/" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}

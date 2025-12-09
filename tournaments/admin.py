@@ -10,6 +10,7 @@ from .admin_helpers import (
     get_tournament_debug_info
 )
 from .admin_actions import complete_and_assign_badges, reset_automation_status
+from .admin_shuffle import shuffle_melee_players_action
 
 # --- Inlines --- 
 
@@ -74,9 +75,9 @@ class TournamentAdmin(admin.ModelAdmin):
             "fields": ("has_triplets", "has_doublets", "has_tete_a_tete")
         }),
         ("Mêlée Mode", {
-            "fields": ("is_melee", "melee_format", "melee_teams_generated", "max_participants"),
+            "fields": ("is_melee", "melee_format", "melee_teams_generated", "shuffle_players_after_round", "max_participants"),
             "classes": ("collapse",),
-            "description": "Enable Mêlée mode for individual player registration with automatic team generation"
+            "description": "Enable Mêlée mode for individual player registration with automatic team generation. Enable 'Shuffle players after round' for dynamic team mixing."
         }),
         ("Dates", {
             "fields": ("start_date", "end_date")
@@ -105,6 +106,7 @@ class TournamentAdmin(admin.ModelAdmin):
         "generate_matches", 
         "advance_knockout_tournaments",
         retry_automation_action,
+        shuffle_melee_players_action,
         advance_stage_action,
         generate_round_action,
         reset_automation_status_action,

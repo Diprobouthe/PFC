@@ -185,6 +185,48 @@
         return TeamPinManager.getPin();
     };
     
+    // Periodically check for team session changes (for Mêlée team reassignments)
+    function checkTeamSessionChanges() {
+        fetch('/auth/team/check/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.is_logged_in && data.data.team_pin) {
+                    const currentSavedPin = TeamPinManager.getPin();
+                    const serverPin = data.data.team_pin;
+                    
+                    // If the server has a different PIN than what we have saved, update it
+                    if (currentSavedPin !== serverPin) {
+                        console.log('Team PIN changed on server - updating autofill');
+                        TeamPinManager.savePin(serverPin);
+                        TeamPinManager.clearAutoFillIndicators();
+                        TeamPinManager.autoFillPinFields();
+                        
+                        // Show a notification to the user
+                        const notification = document.createElement('div');
+                        notification.className = 'alert alert-info position-fixed top-0 start-50 translate-middle-x mt-3';
+                        notification.style.zIndex = '9999';
+                        notification.innerHTML = `
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Team Updated!</strong> You've been assigned to ${data.data.team_name}. Your PIN has been updated automatically.
+                        `;
+                        document.body.appendChild(notification);
+                        
+                        // Remove notification after 5 seconds
+                        setTimeout(() => {
+                            notification.remove();
+                        }, 5000);
+                    }
+                }
+            })
+            .catch(error => {
+                // Silently fail - don't disrupt user experience
+                console.debug('Team session check failed:', error);
+            });
+    }
+    
+    // Check for team changes every 10 seconds (only if player is logged in)
+    setInterval(checkTeamSessionChanges, 10000);
+    
     // Initialize when DOM is loaded
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializeAutoFill);
@@ -196,6 +238,9 @@
     window.addEventListener('pageshow', function() {
         setTimeout(initializeAutoFill, 100);
     });
+    
+    // Check immediately on page load
+    setTimeout(checkTeamSessionChanges, 1000);
     
 })();
 

@@ -260,7 +260,8 @@ def generate_standard_swiss_round(tournament: Tournament, stage: Optional[Stage]
                             stage=stage,
                             team1=team1_tt.team,
                             team2=team2_tt.team,
-                            status="pending"
+                            status="pending",
+                            time_limit_minutes=tournament.default_time_limit_minutes
                         )
                         matches_created.append(match)
                         
@@ -288,7 +289,8 @@ def generate_standard_swiss_round(tournament: Tournament, stage: Optional[Stage]
                                 stage=stage,
                                 team1=team1_tt.team,
                                 team2=team2_tt.team,
-                                status="pending"
+                                status="pending",
+                                time_limit_minutes=tournament.default_time_limit_minutes
                             )
                             matches_created.append(match)
                             
@@ -418,7 +420,8 @@ def generate_smart_swiss_round(tournament: Tournament, stage: Optional[Stage] = 
                             stage=stage,
                             team1=team1_tt.team,
                             team2=team2_tt.team,
-                            status="pending"
+                            status="pending",
+                            time_limit_minutes=tournament.default_time_limit_minutes
                         )
                         matches_created.append(match)
                         
@@ -450,7 +453,8 @@ def generate_smart_swiss_round(tournament: Tournament, stage: Optional[Stage] = 
                                 stage=stage,
                                 team1=team1_tt.team,
                                 team2=team2_tt.team,
-                                status="pending"
+                                status="pending",
+                                time_limit_minutes=tournament.default_time_limit_minutes
                             )
                             matches_created.append(match)
                             
@@ -473,7 +477,8 @@ def generate_smart_swiss_round(tournament: Tournament, stage: Optional[Stage] = 
                                 stage=stage,
                                 team1=team1_tt.team,
                                 team2=team2_tt.team,
-                                status="pending"
+                                status="pending",
+                                time_limit_minutes=tournament.default_time_limit_minutes
                             )
                             matches_created.append(match)
                             
