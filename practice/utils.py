@@ -52,8 +52,8 @@ def calculate_session_summary(session: PracticeSession) -> Dict:
         goods = shots.filter(outcome='good').count()
         fairs = shots.filter(outcome='fair').count()
         fars = shots.filter(outcome='far').count()
-        # For pointing, calculate success rate (perfect + petit_perfect + good)
-        hit_percentage = ((perfects + petit_perfects + goods) / total_shots * 100) if total_shots > 0 else 0
+        # For pointing, calculate success rate (perfect + petit_perfect + good + fair)
+        hit_percentage = ((perfects + petit_perfects + goods + fairs) / total_shots * 100) if total_shots > 0 else 0
         carreau_percentage = (perfects / total_shots * 100) if total_shots > 0 else 0
     
     # Calculate streaks and patterns
@@ -84,7 +84,7 @@ def calculate_longest_hit_streak(shots) -> int:
     """Calculate the longest consecutive successful shot streak in a session."""
     longest_streak = 0
     current_streak = 0
-    success_outcomes = ['hit', 'petit_carreau', 'carreau', 'perfect', 'petit_perfect', 'good']
+    success_outcomes = ['hit', 'petit_carreau', 'carreau', 'perfect', 'petit_perfect', 'good', 'fair']
     
     for shot in shots:
         if shot.outcome in success_outcomes:

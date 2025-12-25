@@ -163,8 +163,8 @@ class Match(models.Model):
         """
         try:
             if self.tournament and self.tournament.is_melee:
-                from tournaments.melee_stats_updater import update_stats_for_match
-                update_stats_for_match(self)
+                from tournaments.melee_stats_updater import update_melee_player_stats_from_match
+                update_melee_player_stats_from_match(self)
                 print(f"📊 Updated mêlée player stats for match {self.id}")
         except Exception as e:
             print(f"Warning: Mêlée stats update failed for match {self.id}: {e}")

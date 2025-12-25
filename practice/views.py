@@ -234,7 +234,7 @@ def record_shot(request):
             
             # Calculate current streak (successful shots)
             current_streak = 0
-            success_outcomes = ['hit', 'petit_carreau', 'carreau', 'perfect', 'petit_perfect', 'good']
+            success_outcomes = ['hit', 'petit_carreau', 'carreau', 'perfect', 'petit_perfect', 'good', 'fair']
             for shot_data in session.shots.order_by('-sequence_number'):
                 if shot_data.outcome in success_outcomes:
                     current_streak += 1
@@ -274,7 +274,7 @@ def record_shot(request):
                 'fars': session.fars,
                 'perfect_percentage': round((session.perfects / total * 100) if total > 0 else 0, 1),
                 'good_percentage': round((session.goods / total * 100) if total > 0 else 0, 1),
-                'far_percentage': round(((session.fairs + session.fars) / total * 100) if total > 0 else 0, 1),
+                'success_percentage': round(((session.perfects + session.petit_perfects + session.goods + session.fairs) / total * 100) if total > 0 else 0, 1),
             })
         
         return JsonResponse(response_data)

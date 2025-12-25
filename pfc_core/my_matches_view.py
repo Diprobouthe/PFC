@@ -91,8 +91,23 @@ def my_active_matches(request):
             if is_tournament:
                 partially_activated_tournament.append(match)
         elif status_lower in ['pending', 'pending verification', 'pending_verification', 'waiting_validation']:
+            # Check if this is actually a partially activated match
+            # (one team activated, but not the player's team)
+            is_partially_activated = False
             if is_tournament:
-                waiting_validation_tournament.append(match)
+                from matches.models import MatchActivation
+                activations = MatchActivation.objects.filter(match=match)
+                if activations.count() == 1:
+                    # Only one team activated - check if it's the OTHER team
+                    activated_team = activations.first().team
+                    if activated_team.id != player_team.id:
+                        # Other team activated, player's team hasn't
+                        is_partially_activated = True
+                        partially_activated_tournament.append(match)
+                
+                # Only add to waiting_validation if not partially activated
+                if not is_partially_activated:
+                    waiting_validation_tournament.append(match)
             else:
                 pending_validation_friendly.append(match)
     

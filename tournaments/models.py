@@ -374,6 +374,11 @@ class Tournament(models.Model):
         else:
             logger.warning(f"Failed to sync team assignments: {sync_result['message']}")
         
+        # Initialize player stats for the tournament
+        from tournaments.melee_stats_updater import initialize_melee_player_stats
+        stats_created = initialize_melee_player_stats(self)
+        logger.info(f"Initialized stats for {stats_created} players")
+        
         logger.info(f"Generated {teams_created} Mêlée teams for tournament {self.name} using {algorithm} algorithm")
         return teams_created
 

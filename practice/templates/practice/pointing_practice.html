@@ -437,7 +437,7 @@
                                     </div>
                                 </div>
                                 <div class="text-end">
-                                    <span class="badge bg-success">{{ session.far_percentage|floatformat:1 }}%</span>
+                                    <span class="badge bg-success">{{ session.hit_percentage|floatformat:1 }}%</span>
                                     <div>
                                         <a href="{% url 'practice:session_summary' session.id %}" class="small text-decoration-none">
                                             View Details <i class="fas fa-external-link-alt"></i>
@@ -482,8 +482,8 @@
                                 <span id="totalShots" class="stat-value-clear text-primary fw-bold">{{ active_session.total_shots }}</span>
                             </div>
                             <div class="stat-row">
-                                <span class="stat-label-clear">Far rate:</span>
-                                <span id="farPercentage" class="stat-value-clear text-success fw-bold">{{ active_session.far_percentage|floatformat:1 }}%</span>
+                                <span class="stat-label-clear">Success rate:</span>
+                                <span id="successPercentage" class="stat-value-clear text-success fw-bold">{{ active_session.hit_percentage|floatformat:1 }}%</span>
                             </div>
                             <div class="stat-row">
                                 <span class="stat-label-clear">Perfect:</span>
@@ -784,7 +784,7 @@ class PointingPractice {
         if (data.session_stats) {
             const stats = data.session_stats;
             document.getElementById('totalShots').textContent = stats.total_shots;
-            document.getElementById('farPercentage').textContent = stats.far_percentage + '%';
+            document.getElementById('successPercentage').textContent = stats.success_percentage + '%';
             document.getElementById('currentStreak').textContent = stats.current_streak;
             document.getElementById('perfectCount').textContent = stats.perfects || 0;
             document.getElementById('goodCount').textContent = stats.goods || 0;

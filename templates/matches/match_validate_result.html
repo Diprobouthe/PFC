@@ -78,35 +78,46 @@
                         {% endif %}
 
                         <div class="form-group mb-3">
-                            <label>{{ form.validation_action.label_tag }}</label>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="radio" name="validation_action" 
-                                               id="id_validation_action_0" value="agree" required>
-                                        <label class="form-check-label" for="id_validation_action_0">
-                                            <strong class="text-success">
-                                                <i class="fas fa-thumbs-up"></i> Agree with submitted score
-                                            </strong>
-                                            <br>
-                                            <small class="text-muted">Confirm the scores are correct</small>
-                                        </label>
-                                    </div>
+                            <div class="row justify-content-center">
+                                <div class="col-6 col-md-4 text-center">
+                                    <input class="d-none" type="radio" name="validation_action" 
+                                           id="id_validation_action_0" value="agree" required>
+                                    <label class="btn btn-outline-success w-100 py-5" for="id_validation_action_0" 
+                                           style="font-size: 5rem; cursor: pointer; border-width: 3px;">
+                                        <i class="fas fa-thumbs-up"></i>
+                                    </label>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="radio" name="validation_action" 
-                                               id="id_validation_action_1" value="disagree" required>
-                                        <label class="form-check-label" for="id_validation_action_1">
-                                            <strong class="text-danger">
-                                                <i class="fas fa-thumbs-down"></i> Disagree with submitted score
-                                            </strong>
-                                            <br>
-                                            <small class="text-muted">The scores are incorrect</small>
-                                        </label>
-                                    </div>
+                                <div class="col-6 col-md-4 text-center">
+                                    <input class="d-none" type="radio" name="validation_action" 
+                                           id="id_validation_action_1" value="disagree" required>
+                                    <label class="btn btn-outline-danger w-100 py-5" for="id_validation_action_1" 
+                                           style="font-size: 5rem; cursor: pointer; border-width: 3px;">
+                                        <i class="fas fa-thumbs-down"></i>
+                                    </label>
                                 </div>
                             </div>
+                            <style>
+                                /* Make selected button solid */
+                                input[type="radio"]:checked + label.btn-outline-success {
+                                    background-color: #198754;
+                                    color: white;
+                                    border-color: #198754;
+                                }
+                                input[type="radio"]:checked + label.btn-outline-danger {
+                                    background-color: #dc3545;
+                                    color: white;
+                                    border-color: #dc3545;
+                                }
+                                /* Hover effect */
+                                label.btn-outline-success:hover {
+                                    background-color: #198754;
+                                    color: white;
+                                }
+                                label.btn-outline-danger:hover {
+                                    background-color: #dc3545;
+                                    color: white;
+                                }
+                            </style>
                             {% if form.validation_action.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in form.validation_action.errors %}
@@ -137,18 +148,58 @@
                             {% endif %}
                         </div>
                         
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> Please review the scores carefully. If you agree, the match will be marked as completed. If you disagree, the result will be cleared for resubmission.
-                        </div>
-                        
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-info btn-lg">
-                                <i class="fas fa-check-double"></i> Confirm Validation Choice
-                            </button>
-                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary">
+                        <div class="mt-4 text-center">
+                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary btn-lg">
                                 <i class="fas fa-arrow-left"></i> Back to Match
                             </a>
                         </div>
+                        
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const agreeBtn = document.getElementById('id_validation_action_0');
+                            const disagreeBtn = document.getElementById('id_validation_action_1');
+                            const form = document.querySelector('form');
+                            const pinInput = document.getElementById('id_pin');
+                            
+                            function handleValidation(action, actionText, color) {
+                                // Check if PIN is filled
+                                if (!pinInput.value || pinInput.value.trim() === '') {
+                                    alert('Please enter your Team PIN first.');
+                                    return false;
+                                }
+                                
+                                // Show confirmation dialog
+                                const message = action === 'agree' 
+                                    ? 'Are you sure you want to AGREE with the submitted score?\n\nThe match will be marked as completed.'
+                                    : 'Are you sure you want to DISAGREE with the submitted score?\n\nThe result will be cleared for resubmission.';
+                                
+                                if (confirm(message)) {
+                                    // Submit the form
+                                    form.submit();
+                                } else {
+                                    // Uncheck the radio button if user cancels
+                                    if (action === 'agree') {
+                                        agreeBtn.checked = false;
+                                    } else {
+                                        disagreeBtn.checked = false;
+                                    }
+                                }
+                            }
+                            
+                            // Add click handlers to the label buttons
+                            document.querySelector('label[for="id_validation_action_0"]').addEventListener('click', function(e) {
+                                e.preventDefault();
+                                agreeBtn.checked = true;
+                                handleValidation('agree', 'AGREE', 'success');
+                            });
+                            
+                            document.querySelector('label[for="id_validation_action_1"]').addEventListener('click', function(e) {
+                                e.preventDefault();
+                                disagreeBtn.checked = true;
+                                handleValidation('disagree', 'DISAGREE', 'danger');
+                            });
+                        });
+                        </script>
                     </form>
                 </div>
             </div>
