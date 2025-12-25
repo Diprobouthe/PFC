@@ -240,8 +240,8 @@ def recalculate_all_melee_stats(tournament):
     # Clear existing stats
     MeleePlayerStats.objects.filter(tournament=tournament).delete()
     
-    # Initialize fresh stats
-    initialize_melee_player_stats(tournament)
+    # Initialize fresh stats using ratings at tournament creation time
+    initialize_melee_player_stats(tournament, use_current_time=False)
     
     # Reprocess all completed matches
     from matches.models import Match

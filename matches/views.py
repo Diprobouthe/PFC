@@ -466,21 +466,8 @@ def match_validate_result(request, match_id, team_id):
                 result.validated_at = timezone.now()
                 result.save()
 
-                match.status = "completed"
-                match.end_time = timezone.now()
-                if match.start_time:
-                    match.duration = match.end_time - match.start_time
-                
-                if match.team1_score > match.team2_score:
-                    match.winner = match.team1
-                    match.loser = match.team2
-                elif match.team2_score > match.team1_score:
-                    match.winner = match.team2
-                    match.loser = match.team1
-                else: # Draw
-                    match.winner = None
-                    match.loser = None
-                match.save()
+                # Use complete_match() to ensure all stats and automation are triggered
+                match.complete_match(match.team1_score, match.team2_score)
                 
                 # ===== AUTO-SHUFFLE CHECK =====
                 # Check if we should automatically shuffle players after round completion
