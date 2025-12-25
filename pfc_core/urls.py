@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.conf.urls.i18n import i18n_patterns
 from . import views
 from . import auth_views
 from . import simple_creator
@@ -49,6 +50,9 @@ urlpatterns = [
     path('auth/team/status/', auth_views.team_pin_status, name='team_pin_status'),
     path('auth/team/modal/', auth_views.team_login_modal, name='team_login_modal'),
     path('auth/team/check/', views.check_team_session, name='check_team_session'),
+    
+    # Language switching
+    path('i18n/', include('django.conf.urls.i18n')),
 ]
 
 # Serve media files during development and production

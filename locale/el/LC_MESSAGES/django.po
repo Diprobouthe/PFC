@@ -1,0 +1,257 @@
+# Greek translations for PFC Platform
+# Copyright (C) 2025
+# This file is distributed under the same license as the PFC Platform package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-25 14:50+0000\n"
+"PO-Revision-Date: 2025-12-25 14:50+0000\n"
+"Last-Translator: PFC Team\n"
+"Language-Team: Greek\n"
+"Language: el\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Navigation
+msgid "Back to main menu"
+msgstr "Επιστροφή στο κύριο μενού"
+
+msgid "My Active Matches"
+msgstr "Οι Ενεργοί Αγώνες μου"
+
+msgid "Billboard"
+msgstr "Πίνακας Ανακοινώσεων"
+
+msgid "Refresh to see latest match states"
+msgstr "Ανανέωση για τις τελευταίες καταστάσεις"
+
+msgid "Live Scores"
+msgstr "Ζωντανά Σκορ"
+
+msgid "Player Login"
+msgstr "Σύνδεση Παίκτη"
+
+msgid "Team Login"
+msgstr "Σύνδεση Ομάδας"
+
+msgid "Admin"
+msgstr "Διαχειριστής"
+
+msgid "Logout Player"
+msgstr "Αποσύνδεση Παίκτη"
+
+msgid "Logout Team"
+msgstr "Αποσύνδεση Ομάδας"
+
+msgid "Player Session"
+msgstr "Συνεδρία Παίκτη"
+
+msgid "Team Session"
+msgstr "Συνεδρία Ομάδας"
+
+msgid "Logged in as"
+msgstr "Συνδεδεμένος ως"
+
+msgid "View Profile"
+msgstr "Προβολή Προφίλ"
+
+# Match submission
+msgid "Submit Score as"
+msgstr "Υποβολή Σκορ ως"
+
+msgid "Enter Final Score"
+msgstr "Εισάγετε το Τελικό Σκορ"
+
+msgid "Team PIN"
+msgstr "PIN Ομάδας"
+
+msgid "Auto-filled"
+msgstr "Αυτόματη συμπλήρωση"
+
+msgid "Photo Evidence (optional)"
+msgstr "Φωτογραφική Απόδειξη (προαιρετικό)"
+
+msgid "Notes (optional)"
+msgstr "Σημειώσεις (προαιρετικό)"
+
+msgid "Submit Score"
+msgstr "Υποβολή Σκορ"
+
+msgid "Back to Match"
+msgstr "Επιστροφή στον Αγώνα"
+
+msgid "The other team will need to validate these results after submission."
+msgstr "Η άλλη ομάδα θα πρέπει να επικυρώσει αυτά τα αποτελέσματα μετά την υποβολή."
+
+# Match validation
+msgid "Validate Match Result"
+msgstr "Επικύρωση Αποτελέσματος Αγώνα"
+
+msgid "Confirm Validation Choice"
+msgstr "Επιβεβαίωση Επιλογής Επικύρωσης"
+
+msgid "Are you sure you want to AGREE with the submitted score? The match will be marked as completed."
+msgstr "Είστε σίγουροι ότι θέλετε να ΣΥΜΦΩΝΗΣΕΤΕ με το υποβληθέν σκορ; Ο αγώνας θα σημειωθεί ως ολοκληρωμένος."
+
+msgid "Are you sure you want to DISAGREE with the submitted score? The result will be cleared for resubmission."
+msgstr "Είστε σίγουροι ότι θέλετε να ΔΙΑΦΩΝΗΣΕΤΕ με το υποβληθέν σκορ; Το αποτέλεσμα θα διαγραφεί για επανυποβολή."
+
+# Match states
+msgid "Active"
+msgstr "Ενεργός"
+
+msgid "Pending Verification"
+msgstr "Εκκρεμεί Επαλήθευση"
+
+msgid "Completed"
+msgstr "Ολοκληρωμένος"
+
+msgid "Cancelled"
+msgstr "Ακυρωμένος"
+
+# Tournament
+msgid "Tournament"
+msgstr "Τουρνουά"
+
+msgid "Round"
+msgstr "Γύρος"
+
+msgid "Court"
+msgstr "Γήπεδο"
+
+msgid "Status"
+msgstr "Κατάσταση"
+
+# Leaderboard
+msgid "Player Leaderboard"
+msgstr "Κατάταξη Παικτών"
+
+msgid "Mêlée Player Leaderboard"
+msgstr "Κατάταξη Παικτών Μελέ"
+
+msgid "Rank"
+msgstr "Θέση"
+
+msgid "Player"
+msgstr "Παίκτης"
+
+msgid "Team"
+msgstr "Ομάδα"
+
+msgid "Rating"
+msgstr "Βαθμολογία"
+
+msgid "Wins"
+msgstr "Νίκες"
+
+msgid "Losses"
+msgstr "Ήττες"
+
+msgid "Win Rate"
+msgstr "Ποσοστό Νικών"
+
+msgid "Points Scored"
+msgstr "Πόντοι"
+
+# Common
+msgid "vs"
+msgstr "εναντίον"
+
+msgid "PIN"
+msgstr "PIN"
+
+msgid "Match"
+msgstr "Αγώνας"
+
+msgid "Matches"
+msgstr "Αγώνες"
+
+msgid "Teams"
+msgstr "Ομάδες"
+
+msgid "Courts"
+msgstr "Γήπεδα"
+
+msgid "Tournaments"
+msgstr "Τουρνουά"
+
+msgid "Score"
+msgstr "Σκορ"
+
+msgid "Result"
+msgstr "Αποτέλεσμα"
+
+msgid "Date"
+msgstr "Ημερομηνία"
+
+msgid "Time"
+msgstr "Ώρα"
+
+# Buttons
+msgid "Submit"
+msgstr "Υποβολή"
+
+msgid "Cancel"
+msgstr "Ακύρωση"
+
+msgid "Confirm"
+msgstr "Επιβεβαίωση"
+
+msgid "Back"
+msgstr "Πίσω"
+
+msgid "Next"
+msgstr "Επόμενο"
+
+msgid "Save"
+msgstr "Αποθήκευση"
+
+msgid "Edit"
+msgstr "Επεξεργασία"
+
+msgid "Delete"
+msgstr "Διαγραφή"
+
+msgid "Close"
+msgstr "Κλείσιμο"
+
+# Practice
+msgid "Pointing Practice"
+msgstr "Εξάσκηση Ρίψης"
+
+msgid "Start Session"
+msgstr "Έναρξη Συνεδρίας"
+
+msgid "End Session"
+msgstr "Τέλος Συνεδρίας"
+
+msgid "Success rate"
+msgstr "Ποσοστό επιτυχίας"
+
+msgid "Total shots"
+msgstr "Συνολικές ρίψεις"
+
+msgid "Perfect"
+msgstr "Τέλειο"
+
+msgid "Good"
+msgstr "Καλό"
+
+msgid "Fair"
+msgstr "Μέτριο"
+
+msgid "Far"
+msgstr "Μακριά"
+
+msgid "Streak"
+msgstr "Σειρά"
+
+msgid "Session Statistics"
+msgstr "Στατιστικά Συνεδρίας"
+
+msgid "Recent Shots"
+msgstr "Πρόσφατες Ρίψεις"
