@@ -745,6 +745,11 @@ def rematch(request, game_id):
     Create a new friendly game with the same players and configuration as the completed game.
     This allows for quick rematch without re-entering all player details.
     """
+    # Only allow POST requests to prevent accidental/automatic rematch creation
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('friendly_games:game_detail', game_id=game_id)
+    
     # Get the original game
     original_game = get_object_or_404(FriendlyGame, id=game_id)
     

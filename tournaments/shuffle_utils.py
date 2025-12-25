@@ -127,6 +127,12 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None):
                         refresh_player_team_session(player)
                         player_index += 1
             
+            # After shuffling, sync team assignments with partnerships to ensure consistency
+            from tournaments.sync_team_assignments import sync_team_assignments_with_partnerships
+            sync_result = sync_team_assignments_with_partnerships(tournament, current_round)
+            if not sync_result['success']:
+                logger.warning(f"Failed to sync team assignments after shuffle: {sync_result['message']}")
+            
             # Record shuffle history
             shuffle_record = MeleeShuffleHistory.objects.create(
                 tournament=tournament,

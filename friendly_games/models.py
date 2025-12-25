@@ -212,12 +212,26 @@ class FriendlyGame(models.Model):
     
     def can_validate_result(self):
         """Check if result can be validated - requires at least one verified player per team"""
-        black_validated = self.players.filter(team='BLACK', codename_verified=True).exists()
-        white_validated = self.players.filter(team='WHITE', codename_verified=True).exists()
+        # Check if at least one player on each team has a codename (current status, not stored field)
+        from .models import PlayerCodename
         
-        if not black_validated:
+        black_has_codename = False
+        white_has_codename = False
+        
+        for game_player in self.players.all():
+            try:
+                # Check if player currently has a codename
+                game_player.player.codename_profile.codename
+                if game_player.team == 'BLACK':
+                    black_has_codename = True
+                elif game_player.team == 'WHITE':
+                    white_has_codename = True
+            except PlayerCodename.DoesNotExist:
+                continue
+        
+        if not black_has_codename:
             return False, "Black team needs at least one player with verified codename to validate results"
-        if not white_validated:
+        if not white_has_codename:
             return False, "White team needs at least one player with verified codename to validate results"
         
         return True, "Result can be validated"

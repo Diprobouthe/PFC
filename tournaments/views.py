@@ -780,3 +780,5 @@ def tournament_check_completion(request, tournament_id):
     
     return redirect('tournament_detail', tournament_id=tournament.id)
 
+# Import mêlée leaderboard view
+from .melee_leaderboard_view import melee_player_leaderboard as melee_leaderboard

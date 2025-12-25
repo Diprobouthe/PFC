@@ -150,8 +150,24 @@ class Match(models.Model):
         self.save()
         print(f"Match {self.id} completed. Winner: {self.winner}, Loser: {self.loser}")
         
+        # Update mêlée player stats if this is a mêlée tournament
+        self._update_melee_stats()
+        
         # Trigger knockout tournament automation if applicable
         self._trigger_knockout_automation()
+    
+    def _update_melee_stats(self):
+        """
+        Update mêlée player stats after match completion.
+        This method is designed to be non-breaking - if it fails, it won't affect match completion.
+        """
+        try:
+            if self.tournament and self.tournament.is_melee:
+                from tournaments.melee_stats_updater import update_stats_for_match
+                update_stats_for_match(self)
+                print(f"📊 Updated mêlée player stats for match {self.id}")
+        except Exception as e:
+            print(f"Warning: Mêlée stats update failed for match {self.id}: {e}")
     
     def _trigger_knockout_automation(self):
         """

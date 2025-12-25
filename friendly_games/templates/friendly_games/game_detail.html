@@ -284,9 +284,12 @@ Let's play! 🥎
                         </div>
                         
                         <!-- Rematch Button -->
-                        <a href="{% url 'friendly_games:rematch' game.id %}" class="btn btn-primary btn-lg">
-                            <i class="fas fa-redo"></i> Rematch - Play Again
-                        </a>
+                        <form method="POST" action="{% url 'friendly_games:rematch' game.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-redo"></i> Rematch - Play Again
+                            </button>
+                        </form>
                         <small class="text-muted text-center mt-2">
                             Create a new game with the same players and positions
                         </small>

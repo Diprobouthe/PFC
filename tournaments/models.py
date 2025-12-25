@@ -361,6 +361,19 @@ class Tournament(models.Model):
         self.melee_teams_generated = True
         self.save()
         
+        # Record partnerships for Round 1
+        from tournaments.partnership_models import MeleePartnership
+        partnerships_created = MeleePartnership.record_partnerships_for_round(self, round_number=1)
+        logger.info(f"Recorded {partnerships_created} partnerships for Round 1")
+        
+        # Sync team assignments with partnerships to ensure consistency
+        from tournaments.sync_team_assignments import sync_team_assignments_with_partnerships
+        sync_result = sync_team_assignments_with_partnerships(self, round_number=1)
+        if sync_result['success']:
+            logger.info(f"Synced team assignments: {sync_result['message']}")
+        else:
+            logger.warning(f"Failed to sync team assignments: {sync_result['message']}")
+        
         logger.info(f"Generated {teams_created} Mêlée teams for tournament {self.name} using {algorithm} algorithm")
         return teams_created
 
@@ -1685,5 +1698,5 @@ class Bracket(models.Model):
         return f"Bracket {self.position} - Round {self.round.number} ({self.tournament.name})"
 
 
-# Import partnership tracking models
-from .partnership_models import MeleePartnership, MeleeShuffleHistory
+# Import partnership tracking models and mêlée player stats
+from .partnership_models import MeleePartnership, MeleeShuffleHistory, MeleePlayerStats

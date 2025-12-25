@@ -86,9 +86,15 @@
                     {% endif %}
                     
                     <div class="mt-3">
-                        <a href="{% url 'tournament_leaderboard' tournament.id %}" class="btn btn-info">
-                            <i class="fas fa-trophy"></i> View Leaderboard
-                        </a>
+                        {% if tournament.is_melee %}
+                            <a href="{% url 'melee_leaderboard' tournament.id %}" class="btn btn-primary">
+                                <i class="fas fa-user-friends"></i> View Player Leaderboard
+                            </a>
+                        {% else %}
+                            <a href="{% url 'tournament_leaderboard' tournament.id %}" class="btn btn-info">
+                                <i class="fas fa-trophy"></i> View Leaderboard
+                            </a>
+                        {% endif %}
                         <a href="{% url 'tournament_matches' tournament.id %}" class="btn btn-info">
                             <i class="fas fa-list"></i> View Matches
                         </a>

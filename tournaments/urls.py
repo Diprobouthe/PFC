@@ -20,6 +20,7 @@ urlpatterns = [
     path('<int:tournament_id>/melee/generate/', views.tournament_generate_melee_teams, name='tournament_generate_melee_teams'),
     path('<int:tournament_id>/melee/restore/', views.tournament_restore_melee_players, name='tournament_restore_melee_players'),
     path('<int:tournament_id>/melee/check_completion/', views.tournament_check_completion, name='tournament_check_completion'),
+    path('<int:tournament_id>/melee/leaderboard/', views.melee_leaderboard, name='melee_leaderboard'),
     
     # Include monitoring URLs
     path('', include('tournaments.urls_monitoring')),

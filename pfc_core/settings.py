@@ -37,6 +37,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
     'https://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
     'http://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
+    'https://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
+    'http://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
     'https://pfc-platform.onrender.com',
     'http://localhost:8000',
     'https://localhost:8000',

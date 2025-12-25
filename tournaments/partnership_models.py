@@ -63,20 +63,20 @@ class MeleePartnership(models.Model):
             tournament: Tournament object
             round_number: The round number to record partnerships for
         """
-        from tournaments.models import TournamentTeam
+        from tournaments.models import MeleePlayer
+        from collections import defaultdict
         
-        # Get all mêlée teams in this tournament
-        tournament_teams = TournamentTeam.objects.filter(
-            tournament=tournament,
-            team__name__startswith="Mêlée Team"
-        ).select_related('team')
+        # Group players by their assigned team
+        teams_players = defaultdict(list)
+        
+        for melee_player in tournament.melee_players.all():
+            if melee_player.assigned_team:
+                teams_players[melee_player.assigned_team].append(melee_player.player)
         
         partnerships_created = 0
         
-        for tt in tournament_teams:
-            team = tt.team
-            players = list(team.players.all())
-            
+        # Record partnerships for each team
+        for team, players in teams_players.items():
             # Record partnerships for all pairs in this team
             for i in range(len(players)):
                 for j in range(i + 1, len(players)):
@@ -193,3 +193,111 @@ class MeleeShuffleHistory(models.Model):
     
     def __str__(self):
         return f"{self.tournament.name} - Round {self.round_number} ({self.shuffle_type})"
+
+
+class MeleePlayerStats(models.Model):
+    """
+    Track individual player statistics in mêlée tournaments.
+    Shows rating changes, wins/losses, and performance throughout the tournament.
+    """
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='melee_player_stats',
+        help_text="The mêlée tournament"
+    )
+    player = models.ForeignKey(
+        Player,
+        on_delete=models.CASCADE,
+        related_name='melee_stats',
+        help_text="The player"
+    )
+    
+    # Rating tracking
+    starting_rating = models.FloatField(
+        default=1000.0,
+        help_text="Player's PFC rating when tournament started"
+    )
+    # Note: current_rating is now a @property that pulls live from PlayerProfile
+    
+    # Match statistics
+    wins = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of matches won (team victories)"
+    )
+    losses = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of matches lost (team defeats)"
+    )
+    matches_played = models.PositiveIntegerField(
+        default=0,
+        help_text="Total matches played in this tournament"
+    )
+    
+    # Points tracking
+    points_scored = models.PositiveIntegerField(
+        default=0,
+        help_text="Total points scored across all matches"
+    )
+    points_against = models.PositiveIntegerField(
+        default=0,
+        help_text="Total points conceded across all matches"
+    )
+    
+    # Performance tracking
+    current_streak = models.IntegerField(
+        default=0,
+        help_text="Current win/loss streak (positive=wins, negative=losses)"
+    )
+    best_performance = models.PositiveIntegerField(
+        default=0,
+        help_text="Best consecutive wins achieved in this tournament"
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When stats tracking started"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time stats were updated"
+    )
+    
+    class Meta:
+        ordering = ['-wins']  # Can't order by property, so order by wins
+        unique_together = ['tournament', 'player']
+        verbose_name = "Mêlée Player Statistics"
+        verbose_name_plural = "Mêlée Player Statistics"
+        indexes = [
+            models.Index(fields=['tournament', '-wins']),
+        ]
+    
+    def __str__(self):
+        return f"{self.player.name} - {self.tournament.name} ({self.wins}W-{self.losses}L)"
+    
+    @property
+    def current_rating(self):
+        """Get player's current PFC rating from their profile (live)"""
+        try:
+            from teams.models import PlayerProfile
+            profile = PlayerProfile.objects.get(player=self.player)
+            return round(profile.value, 2)
+        except PlayerProfile.DoesNotExist:
+            return self.starting_rating  # Fallback to starting rating
+    
+    @property
+    def rating_change(self):
+        """Calculate rating change throughout tournament"""
+        return round(self.current_rating - self.starting_rating, 1)
+    
+    @property
+    def win_rate(self):
+        """Calculate win rate percentage"""
+        if self.matches_played == 0:
+            return 0.0
+        return round((self.wins / self.matches_played) * 100, 1)
+    
+    @property
+    def point_differential(self):
+        """Calculate point differential"""
+        return self.points_scored - self.points_against
