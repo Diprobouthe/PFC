@@ -73,11 +73,18 @@ def sync_team_assignments_with_partnerships(tournament, round_number):
             players_moved = 0
             teams_fixed = 0
             
+            # Get tournament teams to ensure we're working with the right teams for THIS tournament
+            from tournaments.models import TournamentTeam
+            tournament_teams_map = {}
+            for tt in TournamentTeam.objects.filter(tournament=tournament).select_related('team'):
+                tournament_teams_map[tt.team.name] = tt.team
+            
             for team_name, correct_players in team_players_map.items():
-                team = Team.objects.filter(name=team_name).first()
+                # Look up team from THIS tournament, not just by name
+                team = tournament_teams_map.get(team_name)
                 
                 if not team:
-                    logger.warning(f"Team '{team_name}' not found in database")
+                    logger.warning(f"Team '{team_name}' not found in tournament {tournament.name}")
                     continue
                 
                 current_players = set(team.players.all())
