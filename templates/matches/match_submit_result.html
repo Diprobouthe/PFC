@@ -1,33 +1,32 @@
 {% extends 'base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "Submit Score" %} - Petanque Platform{% endblock %}
+{% block title %}Submit Score - Petanque Platform{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
-            <h1 class="mb-4">{% trans "Submit Score as" %} {{ team.name }}</h1>
+            <h1 class="mb-4">Submit Score as {{ team.name }}</h1>
             
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">{{ match.team1.name }} vs {{ match.team2.name }}</h5>
                 </div>
                 <div class="card-body">
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <p><strong>{% trans "Tournament" %}:</strong> {{ match.tournament.name }}</p>
-                                <p><strong>{% trans "Round" %}:</strong> {{ match.round }}</p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>{% trans "Status" %}:</strong> 
-                                    <span class="badge bg-success">{{ match.get_status_display }}</span>
-                                </p>
-                                {% if match.court %}
-                                    <p><strong>{% trans "Court" %}:</strong> {{ match.court.name }}</p>
-                                {% endif %}
-                            </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
+                            <p><strong>Round:</strong> {{ match.round }}</p>
                         </div>
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> 
+                                <span class="badge bg-success">{{ match.get_status_display }}</span>
+                            </p>
+                            {% if match.court %}
+                                <p><strong>Court:</strong> {{ match.court.name }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
                     
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
@@ -35,44 +34,40 @@
                         <!-- Score Selection with Rolling Selectors -->
                         <div class="row mb-4">
                             <div class="col-12 mb-3">
-                                <h4 class="text-center">{% trans "Enter Final Score" %}</h4>
+                                <h4 class="text-center">Enter Final Score</h4>
                             </div>
                             <div class="col-6 text-center">
                                 <label for="id_team1_score" class="form-label"><strong>{{ match.team1.name }}</strong></label>
                                 <select name="team1_score" class="form-select form-select-lg text-center" required id="id_team1_score" style="font-size: 3rem; height: 5rem; font-weight: bold;">
+                                    {% for i in "0123456789ABC" %}
+                                        {% if i == 'A' %}
+                                            <option value="10" {% if form.team1_score.value == 10 %}selected{% endif %}>10</option>
+                                        {% elif i == 'B' %}
+                                            <option value="11" {% if form.team1_score.value == 11 %}selected{% endif %}>11</option>
+                                        {% elif i == 'C' %}
+                                            <option value="12" {% if form.team1_score.value == 12 %}selected{% endif %}>12</option>
+                                        {% else %}
+                                            <option value="{{ i }}" {% if form.team1_score.value|stringformat:"s" == i %}selected{% endif %}>{{ i }}</option>
+                                        {% endif %}
+                                    {% endfor %}
                                     <option value="13" {% if form.team1_score.value == 13 %}selected{% endif %}>13</option>
-                                    <option value="12" {% if form.team1_score.value == 12 %}selected{% endif %}>12</option>
-                                    <option value="11" {% if form.team1_score.value == 11 %}selected{% endif %}>11</option>
-                                    <option value="10" {% if form.team1_score.value == 10 %}selected{% endif %}>10</option>
-                                    <option value="9" {% if form.team1_score.value == 9 %}selected{% endif %}>9</option>
-                                    <option value="8" {% if form.team1_score.value == 8 %}selected{% endif %}>8</option>
-                                    <option value="7" {% if form.team1_score.value == 7 %}selected{% endif %}>7</option>
-                                    <option value="6" {% if form.team1_score.value == 6 %}selected{% endif %}>6</option>
-                                    <option value="5" {% if form.team1_score.value == 5 %}selected{% endif %}>5</option>
-                                    <option value="4" {% if form.team1_score.value == 4 %}selected{% endif %}>4</option>
-                                    <option value="3" {% if form.team1_score.value == 3 %}selected{% endif %}>3</option>
-                                    <option value="2" {% if form.team1_score.value == 2 %}selected{% endif %}>2</option>
-                                    <option value="1" {% if form.team1_score.value == 1 %}selected{% endif %}>1</option>
-                                    <option value="0" {% if form.team1_score.value == 0 or not form.team1_score.value %}selected{% endif %}>0</option>
                                 </select>
                             </div>
                             <div class="col-6 text-center">
                                 <label for="id_team2_score" class="form-label"><strong>{{ match.team2.name }}</strong></label>
                                 <select name="team2_score" class="form-select form-select-lg text-center" required id="id_team2_score" style="font-size: 3rem; height: 5rem; font-weight: bold;">
+                                    {% for i in "0123456789ABC" %}
+                                        {% if i == 'A' %}
+                                            <option value="10" {% if form.team2_score.value == 10 %}selected{% endif %}>10</option>
+                                        {% elif i == 'B' %}
+                                            <option value="11" {% if form.team2_score.value == 11 %}selected{% endif %}>11</option>
+                                        {% elif i == 'C' %}
+                                            <option value="12" {% if form.team2_score.value == 12 %}selected{% endif %}>12</option>
+                                        {% else %}
+                                            <option value="{{ i }}" {% if form.team2_score.value|stringformat:"s" == i %}selected{% endif %}>{{ i }}</option>
+                                        {% endif %}
+                                    {% endfor %}
                                     <option value="13" {% if form.team2_score.value == 13 %}selected{% endif %}>13</option>
-                                    <option value="12" {% if form.team2_score.value == 12 %}selected{% endif %}>12</option>
-                                    <option value="11" {% if form.team2_score.value == 11 %}selected{% endif %}>11</option>
-                                    <option value="10" {% if form.team2_score.value == 10 %}selected{% endif %}>10</option>
-                                    <option value="9" {% if form.team2_score.value == 9 %}selected{% endif %}>9</option>
-                                    <option value="8" {% if form.team2_score.value == 8 %}selected{% endif %}>8</option>
-                                    <option value="7" {% if form.team2_score.value == 7 %}selected{% endif %}>7</option>
-                                    <option value="6" {% if form.team2_score.value == 6 %}selected{% endif %}>6</option>
-                                    <option value="5" {% if form.team2_score.value == 5 %}selected{% endif %}>5</option>
-                                    <option value="4" {% if form.team2_score.value == 4 %}selected{% endif %}>4</option>
-                                    <option value="3" {% if form.team2_score.value == 3 %}selected{% endif %}>3</option>
-                                    <option value="2" {% if form.team2_score.value == 2 %}selected{% endif %}>2</option>
-                                    <option value="1" {% if form.team2_score.value == 1 %}selected{% endif %}>1</option>
-                                    <option value="0" {% if form.team2_score.value == 0 or not form.team2_score.value %}selected{% endif %}>0</option>
                                 </select>
                             </div>
                         </div>
@@ -80,37 +75,39 @@
                         <!-- Compact PIN Field (inline with submit button) -->
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="id_pin" class="form-label"><small>{% trans "Team PIN" %}:</small></label>
+                                <label for="id_pin" class="form-label"><small>Team PIN:</small></label>
                                 <input type="password" name="pin" maxlength="6" class="form-control form-control-sm" required id="id_pin" placeholder="PIN" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
                                 {% if request.session.team_pin %}
                                 <small class="form-text text-success">
-                                    <i class="fas fa-check-circle"></i> {% trans "Auto-filled" %}
+                                    <i class="fas fa-check-circle"></i> Auto-filled
                                 </small>
                                 {% endif %}
                             </div>
                         </div>
                         
                         <div class="form-group mb-3">
-                            <label for="id_photo_evidence"><strong>{% trans "Photo Evidence (optional)" %}:</strong></label>
+                            <label for="id_photo_evidence"><strong>Photo Evidence (optional):</strong></label>
                             <input type="file" name="photo_evidence" class="form-control" id="id_photo_evidence">
                             <small class="form-text text-muted">Upload a photo of the final score (optional).</small>
                         </div>
                         
                         <div class="form-group mb-3">
-                            <label for="id_notes"><strong>{% trans "Notes (optional)" %}:</strong></label>
+                            <label for="id_notes"><strong>Notes (optional):</strong></label>
                             <textarea name="notes" class="form-control" id="id_notes" rows="3">{{ form.notes.value|default:'' }}</textarea>
                             <small class="form-text text-muted">Add any notes about the match (optional).</small>
                         </div>
                         
                         <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> {% trans "The other team will need to validate these results after submission." %}
+                            <i class="fas fa-info-circle"></i> The other team will need to validate these results after submission.
                         </div>
                         
                         <div class="mt-4">
                             <button type="submit" class="btn btn-success btn-lg">
-                                <i class="fas fa-check"></i> {% trans "Submit Score" %}
-                            </butt                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary btn-lg">
-                                <i class="fas fa-arrow-left"></i> {% trans "Back to Match" %}                          </a>
+                                <i class="fas fa-check"></i> Submit Score
+                            </button>
+                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Match
+                            </a>
                         </div>
                     </form>
                 </div>

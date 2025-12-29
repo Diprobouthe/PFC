@@ -158,8 +158,7 @@
                         document.addEventListener('DOMContentLoaded', function() {
                             const agreeBtn = document.getElementById('id_validation_action_0');
                             const disagreeBtn = document.getElementById('id_validation_action_1');
-                            // Find the form that contains the validation_action field (not the first form on page)
-                            const form = document.querySelector('form input[name="validation_action"]').closest('form');
+                            const form = document.querySelector('form');
                             const pinInput = document.getElementById('id_pin');
                             
                             function handleValidation(action, actionText, color) {

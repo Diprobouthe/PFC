@@ -1,7 +1,6 @@
 {% load static %}
-{% load i18n %}
 <!DOCTYPE html>
-<html lang="{{ LANGUAGE_CODE }}">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,27 +43,6 @@
                 <button class="btn btn-outline-light btn-sm me-2" onclick="refreshPage()" title="Refresh to see latest match states">
                     <i class="fas fa-sync-alt"></i>
                 </button>
-                
-                <!-- Language Switcher - Always Visible -->
-                {% get_current_language as LANGUAGE_CODE %}
-                <div class="d-flex gap-1 me-2">
-                    <form action="{% url 'set_language' %}" method="post" style="display: inline;">
-                        {% csrf_token %}
-                        <input name="next" type="hidden" value="{{ request.get_full_path }}">
-                        <input name="language" type="hidden" value="en">
-                        <button type="submit" class="btn btn-sm {% if LANGUAGE_CODE == 'en' %}btn-light{% else %}btn-outline-light{% endif %}" style="padding: 0.25rem 0.5rem; font-size: 0.875rem; border-width: 2px;">
-                            🇬🇧 EN
-                        </button>
-                    </form>
-                    <form action="{% url 'set_language' %}" method="post" style="display: inline;">
-                        {% csrf_token %}
-                        <input name="next" type="hidden" value="{{ request.get_full_path }}">
-                        <input name="language" type="hidden" value="el">
-                        <button type="submit" class="btn btn-sm {% if LANGUAGE_CODE == 'el' %}btn-light{% else %}btn-outline-light{% endif %}" style="padding: 0.25rem 0.5rem; font-size: 0.875rem; border-width: 2px;">
-                            🇬🇷 ΕΛ
-                        </button>
-                    </form>
-                </div>
                 
                 <!-- Burger Menu Toggle -->
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
