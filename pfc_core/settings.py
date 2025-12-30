@@ -33,6 +33,8 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF settings - Updated for current sandbox environment
 CSRF_TRUSTED_ORIGINS = [
+    'https://8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
+    'http://8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
     'https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
     'http://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
     'https://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',

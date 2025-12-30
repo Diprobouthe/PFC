@@ -181,7 +181,8 @@ def generate_next_knockout_round(tournament):
                         round_number=next_round_num,
                         team1=team1_tt.team,
                         team2=team2_tt.team,
-                        status="pending"
+                        status="pending",
+                        time_limit_minutes=tournament.default_time_limit_minutes
                     )
                     matches_created.append(match)
                     # Update opponents played if needed (less critical in knockout)

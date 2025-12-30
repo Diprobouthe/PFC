@@ -619,7 +619,8 @@ class MatchGenerator:
             stage=self.stage,
             team1=team1_tt.team,
             team2=team2_tt.team,
-            status="pending"
+            status="pending",
+            time_limit_minutes=self.tournament.default_time_limit_minutes
         )
         
         # Update opponents played

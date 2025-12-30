@@ -11,7 +11,7 @@ from pfc_core.session_refresh import refresh_player_team_session
 logger = logging.getLogger('tournaments')
 
 
-def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None):
+def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None, round_number=None):
     """
     Shuffle players between existing mêlée teams in a tournament.
     
@@ -22,6 +22,7 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None):
         tournament: Tournament object
         shuffle_type: 'manual' or 'automatic'
         shuffled_by: User object (for manual shuffles)
+        round_number: Optional round number to use (defaults to tournament.current_round_number)
         
     Returns:
         dict: {
@@ -84,9 +85,13 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None):
                     'message': 'No players found in mêlée teams'
                 }
             
-            # Record current partnerships before shuffling
-            current_round = tournament.current_round_number or 1
-            MeleePartnership.record_partnerships_for_round(tournament, current_round)
+            # Use provided round_number (the completed round) or fall back to tournament.current_round_number
+            completed_round = round_number if round_number is not None else (tournament.current_round_number or 1)
+            next_round = completed_round + 1
+            
+            # Partnerships for the completed round should already be recorded when teams were generated
+            # or from the previous shuffle. We don't need to record them again here.
+            logger.info(f"Shuffling players after round {completed_round} completion, preparing for round {next_round}")
             
             # Shuffle players randomly
             random.shuffle(all_players)
@@ -98,14 +103,28 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None):
             player_index = 0
             teams_affected = 0
             
+            # Import MeleePlayer to update assigned_team
+            from tournaments.models import MeleePlayer
+            
             for team in teams:
-                # Assign new players to team (no need to clear, we're reassigning via player.team)
+                # Assign new players to team
                 team_players = []
                 for _ in range(team_size):
                     if player_index < len(all_players):
                         player = all_players[player_index]
+                        
+                        # Update Player.team
                         player.team = team
                         player.save()
+                        
+                        # Also update MeleePlayer.assigned_team so partnerships are recorded correctly
+                        try:
+                            melee_player = MeleePlayer.objects.get(tournament=tournament, player=player)
+                            melee_player.assigned_team = team
+                            melee_player.save()
+                        except MeleePlayer.DoesNotExist:
+                            logger.warning(f"MeleePlayer not found for {player.name} in tournament {tournament.name}")
+                        
                         team_players.append(player.name)
                         
                         # Refresh player's session so they don't need to logout/login
@@ -124,28 +143,36 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None):
                         player = all_players[player_index]
                         player.team = team
                         player.save()
+                        
+                        # Also update MeleePlayer.assigned_team
+                        try:
+                            melee_player = MeleePlayer.objects.get(tournament=tournament, player=player)
+                            melee_player.assigned_team = team
+                            melee_player.save()
+                        except MeleePlayer.DoesNotExist:
+                            pass
+                        
                         refresh_player_team_session(player)
                         player_index += 1
             
-            # After shuffling, sync team assignments with partnerships to ensure consistency
-            from tournaments.sync_team_assignments import sync_team_assignments_with_partnerships
-            sync_result = sync_team_assignments_with_partnerships(tournament, current_round)
-            if not sync_result['success']:
-                logger.warning(f"Failed to sync team assignments after shuffle: {sync_result['message']}")
+            # Record NEW partnerships for the NEXT round (after shuffle)
+            # This is the source of truth for who is on which team for the next round
+            partnerships_created = MeleePartnership.record_partnerships_for_round(tournament, next_round)
+            logger.info(f"Recorded {partnerships_created} partnerships for round {next_round}")
             
-            # Record shuffle history
+            # Record shuffle history (record it as the completed round since that's when shuffle happened)
             shuffle_record = MeleeShuffleHistory.objects.create(
                 tournament=tournament,
-                round_number=current_round,
+                round_number=completed_round,
                 shuffle_type=shuffle_type,
                 shuffled_by=shuffled_by,
                 players_shuffled=len(all_players),
-                notes=f"Shuffled {len(all_players)} players across {teams_affected} teams"
+                notes=f"Shuffled {len(all_players)} players across {teams_affected} teams after round {completed_round}, ready for round {next_round}"
             )
             
             logger.info(
                 f"Successfully shuffled {len(all_players)} players across {teams_affected} teams "
-                f"in tournament '{tournament.name}' (Round {current_round}, {shuffle_type})"
+                f"in tournament '{tournament.name}' (after Round {completed_round}, {shuffle_type})"
             )
             
             return {

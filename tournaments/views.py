@@ -227,7 +227,8 @@ def _generate_round_robin_matches(tournament):
                 round=round_obj,
                 team1=team1,
                 team2=team2,
-                status='pending'
+                status='pending',
+                time_limit_minutes=tournament.default_time_limit_minutes
             )
         
         # Rotate teams for next round (first team stays fixed)
@@ -273,7 +274,8 @@ def _generate_knockout_matches(tournament):
                 bracket=bracket,
                 team1=team1,
                 team2=team2,
-                status='pending'
+                status='pending',
+                time_limit_minutes=tournament.default_time_limit_minutes
             )
         # If one team gets a bye
         elif i < num_teams - byes:
@@ -318,7 +320,8 @@ def _generate_swiss_matches(tournament):
             round=round_obj,
             team1=team1,
             team2=team2,
-            status='pending'
+            status='pending',
+            time_limit_minutes=tournament.default_time_limit_minutes
         )
     
     # For subsequent rounds, matches will be generated after previous round results are in

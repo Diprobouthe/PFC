@@ -226,22 +226,37 @@ def _get_player_rating(player):
         return 1000.0
 
 
-def recalculate_all_melee_stats(tournament):
+def recalculate_all_melee_stats(tournament, preserve_starting_ratings=True):
     """
     Recalculate all player statistics for a mêlée tournament from scratch.
     Useful for fixing inconsistencies or after data changes.
     
     Args:
         tournament: Tournament object (must be is_melee=True)
+        preserve_starting_ratings: If True, preserve existing starting_rating values.
+                                   If False, recalculate from rating history.
     """
     if not tournament.is_melee:
         return 0
     
+    # Save existing starting ratings if we want to preserve them
+    existing_starting_ratings = {}
+    if preserve_starting_ratings:
+        for stats in MeleePlayerStats.objects.filter(tournament=tournament):
+            existing_starting_ratings[stats.player_id] = stats.starting_rating
+    
     # Clear existing stats
     MeleePlayerStats.objects.filter(tournament=tournament).delete()
     
-    # Initialize fresh stats
-    initialize_melee_player_stats(tournament)
+    # Initialize fresh stats (this will use current ratings by default)
+    initialize_melee_player_stats(tournament, use_current_time=not preserve_starting_ratings)
+    
+    # Restore preserved starting ratings
+    if preserve_starting_ratings and existing_starting_ratings:
+        for stats in MeleePlayerStats.objects.filter(tournament=tournament):
+            if stats.player_id in existing_starting_ratings:
+                stats.starting_rating = existing_starting_ratings[stats.player_id]
+                stats.save(update_fields=['starting_rating'])
     
     # Reprocess all completed matches
     from matches.models import Match

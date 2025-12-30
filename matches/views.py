@@ -484,12 +484,18 @@ def match_validate_result(request, match_id, team_id):
                 
                 # ===== AUTO-SHUFFLE CHECK =====
                 # Check if we should automatically shuffle players after round completion
+                logger.debug(f"Auto-shuffle check: tournament={match.tournament}, is_melee={match.tournament.is_melee if match.tournament else None}, shuffle_after_round={match.tournament.shuffle_players_after_round if match.tournament else None}, round={match.round}")
                 if match.tournament and match.tournament.is_melee and match.tournament.shuffle_players_after_round and match.round:
                     from tournaments.shuffle_utils import check_if_specific_round_complete, shuffle_melee_players
                     from tournaments.partnership_models import MeleeShuffleHistory
                     
+                    logger.info(f"Checking if round {match.round.number} is complete for melee tournament {match.tournament.name}")
+                    
                     # Check if THIS match's round is now complete
-                    if check_if_specific_round_complete(match.tournament, match.round):
+                    round_complete = check_if_specific_round_complete(match.tournament, match.round)
+                    logger.info(f"Round {match.round.number} complete check result: {round_complete}")
+                    
+                    if round_complete:
                         # Check if we've already shuffled for this round
                         already_shuffled = MeleeShuffleHistory.objects.filter(
                             tournament=match.tournament,
@@ -501,7 +507,8 @@ def match_validate_result(request, match_id, team_id):
                             shuffle_result = shuffle_melee_players(
                                 tournament=match.tournament,
                                 shuffle_type='automatic',
-                                shuffled_by=None
+                                shuffled_by=None,
+                                round_number=match.round.number
                             )
                             if shuffle_result and shuffle_result['success']:
                                 logger.info(f"Auto-shuffled players after round {match.round.number} completion: {shuffle_result['message']}")
@@ -556,6 +563,18 @@ def match_validate_result(request, match_id, team_id):
                     logger.error(f"Rating system error for match {match.id}: {e}")
                     # Continue with normal match completion - rating failures don't break matches
                 # ===== END RATING SYSTEM INTEGRATION =====
+                
+                # ===== MELEE PLAYER STATS UPDATE =====
+                # Update individual player statistics for melee tournaments
+                try:
+                    if match.tournament and match.tournament.is_melee:
+                        from tournaments.melee_stats_updater import update_melee_player_stats_from_match
+                        update_melee_player_stats_from_match(match)
+                        logger.info(f"Match {match.id} melee stats updated successfully")
+                except Exception as e:
+                    logger.error(f"Melee stats update error for match {match.id}: {e}")
+                    # Continue with normal match completion - stats failures don't break matches
+                # ===== END MELEE PLAYER STATS UPDATE =====
                 
                 if match.court:
                     logger.info(f"Match {match.id} completed, freeing court {match.court.name}")
