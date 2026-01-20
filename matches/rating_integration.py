@@ -38,9 +38,9 @@ def update_tournament_match_ratings(match):
         with transaction.atomic():
             updates = []
             
-            # Get team players with profiles
-            winner_players = get_players_with_profiles(match.winner)
-            loser_players = get_players_with_profiles(match.loser)
+            # Get team players with profiles (only those who actually participated)
+            winner_players = get_players_with_profiles(match.winner, match)
+            loser_players = get_players_with_profiles(match.loser, match)
             
             if not winner_players and not loser_players:
                 logger.info(f"Match {match.id}: No players have profiles, skipping rating updates")
@@ -145,21 +145,148 @@ def update_tournament_match_ratings(match):
         return {"success": False, "reason": str(e)}
 
 
-def get_players_with_profiles(team):
-    """Get all players in a team that have PlayerProfile objects."""
+def get_players_with_profiles(team, match=None):
+    """Get players with profiles who actually participated in the match.
+    
+    Uses MatchPlayer records to identify only the players who were selected/participated.
+    This applies to ALL tournaments (mêlée and non-mêlée).
+    
+    Args:
+        team: The team object
+        match: The match object (required to identify selected players)
+    
+    Returns:
+        list: PlayerProfile objects for participating players only
+    """
     if not team:
         return []
     
     players_with_profiles = []
-    for player in team.players.all():
+    
+    # Get only the players who actually participated in this match
+    if match:
+        participating_players = get_match_participants(match, team)
+        if not participating_players:
+            logger.warning(f"No MatchPlayer records found for team {team.name} in match {match.id}")
+            # Fallback to all team players if MatchPlayer data not found
+            logger.warning(f"Falling back to all team players for match {match.id}")
+            participating_players = team.players.all()
+    else:
+        # If no match provided, use all team players (backward compatibility)
+        logger.warning(f"No match provided to get_players_with_profiles, using all team players")
+        participating_players = team.players.all()
+    
+    for player in participating_players:
         try:
-            profile = player.profile  # Fixed: use 'profile' instead of 'playerprofile'
+            profile = player.profile
             players_with_profiles.append(profile)
         except PlayerProfile.DoesNotExist:
             logger.debug(f"Player {player.name} has no profile, skipping rating update")
             continue
     
     return players_with_profiles
+
+
+def get_match_participants(match, team):
+    """Get the specific players who participated in a match for a given team.
+    
+    Uses MatchPlayer records to identify exactly which players were selected.
+    This works for ALL tournament types (mêlée and non-mêlée).
+    
+    Args:
+        match: The Match object
+        team: The team to get participants for
+    
+    Returns:
+        list: Player objects who actually participated
+    """
+    from matches.models import MatchPlayer
+    
+    # Query MatchPlayer records for this match and team
+    match_players = MatchPlayer.objects.filter(
+        match=match,
+        team=team
+    ).select_related('player')
+    
+    if not match_players.exists():
+        logger.warning(f"No MatchPlayer records found for match {match.id}, team {team.name}")
+        return []
+    
+    # Extract the Player objects
+    participants = [mp.player for mp in match_players]
+    
+    logger.info(f"Match {match.id}: Found {len(participants)} participants for team {team.name}: {[p.name for p in participants]}")
+    
+    return participants
+
+
+def get_melee_match_participants(match, team):
+    """DEPRECATED: Use get_match_participants() instead.
+    
+    This function is kept for backward compatibility but now delegates to get_match_participants().
+    
+    Args:
+        match: The Match object
+        team: The team to get participants for
+    
+    Returns:
+        list: Player objects who actually participated
+    """
+    logger.warning(f"get_melee_match_participants() is deprecated, use get_match_participants() instead")
+    return get_match_participants(match, team)
+
+
+def _get_melee_match_participants_legacy(match, team):
+    """Legacy implementation using MeleePartnership (kept for reference).
+    
+    This is the old mêlée-specific implementation. The new implementation uses
+    MatchPlayer which works for all tournament types.
+    
+    Args:
+        match: The Match object
+        team: The team to get participants for
+    
+    Returns:
+        list: Player objects who actually participated
+    """
+    import re
+    from tournaments.partnership_models import MeleePartnership
+    
+    tournament = match.tournament
+    
+    # Extract round number from match.round
+    round_number = None
+    if match.round:
+        round_match = re.search(r'Round (\d+)', str(match.round))
+        if round_match:
+            round_number = int(round_match.group(1))
+    
+    if not round_number:
+        logger.warning(f"Could not extract round number from match {match.id}")
+        return []
+    
+    # Get partnership record for this team in this round
+    partnership = MeleePartnership.objects.filter(
+        tournament=tournament,
+        round_number=round_number,
+        team_name=team.name
+    ).first()
+    
+    if not partnership:
+        logger.warning(f"No partnership found for team {team.name} in round {round_number}")
+        return []
+    
+    # Get the specific players from the partnership
+    participants = [partnership.player1, partnership.player2]
+    if hasattr(partnership, 'player3') and partnership.player3:
+        participants.append(partnership.player3)
+    
+    # Filter out None values
+    participants = [p for p in participants if p is not None]
+    
+    logger.info(f"Match {match.id}: Found {len(participants)} participants for team {team.name}: {[p.name for p in participants]}")
+    
+    return participants
 
 
 def calculate_team_average_rating(player_profiles):
