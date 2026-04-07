@@ -27,9 +27,25 @@ SHOT_TRACKER_SESSION_TIMEOUT = 3600  # seconds (1 hour)
 SHOT_TRACKER_RATE_LIMIT = '200/minute'  # API rate limiting
 
 # ALLOWED_HOSTS configuration for Render and Sandbox
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*','pfc.events' ,'www.pfc.events']
+ALLOWED_HOSTS = [
+    # Local development
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    # Manus sandbox testing domains
+    '8000-il5kjf1wne3gydpvqrj08-3f2b35cd.us2.manus.computer',
+    '8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
+    '8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
+    '8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
+    '8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
+    # Production domains
+    'pfc.events',
+    'www.pfc.events',
+    'pfc-e1ce.onrender.com',
+    'pfc-platform.onrender.com',
+]
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
-if RENDER_EXTERNAL_HOSTNAME:
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF settings - Updated for current sandbox environment
 CSRF_TRUSTED_ORIGINS = [
@@ -43,18 +59,19 @@ CSRF_TRUSTED_ORIGINS = [
     'http://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
     'https://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
     'http://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
-    'https://pfc-e1ce.onrender.com/',
+    'https://pfc-platform.onrender.com',
+    'https://pfc.events',
+    'https://www.pfc.events',
+    'https://pfc-e1ce.onrender.com',
     'http://localhost:8000',
     'https://localhost:8000',
     'http://127.0.0.1:8000',
     'https://127.0.0.1:8000',
-    'https://pfc.events',
-    'https://www.pfc.events'
 ]
 
 # Session and CSRF cookie settings for sandbox environment
-SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
-CSRF_COOKIE_SECURE = True  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 X_FRAME_OPTIONS = 'SAMEORIGIN'
@@ -242,8 +259,10 @@ STATICFILES_DIRS = [
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/var/media"
-
+# On Render, the persistent disk is mounted at /var/media (set via MEDIA_ROOT env var).
+# Locally falls back to BASE_DIR/media.
+_RENDER_MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "")
+MEDIA_ROOT = Path(_RENDER_MEDIA_ROOT) if _RENDER_MEDIA_ROOT else BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
