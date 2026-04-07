@@ -27,7 +27,7 @@ SHOT_TRACKER_SESSION_TIMEOUT = 3600  # seconds (1 hour)
 SHOT_TRACKER_RATE_LIMIT = '200/minute'  # API rate limiting
 
 # ALLOWED_HOSTS configuration for Render and Sandbox
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*','pfc.events' ,'www.pfc.events']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -48,6 +48,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://localhost:8000',
     'http://127.0.0.1:8000',
     'https://127.0.0.1:8000',
+    'https://pfc.events'
+    'https://www.pfc.events'
 ]
 
 # Session and CSRF cookie settings for sandbox environment
