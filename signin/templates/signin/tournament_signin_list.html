@@ -22,9 +22,15 @@
                                         <p class="mb-1">Format: {{ tournament.get_format_display }}</p>
                                         <small>Teams: {{ tournament.teams.count }}</small>
                                     </div>
-                                    <a href="{% url 'tournament_signin' %}?tournament={{ tournament.id }}" class="btn btn-primary">
-                                        <i class="fas fa-sign-in-alt"></i> Sign in
-                                    </a>
+                                    {% if tournament.is_melee and tournament.is_active and not tournament.melee_teams_generated %}
+                                        <a href="{% url 'tournament_register_melee' tournament.id %}" class="btn btn-primary">
+                                            <i class="fas fa-user-plus"></i> Register
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'tournament_signin' %}?tournament={{ tournament.id }}" class="btn btn-primary">
+                                            <i class="fas fa-sign-in-alt"></i> Sign in
+                                        </a>
+                                    {% endif %}
                                 </div>
                             {% endfor %}
                         </div>

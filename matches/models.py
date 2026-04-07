@@ -104,6 +104,13 @@ class Match(models.Model):
         return f"{minutes:02d}:{seconds:02d}"
     
     @property
+    def timer_total_seconds(self):
+        """Total timer duration in seconds. Returns None if no time limit."""
+        if not self.time_limit_minutes:
+            return None
+        return self.time_limit_minutes * 60
+
+    @property
     def is_time_expired(self):
         """Check if timer has expired."""
         remaining = self.time_remaining_seconds
@@ -406,10 +413,10 @@ class LiveScoreboard(models.Model):
         self.last_updated_by = scorekeeper_codename
         self.current_scorekeeper_codename = scorekeeper_codename
         
-        # Auto-deactivate if match reaches 13 points
-        if team1_score >= 13 or team2_score >= 13:
-            self.is_active = False
-        
+        # NOTE: Do NOT auto-deactivate on score=13.
+        # The scoreboard must remain active until result validation.
+        # Players may enter 13 by mistake and need to be able to correct it.
+        # is_active is only set to False during result validation.
         self.save()
     
     def get_team1_players(self):

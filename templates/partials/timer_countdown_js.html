@@ -1,0 +1,113 @@
+{% comment %}
+Reusable timer countdown JavaScript.
+Drives the countdown for timer_card, timer_bar, and timer_badge partials.
+
+Required context:
+  timer_seconds  — int, remaining seconds (server-side computed)
+  timer_total    — int, total seconds (time_limit_minutes * 60)
+  timer_id       — str, matching the timer_id used in the HTML partial
+  timer_sound    — bool, whether to play audio warnings (default: false)
+
+Usage (inside a <script> block or {% block extra_js %}):
+  {% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=1800 timer_id="friendly" timer_sound=True %}
+{% endcomment %}
+
+{% with tid=timer_id|default:"main" %}
+(function() {
+    var remaining_{{ tid }} = {{ timer_seconds|default:0 }};
+    var total_{{ tid }} = {{ timer_total|default:0 }};
+    {% if timer_sound %}
+    var warn5_{{ tid }} = false;
+    var warn1_{{ tid }} = false;
+
+    function playSound_{{ tid }}(freq, dur) {
+        try {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = freq; osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur);
+        } catch(e) {}
+    }
+    function playExpired_{{ tid }}() {
+        playSound_{{ tid }}(800, 0.2);
+        setTimeout(function(){ playSound_{{ tid }}(600, 0.2); }, 250);
+        setTimeout(function(){ playSound_{{ tid }}(400, 0.4); }, 500);
+    }
+    function playWarning_{{ tid }}() { playSound_{{ tid }}(600, 0.15); }
+    {% endif %}
+
+    function tick_{{ tid }}() {
+        {% if timer_sound %}
+        if (remaining_{{ tid }} === 300 && !warn5_{{ tid }}) { playWarning_{{ tid }}(); warn5_{{ tid }} = true; }
+        if (remaining_{{ tid }} === 60 && !warn1_{{ tid }}) { playWarning_{{ tid }}(); setTimeout(function(){ playWarning_{{ tid }}(); }, 200); warn1_{{ tid }} = true; }
+        {% endif %}
+
+        if (remaining_{{ tid }} <= 0) {
+            {% if timer_sound %}playExpired_{{ tid }}();{% endif %}
+            // Update display to show expired
+            var d = document.getElementById('timer-display-{{ tid }}');
+            if (d) d.textContent = '00:00';
+            var bar = document.getElementById('timer-bar-{{ tid }}');
+            if (bar) { bar.className = bar.className.replace('alert-info', 'alert-danger'); }
+            var card = document.getElementById('timer-card-{{ tid }}');
+            if (card) { card.style.borderColor = '#dc3545'; }
+            var badge = document.getElementById('timer-badge-{{ tid }}');
+            if (badge) { badge.className = 'badge bg-danger'; }
+            var p = document.getElementById('timer-progress-{{ tid }}');
+            if (p) { p.style.width = '0%'; p.className = 'progress-bar bg-danger'; }
+            if (d) d.style.color = '#dc3545';
+            clearInterval(interval_{{ tid }});
+            return;
+        }
+
+        var mins = Math.floor(remaining_{{ tid }} / 60);
+        var secs = remaining_{{ tid }} % 60;
+        var display = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+
+        var d = document.getElementById('timer-display-{{ tid }}');
+        if (d) d.textContent = display;
+
+        if (total_{{ tid }} > 0) {
+            var pct = (remaining_{{ tid }} / total_{{ tid }}) * 100;
+            var p = document.getElementById('timer-progress-{{ tid }}');
+            if (p) {
+                p.style.width = pct + '%';
+                if (pct < 10) { p.className = 'progress-bar bg-danger'; }
+                else if (pct < 25) { p.className = 'progress-bar bg-warning'; }
+                else if (pct < 50) { p.className = 'progress-bar bg-info'; }
+                else { p.className = 'progress-bar bg-success'; }
+            }
+            // Color the display text
+            if (d) {
+                if (pct < 10) d.style.color = '#dc3545';
+                else if (pct < 25) d.style.color = '#ffc107';
+                else if (pct < 50) d.style.color = '#17a2b8';
+                else d.style.color = '#28a745';
+            }
+            // Card border
+            var card = document.getElementById('timer-card-{{ tid }}');
+            if (card) {
+                if (pct < 10) card.style.borderColor = '#dc3545';
+                else if (pct < 25) card.style.borderColor = '#ffc107';
+                else if (pct < 50) card.style.borderColor = '#17a2b8';
+                else card.style.borderColor = '#28a745';
+            }
+        }
+
+        remaining_{{ tid }}--;
+    }
+
+    if (remaining_{{ tid }} > 0) {
+        tick_{{ tid }}();
+        var interval_{{ tid }} = setInterval(tick_{{ tid }}, 1000);
+    } else if (remaining_{{ tid }} === 0 && total_{{ tid }} > 0) {
+        // Already expired on load
+        var d = document.getElementById('timer-display-{{ tid }}');
+        if (d) { d.textContent = '00:00'; d.style.color = '#dc3545'; }
+    }
+})();
+{% endwith %}

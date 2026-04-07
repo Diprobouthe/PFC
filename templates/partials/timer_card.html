@@ -1,0 +1,47 @@
+{% comment %}
+Reusable timer card partial.
+Works with both Match and FriendlyGame objects.
+
+Required context:
+  timer_seconds  — int, remaining seconds (from time_remaining_seconds property)
+  timer_total    — int, total seconds (time_limit_minutes * 60)
+  timer_expired  — bool, whether time has expired
+  timer_limit    — int, time_limit_minutes value
+  timer_id       — str, unique suffix for element IDs (default: "main")
+
+Usage:
+  {% include "partials/timer_card.html" with timer_seconds=game.time_remaining_seconds timer_total=game.time_limit_minutes|multiply:60 timer_expired=game.is_time_expired timer_limit=game.time_limit_minutes timer_id="friendly" %}
+{% endcomment %}
+
+{% with tid=timer_id|default:"main" %}
+<div class="card mt-3" id="timer-card-{{ tid }}" style="border: 2px solid {% if timer_expired %}#dc3545{% else %}#28a745{% endif %};">
+    <div class="card-body text-center py-3">
+        {% if timer_expired %}
+            <h4 class="text-warning mb-2">
+                <i class="bi bi-alarm-fill"></i> Time Expired
+            </h4>
+            <p class="text-muted mb-0">
+                You may continue playing or play a <strong>cosone</strong> (additional round)
+            </p>
+        {% else %}
+            <h5 class="mb-2">
+                <i class="bi bi-clock-fill"></i> Time Remaining
+            </h5>
+            <div class="display-4 fw-bold mb-2" id="timer-display-{{ tid }}" style="color: #28a745;">
+                --:--
+            </div>
+            <div class="progress" style="height: 12px;">
+                <div class="progress-bar bg-success"
+                     id="timer-progress-{{ tid }}"
+                     role="progressbar"
+                     style="width: 100%;"
+                     aria-valuenow="100"
+                     aria-valuemin="0"
+                     aria-valuemax="100">
+                </div>
+            </div>
+            <small class="text-muted mt-2 d-block">Match time limit: {{ timer_limit }} minutes</small>
+        {% endif %}
+    </div>
+</div>
+{% endwith %}

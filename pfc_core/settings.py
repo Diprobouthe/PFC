@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-pfc-platform-development-key-fallback")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 # Shot Accuracy Tracker Settings
 SHOT_TRACKER_ENABLED = True
@@ -33,6 +33,8 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF settings - Updated for current sandbox environment
 CSRF_TRUSTED_ORIGINS = [
+    'https://8000-il5kjf1wne3gydpvqrj08-3f2b35cd.us2.manus.computer',
+    'http://8000-il5kjf1wne3gydpvqrj08-3f2b35cd.us2.manus.computer',
     'https://8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
     'http://8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
     'https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
@@ -55,9 +57,21 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
+# Persistent session: ~6 months (180 days)
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 180  # 180 days in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh expiry on every request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Survive browser restarts
+
+# Google OAuth credentials (set via environment variables in production)
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+GOOGLE_OAUTH_REDIRECT_URI = os.environ.get('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/player-auth/google/callback/')
+
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
+    "channels",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -79,7 +93,33 @@ INSTALLED_APPS = [
     "simple_creator",  # Simple Tournament Creator with voucher system
     "shooting",  # Shot Accuracy Tracker
     "practice",  # Shooting Practice Module (v0.1)
+    "player_auth",  # Player Identity System (Google + Email OTP)
+    "pfc_events",    # Minimal WebSocket event layer for live match transitions
+    "invites",       # Targeted invitation system (play + team build)
 ]
+
+# ---------------------------------------------------------------------------
+# Django Channels — Redis in production, InMemory for local dev
+# Set REDIS_URL environment variable on Render to activate Redis.
+# ---------------------------------------------------------------------------
+_REDIS_URL = os.environ.get("REDIS_URL", "")
+if _REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [_REDIS_URL],
+            },
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
+
+ASGI_APPLICATION = "pfc_core.asgi.application"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -200,7 +240,10 @@ STATICFILES_DIRS = [
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/var/media"
+# On Render, the persistent disk is mounted at /var/media (set via MEDIA_ROOT env var).
+# Locally falls back to BASE_DIR/media.
+_RENDER_MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "")
+MEDIA_ROOT = Path(_RENDER_MEDIA_ROOT) if _RENDER_MEDIA_ROOT else BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -238,10 +281,30 @@ LOGGING = {
     },
 }
 
-# Email settings (using console backend for development/testing)
-# For production, configure a real email backend (e.g., SendGrid, Mailgun)
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-ADMINS = [("Admin", "admin@example.com")] # Example admin email
+# ── Email configuration ──────────────────────────────────────────────────────
+# Production (Render): set EMAIL_HOST in the environment to activate SMTP.
+# Local / dev: EMAIL_HOST absent → emails printed to console, no SMTP needed.
+#
+# Brevo SMTP environment variables (set in Render dashboard):
+#   EMAIL_HOST=smtp-relay.brevo.com
+#   EMAIL_PORT=587
+#   EMAIL_HOST_USER=<your-brevo-login>
+#   EMAIL_HOST_PASSWORD=<your-brevo-smtp-key>
+#   EMAIL_USE_TLS=True
+#   DEFAULT_FROM_EMAIL=noreply@pfc.events
+if os.environ.get("EMAIL_HOST"):
+    EMAIL_BACKEND       = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST          = os.environ.get("EMAIL_HOST")
+    EMAIL_PORT          = int(os.environ.get("EMAIL_PORT", 587))
+    EMAIL_USE_TLS       = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+    EMAIL_HOST_USER     = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    DEFAULT_FROM_EMAIL  = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@pfc.events")
+else:
+    # Development fallback — emails printed to console, no SMTP required
+    EMAIL_BACKEND      = "django.core.mail.backends.console.EmailBackend"
+    DEFAULT_FROM_EMAIL = "noreply@pfc.events"
+ADMINS = [("Admin", os.environ.get("ADMIN_EMAIL", "admin@pfc.events"))]
 
 # ============================================================================
 # FEATURE FLAGS
@@ -249,6 +312,25 @@ ADMINS = [("Admin", "admin@example.com")] # Example admin email
 
 # Shot Accuracy Tracker Feature
 FEATURE_SHOOT_TRACKER = True  # Enable/disable shot tracking functionality
+
+# ---------------------------------------------------------------------------
+# TEMPORARY: Admin OTP Inspection
+# ---------------------------------------------------------------------------
+# Allows Django admin to display plaintext OTP codes for EmailOTP records.
+# Purpose: operational/testing aid during auth layer stabilisation only.
+# Set to False (or remove this line) to hide codes from admin before going
+# to production. Removing this flag requires no changes to auth logic.
+# ---------------------------------------------------------------------------
+ENABLE_ADMIN_OTP_INSPECTION = True
+
+# ---------------------------------------------------------------------------
+# Friendly Games — Default Court Complex
+# ---------------------------------------------------------------------------
+# PK of the CourtComplex used as the default when a player creates a friendly
+# game without selecting a complex.  Set to None to fall back to the first
+# complex in the database.  Change to match your actual CourtComplex PK.
+# ---------------------------------------------------------------------------
+FRIENDLY_GAME_DEFAULT_COURT_COMPLEX_ID = 1
 
 # Shot Tracker Settings
 SHOT_TRACKER_SETTINGS = {

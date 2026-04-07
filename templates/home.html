@@ -4,553 +4,510 @@
 {% block title %}Home - Petanque Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 py-3">
-
-
-
-    <!-- Team PIN Display - Shows when player is logged in -->
-    {% if team_info %}
-    <div class="row justify-content-center mb-4">
-        <div class="col-12 col-lg-8">
-            <div class="alert alert-info shadow-sm" style="border-left: 5px solid #0dcaf0;">
-                <div class="row align-items-center">
-                    <div class="col-12">
-                        <h5 class="mb-2">
-                            <i class="fas fa-user-circle me-2"></i>
-                            Let's play petanque{% if player_name %}, <strong>{{ player_name }}</strong>{% elif team_info.player_name %}, <strong>{{ team_info.player_name }}</strong>{% else %}, <strong>{{ team_info.team_name }}</strong>{% endif %}!
-                        </h5>
-                        <p class="mb-2">
-                            <i class="fas fa-users me-2"></i>
-                            Team: <strong>{{ team_info.team_name }}</strong>
-                        </p>
-                        
-                        <!-- Court Occupancy Info -->
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="fas fa-map-marker-alt me-2 text-success"></i>
-                            {% if currently_at_courts > 0 %}
-                                <span><strong>{{ currently_at_courts }}</strong> player{{ currently_at_courts|pluralize }} currently at courts</span>
-                            {% else %}
-                                <span>No one currently at courts</span>
-                            {% endif %}
-                        </div>
-                        
-                        <!-- Weather Info -->
-                        {% if weather_data %}
-                        <div class="d-flex align-items-center mb-2">
-                            <span class="me-2" style="font-size: 1.2rem;">{{ weather_data.icon }}</span>
-                            <span>
-                                <strong>{{ weather_data.temperature }}°C</strong> - {{ weather_data.description }}
-                                {% if weather_data.wind_speed > 0 %}
-                                    <span class="text-muted" style="font-size: 0.9rem;">(Wind: {{ weather_data.wind_speed }} km/h)</span>
-                                {% endif %}
-                            </span>
-                        </div>
-                        {% endif %}
-                        
-
-                        <!-- Billboard Reference -->
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Check the <a href="{% url 'billboard:list' %}" class="text-decoration-none">Billboard</a> for more information
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-    
-    <!-- General Court Info & Weather - Visible to ALL users -->
-    {% if not team_info %}
-    <div class="row justify-content-center mb-4">
-        <div class="col-12 col-lg-8">
-            <div class="alert alert-light shadow-sm" style="border-left: 5px solid #0dcaf0;">
-                <div class="row">
-                    <div class="col-md-12">
-                        <h5 class="mb-3">
-                            <i class="fas fa-info-circle me-2 text-info"></i>
-                            Court Information
-                        </h5>
-                        
-                        <!-- Court Occupancy Info -->
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="fas fa-map-marker-alt me-2 text-success"></i>
-                            {% if currently_at_courts > 0 %}
-                                <span><strong>{{ currently_at_courts }}</strong> player{{ currently_at_courts|pluralize }} currently at courts</span>
-                            {% else %}
-                                <span>No one currently at courts</span>
-                            {% endif %}
-                        </div>
-                        
-                        <!-- Weather Info -->
-                        {% if weather_data %}
-                        <div class="d-flex align-items-center mb-2">
-                            <span class="me-2" style="font-size: 1.2rem;">{{ weather_data.icon }}</span>
-                            <span>
-                                <strong>{{ weather_data.temperature }}°C</strong> - {{ weather_data.description }}
-                                {% if weather_data.wind_speed > 0 %}
-                                    <span class="text-muted" style="font-size: 0.9rem;">(Wind: {{ weather_data.wind_speed }} km/h)</span>
-                                {% endif %}
-                            </span>
-                        </div>
-                        {% endif %}
-                        
-                        <!-- Billboard Reference -->
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                <i class="fas fa-bullhorn me-1"></i>
-                                Check the <a href="{% url 'billboard:list' %}" class="text-decoration-none">Billboard</a> for more information
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- PRIORITY 1: Tournament Games - LARGE for accessibility -->
-    <!-- HIDDEN: Consolidated into Tournaments section to avoid confusion -->
-    <div class="row justify-content-center mb-5" style="display: none;">
-        <div class="col-12 col-lg-10">
-            <div class="card shadow-lg">
-                <div class="card-header bg-primary text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#tournamentGamesSection" aria-expanded="true" aria-controls="tournamentGamesSection">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h3 class="mb-0"><i class="fas fa-trophy me-3"></i>Tournament Games</h3>
-                        <div class="d-flex align-items-center">
-                            <button class="btn btn-outline-light btn-sm me-3" onclick="togglePinInput()" id="togglePinBtn">
-                                <i class="fas fa-key me-1"></i>Show PIN
-                            </button>
-                            <i class="fas fa-chevron-down" id="tournamentGamesChevron"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="collapse show" id="tournamentGamesSection">
-                    <div class="card-body py-4">
-                        <form method="post" action="{% url 'team_login' %}">
-                            {% csrf_token %}
-                            <!-- Auto-fill PIN from session if team is logged in -->
-                            <input type="hidden" name="pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}" id="hiddenPinInput">
-                            <div class="row g-3">
-                                <div class="col-12 col-md-6">
-                                    <button type="submit" name="action" value="find_next" 
-                                            class="btn btn-primary w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
-                                        <i class="fas fa-search fa-lg me-3"></i><br>Find Match
-                                    </button>
-                                </div>
-                                <div class="col-12 col-md-6">
-                                    <button type="submit" name="action" value="submit_score" 
-                                            class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
-                                        <i class="fas fa-clipboard-check fa-lg me-3"></i><br>Submit Score
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- PRIORITY 3: Friendly Games - LARGE Section -->
-    <div class="row justify-content-center mb-5">
-        <div class="col-12 col-lg-10">
-            <div class="card border-success shadow-lg">
-                <div class="card-header bg-success text-white py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#friendlyGamesSection" aria-expanded="false" aria-controls="friendlyGamesSection">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h3 class="mb-0"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 32px; width: auto; margin-right: 12px;">Friendly Games</h3>
-                        <i class="fas fa-chevron-down" id="friendlyGamesChevron"></i>
-                    </div>
-                </div>
-                <div class="collapse" id="friendlyGamesSection">
-                    <div class="card-body py-4">
-                        <!-- 2x2 Button Grid -->
-                        <div class="row g-3">
-                            <div class="col-12 col-md-6">
-                                <a href="{% url 'friendly_games:create_game' %}" 
-                                   class="btn btn-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-plus-circle fa-lg me-3"></i>
-                                    <span>Create Game</span>
-                                </a>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <a href="{% url 'friendly_games:join_game' %}" 
-                                   class="btn btn-outline-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-users fa-lg me-3"></i>
-                                    <span>Join Game</span>
-                                </a>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <a href="{% url 'friendly_games:submit_score_list' %}" 
-                                   class="btn btn-warning w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-clipboard-check fa-lg me-3"></i>
-                                    <span>Submit Score</span>
-                                </a>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <a href="{% url 'friendly_games_leaderboard' %}" 
-                                   class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-chart-line fa-lg me-3"></i>
-                                    <span>Friendly Game Statistics</span>
-                                </a>
-                            </div>
-                        </div>
-                        <p class="text-center mt-3 mb-0" style="font-size: 1.1rem; font-weight: 500;">
-                            <strong>No team restrictions - play with anyone!</strong>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- TOURNAMENTS: Collapsible Section -->
-    <div class="row justify-content-center mb-5">
-        <div class="col-12 col-lg-10">
-            <div class="card border-warning shadow-lg">
-                <div class="card-header bg-warning text-dark py-3" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#tournamentsSection" aria-expanded="false" aria-controls="tournamentsSection">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h3 class="mb-0"><i class="fas fa-trophy me-3"></i>Tournaments</h3>
-                        <i class="fas fa-chevron-down" id="tournamentsChevron"></i>
-                    </div>
-                </div>
-                <div class="collapse" id="tournamentsSection">
-                    <div class="card-body py-4">
-                        <form method="post" action="{% url 'team_login' %}">
-                            {% csrf_token %}
-                            <!-- Auto-fill PIN from session if team is logged in -->
-                            <input type="hidden" name="pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}" id="hiddenPinInput">
-                            <div class="row g-3 mb-3">
-                                <div class="col-12 col-md-6">
-                                    <button type="submit" name="action" value="find_next" 
-                                            class="btn btn-primary w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
-                                        <i class="fas fa-search fa-lg me-3"></i><br>Find Match
-                                    </button>
-                                </div>
-                                <div class="col-12 col-md-6">
-                                    <button type="submit" name="action" value="submit_score" 
-                                            class="btn btn-info w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px;">
-                                        <i class="fas fa-clipboard-check fa-lg me-3"></i><br>Submit Score
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-6">
-                                <a href="/simple/" 
-                                   class="btn btn-success w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-plus-circle fa-lg me-3"></i>
-                                    <span>Create Tournament</span>
-                                </a>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <a href="/signin/" 
-                                   class="btn btn-warning w-100" style="font-size: 1.4rem; padding: 1rem 2rem; height: 80px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-sign-in-alt fa-lg me-3"></i>
-                                    <span>Join Tournament</span>
-                                </a>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <a href="{% url 'tournament_list' %}" 
-                                   class="btn btn-outline-warning w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-eye fa-lg me-2"></i>View Tournaments
-                                </a>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <a href="{% url 'player_leaderboard' %}" 
-                                   class="btn btn-outline-warning w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-chart-line fa-lg me-2"></i>Tournament Players
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- PRACTICE & MATCHES: Side-by-side Cards -->
-    <div class="row justify-content-center mb-4">
-        <div class="col-12 col-lg-10">
-            <div class="row g-4">
-                <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow">
-                        <div class="card-body text-center py-4">
-                            <img src="{% static 'practice_icon.svg' %}" alt="Practice" style="height: 48px; width: auto;" class="mb-3">
-                            <h4 class="card-title mb-3">Practice</h4>
-                            <a href="/practice/" class="btn btn-info w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <img src="{% static 'practice_icon.svg' %}" alt="Practice" style="height: 24px; width: 24px; margin-right: 8px; filter: brightness(0) invert(1);">
-                                <span>Start Practice</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow">
-                        <div class="card-body text-center py-4">
-                            <img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 48px; width: auto;" class="mb-3">
-                            <h4 class="card-title mb-3">Matches</h4>
-                            <a href="{% url 'match_list' %}" class="btn btn-info w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <i class="fas fa-eye fa-lg me-2"></i>View Matches
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ADDITIONAL FUNCTIONS: Teams & Admin - LARGE Cards -->
-    <div class="row justify-content-center mb-4">
-        <div class="col-12 col-lg-10">
-            <div class="row g-4">
-                <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow">
-                        <div class="card-body text-center py-4">
-                            <i class="fas fa-users fa-3x mb-3 text-primary"></i>
-                            <h4 class="card-title mb-3">Teams</h4>
-                            <a href="{% url 'team_list' %}" class="btn btn-primary w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <i class="fas fa-eye fa-lg me-2"></i>View Teams
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #FFD700;">
-                        <div class="card-body text-center py-4">
-                            <i class="fas fa-chart-line fa-3x mb-3" style="color: #FFD700;"></i>
-                            <h4 class="card-title mb-3" style="color: #FFD700; text-transform: uppercase; letter-spacing: 2px;">PFC MARKET</h4>
-                            <a href="{% url 'pfc_market' %}" class="btn w-100" style="background: #FFD700; color: #000000; font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center; font-weight: 600;">
-                                <i class="fas fa-chart-line fa-lg me-2"></i>PFC MARKET
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- FINAL FUNCTIONS: Courts & AI Umpire - LARGE Cards -->
-    <div class="row justify-content-center mb-5">
-        <div class="col-12 col-lg-10">
-            <div class="row g-4">
-                <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow">
-                        <div class="card-body text-center py-4">
-                            <i class="fas fa-building fa-3x mb-3 text-danger"></i>
-                            <h4 class="card-title mb-3">Court Complex</h4>
-                            <a href="{% url 'court_complex_list' %}" class="btn btn-danger w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <i class="fas fa-eye fa-lg me-2"></i>View Court Complex
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6">
-                    <div class="card h-100 shadow">
-                        <div class="card-body text-center py-4">
-                            <img src="{% static 'petaump.webp' %}" alt="PetA UMP" style="height: 48px; width: auto;" class="mb-3">
-                            <h4 class="card-title mb-3">AI Umpire (petA UMP)</h4>
-                            <a href="https://chatgpt.com/g/g-67b6e4fb426881918b6bb98d4b0238e0-peta-ump" target="_blank" class="btn btn-dark w-100" style="font-size: 1.2rem; padding: 0.8rem 1.5rem; height: 60px; display: flex; align-items: center; justify-content: center;">
-                                <img src="{% static 'petaump.webp' %}" alt="PetA UMP" style="height: 24px; width: auto;" class="me-2">AI Umpire (petA UMP)
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Enhanced CSS for accessibility and larger buttons -->
 <style>
-/* Accessibility improvements for older users */
-.btn {
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    transition: all 0.2s ease !important;
+/* ── Home page redesign: ball-first hierarchy ─────────────────────── */
+
+/* ── Info strip (user / courts / weather) ─────────────────────────── */
+.ic-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.ic-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 6px 10px 8px;
+    border-radius: 12px;
+    border: 1.5px solid;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.07);
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: transform .13s, box-shadow .13s;
+    min-width: 0;
+    overflow: hidden;
+}
+.ic-card:active { transform: scale(.97); }
+.ic-card:hover  { box-shadow: 0 4px 16px rgba(0,0,0,.13); transform: translateY(-1px); }
+.ic-card.ic-user   { border-color: #b3c6f5; background: #eef3ff; }
+.ic-card.ic-courts { border-color: #a8d5b5; background: #edfaf2; }
+.ic-card.ic-weather{ border-color: #f5e0a0; background: #fffbeb; }
+.ic-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+}
+.ic-user   .ic-icon { background: #d0dcfc; color: #2a5bd7; }
+.ic-courts .ic-icon { background: #c3ecd0; color: #1a7a3c; }
+.ic-weather .ic-icon{ background: #fde9a0; color: #b07800; }
+.ic-body { flex: 1; min-width: 0; }
+.ic-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .04em; color: #888; font-weight: 600; line-height: 1; margin-bottom: 2px; }
+.ic-value { font-size: .82rem; font-weight: 700; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ic-sub   { font-size: .7rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ic-chevron { color: #bbb; font-size: 11px; flex-shrink: 0; }
+
+/* ── Hero: central ball call-to-action ─────────────────────────────── */
+.home-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 36px 24px 28px;
+    text-align: center;
+}
+.home-hero-hint {
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8a9bbf;
+    margin-bottom: 18px;
+}
+.home-ball-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #1a3a8f 0%, #0d47a1 60%, #1565c0 100%);
+    box-shadow:
+        0 0 0 8px rgba(26,58,143,.12),
+        0 0 0 16px rgba(26,58,143,.06),
+        0 12px 40px rgba(13,71,161,.45);
+    text-decoration: none;
+    transition: transform .18s, box-shadow .18s;
+    flex-shrink: 0;
+}
+.home-ball-btn:hover, .home-ball-btn:focus {
+    transform: scale(1.06) translateY(-3px);
+    box-shadow:
+        0 0 0 10px rgba(26,58,143,.16),
+        0 0 0 20px rgba(26,58,143,.07),
+        0 16px 50px rgba(13,71,161,.55);
+    outline: none;
+}
+.home-ball-btn:active { transform: scale(.95); }
+.home-ball-btn img { height: 72px; width: auto; }
+
+.home-ball-label {
+    margin-top: 16px;
+    font-size: .95rem;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: .01em;
+}
+.home-ball-sub {
+    margin-top: 4px;
+    font-size: .78rem;
+    color: #6b7a99;
 }
 
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+/* ── Home-link hint below ball ─────────────────────────────────────── */
+.home-nav-hint {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f0f4ff;
+    border: 1.5px solid #c8d6f8;
+    border-radius: 10px;
+    padding: 9px 16px;
+    font-size: .78rem;
+    color: #3d5a9e;
+    font-weight: 500;
+}
+.home-nav-hint .hint-pfc {
+    font-weight: 800;
+    color: #1a3a8f;
+    letter-spacing: .04em;
 }
 
-.card {
-    border-radius: 12px !important;
-    transition: all 0.2s ease !important;
+/* ── Divider before secondary sections ─────────────────────────────── */
+.home-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    margin-bottom: 16px;
+}
+.home-divider-line {
+    flex: 1;
+    height: 1px;
+    background: #e4e9f4;
+}
+.home-divider-label {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #b0bcd8;
+    white-space: nowrap;
 }
 
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important;
+/* ── Secondary sections (collapsible cards) ─────────────────────────── */
+.sec-card {
+    border-radius: 14px !important;
+    border: 1.5px solid #e4e9f4 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06) !important;
+    overflow: hidden;
+    margin-bottom: 10px;
 }
-
-/* Smooth scrolling hint animation */
-.scroll-hint {
-    animation: bounce 2s infinite;
+.sec-card .sec-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    cursor: pointer;
+    background: #fff;
+    border: none;
+    width: 100%;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .13s;
 }
-
-@keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {
-        transform: translateY(0);
-    }
-    40% {
-        transform: translateY(-5px);
-    }
-    60% {
-        transform: translateY(-3px);
-    }
+.sec-card .sec-header:hover { background: #f7f9ff; }
+.sec-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
-
-/* Chevron rotation for collapsible sections */
-#tournamentsChevron, #tournamentGamesChevron, #friendlyGamesChevron {
-    transition: transform 0.3s ease;
+.sec-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
 }
-
-.collapsed #tournamentsChevron, .collapsed #tournamentGamesChevron, .collapsed #friendlyGamesChevron {
-    transform: rotate(0deg);
+.sec-title {
+    font-size: .9rem;
+    font-weight: 700;
+    color: #1a1a2e;
 }
-
-#tournamentsSection.show ~ .card-header #tournamentsChevron,
-#tournamentGamesSection.show ~ .card-header #tournamentGamesChevron,
-#friendlyGamesSection.show ~ .card-header #friendlyGamesChevron {
-    transform: rotate(180deg);
+.sec-chevron {
+    color: #bbb;
+    font-size: 12px;
+    transition: transform .25s;
+    flex-shrink: 0;
 }
+.sec-chevron.open { transform: rotate(180deg); }
 
-/* Mobile optimizations */
-@media (max-width: 768px) {
-    .container-fluid {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-    
-    .btn {
-        font-size: 1.1rem !important;
-        min-height: 60px !important;
-    }
-    
-    h2 {
-        font-size: 1.6rem !important;
-    }
-    
-    h3 {
-        font-size: 1.4rem !important;
-    }
-    
-    h4 {
-        font-size: 1.2rem !important;
-    }
+.sec-body {
+    padding: 4px 12px 14px;
+    background: #fff;
 }
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-    .btn {
-        border: 2px solid !important;
-    }
-    
-    .card {
-        border: 2px solid #333 !important;
-    }
+.sec-btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
 }
+.sec-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 14px 8px;
+    border-radius: 12px;
+    border: 1.5px solid;
+    font-size: .78rem;
+    font-weight: 700;
+    text-decoration: none;
+    text-align: center;
+    transition: transform .13s, box-shadow .13s;
+    -webkit-tap-highlight-color: transparent;
+    line-height: 1.2;
+}
+.sec-btn:active { transform: scale(.96); }
+.sec-btn:hover  { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.sec-btn i { font-size: 18px; }
 
-/* Reduced motion support */
+/* Friendly colours */
+.sec-btn-green  { background: #edfaf2; border-color: #a8d5b5; color: #1a7a3c; }
+.sec-btn-green:hover { color: #1a7a3c; }
+.sec-btn-green-outline { background: #fff; border-color: #a8d5b5; color: #1a7a3c; }
+.sec-btn-green-outline:hover { color: #1a7a3c; }
+.sec-btn-amber  { background: #fff8e6; border-color: #f5d87a; color: #7a5800; }
+.sec-btn-amber:hover { color: #7a5800; }
+.sec-btn-blue   { background: #eef3ff; border-color: #b3c6f5; color: #2a5bd7; }
+.sec-btn-blue:hover { color: #2a5bd7; }
+/* Tournament colours */
+.sec-btn-gold   { background: #fffbeb; border-color: #f5e0a0; color: #7a5800; }
+.sec-btn-gold:hover { color: #7a5800; }
+.sec-btn-gold-outline { background: #fff; border-color: #f5e0a0; color: #7a5800; }
+.sec-btn-gold-outline:hover { color: #7a5800; }
+/* Neutral */
+.sec-btn-neutral { background: #f5f7fa; border-color: #dde3ef; color: #3a4a6b; }
+.sec-btn-neutral:hover { color: #3a4a6b; }
+.sec-btn-dark   { background: #1a1a2e; border-color: #1a1a2e; color: #FFD700; }
+.sec-btn-dark:hover { color: #FFD700; }
+
+/* Tournament form: hidden PIN input */
+.pin-form-hidden { display: none; }
+
+/* Accessibility / motion */
 @media (prefers-reduced-motion: reduce) {
-    .scroll-hint {
-        animation: none;
-    }
-    
-    .btn:hover, .card:hover {
-        transform: none;
-    }
-    
-    #tournamentsChevron {
-        transition: none;
-    }
+    .home-ball-btn, .sec-btn, .ic-card { transition: none; }
+    .sec-chevron { transition: none; }
+}
+@media (max-width: 400px) {
+    .home-ball-btn { width: 104px; height: 104px; }
+    .home-ball-btn img { height: 62px; }
 }
 </style>
 
+<div class="container-fluid px-3 pt-2 pb-5">
+
+    <!-- ── Info strip ────────────────────────────────────────────────── -->
+    <div class="ic-row mb-3">
+
+        {% if logged_in_player %}
+        <a href="{% url 'player_profile' logged_in_player.id %}" class="ic-card ic-user">
+        {% elif team_info %}
+        <a href="{% url 'team_list' %}" class="ic-card ic-user">
+        {% else %}
+        <a href="{% url 'player_auth:login' %}" class="ic-card ic-user">
+        {% endif %}
+            <div class="ic-icon"><i class="fas fa-user"></i></div>
+            <div class="ic-body">
+                <div class="ic-label">Player</div>
+                {% if player_name %}
+                    <div class="ic-value">{{ player_name }}</div>
+                    <div class="ic-sub">{{ team_info.team_name|default:"No team" }}</div>
+                {% elif team_info %}
+                    <div class="ic-value">{{ team_info.team_name }}</div>
+                    <div class="ic-sub">Team session</div>
+                {% else %}
+                    <div class="ic-value">Sign in</div>
+                    <div class="ic-sub">Tap to log in</div>
+                {% endif %}
+            </div>
+            <i class="fas fa-chevron-right ic-chevron"></i>
+        </a>
+
+        <a href="{% url 'billboard:list' %}" class="ic-card ic-courts">
+            <div class="ic-icon"><i class="fas fa-map-marker-alt"></i></div>
+            <div class="ic-body">
+                <div class="ic-label">Courts</div>
+                {% if currently_at_courts > 0 %}
+                    <div class="ic-value">{{ currently_at_courts }} player{{ currently_at_courts|pluralize }}</div>
+                    <div class="ic-sub">at courts now</div>
+                {% else %}
+                    <div class="ic-value">No players</div>
+                    <div class="ic-sub">at courts</div>
+                {% endif %}
+            </div>
+            <i class="fas fa-chevron-right ic-chevron"></i>
+        </a>
+
+        <a href="https://www.windy.com/?37.991,23.738,12" target="_blank" rel="noopener" class="ic-card ic-weather">
+            <div class="ic-icon">
+                {% if weather_data %}{{ weather_data.icon }}{% else %}☁️{% endif %}
+            </div>
+            <div class="ic-body">
+                <div class="ic-label">Weather</div>
+                {% if weather_data %}
+                    <div class="ic-value">{{ weather_data.temperature }}&deg;C</div>
+                    <div class="ic-sub">{{ weather_data.description }}</div>
+                {% else %}
+                    <div class="ic-value">N/A</div>
+                    <div class="ic-sub">Unavailable</div>
+                {% endif %}
+            </div>
+            <i class="fas fa-chevron-right ic-chevron"></i>
+        </a>
+
+    </div>
+    <!-- ── end info strip ───────────────────────────────────────────── -->
+
+
+    <!-- ── HERO: Central ball — PRIMARY ACTION ──────────────────────── -->
+    <div class="home-hero">
+        <div class="home-hero-hint">Tap the ball to start</div>
+
+        <a href="{% url 'my_active_matches' %}" class="home-ball-btn" title="Go to my match">
+            <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
+        </a>
+
+        <div class="home-ball-label">PFC — Find my match</div>
+        <div class="home-ball-sub">Your active game, tournament or friendly</div>
+
+        <!-- PFC text = home hint -->
+        <div class="home-nav-hint">
+            <i class="fas fa-arrow-left" style="font-size:.7rem;"></i>
+            Tap <span class="hint-pfc">PFC</span> in the header to return home
+        </div>
+    </div>
+    <!-- ── end hero ─────────────────────────────────────────────────── -->
+
+
+    <!-- ── SECONDARY SECTIONS ───────────────────────────────────────── -->
+    <div class="home-divider">
+        <div class="home-divider-line"></div>
+        <div class="home-divider-label">More options</div>
+        <div class="home-divider-line"></div>
+    </div>
+
+    <!-- Friendly Games -->
+    <div class="sec-card">
+        <button class="sec-header" onclick="toggleSec('fg', this)" aria-expanded="false" aria-controls="sec-fg">
+            <div class="sec-header-left">
+                <div class="sec-icon" style="background:#edfaf2;color:#1a7a3c;">
+                    <img src="{% static 'pfcFGlogo.svg' %}" alt="" style="height:20px;width:auto;">
+                </div>
+                <span class="sec-title">Friendly Games</span>
+            </div>
+            <i class="fas fa-chevron-down sec-chevron" id="chev-fg"></i>
+        </button>
+        <div id="sec-fg" style="display:none;">
+            <div class="sec-body">
+                <div class="sec-btn-grid">
+                    <a href="{% url 'friendly_games:create_game' %}" class="sec-btn sec-btn-green">
+                        <i class="fas fa-plus-circle"></i>Create Game
+                    </a>
+                    <a href="{% url 'friendly_games:join_game' %}" class="sec-btn sec-btn-green-outline">
+                        <i class="fas fa-users"></i>Join Game
+                    </a>
+                    <a href="{% url 'friendly_games:submit_score_list' %}" class="sec-btn sec-btn-amber">
+                        <i class="fas fa-clipboard-check"></i>Submit Score
+                    </a>
+                    <a href="{% url 'friendly_games_leaderboard' %}" class="sec-btn sec-btn-blue">
+                        <i class="fas fa-chart-bar"></i>Statistics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tournaments -->
+    <div class="sec-card">
+        <button class="sec-header" onclick="toggleSec('tn', this)" aria-expanded="false" aria-controls="sec-tn">
+            <div class="sec-header-left">
+                <div class="sec-icon" style="background:#fffbeb;color:#b07800;">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <span class="sec-title">Tournaments</span>
+            </div>
+            <i class="fas fa-chevron-down sec-chevron" id="chev-tn"></i>
+        </button>
+        <div id="sec-tn" style="display:none;">
+            <div class="sec-body">
+                <form method="post" action="{% url 'team_login' %}" class="pin-form-hidden">
+                    {% csrf_token %}
+                    <input type="hidden" name="pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
+                    <div class="sec-btn-grid" style="margin-bottom:8px;">
+                        <button type="submit" name="action" value="find_next" class="sec-btn sec-btn-blue" style="border:none;cursor:pointer;">
+                            <i class="fas fa-search"></i>Find Match
+                        </button>
+                        <button type="submit" name="action" value="submit_score" class="sec-btn sec-btn-amber" style="border:none;cursor:pointer;">
+                            <i class="fas fa-clipboard-check"></i>Submit Score
+                        </button>
+                    </div>
+                </form>
+                <div class="sec-btn-grid">
+                    <a href="/simple/" class="sec-btn sec-btn-gold">
+                        <i class="fas fa-plus-circle"></i>Create Tournament
+                    </a>
+                    <a href="{% url 'tournament_signin_list' %}" class="sec-btn sec-btn-gold-outline">
+                        <i class="fas fa-sign-in-alt"></i>Join Tournament
+                    </a>
+                    <a href="{% url 'tournament_list' %}" class="sec-btn sec-btn-neutral">
+                        <i class="fas fa-eye"></i>View Tournaments
+                    </a>
+                    <a href="{% url 'player_leaderboard' %}" class="sec-btn sec-btn-neutral">
+                        <i class="fas fa-chart-line"></i>Players
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Practice & Matches -->
+    <div class="sec-card">
+        <button class="sec-header" onclick="toggleSec('pm', this)" aria-expanded="false" aria-controls="sec-pm">
+            <div class="sec-header-left">
+                <div class="sec-icon" style="background:#eef3ff;color:#2a5bd7;">
+                    <i class="fas fa-dumbbell"></i>
+                </div>
+                <span class="sec-title">Practice &amp; Matches</span>
+            </div>
+            <i class="fas fa-chevron-down sec-chevron" id="chev-pm"></i>
+        </button>
+        <div id="sec-pm" style="display:none;">
+            <div class="sec-body">
+                <div class="sec-btn-grid">
+                    <a href="/practice/" class="sec-btn sec-btn-blue">
+                        <img src="{% static 'practice_icon.svg' %}" alt="" style="height:18px;width:auto;filter:invert(27%) sepia(93%) saturate(1352%) hue-rotate(213deg) brightness(97%) contrast(97%);">
+                        Start Practice
+                    </a>
+                    <a href="{% url 'match_list' %}" class="sec-btn sec-btn-neutral">
+                        <i class="fas fa-eye"></i>View Matches
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teams, Market, Courts, AI Umpire -->
+    <div class="sec-card">
+        <button class="sec-header" onclick="toggleSec('ex', this)" aria-expanded="false" aria-controls="sec-ex">
+            <div class="sec-header-left">
+                <div class="sec-icon" style="background:#f5f7fa;color:#3a4a6b;">
+                    <i class="fas fa-ellipsis-h"></i>
+                </div>
+                <span class="sec-title">Teams, Market &amp; More</span>
+            </div>
+            <i class="fas fa-chevron-down sec-chevron" id="chev-ex"></i>
+        </button>
+        <div id="sec-ex" style="display:none;">
+            <div class="sec-body">
+                <div class="sec-btn-grid">
+                    <a href="{% url 'team_list' %}" class="sec-btn sec-btn-blue">
+                        <i class="fas fa-users"></i>Teams
+                    </a>
+                    <a href="{% url 'pfc_market' %}" class="sec-btn sec-btn-dark">
+                        <i class="fas fa-chart-line"></i>PFC Market
+                    </a>
+                    <a href="{% url 'court_complex_list' %}" class="sec-btn sec-btn-neutral">
+                        <i class="fas fa-building"></i>Court Complex
+                    </a>
+                    <a href="https://chatgpt.com/g/g-67b6e4fb426881918b6bb98d4b0238e0-peta-ump" target="_blank" class="sec-btn sec-btn-neutral">
+                        <img src="{% static 'petaump.webp' %}" alt="" style="height:18px;width:auto;">
+                        AI Umpire
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
 <script>
-// Handle chevron rotation for collapsible sections
-document.addEventListener('DOMContentLoaded', function() {
-    // Tournament Games section
-    const tournamentGamesSection = document.getElementById('tournamentGamesSection');
-    const tournamentGamesChevron = document.getElementById('tournamentGamesChevron');
-    
-    if (tournamentGamesSection && tournamentGamesChevron) {
-        tournamentGamesSection.addEventListener('show.bs.collapse', function() {
-            tournamentGamesChevron.style.transform = 'rotate(180deg)';
-        });
-        
-        tournamentGamesSection.addEventListener('hide.bs.collapse', function() {
-            tournamentGamesChevron.style.transform = 'rotate(0deg)';
-        });
+function toggleSec(id, btn) {
+    var body = document.getElementById('sec-' + id);
+    var chev = document.getElementById('chev-' + id);
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    btn.setAttribute('aria-expanded', String(!open));
+    if (chev) {
+        chev.classList.toggle('open', !open);
     }
-    
-    // Friendly Games section
-    const friendlyGamesSection = document.getElementById('friendlyGamesSection');
-    const friendlyGamesChevron = document.getElementById('friendlyGamesChevron');
-    
-    if (friendlyGamesSection && friendlyGamesChevron) {
-        friendlyGamesSection.addEventListener('show.bs.collapse', function() {
-            friendlyGamesChevron.style.transform = 'rotate(180deg)';
-        });
-        
-        friendlyGamesSection.addEventListener('hide.bs.collapse', function() {
-            friendlyGamesChevron.style.transform = 'rotate(0deg)';
-        });
-    }
-    
+}
 
-    
-    // Tournaments section (existing)
-    const tournamentsSection = document.getElementById('tournamentsSection');
-    const tournamentsChevron = document.getElementById('tournamentsChevron');
-    
-    if (tournamentsSection && tournamentsChevron) {
-        tournamentsSection.addEventListener('show.bs.collapse', function() {
-            tournamentsChevron.style.transform = 'rotate(180deg)';
-        });
-        
-        tournamentsSection.addEventListener('hide.bs.collapse', function() {
-            tournamentsChevron.style.transform = 'rotate(0deg)';
-        });
-    }
+// Show tournament form buttons only when team is logged in
+document.addEventListener('DOMContentLoaded', function () {
+    {% if request.session.team_pin %}
+    var forms = document.querySelectorAll('.pin-form-hidden');
+    forms.forEach(function(f){ f.style.display = 'block'; });
+    {% endif %}
 });
-
-// Toggle PIN input visibility
-function togglePinInput() {
-    const pinSection = document.getElementById('pinInputSection');
-    const toggleBtn = document.getElementById('togglePinBtn');
-    
-    if (pinSection.style.display === 'none') {
-        pinSection.style.display = 'block';
-        toggleBtn.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide PIN';
-    } else {
-        pinSection.style.display = 'none';
-        toggleBtn.innerHTML = '<i class="fas fa-key me-1"></i>Show PIN';
-    }
-}
-
-// Toggle PIN visibility (show/hide actual PIN)
-function togglePinVisibility() {
-    const pinDisplay = document.getElementById('pinDisplay');
-    const pinValue = document.getElementById('pinValue');
-    const pinToggleIcon = document.getElementById('pinToggleIcon');
-    
-    if (pinValue.style.display === 'none') {
-        // Show PIN
-        pinDisplay.textContent = pinValue.textContent;
-        pinToggleIcon.className = 'fas fa-eye-slash';
-    } else {
-        // Hide PIN
-        pinDisplay.textContent = '••••••';
-        pinToggleIcon.className = 'fas fa-eye';
-    }
-    // Toggle visibility flag
-    pinValue.style.display = pinValue.style.display === 'none' ? 'inline' : 'none';
-}
 </script>
 {% endblock %}
-

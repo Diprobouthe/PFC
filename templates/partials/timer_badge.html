@@ -1,0 +1,26 @@
+{% comment %}
+Compact timer badge for spectator/overview views.
+Shows as a small inline badge next to match info.
+
+Required context:
+  timer_seconds  — int, remaining seconds
+  timer_expired  — bool, whether time has expired
+  timer_limit    — int, time_limit_minutes value
+  timer_id       — str, unique suffix for element IDs (must be unique per match)
+
+Usage:
+  {% include "partials/timer_badge.html" with timer_seconds=match.time_remaining_seconds timer_expired=match.is_time_expired timer_limit=match.time_limit_minutes timer_id=match.id %}
+{% endcomment %}
+
+{% with tid=timer_id|default:"0" %}
+{% if timer_expired %}
+    <span class="badge bg-danger">
+        <i class="bi bi-alarm-fill"></i> Expired
+    </span>
+{% else %}
+    <span class="badge bg-info text-dark" id="timer-badge-{{ tid }}">
+        <i class="bi bi-clock-fill"></i>
+        <span id="timer-display-{{ tid }}">--:--</span>
+    </span>
+{% endif %}
+{% endwith %}

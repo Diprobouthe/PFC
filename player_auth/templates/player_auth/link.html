@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Link Your Player — PFC{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-10 col-md-7 col-lg-6 col-xl-5">
+
+        <div class="text-center mb-4">
+          <span style="font-size: 2.5rem; font-weight: 900; color: #fff;">P<span style="color:#e63946;">F</span>C</span>
+        </div>
+
+        <div class="card border-0 shadow-lg" style="background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border-radius: 20px;">
+          <div class="card-body p-4 p-md-5">
+
+            <div class="text-center mb-4">
+              <div class="mb-3" style="font-size: 2.5rem;">🔗</div>
+              <h2 class="text-white fw-bold mb-1">Link your PFC player</h2>
+              <p class="text-white-50 small mb-0">
+                Are you an existing PFC player?<br>
+                Enter your codename to connect your history.
+              </p>
+            </div>
+
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show py-2 small">
+                  {{ message }}
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <!-- Link form -->
+            <form method="post" action="{% url 'player_auth:link' %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="link">
+
+              <div class="mb-3">
+                <label class="form-label text-white-50 small">Your PFC Codename</label>
+                <input type="text" name="codename" class="form-control form-control-lg text-center fw-bold"
+                       placeholder="e.g. AB3X9Z" maxlength="6" style="text-transform: uppercase;
+                       background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+                       color: #fff; border-radius: 12px; font-size: 1.4rem; letter-spacing: 0.4rem;"
+                       autofocus>
+                <div class="text-center mt-1">
+                  <small class="text-white-50">The 6-character code you used to log in before</small>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-danger w-100 py-3 fw-semibold mb-3" style="border-radius: 12px;">
+                Link My Player →
+              </button>
+            </form>
+
+            <!-- Divider -->
+            <div class="d-flex align-items-center my-3">
+              <hr class="flex-grow-1" style="border-color: rgba(255,255,255,0.15);">
+              <span class="px-3 text-white-50 small">or</span>
+              <hr class="flex-grow-1" style="border-color: rgba(255,255,255,0.15);">
+            </div>
+
+            <!-- Skip -->
+            <form method="post" action="{% url 'player_auth:link' %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="skip">
+              <button type="submit" class="btn w-100 py-3 fw-semibold"
+                      style="border-radius: 12px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.15);">
+                I'm new — create my player
+              </button>
+            </form>
+
+            <p class="text-center text-white-50 mt-3 mb-0" style="font-size: 0.75rem;">
+              You can always link your player later from your profile settings.
+            </p>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  input::placeholder { color: rgba(255,255,255,0.3) !important; letter-spacing: normal; }
+  input:focus { background: rgba(255,255,255,0.15) !important; color: #fff !important; border-color: #e63946 !important; box-shadow: 0 0 0 0.2rem rgba(230,57,70,0.25) !important; }
+</style>
+{% endblock %}

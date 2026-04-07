@@ -1,599 +1,874 @@
 {% extends 'base.html' %}
+{% load shot_tracker_tags %}
 
-{% block title %}Match Details - Petanque Platform{% endblock %}
+{% block title %}Match · PFC{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="mb-4">Match Details</h1>
-            
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">{{ match.team1.name }} vs {{ match.team2.name }}</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
-                            <p><strong>Status:</strong> 
-                                <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'pending_verification' %}bg-warning{% elif match.status == 'active' %}bg-success{% elif match.status == 'waiting_validation' %}bg-info{% else %}bg-secondary{% endif %}">
-                                    {{ match.get_status_display }}
-                                </span>
-                            </p>
-                            {% if match.match_type %}
-                                <p><strong>Match Type:</strong> 
-                                    <span class="badge bg-info">
-                                        {% if match.match_type == 'triplet' %}
-                                            Triplet (3 players per team)
-                                        {% elif match.match_type == 'doublet' %}
-                                            Doublet (2 players per team)
-                                        {% elif match.match_type == 'tete_a_tete' %}
-                                            Tête-à-tête (1 player per team)
-                                        {% elif match.match_type == 'mixed' %}
-                                            Mixed Format (Team 1: {{ match.team1_player_count }}, Team 2: {{ match.team2_player_count }})
-                                        {% else %}
-                                            {{ match.match_type|title }}
-                                        {% endif %}
-                                    </span>
-                                </p>
-                            {% endif %}
-                            {% if match.status == 'pending_verification' %}
-                                {% for activation in match.activations.all %}
-                                    {% if activation.is_initiator %}
-                                        <p><strong>Initiated by:</strong> <span class="badge bg-primary">{{ activation.team.name }}</span></p>
-                                    {% else %}
-                                        <p><strong>Validated by:</strong> <span class="badge bg-success">{{ activation.team.name }}</span></p>
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                            {% if match.round %}
-                                <p><strong>Round:</strong> {{ match.round }}</p>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                            {% if match.court %}
-                                <p><strong>Court:</strong> {{ match.court }}</p>
-                                <p id="court-info">
-                                    {% if match.court.id in tournament_court_ids %}
-                                    <span class="badge bg-success">Tournament Court</span>
-                                    {% endif %}
-                                </p>
-                            {% endif %}
-                            {% if match.start_time %}
-                                <p><strong>Started:</strong> {{ match.start_time|date:"F j, Y, g:i a" }}</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <!-- Timer Display Section -->
-                    {% if match.time_limit_minutes and match.status in 'active,waiting_validation' %}
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="card" id="timer-card" style="border: 2px solid {% if match.is_time_expired %}#dc3545{% else %}#28a745{% endif %};">
-                                <div class="card-body text-center">
-                                    {% if match.is_time_expired %}
-                                        <h4 class="text-warning mb-2">
-                                            <i class="bi bi-alarm-fill"></i> Time Expired
-                                        </h4>
-                                        <p class="text-muted mb-0">
-                                            You may continue playing or play a <strong>cosone</strong> (additional round)
-                                        </p>
-                                    {% else %}
-                                        <h5 class="mb-3">
-                                            <i class="bi bi-clock-fill"></i> Time Remaining
-                                        </h5>
-                                        <div class="display-3 fw-bold mb-3" id="timer-display" style="color: #28a745;">
-                                            {{ match.time_remaining_display }}
-                                        </div>
-                                        <div class="progress" style="height: 15px;">
-                                            <div class="progress-bar bg-success" 
-                                                 id="timer-progress"
-                                                 role="progressbar" 
-                                                 style="width: 100%;"
-                                                 aria-valuenow="100" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="100">
-                                            </div>
-                                        </div>
-                                        <small class="text-muted mt-2 d-block">Match time limit: {{ match.time_limit_minutes }} minutes</small>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    {% if match.status == 'completed' or match.status == 'waiting_validation' %}
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h5 class="mb-0">Score</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row text-center">
-                                            <div class="col-5">
-                                                <h3>{{ match.team1.name }}</h3>
-                                                <h1 class="display-1">{{ match.team1_score }}</h1>
-                                            </div>
-                                            <div class="col-2 d-flex align-items-center justify-content-center">
-                                                <h2>vs</h2>
-                                            </div>
-                                            <div class="col-5">
-                                                <h3>{{ match.team2.name }}</h3>
-                                                <h1 class="display-1">{{ match.team2_score }}</h1>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% endif %}
-                    
-                    <!-- Live Scoreboard Section -->
-                    {% if match.live_scoreboard %}
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="card border-info">
-                                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center" 
-                                         style="cursor: pointer;" onclick="toggleLiveScoreboard()">
-                                        <h6 class="mb-0">
-                                            <i class="fas fa-chart-line"></i> Live Scoreboard
-                                        </h6>
-                                        <button type="button" class="btn btn-sm btn-outline-light" id="toggleLiveScoreboardBtn">
-                                            <i class="fas fa-eye" id="toggleLiveScoreboardIcon"></i> 
-                                            <span id="toggleLiveScoreboardText">Show Scores</span>
-                                        </button>
-                                    </div>
-                                    <div class="card-body" id="liveScoreboardContent" style="display: none;">
-                                        <div class="row align-items-center">
-                                            <div class="col-md-8">
-                                                <p class="mb-2">
-                                                    <strong>Current Score:</strong> 
-                                                    <span class="badge bg-primary fs-6">{{ match.live_scoreboard.team1_score }}</span>
-                                                    <span class="mx-2">-</span>
-                                                    <span class="badge bg-success fs-6">{{ match.live_scoreboard.team2_score }}</span>
-                                                </p>
-                                                {% if match.live_scoreboard.last_updated_by %}
-                                                    <small class="text-muted">
-                                                        Last updated {{ match.live_scoreboard.updated_at|timesince }} ago by {{ match.live_scoreboard.last_updated_by }}
-                                                    </small>
-                                                {% endif %}
-                                                <div class="mt-2">
-                                                    <span class="badge {% if match.live_scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                                                        {% if match.live_scoreboard.is_active %}Live Scoring Active{% else %}Scoring Completed{% endif %}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4 text-end">
-                                                <a href="{% url 'scoreboard_detail' match.live_scoreboard.id %}" class="btn btn-info me-2">
-                                                    <i class="fas fa-edit"></i> Update Scores
-                                                </a>
-                                                <a href="{% url 'scoreboard_embed' match.live_scoreboard.id %}" class="btn btn-outline-info" target="_blank">
-                                                    <i class="fas fa-external-link-alt"></i> Full Screen
-                                                </a>
-                                            </div>
-                                        </div>
-                                        <div class="alert alert-info mt-3 mb-0">
-                                            <small><i class="fas fa-info-circle"></i> Live scores help players and spectators follow the match in real time. However, a match is only counted in the standings once both teams verify the final score.</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% endif %}
-                    
-                    <!-- Shot Accuracy Tracker Section -->
-                    {% load shot_tracker_tags %}
-                    {% shot_tracker_enabled as tracker_enabled %}
-                    {% if tracker_enabled and match.status == 'active' %}
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="card border-success">
-                                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center" 
-                                         style="cursor: pointer;" onclick="toggleShotTracker()">
-                                        <h6 class="mb-0">
-                                            <i class="fas fa-bullseye"></i> Shot Accuracy Tracker (Beta)
-                                        </h6>
-                                        <button type="button" class="btn btn-sm btn-outline-light" id="toggleShotTrackerBtn">
-                                            <i class="fas fa-eye" id="toggleShotTrackerIcon"></i> 
-                                            <span id="toggleShotTrackerText">Show Tracker</span>
-                                        </button>
-                                    </div>
-                                    <div class="card-body" id="shotTrackerContent" style="display: none;">
-                                        {% shot_tracker_widget mode="ingame" match_id=match.id %}
-                                        <div class="alert alert-info mt-3 mb-0">
-                                            <small><i class="fas fa-info-circle"></i> Track your shooting accuracy during the match. Hit/Miss buttons help improve your game statistics and unlock achievements!</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% endif %}
-                    
-                    <!-- Player Roster Section -->
-                    <div class="row mt-4">
-                        <div class="col-12">
-                            <div class="card shadow-sm">
-                                <div class="card-header bg-gradient" style="background-color: #6c7ae0; color: white;">
-                                    <div class="d-flex align-items-center">
-                                        <i class="fas fa-users me-2"></i>
-                                        <h5 class="mb-0">Match Participants</h5>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3 mb-md-0">
-                                            <div class="d-flex align-items-center mb-3">
-                                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
-                                                    <i class="fas fa-users text-white"></i>
-                                                </div>
-                                                <h5 class="mb-0">{{ match.team1.name }}</h5>
-                                            </div>
-                                            <div class="list-group">
-                                                {% for player in match.match_players.all %}
-                                                    {% if player.team == match.team1 %}
-                                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                                            <div>
-                                                                <i class="fas fa-user me-2 text-primary"></i>
-                                                                {{ player.player.name }}
-                                                            </div>
-                                                            <span class="badge rounded-pill" style="background-color: #6c7ae0;">
-                                                                {% if player.role == 'pointer' %}
-                                                                    <i class="fas fa-bullseye me-1"></i>
-                                                                {% elif player.role == 'milieu' %}
-                                                                    <i class="fas fa-exchange-alt me-1"></i>
-                                                                {% elif player.role == 'tirer' %}
-                                                                    <i class="fas fa-bomb me-1"></i>
-                                                                {% else %}
-                                                                    <i class="fas fa-random me-1"></i>
-                                                                {% endif %}
-                                                                {{ player.get_role_display }}
-                                                            </span>
-                                                        </div>
-                                                    {% endif %}
-                                                {% empty %}
-                                                    <div class="list-group-item text-muted">
-                                                        <i class="fas fa-info-circle me-2"></i>
-                                                        No player data recorded
-                                                    </div>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="d-flex align-items-center mb-3">
-                                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
-                                                    <i class="fas fa-users text-white"></i>
-                                                </div>
-                                                <h5 class="mb-0">{{ match.team2.name }}</h5>
-                                            </div>
-                                            <div class="list-group">
-                                                {% for player in match.match_players.all %}
-                                                    {% if player.team == match.team2 %}
-                                                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                                            <div>
-                                                                <i class="fas fa-user me-2 text-primary"></i>
-                                                                {{ player.player.name }}
-                                                            </div>
-                                                            <span class="badge rounded-pill" style="background-color: #6c7ae0;">
-                                                                {% if player.role == 'pointer' %}
-                                                                    <i class="fas fa-bullseye me-1"></i>
-                                                                {% elif player.role == 'milieu' %}
-                                                                    <i class="fas fa-exchange-alt me-1"></i>
-                                                                {% elif player.role == 'tirer' %}
-                                                                    <i class="fas fa-bomb me-1"></i>
-                                                                {% else %}
-                                                                    <i class="fas fa-random me-1"></i>
-                                                                {% endif %}
-                                                                {{ player.get_role_display }}
-                                                            </span>
-                                                        </div>
-                                                    {% endif %}
-                                                {% empty %}
-                                                    <div class="list-group-item text-muted">
-                                                        <i class="fas fa-info-circle me-2"></i>
-                                                        No player data recorded
-                                                    </div>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4">
-                        {% if match.status == 'pending' %}
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    {% if request.session.team_name == match.team1.name %}
-                                        <!-- Player's team - highlighted in green -->
-                                        <a href="{% url 'match_activate' match.id match.team1.id %}" class="btn btn-success btn-lg btn-block w-100">
-                                            <i class="fas fa-play"></i> Start Match as {{ match.team1.name }}
-                                        </a>
-                                    {% else %}
-                                        <!-- Opponent team - grayed out and disabled -->
-                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled style="opacity: 0.5; cursor: not-allowed;">
-                                            <i class="fas fa-ban"></i> {{ match.team1.name }} (Not Your Team)
-                                        </button>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    {% if request.session.team_name == match.team2.name %}
-                                        <!-- Player's team - highlighted in green -->
-                                        <a href="{% url 'match_activate' match.id match.team2.id %}" class="btn btn-success btn-lg btn-block w-100">
-                                            <i class="fas fa-play"></i> Start Match as {{ match.team2.name }}
-                                        </a>
-                                    {% else %}
-                                        <!-- Opponent team - grayed out and disabled -->
-                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled style="opacity: 0.5; cursor: not-allowed;">
-                                            <i class="fas fa-ban"></i> {{ match.team2.name }} (Not Your Team)
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% elif match.status == 'pending_verification' %}
-                            {% for activation in match.activations.all %}
-                                {% if activation.team == match.team1 %}
-                                    <div class="row">
-                                        <div class="col-md-12 mb-3">
-                                            <a href="{% url 'match_activate' match.id match.team2.id %}" class="btn btn-primary btn-lg btn-block w-100">
-                                                <i class="fas fa-play"></i> Start Match as {{ match.team2.name }}
-                                            </a>
-                                        </div>
-                                    </div>
-                                {% elif activation.team == match.team2 %}
-                                    <div class="row">
-                                        <div class="col-md-12 mb-3">
-                                            <a href="{% url 'match_activate' match.id match.team1.id %}" class="btn btn-primary btn-lg btn-block w-100">
-                                                <i class="fas fa-play"></i> Start Match as {{ match.team1.name }}
-                                            </a>
-                                        </div>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% elif match.status == 'active' %}
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    {% if request.session.team_name == match.team1.name %}
-                                        <a href="{% url 'match_submit_result' match.id match.team1.id %}" class="btn btn-success btn-lg btn-block w-100">
-                                            <i class="fas fa-check"></i> Submit Score as {{ match.team1.name }}
-                                        </a>
-                                    {% else %}
-                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled>
-                                            <i class="fas fa-ban"></i> {{ match.team1.name }} (Not Your Team)
-                                        </button>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    {% if request.session.team_name == match.team2.name %}
-                                        <a href="{% url 'match_submit_result' match.id match.team2.id %}" class="btn btn-success btn-lg btn-block w-100">
-                                            <i class="fas fa-check"></i> Submit Score as {{ match.team2.name }}
-                                        </a>
-                                    {% else %}
-                                        <button class="btn btn-secondary btn-lg btn-block w-100" disabled>
-                                            <i class="fas fa-ban"></i> {{ match.team2.name }} (Not Your Team)
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% elif match.status == 'waiting_validation' %}
-                            <div class="row">
-                                {% if result.submitted_by != match.team1 %}
-                                    <div class="col-md-6 mb-3">
-                                        <a href="{% url 'match_validate_result' match.id match.team1.id %}" class="btn btn-info btn-lg btn-block w-100">
-                                            <i class="fas fa-check-double"></i> Validate Score as {{ match.team1.name }}
-                                        </a>
-                                    </div>
-                                {% endif %}
-                                {% if result.submitted_by != match.team2 %}
-                                    <div class="col-md-6 mb-3">
-                                        <a href="{% url 'match_validate_result' match.id match.team2.id %}" class="btn btn-info btn-lg btn-block w-100">
-                                            <i class="fas fa-check-double"></i> Validate Score as {{ match.team2.name }}
-                                        </a>
-                                    </div>
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
+<style>
+/* ── Shell ── */
+.md-shell {
+    min-height: calc(100dvh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px 80px;
+    max-width: 480px;
+    margin: 0 auto;
+    gap: 10px;
+}
+
+/* ── Top bar ── */
+.md-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0 4px;
+}
+.md-vs {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #212529;
+}
+.md-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 3px 9px;
+    border-radius: 20px;
+}
+.md-badge-pending   { background:#fff3cd; color:#664d03; }
+.md-badge-pending-v { background:#cfe2ff; color:#084298; }
+.md-badge-active    { background:#d1e7dd; color:#0a3622; }
+.md-badge-waiting   { background:#f8d7da; color:#842029; }
+.md-badge-completed { background:#e2e3e5; color:#41464b; }
+
+/* ── Section label ── */
+.md-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+/* ── Teams strip ── */
+.md-teams {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 4px;
+    align-items: start;
+}
+.md-team-col { display: flex; flex-direction: column; gap: 3px; }
+.md-team-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #212529;
+    padding: 3px 0;
+}
+.md-team-name.my-team { color: #198754; }
+.md-team-vs {
+    font-size: 0.75rem;
+    color: #6c757d;
+    align-self: center;
+    text-align: center;
+    padding-top: 4px;
+}
+.md-player-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    color: #495057;
+    padding: 2px 0;
+}
+.md-player-pos {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #e9ecef;
+    color: #495057;
+    padding: 1px 5px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+.md-player-pos.pointer { background:#cfe2ff; color:#084298; }
+.md-player-pos.milieu  { background:#d1e7dd; color:#0a3622; }
+.md-player-pos.tirer   { background:#f8d7da; color:#842029; }
+
+/* ── Court strip ── */
+.md-court-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: #495057;
+}
+.md-court-strip i { color: #6c757d; }
+
+/* ── Score display (active/completed) ── */
+.md-score-block {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+.md-score-num {
+    font-size: 3.5rem;
+    font-weight: 900;
+    line-height: 1;
+    color: #212529;
+}
+.md-score-team {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+}
+.md-score-sep {
+    font-size: 1.5rem;
+    color: #adb5bd;
+    font-weight: 300;
+}
+
+/* ── Timer (match time limit) ── */
+.md-timer-block {
+    text-align: center;
+    padding: 10px 0 4px;
+}
+.md-timer-display {
+    font-size: 2.2rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    color: #198754;
+    line-height: 1;
+}
+.md-timer-display.warning { color: #ffc107; }
+.md-timer-display.danger  { color: #dc3545; }
+.md-timer-bar {
+    height: 5px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+.md-timer-bar-fill {
+    height: 100%;
+    background: #198754;
+    transition: width 1s linear;
+    border-radius: 3px;
+}
+
+/* ── Pre-game countdown ── */
+.md-pregame {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    border-radius: 14px;
+    padding: 18px 16px;
+    text-align: center;
+    color: #fff;
+}
+.md-pregame-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.85;
+    margin-bottom: 6px;
+}
+.md-pregame-timer {
+    font-size: 3rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.md-pregame-sub {
+    font-size: 0.72rem;
+    opacity: 0.8;
+    margin-top: 6px;
+}
+
+/* ── Activation status strip ── */
+.md-activation-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.md-act-slot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8f9fa;
+    border: 1.5px solid #dee2e6;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #495057;
+}
+.md-act-slot.done {
+    border-color: #198754;
+    background: #f0fff4;
+    color: #198754;
+}
+.md-act-slot.waiting {
+    border-color: #ffc107;
+    background: #fffbf0;
+    color: #856404;
+}
+.md-act-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.md-act-dot.done    { background: #198754; }
+.md-act-dot.waiting { background: #ffc107; }
+
+/* ── Waiting for court ── */
+.md-court-wait {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.8rem;
+    color: #5d4037;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Sticky action bar ── */
+.md-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 14px;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    max-width: 480px;
+    margin: 0 auto;
+}
+.md-primary-btn {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: filter 0.15s;
+}
+.md-primary-btn:hover { filter: brightness(0.92); }
+.md-btn-activate  { background: #198754; color: #fff; }
+.md-btn-validate  { background: #0d6efd; color: #fff; }
+.md-btn-score     { background: #ffc107; color: #212529; }
+.md-btn-submit    { background: #198754; color: #fff; }
+.md-btn-validate2 { background: #0d6efd; color: #fff; }
+.md-btn-waiting   { background: #adb5bd; color: #fff; cursor: not-allowed; }
+.md-back-btn {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1.5px solid #dee2e6;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+.md-back-btn:hover { background: #e9ecef; color: #212529; }
+
+/* ── Divider ── */
+.md-divider {
+    height: 1px;
+    background: #e9ecef;
+    margin: 2px 0;
+}
+</style>
+
+<div class="md-shell">
+
+    <!-- Top bar -->
+    <div class="md-topbar">
+        <span class="md-vs">{{ match.team1.name }} vs {{ match.team2.name }}</span>
+        <span class="md-badge
+            {% if match.status == 'pending' %}md-badge-pending
+            {% elif match.status == 'pending_verification' %}md-badge-pending-v
+            {% elif match.status == 'active' %}md-badge-active
+            {% elif match.status == 'waiting_validation' %}md-badge-waiting
+            {% else %}md-badge-completed{% endif %}">
+            {% if match.status == 'pending' %}Pending
+            {% elif match.status == 'pending_verification' %}Waiting 2nd Team
+            {% elif match.status == 'active' %}Active
+            {% elif match.status == 'waiting_validation' %}Validate Score
+            {% elif match.status == 'completed' %}Completed
+            {% else %}{{ match.get_status_display }}{% endif %}
+        </span>
+    </div>
+
+    {% if messages %}
+    {% for msg in messages %}
+    <div style="background:#f8d7da;border:1px solid #f5c2c7;border-radius:10px;padding:10px 14px;font-size:0.82rem;color:#842029;">{{ msg }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════
+         STATE: PENDING — waiting for first activation
+         ══════════════════════════════════════════ -->
+    {% if match.status == 'pending' %}
+
+    <!-- Activation status -->
+    <div class="md-label">Activation Status</div>
+    <div class="md-activation-strip">
+        {% if my_team %}
+        <div class="md-act-slot {% if my_team_activated %}done{% else %}waiting{% endif %}">
+            <div class="md-act-dot {% if my_team_activated %}done{% else %}waiting{% endif %}"></div>
+            {{ my_team.name }}{% if my_team_activated %} ✓{% endif %}
+        </div>
+        <div class="md-act-slot {% if opponent_activated %}done{% else %}waiting{% endif %}">
+            <div class="md-act-dot {% if opponent_activated %}done{% else %}waiting{% endif %}"></div>
+            {{ opponent_team.name }}{% if opponent_activated %} ✓{% endif %}
+        </div>
+        {% else %}
+        <div class="md-act-slot waiting">
+            <div class="md-act-dot waiting"></div>{{ match.team1.name }}
+        </div>
+        <div class="md-act-slot waiting">
+            <div class="md-act-dot waiting"></div>{{ match.team2.name }}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if match.round %}<div class="md-court-strip"><i class="fas fa-trophy"></i> {{ match.tournament.name }} · Round {{ match.round }}</div>{% endif %}
+
+    <!-- ══════════════════════════════════════════
+         STATE: PENDING_VERIFICATION — 1 team activated, waiting for 2nd
+         ══════════════════════════════════════════ -->
+    {% elif match.status == 'pending_verification' %}
+
+    <!-- Activation status -->
+    <div class="md-label">Activation Status</div>
+    <div class="md-activation-strip">
+        {% for t in activated_teams %}
+        <div class="md-act-slot done">
+            <div class="md-act-dot done"></div>{{ t.name }} ✓
+        </div>
+        {% endfor %}
+        {% if activated_teams|length < 2 %}
+        {% if my_team and my_team not in activated_teams %}
+        <div class="md-act-slot waiting">
+            <div class="md-act-dot waiting"></div>{{ my_team.name }} — Waiting
+        </div>
+        {% elif opponent_team and opponent_team not in activated_teams %}
+        <div class="md-act-slot waiting">
+            <div class="md-act-dot waiting"></div>{{ opponent_team.name }} — Waiting
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    {% if match.round %}<div class="md-court-strip"><i class="fas fa-trophy"></i> {{ match.tournament.name }} · Round {{ match.round }}</div>{% endif %}
+
+    <!-- ══════════════════════════════════════════
+         STATE: ACTIVE — match is live
+         ══════════════════════════════════════════ -->
+    {% elif match.status == 'active' %}
+
+    <!-- Pre-game countdown (first 3 min after activation) -->
+    {% if pregame_seconds_remaining and pregame_seconds_remaining > 0 %}
+    <div class="md-pregame" id="pregameBlock">
+        <div class="md-pregame-title">Find your court &amp; teammates</div>
+        <div class="md-pregame-timer" id="pregameTimer">
+            {{ pregame_seconds_remaining|floatformat:0 }}
+        </div>
+        <div class="md-pregame-sub">Match starts automatically when timer ends</div>
+    </div>
+    {% endif %}
+
+    <!-- Court -->
+    {% if match.court %}
+    <div class="md-court-strip">
+        <i class="fas fa-map-marker-alt"></i>
+        <strong>{{ match.court }}</strong>
+        {% if match.court.court_complex %} · {{ match.court.court_complex.name }}{% endif %}
+    </div>
+    {% elif match.waiting_for_court %}
+    <div class="md-court-wait">
+        <i class="fas fa-hourglass-half"></i>
+        Waiting for a court to become available
+    </div>
+    {% endif %}
+
+    <!-- Teams + players -->
+    <div class="md-label">Players</div>
+    <div class="md-teams">
+        <div class="md-team-col">
+            <div class="md-team-name {% if my_team == match.team1 %}my-team{% endif %}">{{ match.team1.name }}</div>
+            {% for mp in match_players_team1 %}
+            <div class="md-player-row">
+                <span class="md-player-pos {% if mp.role == 'pointer' %}pointer{% elif mp.role == 'milieu' %}milieu{% elif mp.role == 'tirer' %}tirer{% endif %}">
+                    {% if mp.role == 'pointer' %}PTR{% elif mp.role == 'milieu' %}MIL{% elif mp.role == 'tirer' %}TIR{% else %}FLX{% endif %}
+                </span>
+                {{ mp.player.name }}
             </div>
-            
-            <div class="mt-4">
-                <a href="{% url 'match_list' %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Matches
-                </a>
+            {% empty %}
+            <div class="md-player-row" style="color:#adb5bd;">—</div>
+            {% endfor %}
+        </div>
+        <div class="md-team-vs">vs</div>
+        <div class="md-team-col" style="text-align:right;">
+            <div class="md-team-name {% if my_team == match.team2 %}my-team{% endif %}" style="text-align:right;">{{ match.team2.name }}</div>
+            {% for mp in match_players_team2 %}
+            <div class="md-player-row" style="flex-direction:row-reverse;">
+                <span class="md-player-pos {% if mp.role == 'pointer' %}pointer{% elif mp.role == 'milieu' %}milieu{% elif mp.role == 'tirer' %}tirer{% endif %}">
+                    {% if mp.role == 'pointer' %}PTR{% elif mp.role == 'milieu' %}MIL{% elif mp.role == 'tirer' %}TIR{% else %}FLX{% endif %}
+                </span>
+                {{ mp.player.name }}
             </div>
+            {% empty %}
+            <div class="md-player-row" style="color:#adb5bd;flex-direction:row-reverse;">—</div>
+            {% endfor %}
         </div>
     </div>
+
+    <!-- Match timer (if timed match) -->
+    {# Timer is NEVER shown during the pre-game countdown — only on the live score page #}
+    {% if not pregame_seconds_remaining or pregame_seconds_remaining <= 0 %}
+    {% if match.time_limit_minutes and not match.is_time_expired %}
+    <div class="md-timer-block">
+        <div class="md-label" style="text-align:center;">Time Remaining</div>
+        <div class="md-timer-display" id="matchTimerDisplay">{{ match.time_remaining_display }}</div>
+        <div class="md-timer-bar">
+            <div class="md-timer-bar-fill" id="matchTimerBar" style="width:100%;"></div>
+        </div>
+    </div>
+    {% elif match.time_limit_minutes and match.is_time_expired %}
+    <div class="md-court-wait" style="background:#fff3cd;border-color:#ffe082;color:#664d03;">
+        <i class="fas fa-alarm-clock"></i> Time expired — continue or play a cosone
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Live scoreboard (if exists) -->
+    {% if match.live_scoreboard %}
+    <div class="md-label">Live Score</div>
+    <div class="md-score-block">
+        <div>
+            <div class="md-score-num">{{ match.live_scoreboard.team1_score }}</div>
+            <div class="md-score-team">{{ match.team1.name }}</div>
+        </div>
+        <div class="md-score-sep">:</div>
+        <div>
+            <div class="md-score-num">{{ match.live_scoreboard.team2_score }}</div>
+            <div class="md-score-team">{{ match.team2.name }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════════════════════════════════════
+         STATE: WAITING_VALIDATION — score submitted, awaiting validation
+         ══════════════════════════════════════════ -->
+    {% elif match.status == 'waiting_validation' %}
+
+    <!-- Score -->
+    <div class="md-label">Submitted Score</div>
+    <div class="md-score-block">
+        <div>
+            <div class="md-score-num">{{ match.team1_score }}</div>
+            <div class="md-score-team">{{ match.team1.name }}</div>
+        </div>
+        <div class="md-score-sep">:</div>
+        <div>
+            <div class="md-score-num">{{ match.team2_score }}</div>
+            <div class="md-score-team">{{ match.team2.name }}</div>
+        </div>
+    </div>
+
+    {% if result %}
+    <div class="md-court-strip" style="font-size:0.75rem;">
+        <i class="fas fa-user"></i> Submitted by {{ result.submitted_by.name }}
+    </div>
+    {% endif %}
+
+    <!-- Court -->
+    {% if match.court %}
+    <div class="md-court-strip">
+        <i class="fas fa-map-marker-alt"></i>
+        <strong>{{ match.court }}</strong>
+        {% if match.court.court_complex %} · {{ match.court.court_complex.name }}{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Players -->
+    <div class="md-label">Players</div>
+    <div class="md-teams">
+        <div class="md-team-col">
+            <div class="md-team-name {% if my_team == match.team1 %}my-team{% endif %}">{{ match.team1.name }}</div>
+            {% for mp in match_players_team1 %}
+            <div class="md-player-row">
+                <span class="md-player-pos {% if mp.role == 'pointer' %}pointer{% elif mp.role == 'milieu' %}milieu{% elif mp.role == 'tirer' %}tirer{% endif %}">
+                    {% if mp.role == 'pointer' %}PTR{% elif mp.role == 'milieu' %}MIL{% elif mp.role == 'tirer' %}TIR{% else %}FLX{% endif %}
+                </span>
+                {{ mp.player.name }}
+            </div>
+            {% empty %}<div class="md-player-row" style="color:#adb5bd;">—</div>{% endfor %}
+        </div>
+        <div class="md-team-vs">vs</div>
+        <div class="md-team-col" style="text-align:right;">
+            <div class="md-team-name {% if my_team == match.team2 %}my-team{% endif %}" style="text-align:right;">{{ match.team2.name }}</div>
+            {% for mp in match_players_team2 %}
+            <div class="md-player-row" style="flex-direction:row-reverse;">
+                <span class="md-player-pos {% if mp.role == 'pointer' %}pointer{% elif mp.role == 'milieu' %}milieu{% elif mp.role == 'tirer' %}tirer{% endif %}">
+                    {% if mp.role == 'pointer' %}PTR{% elif mp.role == 'milieu' %}MIL{% elif mp.role == 'tirer' %}TIR{% else %}FLX{% endif %}
+                </span>
+                {{ mp.player.name }}
+            </div>
+            {% empty %}<div class="md-player-row" style="color:#adb5bd;flex-direction:row-reverse;">—</div>{% endfor %}
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         STATE: COMPLETED
+         ══════════════════════════════════════════ -->
+    {% elif match.status == 'completed' %}
+
+    <!-- Final score -->
+    <div class="md-label">Final Score</div>
+    <div class="md-score-block">
+        <div>
+            <div class="md-score-num" style="{% if match.winner == match.team1 %}color:#198754;{% elif match.winner == match.team2 %}color:#adb5bd;{% endif %}">{{ match.team1_score }}</div>
+            <div class="md-score-team">{{ match.team1.name }}</div>
+        </div>
+        <div class="md-score-sep">:</div>
+        <div>
+            <div class="md-score-num" style="{% if match.winner == match.team2 %}color:#198754;{% elif match.winner == match.team1 %}color:#adb5bd;{% endif %}">{{ match.team2_score }}</div>
+            <div class="md-score-team">{{ match.team2.name }}</div>
+        </div>
+    </div>
+
+    {% if match.court %}
+    <div class="md-court-strip">
+        <i class="fas fa-map-marker-alt"></i>
+        <strong>{{ match.court }}</strong>
+        {% if match.court.court_complex %} · {{ match.court.court_complex.name }}{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Players -->
+    <div class="md-label">Players</div>
+    <div class="md-teams">
+        <div class="md-team-col">
+            <div class="md-team-name">{{ match.team1.name }}</div>
+            {% for mp in match_players_team1 %}
+            <div class="md-player-row">
+                <span class="md-player-pos {% if mp.role == 'pointer' %}pointer{% elif mp.role == 'milieu' %}milieu{% elif mp.role == 'tirer' %}tirer{% endif %}">
+                    {% if mp.role == 'pointer' %}PTR{% elif mp.role == 'milieu' %}MIL{% elif mp.role == 'tirer' %}TIR{% else %}FLX{% endif %}
+                </span>
+                {{ mp.player.name }}
+            </div>
+            {% empty %}<div class="md-player-row" style="color:#adb5bd;">—</div>{% endfor %}
+        </div>
+        <div class="md-team-vs">vs</div>
+        <div class="md-team-col" style="text-align:right;">
+            <div class="md-team-name" style="text-align:right;">{{ match.team2.name }}</div>
+            {% for mp in match_players_team2 %}
+            <div class="md-player-row" style="flex-direction:row-reverse;">
+                <span class="md-player-pos {% if mp.role == 'pointer' %}pointer{% elif mp.role == 'milieu' %}milieu{% elif mp.role == 'tirer' %}tirer{% endif %}">
+                    {% if mp.role == 'pointer' %}PTR{% elif mp.role == 'milieu' %}MIL{% elif mp.role == 'tirer' %}TIR{% else %}FLX{% endif %}
+                </span>
+                {{ mp.player.name }}
+            </div>
+            {% empty %}<div class="md-player-row" style="color:#adb5bd;flex-direction:row-reverse;">—</div>{% endfor %}
+        </div>
+    </div>
+
+    {% endif %}
+    {# end state blocks #}
+
+</div>
+{# end .md-shell #}
+
+<!-- ══════════════════════════════════════════
+     STICKY ACTION BAR
+     ══════════════════════════════════════════ -->
+<div class="md-sticky-bar">
+    <a href="{% url 'match_list' %}" class="md-back-btn"><i class="fas fa-arrow-left"></i></a>
+
+    {% if match.status == 'pending' %}
+        {% if my_team and not my_team_activated %}
+        <a href="{% url 'match_activate' match.id my_team.id %}" class="md-primary-btn md-btn-activate">
+            <i class="fas fa-play"></i> Activate as {{ my_team.name }}
+        </a>
+        {% elif my_team and my_team_activated %}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-hourglass-half"></i> Waiting for {{ opponent_team.name }}
+        </button>
+        {% else %}
+        {# No session — prompt team login; do not expose both-team buttons #}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-lock"></i> Login as a team to activate
+        </button>
+        {% endif %}
+
+    {% elif match.status == 'pending_verification' %}
+        {% if my_team and my_team not in activated_teams %}
+        <a href="{% url 'match_activate' match.id my_team.id %}" class="md-primary-btn md-btn-validate">
+            <i class="fas fa-check-circle"></i> Validate as {{ my_team.name }}
+        </a>
+        {% elif my_team and my_team in activated_teams %}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-hourglass-half"></i> Waiting for opponent
+        </button>
+        {% else %}
+        {# No session — prompt team login; do not expose both-team buttons #}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-lock"></i> Login as a team to validate
+        </button>
+        {% endif %}
+
+    {% elif match.status == 'active' %}
+        {% if my_team %}
+        <a href="{% url 'match_submit_result' match.id my_team.id %}" class="md-primary-btn md-btn-submit">
+            <i class="fas fa-flag-checkered"></i> Submit Score
+        </a>
+        {% else %}
+        {# No session — prompt team login; do not expose both-team buttons #}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-lock"></i> Login as a team to submit
+        </button>
+        {% endif %}
+
+    {% elif match.status == 'waiting_validation' %}
+        {% if my_team and result and result.submitted_by != my_team %}
+        <a href="{% url 'match_validate_result' match.id my_team.id %}" class="md-primary-btn md-btn-validate2">
+            <i class="fas fa-check-double"></i> Validate Score
+        </a>
+        {% elif my_team and result and result.submitted_by == my_team %}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-hourglass-half"></i> Waiting for validation
+        </button>
+        {% else %}
+        {# No session — prompt team login; do not expose both-team buttons #}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-lock"></i> Login as a team to validate score
+        </button>
+        {% endif %}
+
+    {% elif match.status == 'completed' %}
+        <a href="{% url 'match_list' %}" class="md-primary-btn" style="background:#6c757d;color:#fff;">
+            <i class="fas fa-list"></i> All Matches
+        </a>
+    {% endif %}
+
 </div>
 
 <script>
-// Toggle Live Scoreboard Section
-function toggleLiveScoreboard() {
-    const content = document.getElementById('liveScoreboardContent');
-    const icon = document.getElementById('toggleLiveScoreboardIcon');
-    const text = document.getElementById('toggleLiveScoreboardText');
-    const btn = document.getElementById('toggleLiveScoreboardBtn');
-    
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        icon.className = 'fas fa-eye-slash';
-        text.textContent = 'Hide Scores';
-        btn.classList.remove('btn-outline-light');
-        btn.classList.add('btn-light');
-    } else {
-        content.style.display = 'none';
-        icon.className = 'fas fa-eye';
-        text.textContent = 'Show Scores';
-        btn.classList.remove('btn-light');
-        btn.classList.add('btn-outline-light');
-    }
-}
-
-// Toggle Shot Tracker Section
-function toggleShotTracker() {
-    const content = document.getElementById('shotTrackerContent');
-    const icon = document.getElementById('toggleShotTrackerIcon');
-    const text = document.getElementById('toggleShotTrackerText');
-    const btn = document.getElementById('toggleShotTrackerBtn');
-    
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        icon.className = 'fas fa-eye-slash';
-        text.textContent = 'Hide Tracker';
-        btn.classList.remove('btn-outline-light');
-        btn.classList.add('btn-light');
-    } else {
-        content.style.display = 'none';
-        icon.className = 'fas fa-eye';
-        text.textContent = 'Show Tracker';
-        btn.classList.remove('btn-light');
-        btn.classList.add('btn-outline-light');
-    }
-}
-
-// ===== TIMER COUNTDOWN SYSTEM =====
 document.addEventListener('DOMContentLoaded', function() {
-    {% if match.time_limit_minutes and match.status in 'active,waiting_validation' and not match.is_time_expired %}
-    
-    // Initial values from server
-    let remainingSeconds = {{ match.time_remaining_seconds|default:0 }};
-    const totalSeconds = {{ match.time_limit_minutes }} * 60;
-    let fiveMinuteWarningPlayed = false;
-    let oneMinuteWarningPlayed = false;
-    
-    // Create audio context for sound alerts
-    function playTimerSound(frequency, duration) {
+
+    // ── Pre-game countdown ──────────────────────────────────────────
+    {% if pregame_end_epoch %}
+    const pregameEndMs = {{ pregame_end_epoch }};
+    const pregameTimerEl = document.getElementById('pregameTimer');
+    const pregameBlock   = document.getElementById('pregameBlock');
+    // After countdown: redirect to submit-result (live score) page if we know the team
+    {% if submit_url %}
+    const postCountdownUrl = '{{ submit_url }}';
+    {% else %}
+    const postCountdownUrl = null;
+    {% endif %}
+
+    function playBeep(freq, dur) {
         try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.value = frequency;
-            oscillator.type = 'sine';
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + duration);
-        } catch (e) {
-            console.log('Audio not supported:', e);
-        }
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = freq; osc.type = 'sine';
+            gain.gain.setValueAtTime(0.4, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+            osc.start(); osc.stop(ctx.currentTime + dur);
+        } catch(e) {}
     }
-    
-    function playExpiredSound() {
-        // Play a distinctive three-tone alert
-        playTimerSound(800, 0.2);
-        setTimeout(() => playTimerSound(600, 0.2), 250);
-        setTimeout(() => playTimerSound(400, 0.4), 500);
+
+    function playStartSound() {
+        playBeep(523, 0.15);
+        setTimeout(() => playBeep(659, 0.15), 180);
+        setTimeout(() => playBeep(784, 0.35), 360);
     }
-    
-    function playWarningSound() {
-        // Play a single beep for warnings
-        playTimerSound(600, 0.15);
+
+    function tickPregame() {
+        const remaining = Math.max(0, Math.round((pregameEndMs - Date.now()) / 1000));
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        if (pregameTimerEl) {
+            pregameTimerEl.textContent = m + ':' + String(s).padStart(2, '0');
+        }
+        if (remaining <= 0) {
+            playStartSound();
+            if (pregameBlock) pregameBlock.style.display = 'none';
+            // Redirect to live score page; fall back to match detail if no team session
+            setTimeout(() => {
+                if (postCountdownUrl) {
+                    window.location.href = postCountdownUrl;
+                } else {
+                    window.location.href = window.location.pathname;
+                }
+            }, 800);
+            return;
+        }
+        setTimeout(tickPregame, 1000);
     }
-    
-    function updateTimer() {
-        // Check for warnings
-        if (remainingSeconds === 300 && !fiveMinuteWarningPlayed) {
-            // 5 minutes remaining
-            playWarningSound();
-            fiveMinuteWarningPlayed = true;
-            console.log('⚠️ 5 minutes remaining!');
+    tickPregame();
+    {% endif %}
+
+    // ── Match timer (timed match) ───────────────────────────────────
+    // Guard: never start the match timer while the pre-game countdown is still running.
+    // The timer only starts on the live score/submit page (after the redirect).
+    {% if match.time_limit_minutes and match.status in 'active,waiting_validation' and not match.is_time_expired and not pregame_end_epoch %}
+    const totalSeconds = {{ match.time_limit_minutes }} * 60;
+    {% if timer_start_epoch %}
+    const timerStartMs = {{ timer_start_epoch }};
+    const elapsedSinceStart = Math.max(0, (Date.now() - timerStartMs) / 1000);
+    let remainingSeconds = Math.max(0, Math.round(totalSeconds - elapsedSinceStart));
+    {% else %}
+    let remainingSeconds = {{ match.time_remaining_seconds|default:0 }};
+    {% endif %}
+    const timerDisplay = document.getElementById('matchTimerDisplay');
+    const timerBar = document.getElementById('matchTimerBar');
+    let warned5 = false, warned1 = false;
+
+    function playTimerSound(freq, dur) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.frequency.value = freq; osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+            osc.start(); osc.stop(ctx.currentTime + dur);
+        } catch(e) {}
+    }
+
+    function tickMatch() {
+        if (remainingSeconds === 300 && !warned5) {
+            playTimerSound(600, 0.15); warned5 = true;
         }
-        
-        if (remainingSeconds === 60 && !oneMinuteWarningPlayed) {
-            // 1 minute remaining
-            playWarningSound();
-            setTimeout(() => playWarningSound(), 200); // Double beep
-            oneMinuteWarningPlayed = true;
-            console.log('⚠️ 1 minute remaining!');
+        if (remainingSeconds === 60 && !warned1) {
+            playTimerSound(600, 0.15);
+            setTimeout(() => playTimerSound(600, 0.15), 200);
+            warned1 = true;
         }
-        
         if (remainingSeconds <= 0) {
-            // Timer expired - play sound and reload
-            playExpiredSound();
-            
-            // Show browser notification if permission granted
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('⏰ Match Time Expired!', {
-                    body: 'The time limit has been reached. You may continue or play a cosone.',
-                    icon: '/static/images/timer-icon.png',
-                    requireInteraction: true
-                });
-            }
-            
+            playTimerSound(800, 0.2);
+            setTimeout(() => playTimerSound(600, 0.2), 250);
+            setTimeout(() => playTimerSound(400, 0.4), 500);
             setTimeout(() => location.reload(), 1000);
             return;
         }
-        
-        // Update display
-        const minutes = Math.floor(remainingSeconds / 60);
-        const seconds = remainingSeconds % 60;
-        const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        
-        const timerDisplay = document.getElementById('timer-display');
+        const m = Math.floor(remainingSeconds / 60);
+        const s = remainingSeconds % 60;
+        const display = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
         if (timerDisplay) {
             timerDisplay.textContent = display;
+            const pct = remainingSeconds / totalSeconds;
+            timerDisplay.className = 'md-timer-display' + (pct < 0.1 ? ' danger' : pct < 0.25 ? ' warning' : '');
         }
-        
-        // Update progress bar
-        const percentage = (remainingSeconds / totalSeconds) * 100;
-        const progressBar = document.getElementById('timer-progress');
-        
-        if (progressBar) {
-            progressBar.style.width = percentage + '%';
-            progressBar.setAttribute('aria-valuenow', percentage);
-            
-            // Change color and card border as time runs out
-            const timerCard = document.getElementById('timer-card');
-            
-            if (percentage < 10) {
-                // Less than 10% - red and urgent
-                progressBar.className = 'progress-bar bg-danger';
-                if (timerDisplay) timerDisplay.style.color = '#dc3545';
-                if (timerCard) timerCard.style.borderColor = '#dc3545';
-            } else if (percentage < 25) {
-                // Less than 25% - orange/warning
-                progressBar.className = 'progress-bar bg-warning';
-                if (timerDisplay) timerDisplay.style.color = '#ffc107';
-                if (timerCard) timerCard.style.borderColor = '#ffc107';
-            } else if (percentage < 50) {
-                // Less than 50% - yellow
-                progressBar.className = 'progress-bar bg-info';
-                if (timerDisplay) timerDisplay.style.color = '#17a2b8';
-                if (timerCard) timerCard.style.borderColor = '#17a2b8';
-            } else {
-                // More than 50% - green
-                progressBar.className = 'progress-bar bg-success';
-                if (timerDisplay) timerDisplay.style.color = '#28a745';
-                if (timerCard) timerCard.style.borderColor = '#28a745';
-            }
+        if (timerBar) {
+            timerBar.style.width = (remainingSeconds / totalSeconds * 100) + '%';
+            timerBar.style.background = remainingSeconds < totalSeconds * 0.1 ? '#dc3545' : remainingSeconds < totalSeconds * 0.25 ? '#ffc107' : '#198754';
         }
-        
-        // Decrement
         remainingSeconds--;
+        setTimeout(tickMatch, 1000);
     }
-    
-    // Request notification permission on page load
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
-    
-    // Update immediately
-    updateTimer();
-    
-    // Update every second
-    setInterval(updateTimer, 1000);
-    
+    tickMatch();
     {% endif %}
+
+    // ── Auto-refresh for pending states (poll every 15s) ────────────
+    {% if match.status == 'pending' or match.status == 'pending_verification' %}
+    setTimeout(() => location.reload(), 15000);
+    {% endif %}
+
+    // ── WebSocket-based PFC state listener ──────────────────────────
+    // Subscribes to live match events via WebSocket.
+    // On any state-change event, calls /my-matches/next-url/ (the PFC
+    // decision engine) and redirects if the correct destination changed.
+    // Falls back to polling if WebSocket is unavailable.
+    {% if match.status == 'active' or match.status == 'waiting_validation' or match.status == 'pending_verification' %}
+    (function() {
+        const MATCH_ID    = {{ match.id }};
+        const NEXT_URL_API = '/my-matches/next-url/';
+        const CURRENT_PATH = window.location.pathname;
+        let _redirecting = false;
+        let _pollFallback = null;
+
+        function evaluateAndRedirect() {
+            if (_redirecting) return;
+            fetch(NEXT_URL_API, {credentials: 'same-origin'})
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.authenticated || !data.next_url) return;
+                    if (data.next_url !== CURRENT_PATH) {
+                        _redirecting = true;
+                        if (_pollFallback) clearInterval(_pollFallback);
+                        window.location.href = data.next_url;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Prefer WebSocket
+        const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
+        const wsUrl = wsScheme + '://' + window.location.host + '/ws/match/' + MATCH_ID + '/';
+        let ws;
+        try {
+            ws = new WebSocket(wsUrl);
+            ws.onmessage = function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'match.state_changed') evaluateAndRedirect();
+                } catch(err) {}
+            };
+            ws.onerror = function() {
+                // WebSocket failed — fall back to polling
+                if (!_pollFallback) _pollFallback = setInterval(evaluateAndRedirect, 3000);
+            };
+            ws.onclose = function() {
+                if (!_redirecting && !_pollFallback)
+                    _pollFallback = setInterval(evaluateAndRedirect, 3000);
+            };
+        } catch(e) {
+            // WebSocket not supported — fall back to polling
+            _pollFallback = setInterval(evaluateAndRedirect, 3000);
+        }
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (_pollFallback) { clearInterval(_pollFallback); _pollFallback = null; }
+                if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+            }
+        });
+    })();
+    {% endif %}
+
 });
 </script>
+
 {% endblock %}

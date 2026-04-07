@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sign In — PFC{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-9 col-md-6 col-lg-5 col-xl-4">
+
+        <!-- Logo / Brand — uses same assets as navbar smart button -->
+        <div class="text-center mb-5">
+          <div class="d-inline-flex align-items-center gap-2">
+            <img src="{% static 'pfcLOGO.svg' %}" alt="PFC" style="height: 52px; width: auto;">
+            <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC" style="height: 36px; width: auto;">
+          </div>
+        </div>
+
+        <!-- Card -->
+        <div class="card border-0 shadow-lg" style="background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border-radius: 20px;">
+          <div class="card-body p-4 p-md-5">
+
+            <h2 class="text-white text-center fw-bold mb-2">Welcome</h2>
+            <p class="text-white-50 text-center mb-4 small">Sign in or create your account</p>
+
+            <!-- Django messages -->
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <!-- Google Button -->
+            {% if google_configured %}
+            <a href="{% url 'player_auth:google_login' %}"
+               class="btn btn-light w-100 d-flex align-items-center justify-content-center gap-3 py-3 mb-3 fw-semibold"
+               style="border-radius: 12px; font-size: 0.95rem;">
+              <svg width="20" height="20" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                <path fill="none" d="M0 0h48v48H0z"/>
+              </svg>
+              Continue with Google
+            </a>
+            {% else %}
+            <button class="btn btn-secondary w-100 d-flex align-items-center justify-content-center gap-3 py-3 mb-3 fw-semibold"
+                    style="border-radius: 12px; font-size: 0.95rem;" disabled
+                    title="Google OAuth not configured — set GOOGLE_OAUTH_CLIENT_ID in environment">
+              <svg width="20" height="20" viewBox="0 0 48 48">
+                <path fill="#9e9e9e" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              </svg>
+              Continue with Google <span class="badge bg-warning text-dark ms-2 small">Setup required</span>
+            </button>
+            {% endif %}
+
+            <!-- Divider -->
+            <div class="d-flex align-items-center my-3">
+              <hr class="flex-grow-1" style="border-color: rgba(255,255,255,0.15);">
+              <span class="px-3 text-white-50 small">or</span>
+              <hr class="flex-grow-1" style="border-color: rgba(255,255,255,0.15);">
+            </div>
+
+            <!-- Email Button -->
+            <a href="{% url 'player_auth:email_login' %}"
+               class="btn w-100 d-flex align-items-center justify-content-center gap-3 py-3 fw-semibold"
+               style="border-radius: 12px; font-size: 0.95rem; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.2);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/>
+              </svg>
+              Continue with Email
+            </a>
+
+            <!-- Footer note -->
+            <p class="text-center text-white-50 mt-4 mb-0" style="font-size: 0.75rem;">
+              No password required. No codename needed.
+            </p>
+
+          </div>
+        </div>
+
+        <!-- Back to home -->
+        <div class="text-center mt-4">
+          <a href="/" class="text-white-50 small text-decoration-none">
+            ← Back to home
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

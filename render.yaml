@@ -6,12 +6,37 @@ services:
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       python manage.py migrate
-    startCommand: gunicorn pfc_core.wsgi:application
+    startCommand: daphne -b 0.0.0.0 -p $PORT pfc_core.asgi:application
+    disk:
+      name: media-storage
+      mountPath: /var/media
+      sizeGB: 5
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11.0"
       - key: DEBUG
-        value: False
+        value: "False"
       - key: DJANGO_SETTINGS_MODULE
         value: pfc_core.settings
+      - key: MEDIA_ROOT
+        value: /var/media
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: pfc-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pfc-db
+          property: connectionString
 
+  - type: redis
+    name: pfc-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: pfc-db
+    plan: free

@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+
+{% block title %}Your Matches · PFC{% endblock %}
+
+{% block content %}
+<style>
+/* ── Shell ── */
+.rm-shell {
+    min-height: calc(100dvh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px 24px;
+    max-width: 480px;
+    margin: 0 auto;
+    gap: 10px;
+}
+
+/* ── Header ── */
+.rm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+.rm-header-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6c757d;
+}
+.rm-player-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #212529;
+    background: #f0f4ff;
+    border-radius: 8px;
+    padding: 3px 10px;
+}
+
+/* ── Primary action card ── */
+.rm-primary {
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(25,135,84,0.18);
+    border: 2px solid #198754;
+    text-decoration: none;
+    display: block;
+    transition: transform 0.1s;
+}
+.rm-primary:active { transform: scale(0.98); }
+.rm-primary-header {
+    background: #198754;
+    color: #fff;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.rm-primary-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+}
+.rm-primary-arrow {
+    font-size: 0.9rem;
+}
+.rm-primary-body {
+    background: #fff;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.rm-primary-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #212529;
+    line-height: 1.2;
+}
+.rm-primary-type {
+    font-size: 0.7rem;
+    color: #6c757d;
+    margin-top: 2px;
+}
+.rm-primary-go {
+    background: #198754;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Divider ── */
+.rm-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #adb5bd;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.rm-divider::before,
+.rm-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #dee2e6;
+}
+
+/* ── Other matches list ── */
+.rm-others {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.rm-other-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8f9fa;
+    border: 1.5px solid #dee2e6;
+    border-radius: 10px;
+    padding: 10px 14px;
+    text-decoration: none;
+    color: #212529;
+    transition: background 0.1s, border-color 0.1s;
+    gap: 10px;
+}
+.rm-other-item:hover { background: #e9ecef; border-color: #adb5bd; color: #212529; }
+.rm-other-item:active { transform: scale(0.98); }
+.rm-other-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    flex: 1;
+    line-height: 1.2;
+}
+.rm-other-type {
+    font-size: 0.65rem;
+    color: #6c757d;
+    margin-top: 2px;
+}
+.rm-other-arrow {
+    color: #adb5bd;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+/* ── Type badges ── */
+.rm-badge {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+.rm-badge-tournament { background: #cfe2ff; color: #084298; }
+.rm-badge-friendly   { background: #d1e7dd; color: #0a3622; }
+
+/* ── Bottom bar ── */
+.rm-bottom {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 4px;
+}
+.rm-ghost {
+    font-size: 0.78rem;
+    color: #6c757d;
+    background: none;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 6px 14px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.rm-ghost:hover { color: #495057; background: #f8f9fa; }
+</style>
+
+<div class="rm-shell">
+
+    <!-- Header -->
+    <div class="rm-header">
+        <span class="rm-header-title">{{ total_count }} Active Match{{ total_count|pluralize:"es" }}</span>
+        {% if player %}
+        <span class="rm-player-name">{{ player.name }}</span>
+        {% endif %}
+    </div>
+
+    <!-- ① PRIMARY — best match, dominant action -->
+    <a href="{{ best.url }}" class="rm-primary">
+        <div class="rm-primary-header">
+            <span class="rm-primary-badge">
+                {% if best.match_type == 'tournament' %}
+                    <i class="fas fa-trophy me-1"></i>Tournament
+                {% else %}
+                    <i class="fas fa-handshake me-1"></i>Friendly
+                {% endif %}
+            </span>
+            <span class="rm-primary-badge">Most Urgent <i class="fas fa-bolt ms-1"></i></span>
+        </div>
+        <div class="rm-primary-body">
+            <div>
+                <div class="rm-primary-label">{{ best.label }}</div>
+                <div class="rm-primary-type">Tap to go there now</div>
+            </div>
+            <div class="rm-primary-go">
+                <i class="fas fa-arrow-right"></i>
+            </div>
+        </div>
+    </a>
+
+    <!-- ② OTHERS — direct links -->
+    {% if others %}
+    <div class="rm-divider">Also active</div>
+    <div class="rm-others">
+        {% for item in others %}
+        <a href="{{ item.url }}" class="rm-other-item">
+            <div style="flex:1;">
+                <div class="rm-other-label">{{ item.label }}</div>
+                <div class="rm-other-type">
+                    <span class="rm-badge {% if item.match_type == 'tournament' %}rm-badge-tournament{% else %}rm-badge-friendly{% endif %}">
+                        {{ item.match_type|title }}
+                    </span>
+                </div>
+            </div>
+            <i class="fas fa-chevron-right rm-other-arrow"></i>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Bottom links -->
+    <div class="rm-bottom">
+        <a href="{% url 'home' %}" class="rm-ghost"><i class="fas fa-home"></i> Home</a>
+        <a href="{% url 'friendly_games:create_game' %}" class="rm-ghost"><i class="fas fa-plus"></i> New Game</a>
+    </div>
+
+</div>
+{% endblock %}

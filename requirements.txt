@@ -1,10 +1,27 @@
+# ── Core Django ────────────────────────────────────────────────
 Django==5.2
+djangorestframework>=3.14.0
+
+# ── ASGI / WebSockets ──────────────────────────────────────────
+daphne>=4.0.0
+channels>=4.0.0
+channels-redis>=4.1.0
+
+# ── Production server / deployment ────────────────────────────
 gunicorn==21.2.0
-psycopg2-binary==2.9.9
 whitenoise==6.6.0
+
+# ── Database ───────────────────────────────────────────────────
+psycopg2-binary==2.9.9
 dj-database-url==2.1.0
+
+# ── Configuration ──────────────────────────────────────────────
 python-decouple==3.8
+
+# ── Media / Images ─────────────────────────────────────────────
 Pillow==10.1.0
+
+# ── Data / Reporting ───────────────────────────────────────────
 beautifulsoup4==4.13.4
 matplotlib==3.10.3
 pandas==2.3.0
@@ -15,6 +32,3 @@ fpdf2==2.8.3
 openpyxl==3.1.5
 requests==2.32.4
 Markdown==3.8
-djangorestframework>=3.14.0
-
-

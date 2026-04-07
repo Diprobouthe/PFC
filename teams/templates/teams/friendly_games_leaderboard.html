@@ -4,471 +4,637 @@
 {% block title %}Friendly Games Leaderboard{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row mb-4">
-        <div class="col">
-            <h1 class="display-4"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 48px; width: auto; margin-right: 12px;"> Friendly Games Leaderboard</h1>
-            <p class="lead">Rankings based on fully validated friendly games only</p>
-        </div>
+<style>
+/* ── Friendly Games Leaderboard — mobile-first ────────────────────── */
+
+/* Overflow guard */
+.fgl-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+.fgl-wrap *, .fgl-wrap *::before, .fgl-wrap *::after {
+    box-sizing: border-box;
+}
+
+/* Page header */
+.fgl-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 16px 4px;
+}
+.fgl-header img { height: 26px; width: auto; }
+.fgl-header-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #1a1a2e;
+}
+.fgl-header-sub {
+    font-size: .7rem;
+    color: #8a9bbf;
+    padding: 0 16px 14px;
+}
+
+/* ── Trophy Showcase ──────────────────────────────────────────────── */
+.fgl-trophy-wrap {
+    margin: 0 12px 16px;
+    border-radius: 16px;
+    border: 2px solid #f5d87a;
+    background: linear-gradient(135deg, #fffbeb 0%, #fff 70%);
+    overflow: hidden;
+}
+.fgl-trophy-header {
+    background: linear-gradient(90deg, #f5d87a 0%, #ffe97a 100%);
+    padding: 10px 16px;
+    text-align: center;
+}
+.fgl-trophy-header-title {
+    font-size: .9rem;
+    font-weight: 900;
+    color: #5a3e00;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+.fgl-trophy-header-sub {
+    font-size: .65rem;
+    color: #7a5800;
+    margin-top: 1px;
+}
+.fgl-trophy-body { padding: 14px 12px; }
+
+/* Section label inside trophy */
+.fgl-section-label {
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8a9bbf;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.fgl-section-label i { color: #b0bcd8; font-size: 11px; }
+
+/* Most Active — horizontal row of 3 mini cards */
+.fgl-active-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.fgl-active-card {
+    border-radius: 12px;
+    border: 1.5px solid #e4e9f4;
+    background: #fff;
+    padding: 10px 8px;
+    text-align: center;
+}
+.fgl-active-card.rank-1 { border-color: #f5d87a; background: #fffbeb; }
+.fgl-active-card.rank-2 { border-color: #c8d0de; background: #f5f7fa; }
+.fgl-active-card.rank-3 { border-color: #f5c0a0; background: #fff5f0; }
+.fgl-active-rank {
+    font-size: .65rem;
+    font-weight: 800;
+    color: #b0bcd8;
+    margin-bottom: 4px;
+}
+.fgl-active-rank.r1 { color: #b07800; }
+.fgl-active-rank.r2 { color: #6b7a99; }
+.fgl-active-rank.r3 { color: #b05000; }
+.fgl-active-name {
+    font-size: .72rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+.fgl-active-games {
+    font-size: .62rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 8px;
+    background: #eef3ff;
+    color: #1a3a8f;
+    display: inline-block;
+}
+
+/* Position excellence — 2-col grid */
+.fgl-pos-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.fgl-pos-col {}
+.fgl-pos-title {
+    font-size: .7rem;
+    font-weight: 800;
+    color: #3a4a6b;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.fgl-pos-title i { font-size: 11px; }
+.fgl-pos-card {
+    border-radius: 10px;
+    border: 1.5px solid #e4e9f4;
+    background: #fff;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.fgl-pos-card.rank-1 { border-color: #f5d87a; }
+.fgl-pos-card.rank-2 { border-color: #c8d0de; }
+.fgl-pos-card.rank-3 { border-color: #f5c0a0; }
+.fgl-pos-rank {
+    font-size: .7rem;
+    font-weight: 900;
+    color: #b0bcd8;
+    width: 16px;
+    flex-shrink: 0;
+    text-align: center;
+}
+.fgl-pos-rank.r1 { color: #b07800; }
+.fgl-pos-rank.r2 { color: #6b7a99; }
+.fgl-pos-rank.r3 { color: #b05000; }
+.fgl-pos-info { flex: 1; min-width: 0; }
+.fgl-pos-name {
+    font-size: .72rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fgl-pos-wr {
+    font-size: .62rem;
+    color: #6b7a99;
+    font-weight: 600;
+}
+
+/* ── Rankings section ─────────────────────────────────────────────── */
+.fgl-rankings-wrap {
+    margin: 0 12px 24px;
+    border-radius: 16px;
+    border: 1.5px solid #e4e9f4;
+    background: #fff;
+    overflow: hidden;
+}
+.fgl-rankings-header {
+    background: #1a1a2e;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.fgl-rankings-title {
+    font-size: .9rem;
+    font-weight: 800;
+    color: #fff;
+}
+.fgl-rankings-sub {
+    font-size: .62rem;
+    color: #8a9bbf;
+    margin-top: 1px;
+}
+.fgl-rankings-count {
+    font-size: .7rem;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 10px;
+    background: #1a3a8f;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+/* Position tabs — 4-col fixed grid */
+.fgl-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-bottom: 1.5px solid #e4e9f4;
+}
+.fgl-tab-btn {
+    padding: 10px 4px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: #f7f9ff;
+    font-size: .72rem;
+    font-weight: 700;
+    color: #6b7a99;
+    cursor: pointer;
+    transition: all .15s;
+    -webkit-tap-highlight-color: transparent;
+    text-align: center;
+    line-height: 1.2;
+}
+.fgl-tab-btn:hover { background: #eef3ff; }
+.fgl-tab-btn.active { background: #fff; color: #1a3a8f; border-bottom-color: #1a3a8f; }
+.fgl-tab-btn.active.pos-pointer { color: #1a7a3c; border-bottom-color: #1a7a3c; }
+.fgl-tab-btn.active.pos-shooter { color: #9b1c2e; border-bottom-color: #dc3545; }
+.fgl-tab-btn.active.pos-milieu  { color: #0d6e8a; border-bottom-color: #17a2b8; }
+
+/* Player ranking cards */
+.fgl-player-list { padding: 10px 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+.fgl-player-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    border: 1.5px solid #e4e9f4;
+    background: #fff;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .13s, box-shadow .13s;
+    -webkit-tap-highlight-color: transparent;
+    min-width: 0;
+}
+.fgl-player-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.08); color: inherit; }
+.fgl-player-card:active { transform: scale(.98); }
+.fgl-player-card.rank-1 { border-color: #f5d87a; background: linear-gradient(135deg, #fffbeb 0%, #fff 60%); }
+.fgl-player-card.rank-2 { border-color: #c8d0de; background: linear-gradient(135deg, #f5f7fa 0%, #fff 60%); }
+.fgl-player-card.rank-3 { border-color: #f5c0a0; background: linear-gradient(135deg, #fff5f0 0%, #fff 60%); }
+
+.fgl-rank {
+    font-size: .88rem;
+    font-weight: 900;
+    color: #b0bcd8;
+    width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.fgl-rank.r1 { color: #b07800; font-size: 1rem; }
+.fgl-rank.r2 { color: #6b7a99; }
+.fgl-rank.r3 { color: #b05000; }
+
+.fgl-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .82rem;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+    border: 2px solid #e4e9f4;
+}
+.fgl-avatar.av-overall { background: #6b7a99; }
+.fgl-avatar.av-pointer { background: #1a7a3c; }
+.fgl-avatar.av-shooter { background: #9b1c2e; }
+.fgl-avatar.av-milieu  { background: #0d6e8a; }
+
+.fgl-info { flex: 1; min-width: 0; overflow: hidden; }
+.fgl-name {
+    font-size: .84rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fgl-stats-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 3px;
+    flex-wrap: wrap;
+}
+.fgl-stat-chip {
+    font-size: .6rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.chip-played  { background: #eef3ff; color: #1a3a8f; }
+.chip-won     { background: #edfaf2; color: #1a7a3c; }
+.chip-lost    { background: #fef0f2; color: #9b1c2e; }
+
+.fgl-wr-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.fgl-wr-val {
+    font-size: .9rem;
+    font-weight: 900;
+    color: #1a1a2e;
+}
+.fgl-wr-bar {
+    width: 48px; height: 4px;
+    border-radius: 4px;
+    background: #e4e9f4;
+    overflow: hidden;
+}
+.fgl-wr-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: #1a3a8f;
+}
+.fgl-wr-fill.pos-pointer { background: #1a7a3c; }
+.fgl-wr-fill.pos-shooter { background: #dc3545; }
+.fgl-wr-fill.pos-milieu  { background: #17a2b8; }
+
+.fgl-view-btn {
+    font-size: .62rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 8px;
+    border: 1.5px solid #b3c6f5;
+    background: #f7f9ff;
+    color: #1a3a8f;
+    text-decoration: none;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.fgl-view-btn:hover { background: #eef3ff; color: #1a3a8f; }
+
+/* Empty state */
+.fgl-empty {
+    text-align: center;
+    padding: 28px 16px;
+    color: #8a9bbf;
+    font-size: .82rem;
+}
+.fgl-empty i { font-size: 26px; margin-bottom: 8px; display: block; color: #b0bcd8; }
+
+/* Error state */
+.fgl-error {
+    margin: 16px 12px;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1.5px solid #f5b87a;
+    background: #fff8f0;
+    font-size: .82rem;
+    color: #7a3800;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .fgl-player-card { transition: none; }
+}
+</style>
+
+<div class="fgl-wrap">
+
+    <!-- Page header -->
+    <div class="fgl-header">
+        <img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games">
+        <span class="fgl-header-title">Friendly Games Leaderboard</span>
     </div>
+    <div class="fgl-header-sub">Rankings based on fully validated friendly games only</div>
 
     {% if not error %}
-    <!-- Trophy Showcase Section -->
-    <div class="row mb-4">
-        <div class="col">
-            <div class="card border-warning shadow-lg">
-                <div class="card-header bg-gradient text-white text-center" style="background: linear-gradient(45deg, #ffd700, #ffed4e);">
-                    <h3 class="mb-0 text-dark">🏆 PFC TROPHY SHOWCASE 🏆</h3>
-                    <small class="text-dark">Recognizing Excellence in Friendly Games</small>
+
+    <!-- ── Trophy Showcase ──────────────────────────────────────────── -->
+    <div class="fgl-trophy-wrap">
+        <div class="fgl-trophy-header">
+            <div class="fgl-trophy-header-title">
+                <i class="fas fa-trophy" style="color:#5a3e00;margin-right:6px;"></i>
+                PFC Trophy Showcase
+                <i class="fas fa-trophy" style="color:#5a3e00;margin-left:6px;"></i>
+            </div>
+            <div class="fgl-trophy-header-sub">Recognizing Excellence in Friendly Games</div>
+        </div>
+        <div class="fgl-trophy-body">
+
+            <!-- Most Active Players -->
+            <div class="fgl-section-label">
+                <i class="fas fa-star"></i> Most Active Players
+            </div>
+            <div class="fgl-active-row">
+                {% for player in trophies.most_active %}
+                <div class="fgl-active-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% else %}rank-3{% endif %}">
+                    <div class="fgl-active-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% else %}r3{% endif %}">
+                        {% if forloop.counter == 1 %}Gold{% elif forloop.counter == 2 %}Silver{% else %}Bronze{% endif %}
+                    </div>
+                    <div class="fgl-active-name">{{ player.player__name }}</div>
+                    <span class="fgl-active-games">{{ player.games_played }} games</span>
                 </div>
-                <div class="card-body bg-light">
-                    <!-- Most Active Players Section -->
-                    <div class="row mb-4">
-                        <div class="col">
-                            <h5 class="text-center mb-3">
-                                <i class="fas fa-star text-warning"></i> Most Active Players
-                            </h5>
-                            <div class="row">
-                                {% for player in trophies.most_active %}
-                                <div class="col-md-4 text-center mb-3">
-                                    <div class="card h-100 {% if forloop.counter == 1 %}border-warning{% elif forloop.counter == 2 %}border-secondary{% else %}border-dark{% endif %}">
-                                        <div class="card-body">
-                                            {% if forloop.counter == 1 %}
-                                                <div class="mb-2">
-                                                    <i class="fas fa-star text-warning" style="font-size: 2rem;"></i>
-                                                </div>
-                                                <h6 class="card-title text-warning">🥇 PFC Golden Star</h6>
-                                            {% elif forloop.counter == 2 %}
-                                                <div class="mb-2">
-                                                    <i class="fas fa-star text-secondary" style="font-size: 1.8rem;"></i>
-                                                </div>
-                                                <h6 class="card-title text-secondary">🥈 PFC Silver Star</h6>
-                                            {% else %}
-                                                <div class="mb-2">
-                                                    <i class="fas fa-star text-dark" style="font-size: 1.6rem;"></i>
-                                                </div>
-                                                <h6 class="card-title text-dark">🥉 PFC Bronze Star</h6>
-                                            {% endif %}
-                                            <p class="card-text">
-                                                <strong>{{ player.player__name }}</strong><br>
-                                                <span class="badge bg-primary">{{ player.games_played }} games</span>
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="col text-center">
-                                    <p class="text-muted">No active players yet</p>
-                                </div>
-                                {% endfor %}
-                            </div>
+                {% empty %}
+                <div style="grid-column:1/-1;text-align:center;font-size:.75rem;color:#8a9bbf;padding:8px 0;">No active players yet</div>
+                {% endfor %}
+            </div>
+
+            <!-- Position Excellence -->
+            <div class="fgl-section-label" style="margin-top:4px;">
+                <i class="fas fa-medal"></i> Position Excellence
+            </div>
+            <div class="fgl-pos-grid">
+                <!-- Best Shooters -->
+                <div class="fgl-pos-col">
+                    <div class="fgl-pos-title">
+                        <i class="fas fa-bomb" style="color:#dc3545;"></i> Best Shooters
+                    </div>
+                    {% for player in trophies.best_shooters %}
+                    <div class="fgl-pos-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% else %}rank-3{% endif %}">
+                        <span class="fgl-pos-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% else %}r3{% endif %}">{{ forloop.counter }}</span>
+                        <div class="fgl-pos-info">
+                            <div class="fgl-pos-name">{{ player.player__name }}</div>
+                            <div class="fgl-pos-wr">{{ player.win_rate|floatformat:1 }}% &middot; {{ player.games_played }}g</div>
                         </div>
                     </div>
-
-                    <!-- Position Excellence Section -->
-                    <div class="row">
-                        <!-- Best Shooters -->
-                        <div class="col-md-6 mb-4">
-                            <h5 class="text-center mb-3">
-                                <i class="fas fa-bomb text-danger"></i> Best Shooters
-                            </h5>
-                            <div class="row">
-                                {% for player in trophies.best_shooters %}
-                                <div class="col-12 mb-2">
-                                    <div class="card {% if forloop.counter == 1 %}border-warning{% elif forloop.counter == 2 %}border-secondary{% else %}border-dark{% endif %}">
-                                        <div class="card-body py-2">
-                                            <div class="d-flex align-items-center justify-content-between">
-                                                <div>
-                                                    {% if forloop.counter == 1 %}
-                                                        <span class="badge bg-warning text-dark">🥇 Golden Shooter</span>
-                                                    {% elif forloop.counter == 2 %}
-                                                        <span class="badge bg-secondary">🥈 Silver Shooter</span>
-                                                    {% else %}
-                                                        <span class="badge bg-dark">🥉 Bronze Shooter</span>
-                                                    {% endif %}
-                                                    <strong class="ms-2">{{ player.player__name }}</strong>
-                                                </div>
-                                                <div class="text-end">
-                                                    <span class="badge bg-success">{{ player.win_rate|floatformat:1 }}%</span>
-                                                    <small class="text-muted">({{ player.games_played }} games)</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="col text-center">
-                                    <p class="text-muted">No qualified shooters yet</p>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Best Pointers -->
-                        <div class="col-md-6 mb-4">
-                            <h5 class="text-center mb-3">
-                                <i class="fas fa-crosshairs text-success"></i> Best Pointers
-                            </h5>
-                            <div class="row">
-                                {% for player in trophies.best_pointers %}
-                                <div class="col-12 mb-2">
-                                    <div class="card {% if forloop.counter == 1 %}border-warning{% elif forloop.counter == 2 %}border-secondary{% else %}border-dark{% endif %}">
-                                        <div class="card-body py-2">
-                                            <div class="d-flex align-items-center justify-content-between">
-                                                <div>
-                                                    {% if forloop.counter == 1 %}
-                                                        <span class="badge bg-warning text-dark">🥇 Golden Pointer</span>
-                                                    {% elif forloop.counter == 2 %}
-                                                        <span class="badge bg-secondary">🥈 Silver Pointer</span>
-                                                    {% else %}
-                                                        <span class="badge bg-dark">🥉 Bronze Pointer</span>
-                                                    {% endif %}
-                                                    <strong class="ms-2">{{ player.player__name }}</strong>
-                                                </div>
-                                                <div class="text-end">
-                                                    <span class="badge bg-success">{{ player.win_rate|floatformat:1 }}%</span>
-                                                    <small class="text-muted">({{ player.games_played }} games)</small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% empty %}
-                                <div class="col text-center">
-                                    <p class="text-muted">No qualified pointers yet</p>
-                                </div>
-                                {% endfor %}
-                            </div>
+                    {% empty %}
+                    <div style="font-size:.72rem;color:#8a9bbf;padding:6px 0;">No qualified shooters yet</div>
+                    {% endfor %}
+                </div>
+                <!-- Best Pointers -->
+                <div class="fgl-pos-col">
+                    <div class="fgl-pos-title">
+                        <i class="fas fa-crosshairs" style="color:#1a7a3c;"></i> Best Pointers
+                    </div>
+                    {% for player in trophies.best_pointers %}
+                    <div class="fgl-pos-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% else %}rank-3{% endif %}">
+                        <span class="fgl-pos-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% else %}r3{% endif %}">{{ forloop.counter }}</span>
+                        <div class="fgl-pos-info">
+                            <div class="fgl-pos-name">{{ player.player__name }}</div>
+                            <div class="fgl-pos-wr">{{ player.win_rate|floatformat:1 }}% &middot; {{ player.games_played }}g</div>
                         </div>
                     </div>
+                    {% empty %}
+                    <div style="font-size:.72rem;color:#8a9bbf;padding:6px 0;">No qualified pointers yet</div>
+                    {% endfor %}
                 </div>
             </div>
+
         </div>
     </div>
 
-    <!-- Leaderboard Section -->
-    <div class="row">
-        <div class="col">
-            <div class="card shadow">
-                <div class="card-header bg-dark text-white">
-                    <div class="row align-items-center">
-                        <div class="col">
-                            <h5 class="mb-0">Player Rankings</h5>
-                            <small>Only fully validated games (both teams verified)</small>
-                        </div>
-                        <div class="col text-end">
-                            <span class="badge bg-primary">{{ total_players }} Players</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <!-- Tab Navigation -->
-                    <ul class="nav nav-tabs nav-fill mb-0" id="leaderboardTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="overall-tab" data-bs-toggle="tab" data-bs-target="#overall-leaderboard" type="button" role="tab" aria-controls="overall-leaderboard" aria-selected="true" style="border-bottom: 3px solid #6c757d;">
-                                📊 Overall
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="pointer-tab" data-bs-toggle="tab" data-bs-target="#pointer-leaderboard" type="button" role="tab" aria-controls="pointer-leaderboard" aria-selected="false" style="border-bottom: 3px solid #28a745;">
-                                <span style="color: #28a745;">🎯 Pointer</span>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="shooter-tab" data-bs-toggle="tab" data-bs-target="#shooter-leaderboard" type="button" role="tab" aria-controls="shooter-leaderboard" aria-selected="false" style="border-bottom: 3px solid #dc3545;">
-                                <span style="color: #dc3545;">💥 Shooter</span>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="milieu-tab" data-bs-toggle="tab" data-bs-target="#milieu-leaderboard" type="button" role="tab" aria-controls="milieu-leaderboard" aria-selected="false" style="border-bottom: 3px solid #17a2b8;">
-                                <span style="color: #17a2b8;">⚖️ Milieu</span>
-                            </button>
-                        </li>
-                    </ul>
-
-                    <div class="tab-content" id="leaderboardTabContent">
-                        <!-- Overall Leaderboard Tab -->
-                        <div class="tab-pane fade show active" id="overall-leaderboard" role="tabpanel" aria-labelledby="overall-tab">
-                            <div class="table-responsive">
-                                <table class="table table-hover table-striped mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th scope="col">#</th>
-                                            <th scope="col">Player</th>
-                                            <th scope="col">Games Played</th>
-                                            <th scope="col">Games Won</th>
-                                            <th scope="col">Games Lost</th>
-                                            <th scope="col">Win Rate</th>
-                                            <th scope="col">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for player in player_stats %}
-                                        <tr>
-                                            <td>
-                                                {{ forloop.counter }}
-                                                {% if forloop.counter <= 3 and player in trophies.most_active %}
-                                                    {% if forloop.counter == 1 %}
-                                                        <i class="fas fa-star text-warning ms-1"></i>
-                                                    {% elif forloop.counter == 2 %}
-                                                        <i class="fas fa-star text-secondary ms-1"></i>
-                                                    {% else %}
-                                                        <i class="fas fa-star text-dark ms-1"></i>
-                                                    {% endif %}
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                                        <span class="text-white">{{ player.player__name|slice:":1" }}</span>
-                                                    </div>
-                                                    <div>
-                                                        <div class="fw-bold">{{ player.player__name }}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-primary">{{ player.games_played }}</span>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-success">{{ player.games_won }}</span>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-danger">{{ player.games_lost }}</span>
-                                            </td>
-                                            <td>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ player.win_rate }}%"></div>
-                                                    </div>
-                                                    <span>{{ player.win_rate|floatformat:1 }}%</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <a href="{% url 'player_profile' player.player__id %}" class="btn btn-sm btn-outline-primary">
-                                                    <i class="bi bi-person-badge"></i> View Profile
-                                                </a>
-                                            </td>
-                                        </tr>
-                                        {% empty %}
-                                        <tr>
-                                            <td colspan="7" class="text-center py-4">
-                                                <div class="alert alert-info mb-0">
-                                                    <i class="bi bi-info-circle me-2"></i> No fully validated friendly games found yet.
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Position-specific leaderboards -->
-                        <div class="tab-pane fade" id="pointer-leaderboard" role="tabpanel" aria-labelledby="pointer-tab">
-                            <div class="p-4">
-                                <h5>🎯 Pointer Leaderboard</h5>
-                                {% if position_leaderboards.pointeur.players %}
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th scope="col">#</th>
-                                                <th scope="col">Player</th>
-                                                <th scope="col">Games Played</th>
-                                                <th scope="col">Games Won</th>
-                                                <th scope="col">Games Lost</th>
-                                                <th scope="col">Win Rate</th>
-                                                <th scope="col">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for player in position_leaderboards.pointeur.players %}
-                                            <tr>
-                                                <td>{{ forloop.counter }}</td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="bg-info rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                                            <span class="text-white">{{ player.player__name|slice:":1" }}</span>
-                                                        </div>
-                                                        <div class="fw-bold">{{ player.player__name }}</div>
-                                                    </div>
-                                                </td>
-                                                <td><span class="badge bg-primary">{{ player.games_played }}</span></td>
-                                                <td><span class="badge bg-success">{{ player.games_won }}</span></td>
-                                                <td><span class="badge bg-danger">{{ player.games_lost }}</span></td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ player.win_rate }}%"></div>
-                                                        </div>
-                                                        <span>{{ player.win_rate|floatformat:1 }}%</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <a href="{% url 'player_profile' player.player__id %}" class="btn btn-sm btn-outline-primary">
-                                                        <i class="bi bi-person-badge"></i> View Profile
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {% else %}
-                                <div class="text-center py-4">
-                                    <div class="alert alert-info mb-0">
-                                        <i class="bi bi-info-circle me-2"></i> No pointer players found yet.
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="shooter-leaderboard" role="tabpanel" aria-labelledby="shooter-tab">
-                            <div class="p-4">
-                                <h5>💥 Shooter Leaderboard</h5>
-                                {% if position_leaderboards.tirer.players %}
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th scope="col">#</th>
-                                                <th scope="col">Player</th>
-                                                <th scope="col">Games Played</th>
-                                                <th scope="col">Games Won</th>
-                                                <th scope="col">Games Lost</th>
-                                                <th scope="col">Win Rate</th>
-                                                <th scope="col">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for player in position_leaderboards.tirer.players %}
-                                            <tr>
-                                                <td>{{ forloop.counter }}</td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="bg-danger rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                                            <span class="text-white">{{ player.player__name|slice:":1" }}</span>
-                                                        </div>
-                                                        <div class="fw-bold">{{ player.player__name }}</div>
-                                                    </div>
-                                                </td>
-                                                <td><span class="badge bg-primary">{{ player.games_played }}</span></td>
-                                                <td><span class="badge bg-success">{{ player.games_won }}</span></td>
-                                                <td><span class="badge bg-danger">{{ player.games_lost }}</span></td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ player.win_rate }}%"></div>
-                                                        </div>
-                                                        <span>{{ player.win_rate|floatformat:1 }}%</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <a href="{% url 'player_profile' player.player__id %}" class="btn btn-sm btn-outline-primary">
-                                                        <i class="bi bi-person-badge"></i> View Profile
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {% else %}
-                                <div class="text-center py-4">
-                                    <div class="alert alert-info mb-0">
-                                        <i class="bi bi-info-circle me-2"></i> No shooter players found yet.
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="milieu-leaderboard" role="tabpanel" aria-labelledby="milieu-tab">
-                            <div class="p-4">
-                                <h5>⚖️ Milieu Leaderboard</h5>
-                                {% if position_leaderboards.milieu.players %}
-                                <div class="table-responsive">
-                                    <table class="table table-striped">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th scope="col">#</th>
-                                                <th scope="col">Player</th>
-                                                <th scope="col">Games Played</th>
-                                                <th scope="col">Games Won</th>
-                                                <th scope="col">Games Lost</th>
-                                                <th scope="col">Win Rate</th>
-                                                <th scope="col">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for player in position_leaderboards.milieu.players %}
-                                            <tr>
-                                                <td>{{ forloop.counter }}</td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="bg-warning rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                                            <span class="text-dark">{{ player.player__name|slice:":1" }}</span>
-                                                        </div>
-                                                        <div class="fw-bold">{{ player.player__name }}</div>
-                                                    </div>
-                                                </td>
-                                                <td><span class="badge bg-primary">{{ player.games_played }}</span></td>
-                                                <td><span class="badge bg-success">{{ player.games_won }}</span></td>
-                                                <td><span class="badge bg-danger">{{ player.games_lost }}</span></td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                            <div class="progress-bar bg-warning" role="progressbar" style="width: {{ player.win_rate }}%"></div>
-                                                        </div>
-                                                        <span>{{ player.win_rate|floatformat:1 }}%</span>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <a href="{% url 'player_profile' player.player__id %}" class="btn btn-sm btn-outline-primary">
-                                                        <i class="bi bi-person-badge"></i> View Profile
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {% else %}
-                                <div class="text-center py-4">
-                                    <div class="alert alert-info mb-0">
-                                        <i class="bi bi-info-circle me-2"></i> No milieu players found yet.
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <!-- ── Player Rankings ──────────────────────────────────────────── -->
+    <div class="fgl-rankings-wrap">
+        <div class="fgl-rankings-header">
+            <div>
+                <div class="fgl-rankings-title">Player Rankings</div>
+                <div class="fgl-rankings-sub">Only fully validated games (both teams verified)</div>
             </div>
+            <span class="fgl-rankings-count">{{ total_players }} Players</span>
         </div>
-    </div>
+
+        <!-- Position tabs — 4-col fixed grid, no scroll -->
+        <div class="fgl-tabs">
+            <button class="fgl-tab-btn active" id="fgtab-overall" onclick="showFGTab('overall')">Overall</button>
+            <button class="fgl-tab-btn pos-pointer" id="fgtab-pointer" onclick="showFGTab('pointer')">Pointer</button>
+            <button class="fgl-tab-btn pos-shooter" id="fgtab-shooter" onclick="showFGTab('shooter')">Shooter</button>
+            <button class="fgl-tab-btn pos-milieu"  id="fgtab-milieu"  onclick="showFGTab('milieu')">Milieu</button>
+        </div>
+
+        <!-- Overall -->
+        <div id="fgsec-overall" class="fgl-section">
+            {% if player_stats %}
+            <div class="fgl-player-list">
+            {% for player in player_stats %}
+                <a href="{% url 'player_profile' player.player__id %}" class="fgl-player-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% endif %}">
+                    <span class="fgl-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% elif forloop.counter == 3 %}r3{% endif %}">
+                        {{ forloop.counter }}
+                        {% if forloop.counter <= 3 and player in trophies.most_active %}
+                            <i class="fas fa-star" style="font-size:.55rem;{% if forloop.counter == 1 %}color:#b07800{% elif forloop.counter == 2 %}color:#6b7a99{% else %}color:#b05000{% endif %};vertical-align:super;"></i>
+                        {% endif %}
+                    </span>
+                    <div class="fgl-avatar av-overall">{{ player.player__name|slice:":1"|upper }}</div>
+                    <div class="fgl-info">
+                        <div class="fgl-name">{{ player.player__name }}</div>
+                        <div class="fgl-stats-row">
+                            <span class="fgl-stat-chip chip-played">{{ player.games_played }}P</span>
+                            <span class="fgl-stat-chip chip-won">{{ player.games_won }}W</span>
+                            <span class="fgl-stat-chip chip-lost">{{ player.games_lost }}L</span>
+                        </div>
+                    </div>
+                    <div class="fgl-wr-col">
+                        <span class="fgl-wr-val">{{ player.win_rate|floatformat:1 }}%</span>
+                        <div class="fgl-wr-bar"><div class="fgl-wr-fill" style="width:{{ player.win_rate }}%;"></div></div>
+                    </div>
+                    <span class="fgl-view-btn">View</span>
+                </a>
+            {% endfor %}
+            </div>
+            {% else %}
+            <div class="fgl-empty"><i class="fas fa-users"></i>No fully validated friendly games found yet.</div>
+            {% endif %}
+        </div>
+
+        <!-- Pointer -->
+        <div id="fgsec-pointer" class="fgl-section" style="display:none;">
+            {% if position_leaderboards.pointeur.players %}
+            <div class="fgl-player-list">
+            {% for player in position_leaderboards.pointeur.players %}
+                <a href="{% url 'player_profile' player.player__id %}" class="fgl-player-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% endif %}">
+                    <span class="fgl-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% elif forloop.counter == 3 %}r3{% endif %}">{{ forloop.counter }}</span>
+                    <div class="fgl-avatar av-pointer">{{ player.player__name|slice:":1"|upper }}</div>
+                    <div class="fgl-info">
+                        <div class="fgl-name">{{ player.player__name }}</div>
+                        <div class="fgl-stats-row">
+                            <span class="fgl-stat-chip chip-played">{{ player.games_played }}P</span>
+                            <span class="fgl-stat-chip chip-won">{{ player.games_won }}W</span>
+                            <span class="fgl-stat-chip chip-lost">{{ player.games_lost }}L</span>
+                        </div>
+                    </div>
+                    <div class="fgl-wr-col">
+                        <span class="fgl-wr-val" style="color:#1a7a3c;">{{ player.win_rate|floatformat:1 }}%</span>
+                        <div class="fgl-wr-bar"><div class="fgl-wr-fill pos-pointer" style="width:{{ player.win_rate }}%;"></div></div>
+                    </div>
+                    <span class="fgl-view-btn">View</span>
+                </a>
+            {% endfor %}
+            </div>
+            {% else %}
+            <div class="fgl-empty"><i class="fas fa-crosshairs"></i>No pointer players found yet.</div>
+            {% endif %}
+        </div>
+
+        <!-- Shooter -->
+        <div id="fgsec-shooter" class="fgl-section" style="display:none;">
+            {% if position_leaderboards.tirer.players %}
+            <div class="fgl-player-list">
+            {% for player in position_leaderboards.tirer.players %}
+                <a href="{% url 'player_profile' player.player__id %}" class="fgl-player-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% endif %}">
+                    <span class="fgl-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% elif forloop.counter == 3 %}r3{% endif %}">{{ forloop.counter }}</span>
+                    <div class="fgl-avatar av-shooter">{{ player.player__name|slice:":1"|upper }}</div>
+                    <div class="fgl-info">
+                        <div class="fgl-name">{{ player.player__name }}</div>
+                        <div class="fgl-stats-row">
+                            <span class="fgl-stat-chip chip-played">{{ player.games_played }}P</span>
+                            <span class="fgl-stat-chip chip-won">{{ player.games_won }}W</span>
+                            <span class="fgl-stat-chip chip-lost">{{ player.games_lost }}L</span>
+                        </div>
+                    </div>
+                    <div class="fgl-wr-col">
+                        <span class="fgl-wr-val" style="color:#9b1c2e;">{{ player.win_rate|floatformat:1 }}%</span>
+                        <div class="fgl-wr-bar"><div class="fgl-wr-fill pos-shooter" style="width:{{ player.win_rate }}%;"></div></div>
+                    </div>
+                    <span class="fgl-view-btn">View</span>
+                </a>
+            {% endfor %}
+            </div>
+            {% else %}
+            <div class="fgl-empty"><i class="fas fa-bomb"></i>No shooter players found yet.</div>
+            {% endif %}
+        </div>
+
+        <!-- Milieu -->
+        <div id="fgsec-milieu" class="fgl-section" style="display:none;">
+            {% if position_leaderboards.milieu.players %}
+            <div class="fgl-player-list">
+            {% for player in position_leaderboards.milieu.players %}
+                <a href="{% url 'player_profile' player.player__id %}" class="fgl-player-card {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% endif %}">
+                    <span class="fgl-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% elif forloop.counter == 3 %}r3{% endif %}">{{ forloop.counter }}</span>
+                    <div class="fgl-avatar av-milieu">{{ player.player__name|slice:":1"|upper }}</div>
+                    <div class="fgl-info">
+                        <div class="fgl-name">{{ player.player__name }}</div>
+                        <div class="fgl-stats-row">
+                            <span class="fgl-stat-chip chip-played">{{ player.games_played }}P</span>
+                            <span class="fgl-stat-chip chip-won">{{ player.games_won }}W</span>
+                            <span class="fgl-stat-chip chip-lost">{{ player.games_lost }}L</span>
+                        </div>
+                    </div>
+                    <div class="fgl-wr-col">
+                        <span class="fgl-wr-val" style="color:#0d6e8a;">{{ player.win_rate|floatformat:1 }}%</span>
+                        <div class="fgl-wr-bar"><div class="fgl-wr-fill pos-milieu" style="width:{{ player.win_rate }}%;"></div></div>
+                    </div>
+                    <span class="fgl-view-btn">View</span>
+                </a>
+            {% endfor %}
+            </div>
+            {% else %}
+            <div class="fgl-empty"><i class="fas fa-balance-scale"></i>No milieu players found yet.</div>
+            {% endif %}
+        </div>
+
+    </div><!-- /fgl-rankings-wrap -->
 
     {% else %}
-    <!-- Error State -->
-    <div class="row">
-        <div class="col">
-            <div class="alert alert-warning">
-                <h4>Friendly Games Not Available</h4>
-                <p>{{ error }}</p>
-            </div>
-        </div>
+    <!-- Error state -->
+    <div class="fgl-error">
+        <strong>Friendly Games Not Available</strong>
+        <p style="margin:6px 0 0;font-size:.78rem;">{{ error }}</p>
     </div>
     {% endif %}
-</div>
+
+</div><!-- /fgl-wrap -->
 
 <script>
-// Add any JavaScript for interactive features
+var fgTabs = ['overall','pointer','shooter','milieu'];
+
+function showFGTab(name) {
+    fgTabs.forEach(function(t) {
+        document.getElementById('fgsec-' + t).style.display = (t === name) ? 'block' : 'none';
+        var btn = document.getElementById('fgtab-' + t);
+        btn.classList.toggle('active', t === name);
+    });
+    localStorage.setItem('activeFGTab', name);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Tab switching functionality is handled by Bootstrap
-    console.log('Friendly Games Leaderboard loaded');
+    var saved = localStorage.getItem('activeFGTab') || 'overall';
+    if (!fgTabs.includes(saved)) { saved = 'overall'; }
+    showFGTab(saved);
 });
 </script>
 {% endblock %}
-

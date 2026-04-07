@@ -5,6 +5,7 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 from teams.models import Player
+from courts.models import Court, CourtComplex
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,45 @@ class FriendlyGame(models.Model):
     # Scores
     black_team_score = models.PositiveIntegerField(default=0)
     white_team_score = models.PositiveIntegerField(default=0)
-    
+
+    # ── Court assignment ─────────────────────────────────────────────────────
+    court_complex = models.ForeignKey(
+        CourtComplex,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='friendly_games',
+        help_text='Court complex where this game is played',
+    )
+    court = models.ForeignKey(
+        Court,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='friendly_games',
+        help_text='Specific court where this game is played',
+    )
+
+    # ── Timed game (optional) ─────────────────────────────────────────────────
+    is_timed = models.BooleanField(
+        default=False,
+        help_text='Whether this game has a time limit',
+    )
+    time_limit_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Time limit in minutes (only used when is_timed=True)',
+    )
+    timer_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the timer was started (game activated)',
+    )
+    timer_expired = models.BooleanField(
+        default=False,
+        help_text='Whether the time limit has been reached',
+    )
+
     class Meta:
         verbose_name = "Friendly Game"
         verbose_name_plural = "Friendly Games"
@@ -147,8 +186,8 @@ class FriendlyGame(models.Model):
         # Generate match number for new games
         if not self.match_number and not self.game_pin:
             self.match_number = self.generate_match_number()
-            # Set expiration to 30 days from now
-            self.expires_at = timezone.now() + timedelta(days=30)
+            # Set expiration to 24 hours from now
+            self.expires_at = timezone.now() + timedelta(hours=24)
             self.status = 'WAITING_FOR_PLAYERS'
         
         # Legacy: Generate game PIN if needed (for compatibility)
@@ -176,6 +215,47 @@ class FriendlyGame(models.Model):
         if self.expires_at:
             return timezone.now() > self.expires_at
         return False
+
+    # ── Freshness scoring ────────────────────────────────────────────────────
+    @property
+    def age_minutes(self):
+        """Minutes since creation."""
+        return (timezone.now() - self.created_at).total_seconds() / 60
+
+    @property
+    def freshness_score(self):
+        """
+        0-100 score indicating how fresh this game is.
+        Recently created games score highest; games older than 24h score 0.
+
+        Thresholds:
+            < 30 min  → 100
+            < 1 h     → 90
+            < 2 h     → 70
+            < 6 h     → 50
+            < 12 h    → 30
+            < 24 h    → 10
+            >= 24 h   → 0
+        """
+        age = self.age_minutes
+        if age < 30:
+            return 100
+        elif age < 60:
+            return 90
+        elif age < 120:
+            return 70
+        elif age < 360:
+            return 50
+        elif age < 720:
+            return 30
+        elif age < 1440:
+            return 10
+        return 0
+
+    @property
+    def is_stale(self):
+        """True when the game is older than 24 hours and should be expired."""
+        return self.age_minutes >= 1440
     
     def update_validation_status(self):
         """Update validation status based on player codenames"""
@@ -239,6 +319,42 @@ class FriendlyGame(models.Model):
     def is_fully_validated(self):
         """Check if both teams have at least one player with verified codename for result validation"""
         return self.validation_status == 'FULLY_VALIDATED'
+
+    # ── Timer helpers (mirrors Match.time_remaining_seconds) ──────────────────
+    @property
+    def time_remaining_seconds(self):
+        """Remaining seconds on the timer. None if untimed or not yet started."""
+        if not self.is_timed or not self.time_limit_minutes or not self.timer_started_at:
+            return None
+        if self.status not in ('ACTIVE', 'PENDING_VALIDATION'):
+            return None
+        elapsed = timezone.now() - self.timer_started_at
+        total = self.time_limit_minutes * 60
+        remaining = total - elapsed.total_seconds()
+        return int(max(0, remaining))
+
+    @property
+    def time_remaining_display(self):
+        """MM:SS formatted time remaining."""
+        remaining = self.time_remaining_seconds
+        if remaining is None:
+            return None
+        return f"{int(remaining // 60):02d}:{int(remaining % 60):02d}"
+
+    @property
+    def timer_total_seconds(self):
+        """Total timer duration in seconds. Returns None if not timed."""
+        if not self.is_timed or not self.time_limit_minutes:
+            return None
+        return self.time_limit_minutes * 60
+
+    @property
+    def is_time_expired(self):
+        """True when the timed game clock has run out."""
+        remaining = self.time_remaining_seconds
+        if remaining is None:
+            return False
+        return remaining == 0
 
 
 class FriendlyGamePlayer(models.Model):

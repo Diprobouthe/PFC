@@ -87,6 +87,33 @@ def scoreboard_detail(request, scoreboard_id):
         team1_name = scoreboard.get_team1_name()
         team2_name = scoreboard.get_team2_name()
     
+    # Resolve which team the current session belongs to (for single submit button)
+    my_team_id = None
+    if scoreboard.tournament_match:
+        codename = request.session.get('player_codename')
+        if codename:
+            try:
+                from matches.models import MatchPlayer
+                player_obj = PlayerCodename.objects.get(codename=codename.upper()).player
+                mp = MatchPlayer.objects.filter(
+                    match=scoreboard.tournament_match, player=player_obj
+                ).select_related('team').first()
+                if mp:
+                    my_team_id = mp.team.id
+            except Exception:
+                pass
+        # Fall back to team PIN session
+        if my_team_id is None:
+            team_pin = request.session.get('team_pin')
+            if team_pin:
+                try:
+                    from teams.models import Team
+                    t = Team.objects.get(pin=team_pin)
+                    if t.id in (team1_id, team2_id):
+                        my_team_id = t.id
+                except Exception:
+                    pass
+
     context = {
         'scoreboard': scoreboard,
         'recent_updates': recent_updates,
@@ -94,13 +121,14 @@ def scoreboard_detail(request, scoreboard_id):
         'session_codename': session_context.get('session_codename'),
         'player_logged_in': session_context.get('player_logged_in', False),
         'player_name': session_context.get('player_name'),
-        # Add match and team context for submit score links
+        # Match and team context for submit score link
         'match_id': match_id,
         'team1_id': team1_id,
         'team2_id': team2_id,
         'team1_name': team1_name,
         'team2_name': team2_name,
-        'has_submit_links': match_id is not None,  # Only show submit links if we have match data
+        'my_team_id': my_team_id,   # session-resolved team — used for single submit button
+        'has_submit_links': match_id is not None,
     }
     
     return render(request, 'matches/scoreboard_detail.html', context)
@@ -159,9 +187,9 @@ def update_scoreboard(request, scoreboard_id):
             'codename_exists': codename_exists,
         }
         
-        # Add game completion message if scores reached 13
+        # Inform players when a score reaches 13 (game likely complete)
         if team1_score >= 13 or team2_score >= 13:
-            response_data['message'] = 'Game completed! Live scoring has been deactivated.'
+            response_data['message'] = 'Score reached 13 — ready to submit final result.'
         
         return JsonResponse(response_data)
         

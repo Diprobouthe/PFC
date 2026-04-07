@@ -1,0 +1,38 @@
+{% comment %}
+Compact inline timer bar partial.
+Lightweight timer for score submission and validation pages.
+
+Required context:
+  timer_seconds  — int, remaining seconds
+  timer_total    — int, total seconds
+  timer_expired  — bool, whether time has expired
+  timer_limit    — int, time_limit_minutes value
+  timer_id       — str, unique suffix for element IDs (default: "bar")
+
+Usage:
+  {% include "partials/timer_bar.html" with timer_seconds=match.time_remaining_seconds timer_total=600 timer_expired=match.is_time_expired timer_limit=match.time_limit_minutes timer_id="submit" %}
+{% endcomment %}
+
+{% with tid=timer_id|default:"bar" %}
+<div class="alert {% if timer_expired %}alert-danger{% else %}alert-info{% endif %} py-2 px-3 mb-3 d-flex align-items-center justify-content-between" id="timer-bar-{{ tid }}" style="border-radius: 8px;">
+    {% if timer_expired %}
+        <span>
+            <i class="bi bi-alarm-fill"></i>
+            <strong>Time Expired</strong> — cosone rules apply
+        </span>
+    {% else %}
+        <span>
+            <i class="bi bi-clock-fill"></i>
+            <strong>Time Left:</strong>
+            <span id="timer-display-{{ tid }}" class="fw-bold ms-1" style="font-size: 1.1em;">--:--</span>
+        </span>
+        <div class="progress flex-grow-1 mx-3" style="height: 8px; max-width: 200px;">
+            <div class="progress-bar bg-success"
+                 id="timer-progress-{{ tid }}"
+                 role="progressbar"
+                 style="width: 100%;">
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}

@@ -4,359 +4,714 @@
 {% block title %}Matches - Petanque Platform{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4 px-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="mb-4 text-center" style="font-size: 2rem; font-weight: bold;">
-                {% if tournament %}
-                    🏆 Matches for {{ tournament.name }}
-                {% else %}
-                    <img src="{% static 'pfcLOGO.svg' %}" alt="PFC Logo" style="height: 24px; width: auto; margin-right: 8px;"> All Matches
-                {% endif %}
-            </h1>
+<style>
+/* ── Matches page — mobile-first redesign ─────────────────────────── */
 
-            <!-- Match Type Toggle -->
-            <div class="card shadow-lg mb-4">
-                <div class="card-body p-3">
-                    <div class="row justify-content-center">
-                        <div class="col-md-6">
-                            <div class="btn-group w-100" role="group" aria-label="Match Type Toggle">
-                                <button type="button" class="btn btn-primary btn-lg active" id="tournament-toggle">
-                                    <i class="fas fa-trophy me-2"></i>Tournament Matches
-                                    <span class="badge bg-light text-primary ms-2" id="tournament-count">{{ tournament_total }}</span>
-                                </button>
-                                <button type="button" class="btn btn-outline-success btn-lg" id="friendly-toggle">
-                                    <img src="{% static 'pfcFGlogo.svg' %}" alt="FG" style="height: 16px; width: auto; margin-right: 8px;">Friendly Games
-                                    <span class="badge bg-success ms-2" id="friendly-count">{{ friendly_total }}</span>
-                                </button>
+/* Page header */
+.ml-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 16px 10px;
+}
+.ml-header img { height: 22px; width: auto; opacity: .85; }
+.ml-header-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    letter-spacing: .01em;
+}
+.ml-header-sub {
+    font-size: .72rem;
+    color: #8a9bbf;
+    font-weight: 500;
+    margin-left: auto;
+}
+
+/* ── Type switcher (Tournament / Friendly) ─────────────────────────── */
+.ml-switcher {
+    display: flex;
+    gap: 6px;
+    padding: 0 16px 14px;
+}
+.ml-switch-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border-radius: 12px;
+    border: 1.5px solid #e4e9f4;
+    background: #f7f9ff;
+    font-size: .8rem;
+    font-weight: 700;
+    color: #6b7a99;
+    cursor: pointer;
+    transition: all .15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.ml-switch-btn img { height: 16px; width: auto; }
+.ml-switch-btn .ml-count {
+    font-size: .68rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #e4e9f4;
+    color: #6b7a99;
+}
+.ml-switch-btn.active-t {
+    background: #eef3ff;
+    border-color: #b3c6f5;
+    color: #1a3a8f;
+}
+.ml-switch-btn.active-t .ml-count { background: #1a3a8f; color: #fff; }
+.ml-switch-btn.active-f {
+    background: #edfaf2;
+    border-color: #a8d5b5;
+    color: #1a7a3c;
+}
+.ml-switch-btn.active-f .ml-count { background: #1a7a3c; color: #fff; }
+
+/* ── Status filter pills ───────────────────────────────────────────── */
+.ml-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 14px;
+    /* NO overflow-x: auto — pills wrap instead of scrolling */
+}
+/* keep the no-scrollbar rule harmless */
+.ml-pills::-webkit-scrollbar { display: none; }
+.ml-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1.5px solid #e4e9f4;
+    background: #f7f9ff;
+    font-size: .72rem;
+    font-weight: 700;
+    color: #6b7a99;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all .15s;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+}
+.ml-pill .pill-count {
+    font-size: .65rem;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #e4e9f4;
+    color: #6b7a99;
+}
+/* active pill states */
+.ml-pill.p-active   { background: #e8faf0; border-color: #6fcf97; color: #1a7a3c; }
+.ml-pill.p-active   .pill-count { background: #1a7a3c; color: #fff; }
+.ml-pill.p-pending  { background: #fff8e6; border-color: #f5d87a; color: #7a5800; }
+.ml-pill.p-pending  .pill-count { background: #b07800; color: #fff; }
+.ml-pill.p-partial  { background: #e8f6fb; border-color: #93d4e8; color: #0d6e8a; }
+.ml-pill.p-partial  .pill-count { background: #0d6e8a; color: #fff; }
+.ml-pill.p-validate { background: #fff3e8; border-color: #f5b87a; color: #7a3800; }
+.ml-pill.p-validate .pill-count { background: #c05000; color: #fff; }
+.ml-pill.p-done     { background: #f5f7fa; border-color: #c8d0de; color: #4a5568; }
+.ml-pill.p-done     .pill-count { background: #6b7a99; color: #fff; }
+/* friendly pills */
+.ml-pill.fp-waiting  { background: #fff8e6; border-color: #f5d87a; color: #7a5800; }
+.ml-pill.fp-waiting  .pill-count { background: #b07800; color: #fff; }
+.ml-pill.fp-active   { background: #e8faf0; border-color: #6fcf97; color: #1a7a3c; }
+.ml-pill.fp-active   .pill-count { background: #1a7a3c; color: #fff; }
+.ml-pill.fp-validate { background: #fff3e8; border-color: #f5b87a; color: #7a3800; }
+.ml-pill.fp-validate .pill-count { background: #c05000; color: #fff; }
+.ml-pill.fp-done     { background: #f5f7fa; border-color: #c8d0de; color: #4a5568; }
+.ml-pill.fp-done     .pill-count { background: #6b7a99; color: #fff; }
+
+/* ── Match cards ───────────────────────────────────────────────────── */
+.ml-list { padding: 0 12px 24px; display: flex; flex-direction: column; gap: 8px; }
+
+.ml-card {
+    display: block;
+    border-radius: 14px;
+    border: 1.5px solid #e4e9f4;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    text-decoration: none;
+    color: inherit;
+    transition: transform .13s, box-shadow .13s;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+.ml-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.1); color: inherit; }
+.ml-card:active { transform: scale(.98); }
+
+/* status accent bar on left */
+.ml-card-inner {
+    display: flex;
+    align-items: stretch;
+}
+.ml-accent {
+    width: 4px;
+    flex-shrink: 0;
+    border-radius: 14px 0 0 14px;
+}
+.accent-active   { background: #27ae60; }
+.accent-pending  { background: #f0b429; }
+.accent-partial  { background: #17a2b8; }
+.accent-validate { background: #fd7e14; }
+.accent-done     { background: #adb5bd; }
+.accent-waiting  { background: #f0b429; }
+
+.ml-card-body {
+    flex: 1;
+    padding: 12px 14px;
+    min-width: 0;
+}
+.ml-teams {
+    font-size: .9rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+}
+.ml-meta {
+    font-size: .72rem;
+    color: #8a9bbf;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ml-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .82rem;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+.ml-score-sep { color: #bbb; font-weight: 400; }
+.ml-card-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 12px 14px 12px 0;
+    flex-shrink: 0;
+}
+.ml-status-badge {
+    font-size: .65rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 10px;
+}
+.badge-active   { background: #e8faf0; color: #1a7a3c; }
+.badge-pending  { background: #fff8e6; color: #7a5800; }
+.badge-partial  { background: #e8f6fb; color: #0d6e8a; }
+.badge-validate { background: #fff3e8; color: #7a3800; }
+.badge-done     { background: #f5f7fa; color: #4a5568; }
+.badge-waiting  { background: #fff8e6; color: #7a5800; }
+
+.ml-chevron { color: #bbb; font-size: 12px; margin-top: auto; }
+
+/* Action button inside validate cards */
+.ml-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: .72rem;
+    font-weight: 700;
+    text-decoration: none;
+    background: #fff3e8;
+    border: 1.5px solid #f5b87a;
+    color: #7a3800;
+    transition: background .13s;
+}
+.ml-action-btn:hover { background: #ffe8d0; color: #7a3800; }
+.ml-action-btn-green {
+    background: #e8faf0;
+    border-color: #6fcf97;
+    color: #1a7a3c;
+}
+.ml-action-btn-green:hover { background: #d0f5e0; color: #1a7a3c; }
+
+/* Empty state */
+.ml-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: #8a9bbf;
+    font-size: .82rem;
+}
+.ml-empty i { font-size: 28px; margin-bottom: 8px; display: block; }
+
+/* Section divider */
+.ml-section-label {
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #b0bcd8;
+    padding: 0 16px 6px;
+}
+
+/* ── Overflow guard — prevents any horizontal page movement ─────── */
+.ml-page-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+.ml-page-wrap *, .ml-page-wrap *::before, .ml-page-wrap *::after {
+    box-sizing: border-box;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .ml-card { transition: none; }
+}
+</style>
+
+<div class="ml-page-wrap">
+
+    <!-- Page header -->
+    <div class="ml-header">
+        {% if tournament %}
+            <i class="fas fa-trophy" style="color:#b07800;font-size:18px;"></i>
+            <span class="ml-header-title">{{ tournament.name }}</span>
+        {% else %}
+            <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
+            <span class="ml-header-title">All Matches</span>
+        {% endif %}
+        <span class="ml-header-sub">{{ tournament_total|add:friendly_total }} total</span>
+    </div>
+
+    <!-- Type switcher -->
+    <div class="ml-switcher">
+        <button class="ml-switch-btn active-t" id="sw-tournament" onclick="switchType('tournament')">
+            <i class="fas fa-trophy" style="font-size:13px;"></i>
+            Tournament
+            <span class="ml-count" id="sw-t-count">{{ tournament_total }}</span>
+        </button>
+        <button class="ml-switch-btn" id="sw-friendly" onclick="switchType('friendly')">
+            <img src="{% static 'pfcFGlogo.svg' %}" alt="">
+            Friendly
+            <span class="ml-count" id="sw-f-count">{{ friendly_total }}</span>
+        </button>
+    </div>
+
+    <!-- ── TOURNAMENT SECTION ─────────────────────────────────────── -->
+    <div id="section-tournament">
+
+        <!-- Status pills -->
+        <div class="ml-pills">
+            <button class="ml-pill p-active selected-pill" id="pill-active" onclick="showTab('active')">
+                Active <span class="pill-count">{{ active_matches|length }}</span>
+            </button>
+            <button class="ml-pill p-pending" id="pill-pending" onclick="showTab('pending')">
+                Pending <span class="pill-count">{{ pending_matches|length }}</span>
+            </button>
+            <button class="ml-pill p-partial" id="pill-partial" onclick="showTab('partial')">
+                Partial <span class="pill-count">{{ pending_verification_matches|length }}</span>
+            </button>
+            <button class="ml-pill p-validate" id="pill-validate" onclick="showTab('validate')">
+                Validate <span class="pill-count">{{ waiting_validation|length }}</span>
+            </button>
+            <button class="ml-pill p-done" id="pill-done" onclick="showTab('done')">
+                Done <span class="pill-count">{{ completed_matches|length }}</span>
+            </button>
+        </div>
+
+        <!-- Active -->
+        <div id="tab-active" class="ml-tab">
+            {% if active_matches %}
+                <div class="ml-list">
+                {% for match in active_matches %}
+                    <a href="{% url 'match_detail' match.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-active"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                                <div class="ml-meta">{{ match.tournament.name }}{% if match.round %} · Round {{ match.round.number }}{% endif %}</div>
+                                {% if match.start_time %}
+                                    <div class="ml-meta" style="margin-bottom:0;">Started {{ match.start_time|date:"M j, H:i" }}</div>
+                                {% endif %}
+                                {% if match.time_limit_minutes %}
+                                    {% include "partials/timer_badge.html" with timer_seconds=match.time_remaining_seconds timer_expired=match.is_time_expired timer_limit=match.time_limit_minutes timer_id=match.id %}
+                                {% endif %}
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-active">Active</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-check-circle"></i>No active matches</div>
+            {% endif %}
+            {% if active_matches %}
+            <script>
+            {% for match in active_matches %}
+            {% if match.time_limit_minutes and not match.is_time_expired %}
+            {% include "partials/timer_countdown_js.html" with timer_seconds=match.time_remaining_seconds timer_total=match.timer_total_seconds timer_id=match.id timer_sound=False %}
+            {% endif %}
+            {% endfor %}
+            </script>
+            {% endif %}
+        </div>
+
+        <!-- Pending -->
+        <div id="tab-pending" class="ml-tab" style="display:none;">
+            {% if pending_matches %}
+                <div class="ml-list">
+                {% for match in pending_matches %}
+                    <a href="{% url 'match_detail' match.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-pending"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                                <div class="ml-meta">{{ match.tournament.name }}{% if match.round %} · Round {{ match.round.number }}{% endif %}</div>
+                                {% if match.time_limit_minutes %}
+                                    <div class="ml-meta" style="margin-bottom:0;"><i class="fas fa-clock" style="font-size:.65rem;"></i> {{ match.time_limit_minutes }} min limit</div>
+                                {% endif %}
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-pending">Pending</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-hourglass-half"></i>No pending matches</div>
+            {% endif %}
+        </div>
+
+        <!-- Partial -->
+        <div id="tab-partial" class="ml-tab" style="display:none;">
+            {% if pending_verification_matches %}
+                <div class="ml-list">
+                {% for match in pending_verification_matches %}
+                    <a href="{% url 'match_detail' match.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-partial"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                                <div class="ml-meta">{{ match.tournament.name }}</div>
+                                {% for activation in match.activations.all %}
+                                    <div class="ml-meta" style="margin-bottom:0;">Activated by {{ activation.team.name }}</div>
+                                {% endfor %}
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-partial">Waiting</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-sync-alt"></i>No partially activated matches</div>
+            {% endif %}
+        </div>
+
+        <!-- Validate -->
+        <div id="tab-validate" class="ml-tab" style="display:none;">
+            {% if waiting_validation %}
+                <div class="ml-list">
+                {% for match in waiting_validation %}
+                    <a href="{% url 'match_detail' match.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-validate"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                                <div class="ml-meta">{{ match.tournament.name }}</div>
+                                {% if match.team1_score is not None %}
+                                    <div class="ml-score">
+                                        <span>{{ match.team1_score }}</span>
+                                        <span class="ml-score-sep">–</span>
+                                        <span>{{ match.team2_score }}</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-validate">Validate</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-clipboard-check"></i>Nothing awaiting validation</div>
+            {% endif %}
+        </div>
+
+        <!-- Done -->
+        <div id="tab-done" class="ml-tab" style="display:none;">
+            {% if completed_matches %}
+                <div class="ml-list">
+                {% for match in completed_matches %}
+                    <a href="{% url 'match_detail' match.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-done"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                                <div class="ml-meta">{{ match.tournament.name }}</div>
+                                <div class="ml-score">
+                                    <span>{{ match.team1_score }}</span>
+                                    <span class="ml-score-sep">–</span>
+                                    <span>{{ match.team2_score }}</span>
+                                </div>
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-done">Done</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-flag-checkered"></i>No completed matches</div>
+            {% endif %}
+        </div>
+
+    </div><!-- /section-tournament -->
+
+
+    <!-- ── FRIENDLY SECTION ───────────────────────────────────────── -->
+    <div id="section-friendly" style="display:none;">
+
+        <!-- Friendly status pills -->
+        <div class="ml-pills">
+            <button class="ml-pill fp-waiting selected-pill" id="fpill-waiting" onclick="showFTab('fwaiting')">
+                Waiting <span class="pill-count">{{ friendly_waiting|length }}</span>
+            </button>
+            <button class="ml-pill fp-active" id="fpill-active" onclick="showFTab('factive')">
+                Active <span class="pill-count">{{ friendly_active|length }}</span>
+            </button>
+            <button class="ml-pill fp-validate" id="fpill-validate" onclick="showFTab('fvalidate')">
+                Validate <span class="pill-count">{{ friendly_pending_validation|length }}</span>
+            </button>
+            <button class="ml-pill fp-done" id="fpill-done" onclick="showFTab('fdone')">
+                Done <span class="pill-count">{{ friendly_completed|length }}</span>
+            </button>
+        </div>
+
+        <!-- Friendly: Waiting -->
+        <div id="tab-fwaiting" class="ml-ftab">
+            {% if friendly_waiting %}
+                <div class="ml-list">
+                {% for game in friendly_waiting %}
+                    <a href="{% url 'friendly_games:game_detail' game.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-waiting"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">Game #{{ game.match_number }}</div>
+                                <div class="ml-meta">Created {{ game.created_at|date:"M j, H:i" }}</div>
+                                <div class="ml-meta" style="margin-bottom:0;">Expires {{ game.expires_at|date:"M j, H:i" }}</div>
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-waiting">Waiting</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-users"></i>No games waiting for players
+                    <div style="margin-top:12px;">
+                        <a href="{% url 'friendly_games:create_game' %}" class="ml-action-btn ml-action-btn-green">
+                            <i class="fas fa-plus-circle"></i> Create Game
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Friendly: Active -->
+        <div id="tab-factive" class="ml-ftab" style="display:none;">
+            {% if friendly_active %}
+                <div class="ml-list">
+                {% for game in friendly_active %}
+                    <a href="{% url 'friendly_games:game_detail' game.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-active"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">Game #{{ game.match_number }}</div>
+                                <div class="ml-meta">Started {{ game.started_at|date:"M j, H:i" }}</div>
+                                <div class="ml-meta" style="margin-bottom:0;">{{ game.started_at|timesince }} ago</div>
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-active">Active</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-play-circle"></i>No active friendly games</div>
+            {% endif %}
+        </div>
+
+        <!-- Friendly: Validate -->
+        <div id="tab-fvalidate" class="ml-ftab" style="display:none;">
+            {% if friendly_pending_validation %}
+                <div class="ml-list">
+                {% for game in friendly_pending_validation %}
+                    <div class="ml-card" style="cursor:default;">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-validate"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">Game #{{ game.match_number }}</div>
+                                <div class="ml-score" style="margin-bottom:4px;">
+                                    <span>⚫ {{ game.black_team_score }}</span>
+                                    <span class="ml-score-sep">–</span>
+                                    <span>⚪ {{ game.white_team_score }}</span>
+                                </div>
+                                <div class="ml-meta">
+                                    Submitted by
+                                    {% if game.result.submitted_by_team == 'BLACK' %}Black{% else %}White{% endif %} team
+                                    {% if game.result.submitted_at %}· {{ game.result.submitted_at|date:"M j, H:i" }}{% endif %}
+                                </div>
+                                <div style="display:flex;gap:6px;margin-top:6px;">
+                                    <a href="{% url 'friendly_games:validate_result' game.id %}" class="ml-action-btn">
+                                        <i class="fas fa-check"></i> Validate
+                                    </a>
+                                    <a href="{% url 'friendly_games:game_detail' game.id %}" class="ml-action-btn" style="background:#f7f9ff;border-color:#b3c6f5;color:#2a5bd7;">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-validate">Validate</span>
                             </div>
                         </div>
                     </div>
+                {% endfor %}
                 </div>
-            </div>
-
-            <script>
-            // Global toggle functions
-            function showTournamentMatches() {
-                // Hide friendly section
-                document.getElementById('friendly-section').style.display = 'none';
-                // Show tournament section
-                document.getElementById('tournament-section').style.display = 'block';
-                
-                // Update button styles
-                document.getElementById('tournament-toggle').classList.add('active', 'btn-primary');
-                document.getElementById('tournament-toggle').classList.remove('btn-outline-primary');
-                
-                document.getElementById('friendly-toggle').classList.remove('active', 'btn-success');
-                document.getElementById('friendly-toggle').classList.add('btn-outline-success');
-                
-                // Save preference
-                localStorage.setItem('matchViewPreference', 'tournament');
-            }
-
-            function showFriendlyGames() {
-                // Hide tournament section
-                document.getElementById('tournament-section').style.display = 'none';
-                // Show friendly section
-                document.getElementById('friendly-section').style.display = 'block';
-                
-                // Update button styles
-                document.getElementById('friendly-toggle').classList.add('active', 'btn-success');
-                document.getElementById('friendly-toggle').classList.remove('btn-outline-success');
-                
-                document.getElementById('tournament-toggle').classList.remove('active', 'btn-primary');
-                document.getElementById('tournament-toggle').classList.add('btn-outline-primary');
-                
-                // Save preference
-                localStorage.setItem('matchViewPreference', 'friendly');
-            }
-
-            // Add event listeners when DOM is loaded
-            document.addEventListener('DOMContentLoaded', function() {
-                document.getElementById('tournament-toggle').addEventListener('click', showTournamentMatches);
-                document.getElementById('friendly-toggle').addEventListener('click', showFriendlyGames);
-                
-                // Load user preference
-                const preference = localStorage.getItem('matchViewPreference');
-                if (preference === 'friendly') {
-                    showFriendlyGames();
-                } else {
-                    showTournamentMatches();
-                }
-            });
-            </script>
-            
-            <!-- Tournament Matches Section -->
-            <div class="card shadow-lg" id="tournament-section">
-                <div class="card-header bg-primary text-white py-2">
-                    <div class="row align-items-center">
-                        <div class="col">
-                            <h2 class="mb-0" style="font-size: 1.1rem;">🏆 Tournament Matches Overview</h2>
-                        </div>
-                        <div class="col text-end">
-                            <span class="badge bg-light text-primary" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">
-                                {{ tournament_total }} Total Tournament Matches
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <!-- Tournament Match Status Tabs -->
-                    <ul class="nav nav-tabs nav-fill mb-0" id="tournamentTabs" role="tablist" style="border-bottom: none;">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active py-3" id="tournament-active-tab" data-bs-toggle="tab" data-bs-target="#tournament-active-matches" type="button" role="tab" aria-controls="tournament-active-matches" aria-selected="true" style="border-bottom: 3px solid #28a745; font-size: 1rem; font-weight: bold;">
-                                <div class="d-flex flex-column align-items-center">
-                                    <span style="color: #28a745; font-size: 1.2rem;">🟢</span>
-                                    <span style="color: #28a745; margin-top: 0.3rem;">Active</span>
-                                    <span class="badge bg-success mt-1" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">{{ active_matches|length }}</span>
-                                </div>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link py-3" id="tournament-pending-tab" data-bs-toggle="tab" data-bs-target="#tournament-pending-matches" type="button" role="tab" aria-controls="tournament-pending-matches" aria-selected="false" style="border-bottom: 3px solid #ffc107; font-size: 1rem; font-weight: bold;">
-                                <div class="d-flex flex-column align-items-center">
-                                    <span style="color: #ffc107; font-size: 1.2rem;">⏳</span>
-                                    <span style="color: #ffc107; margin-top: 0.3rem;">Pending</span>
-                                    <span class="badge bg-warning mt-1" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">{{ pending_matches|length }}</span>
-                                </div>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link py-3" id="tournament-partial-tab" data-bs-toggle="tab" data-bs-target="#tournament-partial-matches" type="button" role="tab" aria-controls="tournament-partial-matches" aria-selected="false" style="border-bottom: 3px solid #17a2b8; font-size: 1rem; font-weight: bold;">
-                                <div class="d-flex flex-column align-items-center">
-                                    <span style="color: #17a2b8; font-size: 1.2rem;">🔄</span>
-                                    <span style="color: #17a2b8; margin-top: 0.3rem;">Partially Activated</span>
-                                    <span class="badge bg-info mt-1" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">{{ pending_verification_matches|length }}</span>
-                                </div>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link py-3" id="tournament-validation-tab" data-bs-toggle="tab" data-bs-target="#tournament-validation-matches" type="button" role="tab" aria-controls="tournament-validation-matches" aria-selected="false" style="border-bottom: 3px solid #fd7e14; font-size: 1rem; font-weight: bold;">
-                                <div class="d-flex flex-column align-items-center">
-                                    <span style="color: #fd7e14; font-size: 1.2rem;">⚠️</span>
-                                    <span style="color: #fd7e14; margin-top: 0.3rem;">Waiting Validation</span>
-                                    <span class="badge bg-warning mt-1" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">{{ waiting_validation|length }}</span>
-                                </div>
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link py-3" id="tournament-completed-tab" data-bs-toggle="tab" data-bs-target="#tournament-completed-matches" type="button" role="tab" aria-controls="tournament-completed-matches" aria-selected="false" style="border-bottom: 3px solid #6c757d; font-size: 1rem; font-weight: bold;">
-                                <div class="d-flex flex-column align-items-center">
-                                    <span style="color: #6c757d; font-size: 1.2rem;">✅</span>
-                                    <span style="color: #6c757d; margin-top: 0.3rem;">Completed</span>
-                                    <span class="badge bg-secondary mt-1" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">{{ completed_matches|length }}</span>
-                                </div>
-                            </button>
-                        </li>
-                    </ul>
-
-                    <div class="tab-content py-3" id="tournamentTabContent">
-                        <!-- Tournament Active Matches Tab -->
-                        <div class="tab-pane fade show active" id="tournament-active-matches" role="tabpanel" aria-labelledby="tournament-active-tab">
-                            {% with matches=active_matches status_name="Active" status_color="#28a745" status_badge="success" status_icon="🟢" %}
-                                {% include 'matches/partials/match_status_table.html' %}
-                            {% endwith %}
-                        </div>
-
-                        <!-- Tournament Pending Matches Tab -->
-                        <div class="tab-pane fade" id="tournament-pending-matches" role="tabpanel" aria-labelledby="tournament-pending-tab">
-                            {% with matches=pending_matches status_name="Pending" status_color="#ffc107" status_badge="warning" status_icon="⏳" %}
-                                {% include 'matches/partials/match_status_table.html' %}
-                            {% endwith %}
-                        </div>
-
-                        <!-- Tournament Partially Activated Matches Tab -->
-                        <div class="tab-pane fade" id="tournament-partial-matches" role="tabpanel" aria-labelledby="tournament-partial-tab">
-                            {% with matches=pending_verification_matches status_name="Partially Activated" status_color="#17a2b8" status_badge="info" status_icon="🔄" %}
-                                {% include 'matches/partials/match_partial_table.html' %}
-                            {% endwith %}
-                        </div>
-
-                        <!-- Tournament Waiting Validation Tab -->
-                        <div class="tab-pane fade" id="tournament-validation-matches" role="tabpanel" aria-labelledby="tournament-validation-tab">
-                            {% with matches=waiting_validation status_name="Waiting Validation" status_color="#fd7e14" status_badge="warning" status_icon="⚠️" %}
-                                {% include 'matches/partials/match_validation_table.html' %}
-                            {% endwith %}
-                        </div>
-
-                        <!-- Tournament Completed Matches Tab -->
-                        <div class="tab-pane fade" id="tournament-completed-matches" role="tabpanel" aria-labelledby="tournament-completed-tab">
-                            {% with matches=completed_matches status_name="Completed" status_color="#6c757d" status_badge="secondary" status_icon="✅" %}
-                                {% include 'matches/partials/match_completed_table.html' %}
-                            {% endwith %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Friendly Games Section -->
-            <div class="card shadow-lg" id="friendly-section" style="display: none;">
-                <div class="card-header bg-success text-white py-2">
-                    <div class="row align-items-center">
-                        <div class="col">
-                            <h2 class="mb-0" style="font-size: 1.1rem;">
-                                <img src="{% static 'pfcFGlogo.svg' %}" alt="FG" style="height: 20px; width: auto; margin-right: 8px;">
-                                Friendly Games Overview
-                            </h2>
-                        </div>
-                        <div class="col text-end">
-                            <span class="badge bg-light text-success" style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">
-                                {{ friendly_total }} Total Friendly Games
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <!-- Friendly Games Content -->
-                    {% include 'matches/partials/friendly_games_table.html' %}
-                </div>
-            </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-clipboard-check"></i>Nothing awaiting validation</div>
+            {% endif %}
         </div>
-    </div>
-</div>
 
-<!-- Custom CSS for balanced accessibility -->
-<style>
-    .nav-tabs .nav-link {
-        min-height: 80px;
-        transition: all 0.3s ease;
-    }
-    
-    .nav-tabs .nav-link:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .nav-tabs .nav-link.active {
-        background-color: #f8f9fa;
-        font-weight: bold;
-    }
-    
-    .badge {
-        border-radius: 15px;
-    }
-    
-    .card {
-        border-radius: 10px;
-    }
-    
-    .card-header {
-        border-radius: 10px 10px 0 0;
-    }
-</style>
+        <!-- Friendly: Done -->
+        <div id="tab-fdone" class="ml-ftab" style="display:none;">
+            {% if friendly_completed %}
+                <div class="ml-list">
+                {% for game in friendly_completed %}
+                    <a href="{% url 'friendly_games:game_detail' game.id %}" class="ml-card">
+                        <div class="ml-card-inner">
+                            <div class="ml-accent accent-done"></div>
+                            <div class="ml-card-body">
+                                <div class="ml-teams">Game #{{ game.match_number }}</div>
+                                <div class="ml-meta">{{ game.completed_at|date:"M j, H:i" }}</div>
+                                <div class="ml-score">
+                                    <span>⚫ {{ game.black_team_score }}</span>
+                                    <span class="ml-score-sep">–</span>
+                                    <span>⚪ {{ game.white_team_score }}</span>
+                                </div>
+                            </div>
+                            <div class="ml-card-right">
+                                <span class="ml-status-badge badge-done">Done</span>
+                                <i class="fas fa-chevron-right ml-chevron"></i>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+                </div>
+            {% else %}
+                <div class="ml-empty"><i class="fas fa-flag-checkered"></i>No completed friendly games</div>
+            {% endif %}
+        </div>
 
-{% endblock %}
+    </div><!-- /section-friendly -->
 
-{% block extra_js %}
+</div><!-- /ml-page-wrap -->
+
 <script>
-    // Global functions for toggle functionality
-    window.showTournamentMatches = function() {
-        // Update toggle buttons
-        document.getElementById('tournament-toggle').classList.add('active');
-        document.getElementById('tournament-toggle').classList.remove('btn-outline-primary');
-        document.getElementById('tournament-toggle').classList.add('btn-primary');
-        
-        document.getElementById('friendly-toggle').classList.remove('active');
-        document.getElementById('friendly-toggle').classList.remove('btn-success');
-        document.getElementById('friendly-toggle').classList.add('btn-outline-success');
-        
-        // Show/hide sections
-        document.getElementById('tournament-section').style.display = 'block';
-        document.getElementById('friendly-section').style.display = 'none';
-        
-        // Store preference
-        localStorage.setItem('matchViewType', 'tournament');
-    };
-    
-    window.showFriendlyGames = function() {
-        // Update toggle buttons
-        document.getElementById('friendly-toggle').classList.add('active');
-        document.getElementById('friendly-toggle').classList.remove('btn-outline-success');
-        document.getElementById('friendly-toggle').classList.add('btn-success');
-        
-        document.getElementById('tournament-toggle').classList.remove('active');
-        document.getElementById('tournament-toggle').classList.remove('btn-primary');
-        document.getElementById('tournament-toggle').classList.add('btn-outline-primary');
-        
-        // Show/hide sections
-        document.getElementById('tournament-section').style.display = 'none';
-        document.getElementById('friendly-section').style.display = 'block';
-        
-        // Store preference
-        localStorage.setItem('matchViewType', 'friendly');
-    };
+// ── Type switcher ──────────────────────────────────────────────────
+function switchType(type) {
+    var isTournament = type === 'tournament';
+    document.getElementById('section-tournament').style.display = isTournament ? 'block' : 'none';
+    document.getElementById('section-friendly').style.display   = isTournament ? 'none'  : 'block';
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl)
-        });
+    var swT = document.getElementById('sw-tournament');
+    var swF = document.getElementById('sw-friendly');
+    swT.classList.toggle('active-t', isTournament);
+    swT.classList.toggle('ml-switch-btn', true);
+    swF.classList.toggle('active-f', !isTournament);
 
-        // Restore user's preferred view type
-        const preferredViewType = localStorage.getItem('matchViewType');
-        if (preferredViewType === 'friendly') {
-            showFriendlyGames();
-        } else {
-            showTournamentMatches(); // Default to tournament view
-        }
+    localStorage.setItem('matchViewType', type);
+}
 
-        // Persist active tab across page reloads for tournament tabs
-        const tournamentTabs = document.querySelectorAll('#tournamentTabs button[data-bs-toggle="tab"]');
-        tournamentTabs.forEach(tab => {
-            tab.addEventListener('shown.bs.tab', event => {
-                localStorage.setItem('activeTournamentTab', event.target.id);
-            });
-        });
+// ── Tournament tab pills ───────────────────────────────────────────
+var pillMap = {
+    'active':   'p-active',
+    'pending':  'p-pending',
+    'partial':  'p-partial',
+    'validate': 'p-validate',
+    'done':     'p-done'
+};
 
-        const activeTournamentTabId = localStorage.getItem('activeTournamentTab');
-        if (activeTournamentTabId) {
-            const activeTab = document.querySelector(`#${activeTournamentTabId}`);
-            if (activeTab) {
-                const tabInstance = new bootstrap.Tab(activeTab);
-                tabInstance.show();
-            }
+function showTab(name) {
+    ['active','pending','partial','validate','done'].forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = (t === name) ? 'block' : 'none';
+        var pill = document.getElementById('pill-' + t);
+        pill.classList.remove('selected-pill');
+        // remove all state classes then re-add the base one
+        Object.keys(pillMap).forEach(function(k) { pill.classList.remove(pillMap[k]); });
+        pill.classList.add(pillMap[t]);
+    });
+    var active = document.getElementById('pill-' + name);
+    active.classList.add('selected-pill', pillMap[name]);
+    localStorage.setItem('activeTournamentTab', name);
+}
+
+// ── Friendly tab pills ─────────────────────────────────────────────
+var fpillMap = {
+    'fwaiting':  'fp-waiting',
+    'factive':   'fp-active',
+    'fvalidate': 'fp-validate',
+    'fdone':     'fp-done'
+};
+
+function showFTab(name) {
+    ['fwaiting','factive','fvalidate','fdone'].forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = (t === name) ? 'block' : 'none';
+        var pill = document.getElementById('fpill-' + t.replace('f',''));
+        if (pill) {
+            Object.keys(fpillMap).forEach(function(k) { pill.classList.remove(fpillMap[k]); });
+            pill.classList.add(fpillMap[t]);
         }
     });
+    localStorage.setItem('activeFriendlyTab', name);
+}
 
-    // Toggle functions for match type switching
-    function showTournamentMatches() {
-        // Update button states
-        document.getElementById('tournament-toggle').classList.add('active');
-        document.getElementById('tournament-toggle').classList.remove('btn-outline-primary');
-        document.getElementById('tournament-toggle').classList.add('btn-primary');
-        document.getElementById('friendly-toggle').classList.remove('active');
-        document.getElementById('friendly-toggle').classList.remove('btn-success');
-        document.getElementById('friendly-toggle').classList.add('btn-outline-success');
-        
-        // Show/hide sections
-        document.getElementById('tournament-section').style.display = 'block';
-        document.getElementById('friendly-section').style.display = 'none';
-        
-        // Save preference
-        localStorage.setItem('matchViewType', 'tournament');
-    }
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    var viewType = localStorage.getItem('matchViewType') || 'tournament';
+    switchType(viewType);
 
-    function showFriendlyGames() {
-        // Update button states
-        document.getElementById('friendly-toggle').classList.add('active');
-        document.getElementById('friendly-toggle').classList.remove('btn-outline-success');
-        document.getElementById('friendly-toggle').classList.add('btn-success');
-        document.getElementById('tournament-toggle').classList.remove('active');
-        document.getElementById('tournament-toggle').classList.remove('btn-primary');
-        document.getElementById('tournament-toggle').classList.add('btn-outline-primary');
-        
-        // Show/hide sections
-        document.getElementById('tournament-section').style.display = 'none';
-        document.getElementById('friendly-section').style.display = 'block';
-        
-        // Save preference
-        localStorage.setItem('matchViewType', 'friendly');
-    }
+    var tTab = localStorage.getItem('activeTournamentTab') || 'active';
+    showTab(tTab);
 
-    // Make functions globally available
-    window.showTournamentMatches = showTournamentMatches;
-    window.showFriendlyGames = showFriendlyGames;
+    var fTab = localStorage.getItem('activeFriendlyTab') || 'fwaiting';
+    showFTab(fTab);
+});
 </script>
 {% endblock %}
-

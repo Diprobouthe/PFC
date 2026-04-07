@@ -1,338 +1,395 @@
 {% extends 'base.html' %}
 
-{% block content %}
-<div class="container mt-4">
-    <h2>Activate Match as {{ team.name }}</h2>
-    
-    <!-- Collapsible Details Section -->
-    <div class="mb-3">
-        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#matchDetails" aria-expanded="false" aria-controls="matchDetails">
-            <i class="bi bi-info-circle me-1"></i> Show Details
-        </button>
-    </div>
-    
-    <div class="collapse" id="matchDetails">
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                {{ match.team1.name }} vs {{ match.team2.name }}
-            </div>
-            <div class="card-body">
-                <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
-                <p><strong>Round:</strong> {{ match.round|default:"None" }}</p>
-                <p><strong>Status:</strong> <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'pending_verification' %}bg-warning{% elif match.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ match.get_status_display }}</span></p>
-            </div>
-        </div>
-    </div>
-    
-    {% if error_message %}
-    <div class="alert alert-danger">
-        <h4 class="alert-heading">Match Format Error!</h4>
-        <p>{{ error_message }}</p>
-        <hr>
-        <p class="mb-0">Please adjust your player selection to match the tournament requirements.</p>
-    </div>
-    {% endif %}
-    
-    {% if prompt_assign_anyway %}
-    {# Prompt shown when first team activates and no courts are free #}
-    <div class="alert alert-warning">
-        <h4 class="alert-heading">No Courts Available!</h4>
-        <p>All courts for this tournament are currently in use.</p>
-        <p>Would you like to confirm your activation anyway? The match will start automatically when a court becomes free and the other team also activates.</p>
-        
-        <hr>
-        <form method="post">
-            {% csrf_token %}
-            <!-- Preserve the original form data -->
-            <input type="hidden" name="pin" value="{{ form.cleaned_data.pin }}">
-            {% for player in form.cleaned_data.players %}
-            <input type="hidden" name="players" value="{{ player.id }}">
-            {% endfor %}
-            
-            <!-- Flag to indicate user confirmed to assign anyway -->
-            <input type="hidden" name="assign_anyway" value="1">
-            
-            <button type="submit" class="btn btn-primary">Yes, Activate Anyway</button>
-            <a href="{% url 'match_detail' match_id=match.id %}" class="btn btn-secondary">No, Cancel Activation</a>
-        </form>
-    </div>
-    {% else %}
-    {# Standard activation form #}
-    <form method="post" id="matchActivationForm">
-        {% csrf_token %}
-        
-        <div class="mb-3">
-            <label for="id_pin" class="form-label">Enter Team PIN to Activate:</label>
-            <input type="password" name="pin" maxlength="6" class="form-control" placeholder="Enter your 6-digit PIN" required id="id_pin" value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
-            {% if request.session.team_pin %}
-            <div class="form-text text-success">
-                <i class="fas fa-check-circle"></i> Auto-filled from saved PIN
-            </div>
-            {% endif %}
-        </div>
-        
-        <div class="mb-3">
-            <label class="form-label">Select Players:</label>
-            
-            <div class="player-selection">
-                {% for player in form.players %}
-                <div class="player-item mb-3">
-                    <div class="player-checkbox form-check mb-2">
-                        {{ player }}
-                    </div>
-                    
-                    <div class="player-roles ms-4" id="roles-{{ player.data.value }}" style="display: none;">
-                        <div class="role-title mb-2">
-                            <small class="text-muted">Select role:</small>
-                        </div>
-                        <div class="role-options d-flex flex-wrap">
-                            <div class="form-check me-3">
-                                <input type="radio" name="role_{{ player.data.value }}" value="pointer" 
-                                       id="id_role_{{ player.data.value }}_pointer" 
-                                       class="form-check-input role-radio">
-                                <label for="id_role_{{ player.data.value }}_pointer" class="form-check-label">
-                                    Pointer
-                                </label>
-                            </div>
-                            <div class="form-check me-3">
-                                <input type="radio" name="role_{{ player.data.value }}" value="milieu" 
-                                       id="id_role_{{ player.data.value }}_milieu" 
-                                       class="form-check-input role-radio">
-                                <label for="id_role_{{ player.data.value }}_milieu" class="form-check-label">
-                                    Milieu
-                                </label>
-                            </div>
-                            <div class="form-check me-3">
-                                <input type="radio" name="role_{{ player.data.value }}" value="tirer" 
-                                       id="id_role_{{ player.data.value }}_tirer" 
-                                       class="form-check-input role-radio">
-                                <label for="id_role_{{ player.data.value }}_tirer" class="form-check-label">
-                                    Shooter
-                                </label>
-                            </div>
-                        </div>
-                        <div class="role-help mt-1">
-                            <small class="text-muted">If no role is selected, player will be assigned as "Flex"</small>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <div id="roleError" class="alert alert-danger mt-2" style="display: none;">
-                Each player can only have one role selected.
-            </div>
-        </div>
-        
-        <button type="submit" class="btn btn-primary">
-            <i class="bi bi-play-fill"></i> Activate Match
-        </button>
-        <a href="{% url 'match_detail' match_id=match.id %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Match
-        </a>
-    </form>
-    
-    <!-- Additional Details in Collapsible Section -->
-    <div class="collapse" id="matchDetails">
-        <div class="alert alert-info mt-3">
-            <i class="bi bi-info-circle"></i> Both teams must activate the match before it can begin. A court will be automatically assigned when both teams have activated.
-        </div>
-        
-        {% if is_validating %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            <strong>Match Format Rules:</strong> This tournament requires specific match formats.
-            {% if match.tournament.allowed_match_types %}
-            <ul class="mb-0 mt-2">
-                {% for type in match.tournament.allowed_match_types.allowed_match_types %}
-                    <li>
-                        {% if type == 'doublet' %}Doublet (2 players){% endif %}
-                        {% if type == 'triplet' %}Triplet (3 players){% endif %}
-                        {% if type == 'tete_a_tete' %}Tête-à-tête (1 player){% endif %}
-                    </li>
-                {% endfor %}
-                <li>Mixed formats: {% if match.tournament.allowed_match_types.allow_mixed %}Allowed{% else %}Not allowed{% endif %}</li>
-            </ul>
-            {% endif %}
-        </div>
-        
-        <div class="player-count-info alert alert-warning">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <strong>Important:</strong> The other team has selected 
-            <span id="otherTeamPlayerCount">{{ first_team_match_players|length }}</span> player(s).
-            {% if not match.tournament.allowed_match_types.allow_mixed %}
-            Your selection should match this count to comply with tournament rules.
-            {% endif %}
-        </div>
-        {% endif %}
-        
-        <div class="form-text mb-2">
-            <strong>Instructions:</strong>
-        </div>
-        <ul class="form-text">
-            <li>Enter your team's 6-digit PIN to confirm match activation</li>
-            <li>Select the players who will participate in this match</li>
-            <li>Choose player roles if needed (optional - defaults to "Flex")</li>
-        </ul>
-    </div>
-    {% endif %}
-</div>
+{% block title %}Activate Match · PFC{% endblock %}
 
+{% block content %}
 <style>
-    /* Mobile-friendly styles for player selection */
-    .player-item {
-        padding: 15px;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        background-color: #f8f9fa;
-        transition: all 0.3s ease;
-    }
-    
-    .player-item.selected {
-        border-color: #0d6efd;
-        background-color: #f0f7ff;
-        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-    }
-    
-    .player-checkbox .form-check-input {
-        width: 22px;
-        height: 22px;
-        margin-right: 10px;
-    }
-    
-    .player-checkbox .form-check-label {
-        font-size: 16px;
-        font-weight: 500;
-    }
-    
-    .player-roles {
-        padding-top: 10px;
-        border-top: 1px dashed #dee2e6;
-        margin-top: 10px;
-    }
-    
-    .role-options {
-        padding: 5px 0;
-    }
-    
-    .role-options .form-check {
-        margin-bottom: 8px;
-    }
-    
-    .role-options .form-check-input {
-        width: 18px;
-        height: 18px;
-    }
-    
-    .role-options .form-check-label {
-        font-size: 14px;
-        padding-left: 5px;
-    }
-    
-    /* Responsive adjustments */
-    @media (max-width: 576px) {
-        .role-options {
-            flex-direction: column;
-        }
-        
-        .role-options .form-check {
-            margin-right: 0;
-            margin-bottom: 10px;
-        }
-    }
+/* ── Shell ── */
+.ma-shell {
+    min-height: calc(100dvh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px 80px;
+    max-width: 480px;
+    margin: 0 auto;
+    gap: 10px;
+}
+
+/* ── Top bar ── */
+.ma-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0 4px;
+}
+.ma-vs {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #212529;
+}
+.ma-status-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: {% if is_validating %}#fff3cd; color:#664d03;{% else %}#d1e7dd; color:#0a3622;{% endif %}
+}
+
+/* ── Role label ── */
+.ma-role-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #6c757d;
+    margin-bottom: 6px;
+}
+
+/* ── Player card ── */
+.ma-player-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8f9fa;
+    border: 1.5px solid #dee2e6;
+    border-radius: 12px;
+    padding: 10px 12px;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+    position: relative;
+}
+.ma-player-card.selected {
+    border-color: #198754;
+    background: #f0fff4;
+}
+.ma-player-card.auto-selected {
+    border-color: #0d6efd;
+    background: #f0f4ff;
+}
+/* Hidden real checkbox */
+.ma-player-card input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.ma-check-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #adb5bd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: transparent;
+    background: #fff;
+    transition: all 0.15s;
+}
+.ma-player-card.selected .ma-check-icon,
+.ma-player-card.auto-selected .ma-check-icon {
+    background: #198754;
+    border-color: #198754;
+    color: #fff;
+}
+.ma-player-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #212529;
+    flex: 1;
+}
+.ma-player-auto-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: #cfe2ff;
+    color: #084298;
+    padding: 2px 7px;
+    border-radius: 8px;
+}
+
+/* ── Position chips ── */
+.ma-pos-area {
+    padding: 8px 12px 10px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    margin-top: -8px;
+    display: none;
+}
+.ma-pos-area.visible { display: block; }
+.ma-pos-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.ma-pos-chip {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid #dee2e6;
+    background: #f8f9fa;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.12s;
+    user-select: none;
+}
+.ma-pos-chip.active {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+/* Hidden radio behind chip */
+.ma-pos-chip input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* ── Validating: other team info ── */
+.ma-other-team-strip {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    color: #5d4037;
+}
+.ma-other-team-strip strong { color: #3e2723; }
+
+/* ── Error alert ── */
+.ma-error {
+    background: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #842029;
+}
+
+/* ── Sticky confirm button ── */
+.ma-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 14px;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    max-width: 480px;
+    margin: 0 auto;
+}
+.ma-confirm-btn {
+    flex: 1;
+    background: #198754;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ma-confirm-btn:hover { background: #157347; }
+.ma-confirm-btn:disabled { background: #adb5bd; cursor: not-allowed; }
+.ma-back-btn {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1.5px solid #dee2e6;
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+.ma-back-btn:hover { background: #e9ecef; color: #212529; }
+
+/* ── Auto-fill notice ── */
+.ma-auto-notice {
+    font-size: 0.7rem;
+    color: #0d6efd;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+}
 </style>
 
+<div class="ma-shell">
+
+    <!-- Top bar: match info -->
+    <div class="ma-topbar">
+        <span class="ma-vs">{{ match.team1.name }} vs {{ match.team2.name }}</span>
+        <span class="ma-status-badge">
+            {% if is_validating %}Validating{% else %}Initiating{% endif %}
+        </span>
+    </div>
+
+    {% if messages %}
+    {% for msg in messages %}
+    <div class="ma-error">{{ msg }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- If validating: show other team's lineup -->
+    {% if is_validating and first_team_match_players %}
+    <div class="ma-other-team-strip">
+        <strong>Other team:</strong>
+        {% for p in first_team_match_players %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+        ({{ first_team_match_players|length }} player{{ first_team_match_players|length|pluralize }})
+    </div>
+    {% endif %}
+
+    <!-- Main activation form -->
+    <form method="post" id="maForm">
+        {% csrf_token %}
+
+        <!-- ① PIN — hidden, auto-filled from team record -->
+        <input type="hidden" name="pin" value="{{ team_pin }}">
+
+        <!-- ② Player selection -->
+        <div class="ma-role-label">
+            Select Players
+            {% if auto_preselect %}
+            <span class="ma-auto-notice"><i class="fas fa-magic"></i> Auto-selected ({{ required_count }} required)</span>
+            {% elif required_count %}
+            <span class="ma-auto-notice" style="color:#6c757d;">Select {{ required_count }} player{{ required_count|pluralize }}</span>
+            {% endif %}
+        </div>
+
+        {% for item in team_players_with_pos %}
+        {% with player=item.player pos=item.preferred_position %}
+        <div class="ma-player-card {% if auto_preselect %}auto-selected{% endif %}" id="card-{{ player.id }}" onclick="togglePlayer({{ player.id }})">
+            <!-- Real checkbox (hidden visually, functional for form) -->
+            <input type="checkbox"
+                   name="players"
+                   value="{{ player.id }}"
+                   id="chk-{{ player.id }}"
+                   {% if auto_preselect %}checked{% endif %}>
+            <div class="ma-check-icon" id="chkicon-{{ player.id }}">
+                <i class="fas fa-check"></i>
+            </div>
+            <span class="ma-player-name">{{ player.name }}</span>
+            {% if auto_preselect %}
+            <span class="ma-player-auto-badge">Auto</span>
+            {% endif %}
+        </div>
+        <!-- Position chips — shown when player is selected -->
+        <div class="ma-pos-area {% if auto_preselect %}visible{% endif %}" id="pos-{{ player.id }}">
+            <div class="ma-pos-chips">
+                {% for val, label in pos_choices %}
+                <label class="ma-pos-chip {% if val == pos %}active{% endif %}" id="chip-{{ player.id }}-{{ val }}" onclick="selectPos({{ player.id }}, '{{ val }}', this)">
+                    <input type="radio" name="role_{{ player.id }}" value="{{ val }}" {% if val == pos %}checked{% endif %}>
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+
+        <!-- Fallback: if team_players_with_pos is empty, render original form players -->
+        {% if not team_players_with_pos %}
+        <div class="ma-role-label">Select Players</div>
+        {% for player in form.players %}
+        <div class="ma-player-card" id="card-{{ player.data.value }}" onclick="togglePlayer({{ player.data.value }})">
+            <input type="checkbox" name="players" value="{{ player.data.value }}" id="chk-{{ player.data.value }}">
+            <div class="ma-check-icon" id="chkicon-{{ player.data.value }}">
+                <i class="fas fa-check"></i>
+            </div>
+            <span class="ma-player-name">{{ player.choice_label }}</span>
+        </div>
+        <div class="ma-pos-area" id="pos-{{ player.data.value }}">
+            <div class="ma-pos-chips">
+                <label class="ma-pos-chip" onclick="selectPos({{ player.data.value }}, 'pointer', this)"><input type="radio" name="role_{{ player.data.value }}" value="pointer"> Pointer</label>
+                <label class="ma-pos-chip active" onclick="selectPos({{ player.data.value }}, 'milieu', this)"><input type="radio" name="role_{{ player.data.value }}" value="milieu" checked> Milieu</label>
+                <label class="ma-pos-chip" onclick="selectPos({{ player.data.value }}, 'tirer', this)"><input type="radio" name="role_{{ player.data.value }}" value="tirer"> Shooter</label>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+    </form>
+
+</div>
+
+<!-- Sticky confirm bar -->
+<div class="ma-sticky-bar">
+    <a href="{% url 'match_detail' match_id=match.id %}" class="ma-back-btn">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <button type="submit" form="maForm" class="ma-confirm-btn" id="confirmBtn">
+        <i class="fas fa-play me-2"></i>
+        {% if is_validating %}Validate & Activate{% else %}Activate Match{% endif %}
+    </button>
+</div>
+
 <script>
+// Position choices injected from view
+const POS_CHOICES = [
+    ['pointer', 'Pointer'],
+    ['milieu', 'Milieu'],
+    ['tirer', 'Shooter'],
+];
+
+function togglePlayer(pid) {
+    const chk = document.getElementById('chk-' + pid);
+    const card = document.getElementById('card-' + pid);
+    const posArea = document.getElementById('pos-' + pid);
+    const icon = document.getElementById('chkicon-' + pid);
+
+    chk.checked = !chk.checked;
+
+    if (chk.checked) {
+        card.classList.add('selected');
+        card.classList.remove('auto-selected');
+        posArea.classList.add('visible');
+    } else {
+        card.classList.remove('selected', 'auto-selected');
+        posArea.classList.remove('visible');
+        // Uncheck all role radios
+        posArea.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+        posArea.querySelectorAll('.ma-pos-chip').forEach(c => c.classList.remove('active'));
+    }
+}
+
+function selectPos(pid, val, chipEl) {
+    // Deactivate all chips for this player
+    const posArea = document.getElementById('pos-' + pid);
+    posArea.querySelectorAll('.ma-pos-chip').forEach(c => c.classList.remove('active'));
+    // Activate selected chip
+    chipEl.classList.add('active');
+    // Check the corresponding radio
+    const radio = chipEl.querySelector('input[type="radio"]');
+    if (radio) radio.checked = true;
+    // Prevent card toggle from firing
+    event.stopPropagation();
+}
+
+// Sync initial state on load (in case of form re-render after error)
 document.addEventListener('DOMContentLoaded', function() {
-    // Get all player checkboxes
-    const playerCheckboxes = document.querySelectorAll('.player-checkbox input[type="checkbox"]');
-    
-    // Add event listeners to each checkbox
-    playerCheckboxes.forEach(function(checkbox) {
-        // Get the player ID from the checkbox value
-        const playerId = checkbox.value;
-        // Get the roles container for this player
-        const rolesContainer = document.getElementById('roles-' + playerId);
-        // Get the parent player-item div
-        const playerItem = checkbox.closest('.player-item');
-        
-        // Add change event listener
-        checkbox.addEventListener('change', function() {
-            // Show/hide roles based on checkbox state
-            if (this.checked) {
-                rolesContainer.style.display = 'block';
-                playerItem.classList.add('selected');
-            } else {
-                rolesContainer.style.display = 'none';
-                playerItem.classList.remove('selected');
-                
-                // Uncheck all role radios for this player
-                const roleRadios = rolesContainer.querySelectorAll('input[type="radio"]');
-                roleRadios.forEach(function(radio) {
-                    radio.checked = false;
-                });
-            }
-            
-            // Update selected player count
-            updateSelectedPlayerCount();
-        });
-    });
-    
-    // Function to update selected player count
-    function updateSelectedPlayerCount() {
-        const selectedCount = document.querySelectorAll('.player-checkbox input[type="checkbox"]:checked').length;
-        const otherTeamCount = document.getElementById('otherTeamPlayerCount');
-        
-        if (otherTeamCount) {
-            // If other team count exists, check if counts match
-            const otherCount = parseInt(otherTeamCount.textContent);
-            const playerCountInfo = document.querySelector('.player-count-info');
-            
-            if (playerCountInfo) {
-                if (selectedCount !== otherCount) {
-                    playerCountInfo.classList.remove('alert-warning');
-                    playerCountInfo.classList.add('alert-danger');
-                } else {
-                    playerCountInfo.classList.remove('alert-danger');
-                    playerCountInfo.classList.add('alert-warning');
-                }
-            }
+    document.querySelectorAll('.ma-player-card').forEach(function(card) {
+        const pid = card.id.replace('card-', '');
+        const chk = document.getElementById('chk-' + pid);
+        const posArea = document.getElementById('pos-' + pid);
+        if (chk && chk.checked) {
+            card.classList.add('selected');
+            posArea.classList.add('visible');
         }
-    }
-    
-    // Form validation
-    const form = document.getElementById('matchActivationForm');
-    if (form) {
-        form.addEventListener('submit', function(event) {
-            let hasError = false;
-            const roleError = document.getElementById('roleError');
-            
-            // Reset error display
-            roleError.style.display = 'none';
-            
-            // Check each selected player
-            playerCheckboxes.forEach(function(checkbox) {
-                if (checkbox.checked) {
-                    const playerId = checkbox.value;
-                    const rolesContainer = document.getElementById('roles-' + playerId);
-                    const roleRadios = rolesContainer.querySelectorAll('input[type="radio"]:checked');
-                    
-                    // If more than one role is selected, show error
-                    if (roleRadios.length > 1) {
-                        hasError = true;
-                        roleError.style.display = 'block';
-                    }
-                }
-            });
-            
-            // Prevent form submission if there are errors
-            if (hasError) {
-                event.preventDefault();
-            }
-        });
-    }
-    
-    // Initialize player count display
-    updateSelectedPlayerCount();
+    });
 });
 </script>
 

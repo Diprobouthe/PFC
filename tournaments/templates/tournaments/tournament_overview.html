@@ -293,6 +293,22 @@
                         </div>
                     </div>
                     
+                    <!-- Timer (if timed match) -->
+                    {% if match_data.match.time_limit_minutes and match_data.match.status == 'active' %}
+                    <div class="text-center mb-2">
+                        {% if match_data.match.is_time_expired %}
+                        <span class="badge bg-danger" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
+                            <i class="fas fa-alarm-clock"></i> TIME EXPIRED
+                        </span>
+                        {% else %}
+                        <span id="timer-badge-{{ match_data.match.id }}" class="badge bg-success" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
+                            <i class="fas fa-clock"></i>
+                            <span id="timer-text-{{ match_data.match.id }}">--:--</span>
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
                     <!-- Score Section -->
                     <div class="score-section">
                         <div class="team-section">
@@ -430,6 +446,35 @@
             refreshInfo.innerHTML = `<i class="fas fa-sync-alt me-2"></i>Auto-refresh: ${refreshCounter}s`;
         }, 1000);
         
+        // Timer countdowns for timed matches
+        (function initTimers() {
+            {% for match_data in tournament_scoreboards %}
+            {% if match_data.match.time_limit_minutes and match_data.match.status == 'active' and not match_data.match.is_time_expired %}
+            (function() {
+                var remaining = {{ match_data.match.time_remaining_seconds|default:0 }};
+                var el = document.getElementById('timer-text-{{ match_data.match.id }}');
+                var badge = document.getElementById('timer-badge-{{ match_data.match.id }}');
+                if (!el || remaining <= 0) return;
+                function tick() {
+                    if (remaining <= 0) {
+                        el.textContent = 'TIME UP';
+                        if (badge) { badge.className = badge.className.replace('bg-success','bg-danger').replace('bg-warning','bg-danger'); }
+                        return;
+                    }
+                    var m = Math.floor(remaining / 60);
+                    var s = remaining % 60;
+                    el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+                    if (remaining <= 300 && badge) { badge.className = badge.className.replace('bg-success','bg-warning'); }
+                    if (remaining <= 60 && badge) { badge.className = badge.className.replace('bg-warning','bg-danger'); }
+                    remaining--;
+                }
+                tick();
+                setInterval(tick, 1000);
+            })();
+            {% endif %}
+            {% endfor %}
+        })();
+
         // Add hover effects
         document.querySelectorAll('.match-card').forEach(card => {
             card.addEventListener('mouseenter', function() {

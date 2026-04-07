@@ -1,0 +1,73 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Swap Mêlée Participant{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <h1>🔄 Swap Mêlée Participant</h1>
+
+  <!-- Info box -->
+  <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:16px 20px;margin-bottom:24px;">
+    <strong>Tournament:</strong> {{ tournament.name }}<br>
+    <strong>Player leaving:</strong>
+      <span style="color:#c0392b;font-weight:bold;">{{ outgoing_player.name }}</span>
+    {% if melee_player.assigned_team %}
+      &nbsp;→ currently on team <em>{{ melee_player.assigned_team.name }}</em>
+    {% endif %}
+    <br><br>
+    <strong>⚠ What this action does:</strong>
+    <ul style="margin:6px 0 0 18px;">
+      <li>Removes <strong>{{ outgoing_player.name }}</strong> from the tournament registration.</li>
+      <li>Registers the replacement player in their exact slot (same team if teams are already generated).</li>
+      <li>Migrates partnership history and stats to the replacement player.</li>
+      <li>Restores {{ outgoing_player.name }} to their original team (if teams were generated).</li>
+      <li><strong>Does NOT alter any completed match results or PFC ratings.</strong></li>
+    </ul>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    {{ form.outgoing_player_id }}
+    {{ form.tournament_id }}
+
+    <table class="form-table">
+      <tr>
+        <th><label for="{{ form.incoming_player.id_for_label }}">{{ form.incoming_player.label }}:</label></th>
+        <td>
+          {{ form.incoming_player }}
+          {% if form.incoming_player.help_text %}
+            <p class="help">{{ form.incoming_player.help_text }}</p>
+          {% endif %}
+          {% for error in form.incoming_player.errors %}
+            <p class="errornote">{{ error }}</p>
+          {% endfor %}
+        </td>
+      </tr>
+      <tr>
+        <th><label for="{{ form.reason.id_for_label }}">{{ form.reason.label }}:</label></th>
+        <td>
+          {{ form.reason }}
+          <p class="help">Logged for audit purposes only.</p>
+        </td>
+      </tr>
+    </table>
+
+    <div style="margin-top:20px;">
+      <input type="submit"
+             value="✅ Confirm Swap"
+             class="default"
+             style="background:#27ae60;color:#fff;border:none;padding:10px 20px;
+                    border-radius:4px;font-size:14px;cursor:pointer;">
+      &nbsp;&nbsp;
+      <a href="{% url 'admin:tournaments_meleeplayer_changelist' %}?tournament__id__exact={{ tournament.pk }}"
+         style="color:#666;text-decoration:none;font-size:14px;">
+        ✖ Cancel
+      </a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

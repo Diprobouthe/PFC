@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+{% block title %}Invitations — PFC{% endblock %}
+
+{% block content %}
+<div class="ih-wrap">
+
+  <!-- ── Page header ──────────────────────────────────────────────── -->
+  <div class="ih-header">
+    <div class="ih-header-title">Invitations</div>
+    {% if player %}
+      <div class="ih-header-sub">Logged in as <strong>{{ player.name }}</strong></div>
+    {% else %}
+      <div class="ih-header-sub ih-warn">
+        You must be logged in with a codename to send or receive invites.
+        <a href="{% url 'codename_login' %}">Log in</a>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if player %}
+
+  <!-- ── Inbox ────────────────────────────────────────────────────── -->
+  <section class="ih-section" id="ih-inbox-section">
+    <div class="ih-section-head">
+      <span class="ih-section-title">Inbox</span>
+      <span class="ih-badge" id="ih-inbox-count">…</span>
+    </div>
+    <div id="ih-inbox-list" class="ih-inbox-list">
+      <div class="ih-empty">Loading…</div>
+    </div>
+  </section>
+
+  <!-- ── Send invite ───────────────────────────────────────────────── -->
+  <section class="ih-section">
+    <div class="ih-section-head">
+      <span class="ih-section-title">Send Invite</span>
+    </div>
+
+    <!-- Type toggle -->
+    <div class="ih-type-row">
+      <button class="ih-type-btn ih-type-active" data-type="play" id="btn-type-play">
+        <i class="fas fa-play-circle"></i> Play
+      </button>
+      <button class="ih-type-btn" data-type="team_build" id="btn-type-team">
+        <i class="fas fa-users"></i> Team Build
+      </button>
+    </div>
+
+    <!-- Player search -->
+    <div class="ih-field">
+      <label class="ih-label">Find players</label>
+      <input type="text" id="ih-player-search" class="ih-input" placeholder="Name or codename…" autocomplete="off">
+      <div id="ih-search-results" class="ih-search-results" style="display:none;"></div>
+    </div>
+
+    <!-- Selected players -->
+    <div id="ih-selected-players" class="ih-selected-players" style="display:none;">
+      <div class="ih-label">Selected</div>
+      <div id="ih-selected-list" class="ih-selected-list"></div>
+    </div>
+
+    <!-- Optional message -->
+    <div class="ih-field">
+      <label class="ih-label">Message <span class="ih-optional">(optional, max 200 chars)</span></label>
+      <input type="text" id="ih-message" class="ih-input" maxlength="200" placeholder="e.g. Let's play at 7pm">
+      <div class="ih-char-count"><span id="ih-msg-count">0</span>/200</div>
+    </div>
+
+    <!-- PLAY INVITE extras -->
+    <div id="ih-play-extras">
+      <div class="ih-field">
+        <label class="ih-label">Proposed time <span class="ih-optional">(optional)</span></label>
+        <input type="datetime-local" id="ih-play-time" class="ih-input">
+      </div>
+      <div class="ih-field">
+        <label class="ih-label">Court / location <span class="ih-optional">(optional)</span></label>
+        <select id="ih-play-court" class="ih-select">
+          <option value="">— no preference —</option>
+          {% for court in courts %}
+            <option value="{{ court.pk }}">{{ court.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- TEAM BUILD extras -->
+    <div id="ih-team-extras" style="display:none;">
+      <div class="ih-field">
+        <label class="ih-label">Team size (including you)</label>
+        <select id="ih-target-size" class="ih-select">
+          <option value="2">2 players</option>
+          <option value="3" selected>3 players</option>
+          <option value="4">4 players</option>
+          <option value="6">6 players</option>
+        </select>
+      </div>
+      <div class="ih-field">
+        <label class="ih-label">Build type</label>
+        <div class="ih-type-row">
+          <button class="ih-type-btn ih-type-active" data-build="normal" id="btn-build-normal">Normal</button>
+          <button class="ih-type-btn" data-build="tournament" id="btn-build-tourn">Tournament</button>
+        </div>
+      </div>
+      <div class="ih-field" id="ih-tourn-field" style="display:none;">
+        <label class="ih-label">Tournament</label>
+        <select id="ih-tournament" class="ih-select">
+          <option value="">— select —</option>
+          {% for t in tournaments %}
+            <option value="{{ t.pk }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ih-field">
+        <label class="ih-label">Proposed team name <span class="ih-optional">(optional)</span></label>
+        <input type="text" id="ih-team-name" class="ih-input" maxlength="100" placeholder="e.g. Les Boules d'Or">
+      </div>
+    </div>
+
+    <button class="ih-send-btn" id="ih-send-btn" disabled>
+      <i class="fas fa-paper-plane"></i> Send Invite
+    </button>
+    <div id="ih-send-result" class="ih-send-result" style="display:none;"></div>
+  </section>
+
+  <!-- ── Session tracker (shown after team build sent) ────────────── -->
+  <section class="ih-section" id="ih-session-section" style="display:none;">
+    <div class="ih-section-head">
+      <span class="ih-section-title">Team Build Progress</span>
+    </div>
+    <div id="ih-session-info" class="ih-session-info"></div>
+  </section>
+
+  {% endif %}{# /if player #}
+</div><!-- /ih-wrap -->
+
+
+<!-- ── Styles ─────────────────────────────────────────────────────── -->
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+.ih-wrap {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 12px 40px;
+  overflow-x: hidden;
+}
+
+/* Header */
+.ih-header { margin-bottom: 20px; }
+.ih-header-title { font-size: 1.3rem; font-weight: 700; color: #1a2a4a; }
+.ih-header-sub { font-size: 0.85rem; color: #666; margin-top: 2px; }
+.ih-warn { color: #c0392b; }
+
+/* Sections */
+.ih-section {
+  background: #fff;
+  border: 1px solid #e8edf3;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.ih-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ih-section-title { font-size: 0.95rem; font-weight: 700; color: #1a2a4a; }
+.ih-badge {
+  background: #1a4fa0;
+  color: #fff;
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Type toggle */
+.ih-type-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ih-type-btn {
+  padding: 9px 0;
+  border: 1.5px solid #c8d4e6;
+  border-radius: 8px;
+  background: #f5f8fc;
+  color: #4a6080;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.ih-type-btn.ih-type-active {
+  background: #1a4fa0;
+  color: #fff;
+  border-color: #1a4fa0;
+}
+
+/* Fields */
+.ih-field { margin-bottom: 12px; }
+.ih-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4a6080; margin-bottom: 4px; }
+.ih-optional { font-weight: 400; color: #999; }
+.ih-input, .ih-select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #c8d4e6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #1a2a4a;
+  background: #f9fbfd;
+  outline: none;
+}
+.ih-input:focus, .ih-select:focus { border-color: #1a4fa0; background: #fff; }
+.ih-char-count { font-size: 0.75rem; color: #999; text-align: right; margin-top: 2px; }
+
+/* Search results dropdown */
+.ih-search-results {
+  border: 1.5px solid #c8d4e6;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ih-search-item {
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f3f7;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ih-search-item:last-child { border-bottom: none; }
+.ih-search-item:hover { background: #f0f5ff; }
+.ih-search-item-team { font-size: 0.75rem; color: #888; }
+
+/* Selected players */
+.ih-selected-players { margin-bottom: 12px; }
+.ih-selected-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ih-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #e8f0fe;
+  color: #1a4fa0;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.ih-player-chip-remove {
+  cursor: pointer;
+  color: #1a4fa0;
+  font-size: 0.9rem;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+/* Send button */
+.ih-send-btn {
+  width: 100%;
+  padding: 12px;
+  background: #1a4fa0;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background .15s, opacity .15s;
+}
+.ih-send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ih-send-btn:not(:disabled):hover { background: #163d80; }
+
+/* Send result */
+.ih-send-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.ih-send-result.ok { background: #e8f5e9; color: #2e7d32; }
+.ih-send-result.err { background: #fdecea; color: #c62828; }
+
+/* Inbox */
+.ih-inbox-list { display: flex; flex-direction: column; gap: 10px; }
+.ih-empty { font-size: 0.85rem; color: #999; text-align: center; padding: 12px 0; }
+
+.ih-invite-card {
+  border: 1.5px solid #e0e8f4;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f9fbfd;
+}
+.ih-invite-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+.ih-invite-card-from { font-size: 0.9rem; font-weight: 700; color: #1a2a4a; }
+.ih-invite-card-type {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #e8f0fe;
+  color: #1a4fa0;
+}
+.ih-invite-card-type.play { background: #e8f5e9; color: #2e7d32; }
+.ih-invite-card-msg { font-size: 0.85rem; color: #444; margin-bottom: 8px; font-style: italic; }
+.ih-invite-card-meta { font-size: 0.78rem; color: #888; margin-bottom: 10px; }
+.ih-invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ih-accept-btn, .ih-reject-btn {
+  padding: 8px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.ih-accept-btn { background: #1a4fa0; color: #fff; }
+.ih-reject-btn { background: #f5f5f5; color: #666; border: 1.5px solid #ddd; }
+.ih-accept-btn:hover { background: #163d80; }
+.ih-reject-btn:hover { background: #ebebeb; }
+
+/* Session info */
+.ih-session-info { font-size: 0.88rem; color: #333; }
+.ih-session-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f3f7; }
+.ih-session-row:last-child { border-bottom: none; }
+.ih-session-status { font-weight: 600; }
+.ih-session-status.accepted { color: #2e7d32; }
+.ih-session-status.pending { color: #e65100; }
+.ih-session-status.rejected { color: #c62828; }
+.ih-session-team-created {
+  margin-top: 12px;
+  padding: 12px;
+  background: #e8f5e9;
+  border-radius: 8px;
+  text-align: center;
+}
+.ih-session-team-created strong { display: block; font-size: 1rem; color: #1b5e20; margin-bottom: 4px; }
+.ih-session-team-pin { font-size: 1.3rem; font-weight: 800; color: #1a4fa0; letter-spacing: 3px; }
+</style>
+
+
+<!-- ── JavaScript ──────────────────────────────────────────────────── -->
+<script>
+(function () {
+  "use strict";
+
+  // ── State ──────────────────────────────────────────────────────────
+  let selectedPlayers = [];   // [{id, name, team_name}]
+  let currentType     = "play";
+  let currentBuild    = "normal";
+  let activeSessionToken = null;
+  let ws = null;
+
+  // ── DOM refs ───────────────────────────────────────────────────────
+  const searchInput   = document.getElementById("ih-player-search");
+  const searchResults = document.getElementById("ih-search-results");
+  const selectedWrap  = document.getElementById("ih-selected-players");
+  const selectedList  = document.getElementById("ih-selected-list");
+  const msgInput      = document.getElementById("ih-message");
+  const msgCount      = document.getElementById("ih-msg-count");
+  const sendBtn       = document.getElementById("ih-send-btn");
+  const sendResult    = document.getElementById("ih-send-result");
+  const inboxList     = document.getElementById("ih-inbox-list");
+  const inboxCount    = document.getElementById("ih-inbox-count");
+  const sessionSection = document.getElementById("ih-session-section");
+  const sessionInfo   = document.getElementById("ih-session-info");
+
+  // ── Type toggle ────────────────────────────────────────────────────
+  document.querySelectorAll(".ih-type-btn[data-type]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".ih-type-btn[data-type]").forEach(b => b.classList.remove("ih-type-active"));
+      btn.classList.add("ih-type-active");
+      currentType = btn.dataset.type;
+      document.getElementById("ih-play-extras").style.display = currentType === "play" ? "" : "none";
+      document.getElementById("ih-team-extras").style.display = currentType === "team_build" ? "" : "none";
+    });
+  });
+
+  // ── Build type toggle ──────────────────────────────────────────────
+  document.querySelectorAll(".ih-type-btn[data-build]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".ih-type-btn[data-build]").forEach(b => b.classList.remove("ih-type-active"));
+      btn.classList.add("ih-type-active");
+      currentBuild = btn.dataset.build;
+      document.getElementById("ih-tourn-field").style.display = currentBuild === "tournament" ? "" : "none";
+    });
+  });
+
+  // ── Message char counter ───────────────────────────────────────────
+  msgInput.addEventListener("input", () => {
+    msgCount.textContent = msgInput.value.length;
+  });
+
+  // ── Player search ──────────────────────────────────────────────────
+  let searchTimer = null;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = searchInput.value.trim();
+    if (q.length < 2) { searchResults.style.display = "none"; return; }
+    searchTimer = setTimeout(() => doSearch(q), 280);
+  });
+
+  function doSearch(q) {
+    fetch(`/invites/players/search/?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.players || data.players.length === 0) {
+          searchResults.innerHTML = '<div class="ih-search-item" style="color:#999;">No players found</div>';
+        } else {
+          searchResults.innerHTML = data.players.map(p =>
+            `<div class="ih-search-item" data-id="${p.id}" data-name="${escHtml(p.name)}" data-team="${escHtml(p.team_name)}">
+              <span>${escHtml(p.name)}</span>
+              <span class="ih-search-item-team">${escHtml(p.team_name)}</span>
+            </div>`
+          ).join("");
+          searchResults.querySelectorAll(".ih-search-item[data-id]").forEach(el => {
+            el.addEventListener("click", () => addPlayer({
+              id: parseInt(el.dataset.id),
+              name: el.dataset.name,
+              team_name: el.dataset.team,
+            }));
+          });
+        }
+        searchResults.style.display = "";
+      })
+      .catch(() => { searchResults.style.display = "none"; });
+  }
+
+  document.addEventListener("click", e => {
+    if (!searchResults.contains(e.target) && e.target !== searchInput) {
+      searchResults.style.display = "none";
+    }
+  });
+
+  function addPlayer(p) {
+    if (selectedPlayers.find(x => x.id === p.id)) return;
+    selectedPlayers.push(p);
+    renderSelected();
+    searchInput.value = "";
+    searchResults.style.display = "none";
+    updateSendBtn();
+  }
+
+  function removePlayer(id) {
+    selectedPlayers = selectedPlayers.filter(p => p.id !== id);
+    renderSelected();
+    updateSendBtn();
+  }
+
+  function renderSelected() {
+    if (selectedPlayers.length === 0) {
+      selectedWrap.style.display = "none";
+      return;
+    }
+    selectedWrap.style.display = "";
+    selectedList.innerHTML = selectedPlayers.map(p =>
+      `<span class="ih-player-chip">
+        ${escHtml(p.name)}
+        <span class="ih-player-chip-remove" data-id="${p.id}">×</span>
+      </span>`
+    ).join("");
+    selectedList.querySelectorAll(".ih-player-chip-remove").forEach(el => {
+      el.addEventListener("click", () => removePlayer(parseInt(el.dataset.id)));
+    });
+  }
+
+  function updateSendBtn() {
+    sendBtn.disabled = selectedPlayers.length === 0;
+  }
+
+  // ── Send invite ────────────────────────────────────────────────────
+  sendBtn.addEventListener("click", () => {
+    if (selectedPlayers.length === 0) return;
+
+    const body = {
+      invite_type:   currentType,
+      recipient_ids: selectedPlayers.map(p => p.id),
+      message:       msgInput.value.trim(),
+    };
+
+    if (currentType === "play") {
+      const pt = document.getElementById("ih-play-time").value;
+      const pc = document.getElementById("ih-play-court").value;
+      if (pt) body.play_time = pt;
+      if (pc) body.play_court_id = parseInt(pc);
+    } else {
+      body.target_size    = parseInt(document.getElementById("ih-target-size").value);
+      body.build_type     = currentBuild;
+      body.proposed_name  = document.getElementById("ih-team-name").value.trim();
+      const tid = document.getElementById("ih-tournament").value;
+      if (tid) body.tournament_id = parseInt(tid);
+    }
+
+    sendBtn.disabled = true;
+    fetch("/invites/send/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify(body),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          showResult("ok", `Invite sent to ${selectedPlayers.length} player(s).`);
+          selectedPlayers = [];
+          renderSelected();
+          msgInput.value = "";
+          msgCount.textContent = "0";
+          if (data.session_token) {
+            activeSessionToken = data.session_token;
+            pollSession();
+          }
+        } else {
+          showResult("err", data.error || "Failed to send invite.");
+        }
+      })
+      .catch(() => showResult("err", "Network error."))
+      .finally(() => updateSendBtn());
+  });
+
+  function showResult(cls, msg) {
+    sendResult.className = `ih-send-result ${cls}`;
+    sendResult.textContent = msg;
+    sendResult.style.display = "";
+    setTimeout(() => { sendResult.style.display = "none"; }, 5000);
+  }
+
+  // ── Inbox ──────────────────────────────────────────────────────────
+  function loadInbox() {
+    fetch("/invites/inbox/")
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { inboxList.innerHTML = '<div class="ih-empty">Log in to see invites.</div>'; return; }
+        const invites = data.invites || [];
+        inboxCount.textContent = invites.length;
+        if (invites.length === 0) {
+          inboxList.innerHTML = '<div class="ih-empty">No pending invites.</div>';
+          return;
+        }
+        inboxList.innerHTML = invites.map(inv => buildInviteCard(inv)).join("");
+        inboxList.querySelectorAll(".ih-accept-btn").forEach(btn => {
+          btn.addEventListener("click", () => respondInvite(btn.dataset.token, "accept", btn));
+        });
+        inboxList.querySelectorAll(".ih-reject-btn").forEach(btn => {
+          btn.addEventListener("click", () => respondInvite(btn.dataset.token, "reject", btn));
+        });
+      })
+      .catch(() => { inboxList.innerHTML = '<div class="ih-empty">Could not load inbox.</div>'; });
+  }
+
+  function buildInviteCard(inv) {
+    const typeLabel = inv.invite_type === "play" ? "Play" : "Team Build";
+    const typeCls   = inv.invite_type === "play" ? "play" : "";
+    let meta = "";
+    if (inv.play_time) meta += `<i class="fas fa-clock"></i> ${fmtTime(inv.play_time)}  `;
+    if (inv.play_court) meta += `<i class="fas fa-map-marker-alt"></i> ${escHtml(inv.play_court)}  `;
+    if (inv.target_size) meta += `<i class="fas fa-users"></i> ${inv.target_size}-player team`;
+    return `
+      <div class="ih-invite-card">
+        <div class="ih-invite-card-header">
+          <span class="ih-invite-card-from">${escHtml(inv.sender_name)}</span>
+          <span class="ih-invite-card-type ${typeCls}">${typeLabel}</span>
+        </div>
+        ${inv.message ? `<div class="ih-invite-card-msg">"${escHtml(inv.message)}"</div>` : ""}
+        ${meta ? `<div class="ih-invite-card-meta">${meta}</div>` : ""}
+        <div class="ih-invite-actions">
+          <button class="ih-accept-btn" data-token="${inv.token}"><i class="fas fa-check"></i> Accept</button>
+          <button class="ih-reject-btn" data-token="${inv.token}"><i class="fas fa-times"></i> Decline</button>
+        </div>
+      </div>`;
+  }
+
+  function respondInvite(token, action, btn) {
+    btn.disabled = true;
+    fetch(`/invites/${token}/${action}/`, {
+      method: "POST",
+      headers: { "X-CSRFToken": getCsrf() },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          loadInbox();
+          if (data.team_created) {
+            alert(`Team created!\nName: ${data.team_name}\nPIN: ${data.team_pin}`);
+          }
+        }
+      })
+      .catch(() => { btn.disabled = false; });
+  }
+
+  // ── Session polling ────────────────────────────────────────────────
+  function pollSession() {
+    if (!activeSessionToken) return;
+    sessionSection.style.display = "";
+    fetch(`/invites/session/${activeSessionToken}/`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return;
+        renderSession(data);
+        if (data.status === "open") setTimeout(pollSession, 5000);
+      });
+  }
+
+  function renderSession(data) {
+    let html = `<div style="margin-bottom:8px;font-size:.85rem;color:#666;">
+      Accepted: <strong>${data.accepted_count}</strong> / ${data.target_size}
+    </div>`;
+    html += data.invitations.map(i =>
+      `<div class="ih-session-row">
+        <span>${escHtml(i.recipient_name)}</span>
+        <span class="ih-session-status ${i.status}">${i.status}</span>
+      </div>`
+    ).join("");
+    if (data.team_id) {
+      html += `<div class="ih-session-team-created">
+        <strong>Team created: ${escHtml(data.team_name)}</strong>
+        <div>PIN: <span class="ih-session-team-pin">${data.team_pin}</span></div>
+      </div>`;
+    }
+    sessionInfo.innerHTML = html;
+  }
+
+  // ── WebSocket for realtime push ────────────────────────────────────
+  {% if player %}
+  (function connectWS() {
+    const playerId = {{ player.pk }};
+    const proto    = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/invites/${playerId}/`);
+    ws.onmessage = function (e) {
+      const msg = JSON.parse(e.data);
+      if (msg.type === "invite.received") {
+        loadInbox();
+      } else if (msg.type === "invite.accepted" || msg.type === "invite.rejected") {
+        if (activeSessionToken) pollSession();
+      } else if (msg.type === "session.ready") {
+        if (activeSessionToken) pollSession();
+        alert(`Your team is ready!\nName: ${msg.team_name}\nPIN: ${msg.team_pin}`);
+      } else if (msg.type === "session.update") {
+        if (activeSessionToken) pollSession();
+      }
+    };
+    ws.onclose = function () { setTimeout(connectWS, 3000); };
+  })();
+  {% endif %}
+
+  // ── Helpers ────────────────────────────────────────────────────────
+  function escHtml(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  }
+  function fmtTime(iso) {
+    try { return new Date(iso).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+    catch { return iso; }
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────
+  loadInbox();
+  setInterval(loadInbox, 30000);  // Refresh inbox every 30s as fallback
+})();
+</script>
+{% endblock %}

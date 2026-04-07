@@ -18,33 +18,135 @@
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <style>
+    /* ── PFC Header v2 ───────────────────────────────────────────────── */
+    .pfc-navbar {
+        background: linear-gradient(135deg, #1a3a8f 0%, #0d47a1 60%, #1565c0 100%) !important;
+        padding: 0 14px;
+        min-height: 64px;
+        position: sticky;
+        top: 0;
+        z-index: 1030;
+        box-shadow: 0 2px 12px rgba(0,0,0,.35);
+        overflow: visible;   /* allow ball to float below */
+    }
+    .pfc-navbar .container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+        padding: 0;
+        overflow: visible;
+    }
+
+    /* LEFT: PFC text — clickable, links to home */
+    .pfc-brand-link {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .pfc-brand-link img { height: 28px; width: auto; opacity: .95; }
+    .pfc-brand-link:hover img { opacity: 1; }
+
+    /* CENTRE: Ball — PRIMARY CTA, large, floating below header */
+    .pfc-cta-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        border: 3.5px solid rgba(255,255,255,.95);
+        border-radius: 50%;
+        width: 80px;
+        height: 80px;
+        /* float: bottom half overlaps content below header */
+        position: relative;
+        top: 20px;
+        box-shadow:
+            0 0 0 5px rgba(255,255,255,.28),
+            0 0 0 10px rgba(255,255,255,.10),
+            0 8px 28px rgba(0,0,0,.45);
+        transition: transform .15s, box-shadow .15s;
+        text-decoration: none;
+        flex-shrink: 0;
+        z-index: 10;
+    }
+    .pfc-cta-btn:hover, .pfc-cta-btn:focus {
+        transform: scale(1.07) translateY(-2px);
+        box-shadow:
+            0 0 0 6px rgba(255,255,255,.35),
+            0 0 0 12px rgba(255,255,255,.12),
+            0 10px 32px rgba(0,0,0,.55);
+        outline: none;
+    }
+    .pfc-cta-btn:active { transform: scale(.95) translateY(1px); }
+    .pfc-cta-btn img { height: 52px; width: auto; }
+
+    /* RIGHT: Refresh + Burger — larger touch targets */
+    .pfc-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .pfc-action-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        border: 1.5px solid rgba(255,255,255,.45);
+        background: rgba(255,255,255,.12);
+        color: #fff;
+        font-size: 17px;
+        text-decoration: none;
+        transition: background .15s;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .pfc-action-btn:hover { background: rgba(255,255,255,.25); color: #fff; }
+    .navbar-toggler {
+        border: 1.5px solid rgba(255,255,255,.45) !important;
+        background: rgba(255,255,255,.12) !important;
+        border-radius: 12px !important;
+        width: 44px !important;
+        height: 44px !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    /* Collapse menu — needs extra top margin to clear the floating ball */
+    #navbarNav {
+        background: #0d47a1;
+        border-radius: 0 0 12px 12px;
+        padding: 8px 0;
+        margin-top: 20px;   /* clear the floating ball */
+    }
+    /* Spacer so floating ball doesn't cover page content */
+    .pfc-ball-spacer { height: 24px; }
+    </style>
+
+    <nav class="pfc-navbar navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <!-- Split logo into two separate buttons -->
-            <div class="navbar-brand d-flex align-items-center">
-                <!-- Black ball icon - Back to main menu -->
-                <a href="/" title="Back to main menu">
-                    <img src="{% static 'pfcLOGO.svg' %}" alt="PFC Ball" style="height: 40px; width: auto;">
-                </a>
-                <!-- PFC text button - My active matches -->
-                <a href="{% url 'my_active_matches' %}" title="My Active Matches">
-                    <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC" style="height: 30px; width: auto; margin-left: 8px;">
-                </a>
-            </div>
-            
-            <!-- Always visible icons for mobile -->
-            <div class="d-flex align-items-center">
-                <!-- Billboard Icon - Always Visible -->
-                <a class="btn btn-outline-light btn-sm me-2" href="{% url 'billboard:list' %}" title="Billboard">
-                    <i class="fas fa-bullhorn"></i>
-                </a>
-                
-                <!-- Refresh Icon - Always Visible -->
-                <button class="btn btn-outline-light btn-sm me-2" onclick="refreshPage()" title="Refresh to see latest match states">
+
+            <!-- LEFT: PFC text — clickable, links to home -->
+            <a href="{% url 'home' %}" class="pfc-brand-link" title="Home">
+                <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC">
+            </a>
+
+            <!-- CENTRE: Ball icon — PRIMARY ACTION (smart router) -->
+            <a href="{% url 'my_active_matches' %}" class="pfc-cta-btn" title="PFC — Go to my match">
+                <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
+            </a>
+
+            <!-- RIGHT: Refresh + Burger only -->
+            <div class="pfc-actions">
+                <!-- Refresh -->
+                <button class="pfc-action-btn" onclick="refreshPage()" title="Refresh">
                     <i class="fas fa-sync-alt"></i>
                 </button>
-                
-                <!-- Burger Menu Toggle -->
+                <!-- Burger -->
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                     <span class="navbar-toggler-icon"></span>
                 </button>
@@ -76,16 +178,16 @@
                                 </a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 {% endif %}
-                                <li><a class="dropdown-item text-danger" href="{% url 'codename_logout' %}">
+                                <li><a class="dropdown-item text-danger" href="{% url 'player_auth:logout' %}">
                                     <i class="fas fa-sign-out-alt me-1"></i>Logout Player
                                 </a></li>
                             </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#quickLoginModal">
-                                <i class="fas fa-user me-1"></i>Player Login
-                            </button>
+                            <a href="{% url 'player_auth:login' %}" class="btn btn-outline-light">
+                                <i class="fas fa-user me-1"></i>Sign In
+                            </a>
                         </li>
                     {% endif %}
                     
@@ -121,6 +223,9 @@
             </div>
         </div>
     </nav>
+
+    <!-- Spacer for floating PFC ball -->
+    <div class="pfc-ball-spacer"></div>
 
     <!-- Main Content -->
     <main class="py-4">

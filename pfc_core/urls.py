@@ -6,11 +6,15 @@ from . import views
 from . import auth_views
 from . import simple_creator
 from . import my_matches_view
+from . import smart_router
 
 urlpatterns = [
     path('', views.home, name='home'),
     path('dashboard/', views.dashboard, name='dashboard'),
-    path('my-matches/', my_matches_view.my_active_matches, name='my_active_matches'),
+    path('my-matches/', smart_router.resolve_decision_url, name='my_active_matches'),
+    path('my-matches/next-url/', smart_router.resolve_next_url, name='pfc_next_url'),
+    path('my-matches/list/', smart_router.my_matches_list, name='my_matches_list'),
+    path('my-matches/old/', my_matches_view.my_active_matches, name='my_active_matches_old'),
     path('admin/', admin.site.urls),
     path('tournaments/', include('tournaments.urls')),
     path('matches/', include('matches.urls')),
@@ -20,6 +24,7 @@ urlpatterns = [
     path('signin/', include('signin.urls')),
     path('friendly-games/', include('friendly_games.urls')),  # New parallel friendly games system
     path('billboard/', include('billboard.urls')),  # Billboard module for player activity declarations
+    path('invites/', include('invites.urls')),  # Targeted invitation system
     
     # Shot Accuracy Tracker API
     path('api/shoot/', include('shooting.urls')),
@@ -38,6 +43,7 @@ urlpatterns = [
     path('simple/cleanup/<int:tournament_id>/', simple_creator.cleanup_empty_mele_teams, name='cleanup_empty_mele_teams'),
     
     # Authentication URLs
+    path('player-auth/', include('player_auth.urls')),  # New: Google + Email OTP auth
     path('auth/login/', auth_views.codename_login, name='codename_login'),
     path('auth/logout/', auth_views.codename_logout, name='codename_logout'),
     path('auth/status/', auth_views.codename_status, name='codename_status'),

@@ -14,5 +14,6 @@ urlpatterns = [
     path('<int:game_id>/validate-result/', views.validate_result, name='validate_result'),
     path('<int:game_id>/check-codename/', views.check_codename, name='check_codename'),
     path('<int:game_id>/rematch/', views.rematch, name='rematch'),
+    path('<int:game_id>/status/', views.game_status_api, name='game_status_api'),
 ]
 

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Enter Code — PFC{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-9 col-md-6 col-lg-5 col-xl-4">
+
+        <div class="text-center mb-4">
+          <span style="font-size: 2.5rem; font-weight: 900; color: #fff;">P<span style="color:#e63946;">F</span>C</span>
+        </div>
+
+        <div class="card border-0 shadow-lg" style="background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border-radius: 20px;">
+          <div class="card-body p-4 p-md-5">
+
+            <div class="text-center mb-4">
+              <div class="mb-3" style="font-size: 2.5rem;">🔐</div>
+              <h2 class="text-white fw-bold mb-1">Check your email</h2>
+              <p class="text-white-50 small mb-0">
+                We sent a 6-digit code to<br>
+                <strong class="text-white">{{ email }}</strong>
+              </p>
+            </div>
+
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show py-2 small">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <form method="post" action="{% url 'player_auth:email_verify' %}">
+              {% csrf_token %}
+              <div class="mb-4">
+                <input type="text" name="code" class="form-control form-control-lg text-center fw-bold"
+                       placeholder="000000" maxlength="6" pattern="[0-9]{6}" inputmode="numeric"
+                       autofocus required
+                       style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 12px; font-size: 1.8rem; letter-spacing: 0.5rem;">
+                <div class="text-center mt-2">
+                  <small class="text-white-50">Code expires in 10 minutes</small>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-danger w-100 py-3 fw-semibold" style="border-radius: 12px; font-size: 1rem;">
+                Verify Code →
+              </button>
+            </form>
+
+            <div class="text-center mt-4">
+              <a href="{% url 'player_auth:email_login' %}" class="text-white-50 small text-decoration-none">← Use a different email</a>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  input::placeholder { color: rgba(255,255,255,0.3) !important; letter-spacing: normal; }
+  input:focus { background: rgba(255,255,255,0.15) !important; color: #fff !important; border-color: #e63946 !important; box-shadow: 0 0 0 0.2rem rgba(230,57,70,0.25) !important; }
+</style>
+{% endblock %}

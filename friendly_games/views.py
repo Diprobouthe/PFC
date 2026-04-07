@@ -9,6 +9,9 @@ import logging
 from teams.models import Player, Team
 from .models import FriendlyGame, FriendlyGamePlayer, PlayerCodename, FriendlyGameStatistics
 from pfc_core.session_utils import CodenameSessionManager
+from .court_utils import resolve_court_assignment, get_court_context_for_form, courts_for_complex_json
+from .presence_utils import register_friendly_game_players_at_court
+from pfc_events.signals import notify_game_state_changed
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +149,43 @@ def create_game(request):
             black_player_ids = json.loads(black_team_players) if black_team_players else []
             white_player_ids = json.loads(white_team_players) if white_team_players else []
             
+            # ── Court assignment ──────────────────────────────────────────
+            complex_id = request.POST.get('court_complex_id') or None
+            court_id   = request.POST.get('court_id') or None
+            if complex_id:
+                try:
+                    complex_id = int(complex_id)
+                except (ValueError, TypeError):
+                    complex_id = None
+            if court_id:
+                try:
+                    court_id = int(court_id)
+                except (ValueError, TypeError):
+                    court_id = None
+            assigned_complex, assigned_court = resolve_court_assignment(
+                request, complex_id=complex_id, court_id=court_id
+            )
+
+            # ── Timed game ───────────────────────────────────────────────────
+            is_timed = request.POST.get('is_timed') == '1'
+            time_limit_minutes = None
+            if is_timed:
+                try:
+                    time_limit_minutes = int(request.POST.get('time_limit_minutes', 0))
+                    if time_limit_minutes <= 0:
+                        is_timed = False
+                        time_limit_minutes = None
+                except (ValueError, TypeError):
+                    is_timed = False
+
             # Create the game
-            game = FriendlyGame.objects.create(name=game_name)
+            game = FriendlyGame.objects.create(
+                name=game_name,
+                court_complex=assigned_complex,
+                court=assigned_court,
+                is_timed=is_timed,
+                time_limit_minutes=time_limit_minutes,
+            )
             
             # Add black team players
             for player_id in black_player_ids:
@@ -248,13 +286,16 @@ def create_game(request):
             except Player.DoesNotExist:
                 pass
     
+    court_context = get_court_context_for_form(request)
+
     context = {
         'teams': teams,
         'team_name': request.session.get('team_name', 'Guest'),
         'auto_selected_player': auto_selected_player,
         'session_codename': session_codename,
     }
-    
+    context.update(court_context)
+
     return render(request, 'friendly_games/create_game.html', context)
 
 
@@ -262,12 +303,43 @@ def game_detail(request, game_id):
     """Display details of a friendly game"""
     game = get_object_or_404(FriendlyGame, id=game_id)
     players = game.players.all().select_related('player', 'player__team')
-    
+
+    # Auto-redirect the opposing team to validation when a result is pending.
+    if hasattr(game, 'result') and game.result.is_pending_validation():
+        from pfc_core.session_utils import CodenameSessionManager
+        session_codename = CodenameSessionManager.get_logged_in_codename(request)
+        if session_codename:
+            session_player_team = None
+            for gp in players:
+                try:
+                    if gp.player.codename_profile.codename == session_codename:
+                        session_player_team = gp.team
+                        break
+                except Exception:
+                    pass
+            # Session player is on the opposing (validating) team
+            if session_player_team and session_player_team != game.result.submitted_by_team:
+                return redirect('friendly_games:validate_result', game_id=game.id)
+
+    # Detect session player's team for the polling JS
+    session_team = None
+    from pfc_core.session_utils import CodenameSessionManager
+    _sc = CodenameSessionManager.get_logged_in_codename(request)
+    if _sc:
+        for gp in players:
+            try:
+                if gp.player.codename_profile.codename == _sc:
+                    session_team = gp.team  # 'BLACK' or 'WHITE'
+                    break
+            except Exception:
+                pass
+
     context = {
         'game': game,
         'players': players,
+        'session_team': session_team or '',
     }
-    
+
     return render(request, 'friendly_games/game_detail.html', context)
 
 
@@ -278,6 +350,7 @@ def activate_game(request, game_id):
     if game.status == 'READY':
         game.status = 'ACTIVE'
         game.save()
+        notify_game_state_changed(game.id, game.status)
         messages.success(request, f'Game "{game.name}" is now active!')
     
     return redirect('friendly_games:game_detail', game_id=game.id)
@@ -345,6 +418,7 @@ def submit_score(request, game_id):
         game.white_team_score = white_score
         game.status = 'PENDING_VALIDATION'  # New status for pending validation
         game.save()
+        notify_game_state_changed(game.id, game.status)
         
         # Create FriendlyGameResult for validation process
         from .models import FriendlyGameResult
@@ -375,27 +449,60 @@ def submit_score(request, game_id):
         game.validation_status = 'PARTIALLY_VALIDATED' if result.submitter_verified else 'NOT_VALIDATED'
         game.save()
         
-        other_team = 'White' if submitted_by_team == 'BLACK' else 'Black'
-        messages.success(request, f'Scores submitted by {submitted_by_team.title()} team! Black: {black_score}, White: {white_score}. Waiting for {other_team} team validation.')
+        # Submitting team returns to game_detail (waiting state)
+        # The opposing team navigates to validation themselves
         return redirect('friendly_games:game_detail', game_id=game.id)
     
     # Get session context for template
     from pfc_core.session_utils import SessionManager
     session_context = SessionManager.get_session_context(request)
-    
+
     # Get team players for display
     black_players = game.players.filter(team='BLACK')
     white_players = game.players.filter(team='WHITE')
-    
+
+    # Auto-detect which team the logged-in player belongs to
+    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    auto_team = None
+    if session_codename:
+        for gp in game.players.all():
+            try:
+                if gp.player.codename_profile.codename == session_codename:
+                    auto_team = gp.team  # 'BLACK' or 'WHITE'
+                    break
+            except Exception:
+                pass
+
+    # Pre-fill scores from live scoreboard if available.
+    # Use the latest scoreboard values as source of truth even if is_active=False
+    # (e.g. game reached 13 and scoreboard stopped, but last values are still correct).
+    # Only skip if no scoreboard exists at all or both scores are None.
+    prefill_black_score = 0
+    prefill_white_score = 0
+    try:
+        scoreboard = game.live_scoreboard
+        if scoreboard is not None:
+            s1 = scoreboard.team1_score
+            s2 = scoreboard.team2_score
+            if s1 is not None or s2 is not None:
+                prefill_black_score = s1 or 0
+                prefill_white_score = s2 or 0
+    except Exception:
+        pass
+
     context = {
         'game': game,
         'black_players': black_players,
         'white_players': white_players,
+        'session_codename': session_codename,
+        'auto_team': auto_team,
+        'prefill_black_score': prefill_black_score,
+        'prefill_white_score': prefill_white_score,
     }
-    
+
     # Add session context
     context.update(session_context)
-    
+
     return render(request, 'friendly_games/submit_score.html', context)
 
 
@@ -562,11 +669,59 @@ def join_game(request):
         'team': player.team.name if player.team else 'No Team'
     } for player in all_players])
     
+    # Read match_number from URL query string so template can prefill deterministically
+    prefill_match_number = request.GET.get('match_number', '').strip()
+    if not (prefill_match_number.isdigit() and len(prefill_match_number) == 4):
+        prefill_match_number = ''
+
+    # Server-side game preload — renders preview directly in HTML, no JS needed
+    prefill_game = None
+    prefill_black_players = []
+    prefill_white_players = []
+    prefill_black_slots = 0
+    prefill_white_slots = 0
+    prefill_black_full = False
+    prefill_white_full = False
+    prefill_black_slot_range = []
+    prefill_white_slot_range = []
+    MAX_TEAM_SIZE = 3
+
+    if prefill_match_number:
+        try:
+            g = FriendlyGame.objects.get(match_number=prefill_match_number)
+            if not g.is_expired() and g.status in ['WAITING_FOR_PLAYERS', 'DRAFT']:
+                prefill_game = g
+                black_ps = list(g.players.filter(team='BLACK').select_related('player'))
+                white_ps = list(g.players.filter(team='WHITE').select_related('player'))
+                prefill_black_players = [p.player.name for p in black_ps]
+                prefill_white_players = [p.player.name for p in white_ps]
+                prefill_black_slots = max(0, MAX_TEAM_SIZE - len(prefill_black_players))
+                prefill_white_slots = max(0, MAX_TEAM_SIZE - len(prefill_white_players))
+                prefill_black_full = (prefill_black_slots == 0)
+                prefill_white_full = (prefill_white_slots == 0)
+                # Pre-built ranges for template iteration (Django templates can't do range())
+                prefill_black_slot_range = list(range(prefill_black_slots))
+                prefill_white_slot_range = list(range(prefill_white_slots))
+        except FriendlyGame.DoesNotExist:
+            pass
+
     context = {
         'team_name': request.session.get('team_name', 'Guest'),
         'players_json': players_json,
         'session_codename': session_codename,
         'auto_selected_player': auto_selected_player,
+        'prefill_match_number': prefill_match_number,
+        # Server-side preloaded game preview
+        'prefill_game': prefill_game,
+        'prefill_black_players': prefill_black_players,
+        'prefill_white_players': prefill_white_players,
+        'prefill_black_slots': prefill_black_slots,
+        'prefill_white_slots': prefill_white_slots,
+        'prefill_black_full': prefill_black_full,
+        'prefill_white_full': prefill_white_full,
+        'prefill_black_slot_range': prefill_black_slot_range,
+        'prefill_white_slot_range': prefill_white_slot_range,
+        'max_team_size': MAX_TEAM_SIZE,
     }
     
     return render(request, 'friendly_games/join_game.html', context)
@@ -594,106 +749,123 @@ def start_match(request, game_id):
     
     # Start the game
     game.status = 'ACTIVE'
+    game.started_at = timezone.now()
+    # Start timer if timed game
+    if game.is_timed and game.time_limit_minutes:
+        game.timer_started_at = timezone.now()
     game.save()
-    
+    notify_game_state_changed(game.id, game.status)
+
+    # Register players at court (presence tracking)
+    register_friendly_game_players_at_court(game)
+
     # Check validation status for informational message
     if game.is_fully_validated():
         messages.success(request, f'Game "{game.name}" has been started! All teams have verified players for result validation. Good luck!')
     else:
         messages.warning(request, f'Game "{game.name}" has been started! Note: Only players with verified codenames can validate results. Good luck!')
-    
-    return redirect('friendly_games:game_detail', game_id=game.id)
+
+    # Route to live scoreboard so all participants enter live score mode
+    try:
+        scoreboard = game.live_scoreboard
+        return redirect('scoreboard_detail', scoreboard_id=scoreboard.id)
+    except Exception:
+        # Fallback if scoreboard doesn't exist for some reason
+        return redirect('friendly_games:game_detail', game_id=game.id)
 
 
 def validate_result(request, game_id):
     """
-    Second step of two-team validation - opposing team validates the submitted result
-    STRICT REQUIREMENT: Only players with verified codenames can validate results
+    Second step of two-team validation - opposing team validates the submitted result.
+    Session-bound: codename is read from session, never from form input.
     """
     game = get_object_or_404(FriendlyGame, id=game_id)
-    
+
     # Check if there's a result to validate
     if not hasattr(game, 'result'):
-        messages.error(request, 'No result has been submitted for this game yet.')
         return redirect('friendly_games:game_detail', game_id=game.id)
-    
+
     result = game.result
-    
-    # Check if already validated
+
+    # Already validated — redirect silently
     if not result.is_pending_validation():
-        messages.info(request, 'This result has already been validated.')
         return redirect('friendly_games:game_detail', game_id=game.id)
-    
-    # STRICT VALIDATION: Check if result can be validated (requires verified players)
-    can_validate, validation_reason = game.can_validate_result()
-    if not can_validate:
-        messages.error(request, f'Cannot validate result: {validation_reason}')
-        return redirect('friendly_games:game_detail', game_id=game.id)
-    
+
     # Determine which team should validate
-    validating_team = result.get_other_team()
+    validating_team = result.get_other_team()   # 'BLACK' or 'WHITE'
+    submitting_team = result.submitted_by_team  # the team that must NOT validate
     validating_players = game.players.filter(team=validating_team)
-    
+
+    # ── Detect session player's team in this game ──────────────────────────
+    from pfc_core.session_utils import CodenameSessionManager
+    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    session_player_team = None  # 'BLACK', 'WHITE', or None
+    if session_codename:
+        for gp in game.players.all():
+            try:
+                if gp.player.codename_profile.codename == session_codename:
+                    session_player_team = gp.team
+                    break
+            except Exception:
+                pass
+
+    # ── Self-validation guard ──────────────────────────────────────────────
+    # If the session player is on the submitting team, block silently via template flag.
+    is_own_team = (session_player_team is not None and
+                   session_player_team == submitting_team)
+
     if request.method == 'POST':
+        # Hard block: reject POST from submitting team without any message
+        if is_own_team:
+            return redirect('friendly_games:validate_result', game_id=game.id)
+
         validation_action = request.POST.get('validation_action')
-        validator_codename = request.POST.get('validator_codename', '').strip().upper()
-        
         if validation_action not in ['agree', 'disagree']:
-            messages.error(request, 'Please select whether you agree or disagree with the result.')
             return redirect('friendly_games:validate_result', game_id=game.id)
-        
-        # STRICT REQUIREMENT: Validator must provide a valid codename
-        if not validator_codename:
-            messages.error(request, 'You must provide your codename to validate the result.')
-            return redirect('friendly_games:validate_result', game_id=game.id)
-        
-        # Verify the codename belongs to a player from the validating team
+
+        # Codename comes from session — never from form input
+        validator_codename = session_codename or ''
+
+        # Verify the session codename belongs to a player from the validating team
         valid_validator = False
         for game_player in validating_players:
             try:
-                player_codename = game_player.player.codename_profile
-                if player_codename.codename == validator_codename:
+                if game_player.player.codename_profile.codename == validator_codename:
                     valid_validator = True
                     break
-            except:
+            except Exception:
                 continue
-        
+
         if not valid_validator:
-            messages.error(request, f'Invalid codename "{validator_codename}". Please provide a correct codename from the {validating_team.lower()} team.')
+            # Session player not on validating team — redirect silently
             return redirect('friendly_games:validate_result', game_id=game.id)
-        
-        # Use the FriendlyGameResult's validate_result method
+
+        # Perform validation
         result.validate_result(
             validating_team=validating_team,
             action=validation_action,
             validator_codename=validator_codename
         )
-        
-        if validation_action == 'agree':
-            messages.success(request, f'Result validated! Game completed with final score: Black {game.black_team_score} - {game.white_team_score} White')
-        else:
-            messages.info(request, 'Result disagreement recorded. Game has been reset to active status for new score submission.')
-        
+        # Notify all connected clients that game state changed
+        game.refresh_from_db()
+        notify_game_state_changed(game.id, game.status)
+        # Redirect silently — UI state communicates the outcome
         return redirect('friendly_games:game_detail', game_id=game.id)
-    
-    # Get session context for template
+
+    # ── GET: build context ─────────────────────────────────────────────────
     from pfc_core.session_utils import SessionManager
     session_context = SessionManager.get_session_context(request)
-    
-    # Get all teams with their players for autocomplete
-    teams = Team.objects.all().prefetch_related('players')
-    
+
     context = {
         'game': game,
         'result': result,
         'validating_team': validating_team.lower(),
+        'submitting_team': submitting_team.lower(),
         'validating_players': validating_players,
-        'teams': teams,
+        'is_own_team': is_own_team,
     }
-    
-    # Add session context
     context.update(session_context)
-    
+
     return render(request, 'friendly_games/validate_result.html', context)
 
 
@@ -783,3 +955,64 @@ def rematch(request, game_id):
     
     # Redirect to the new game detail page
     return redirect('friendly_games:game_detail', game_id=new_game.id)
+
+
+# ── Polling endpoint ────────────# ── Polling endpoint ────────────────────────────────────────────
+from django.http import JsonResponse as _FGJsonResponse
+from django.urls import reverse as _fg_reverse
+
+def game_status_api(request, game_id):
+    """
+    Session-aware polling endpoint for game_detail.html.
+    Returns routing information for the current session user so the
+    polling JS can redirect the opposing team to validation automatically.
+    """
+    try:
+        game = FriendlyGame.objects.get(id=game_id)
+    except FriendlyGame.DoesNotExist:
+        return _FGJsonResponse({'error': 'not found'}, status=404)
+
+    payload = {
+        'status': game.status,
+        'current_user_team': None,
+        'submitted_by_team': None,
+        'should_redirect_to_validation': False,
+        'validation_url': None,
+    }
+
+    # Check if a result is pending validation
+    pending = False
+    submitted_by_team = None
+    if hasattr(game, 'result'):
+        try:
+            result = game.result
+            if result.is_pending_validation():
+                pending = True
+                submitted_by_team = result.submitted_by_team  # 'BLACK' or 'WHITE'
+                payload['submitted_by_team'] = submitted_by_team
+        except Exception:
+            pass
+
+    if not pending:
+        return _FGJsonResponse(payload)
+
+    # Resolve current session user's team in this game
+    from pfc_core.session_utils import CodenameSessionManager
+    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    my_team = None
+    if session_codename:
+        for gp in game.players.all():
+            try:
+                if gp.player.codename_profile.codename == session_codename:
+                    my_team = gp.team  # 'BLACK' or 'WHITE'
+                    break
+            except Exception:
+                pass
+
+    payload['current_user_team'] = my_team
+
+    if my_team and submitted_by_team and my_team != submitted_by_team:
+        payload['should_redirect_to_validation'] = True
+        payload['validation_url'] = _fg_reverse('friendly_games:validate_result', args=[game.id])
+
+    return _FGJsonResponse(payload)

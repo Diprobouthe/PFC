@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Confirm Link — PFC{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-9 col-md-6 col-lg-5 col-xl-4">
+
+        <div class="text-center mb-4">
+          <span style="font-size: 2.5rem; font-weight: 900; color: #fff;">P<span style="color:#e63946;">F</span>C</span>
+        </div>
+
+        <div class="card border-0 shadow-lg" style="background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border-radius: 20px;">
+          <div class="card-body p-4 p-md-5 text-center">
+
+            <div class="mb-3" style="font-size: 3rem;">✅</div>
+            <h2 class="text-white fw-bold mb-2">Is this you?</h2>
+
+            <div class="p-3 mb-4 rounded-3" style="background: rgba(255,255,255,0.08);">
+              <div class="text-white fw-bold fs-4">{{ player.name }}</div>
+              <div class="text-white-50 small">{{ player.team.name }}</div>
+            </div>
+
+            <p class="text-white-50 small mb-4">
+              This player will be linked to <strong class="text-white">{{ pfc_user.email }}</strong>.<br>
+              This action cannot be undone.
+            </p>
+
+            <!-- Confirm -->
+            <form method="post" action="{% url 'player_auth:link' %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="confirm">
+              <button type="submit" class="btn btn-danger w-100 py-3 fw-semibold mb-3" style="border-radius: 12px;">
+                Yes, that's me →
+              </button>
+            </form>
+
+            <!-- Go back -->
+            <a href="{% url 'player_auth:link' %}" class="text-white-50 small text-decoration-none">← Try a different codename</a>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

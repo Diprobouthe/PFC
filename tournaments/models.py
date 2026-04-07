@@ -88,7 +88,11 @@ class Tournament(models.Model):
         blank=True,
         help_text="Maximum number of individual players allowed to register (for Mêlée tournaments)"
     )
-    
+    pregame_countdown_minutes = models.PositiveSmallIntegerField(
+        default=3,
+        help_text="Duration in minutes of the pre-game 'Find Your Court' countdown shown after match activation (default: 3 minutes)"
+    )
+
     # Advertisement Banner fields
     banner_image = models.ImageField(
         upload_to='tournament_banners/',

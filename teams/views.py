@@ -323,12 +323,16 @@ def team_login(request):
                 messages.success(request, f'Welcome, {team.name}!')
             
             # Route to different views based on action
+            # SMART ROUTING: Skip intermediary pages, go to decision page
             if action == 'find_next':
-                return redirect('team_matches')  # For finding opponents (pending/partially initiated)
+                from pfc_core.team_smart_router import resolve_find_next
+                return resolve_find_next(request, team)
             elif action == 'activate':
-                return redirect('team_start_match')  # For starting matches
+                from pfc_core.team_smart_router import resolve_find_next
+                return resolve_find_next(request, team)
             elif action == 'submit_score':
-                return redirect('team_submit_score')  # For submitting scores (active/waiting validation)
+                from pfc_core.team_smart_router import resolve_submit_score
+                return resolve_submit_score(request, team)
             else:
                 return redirect('team_login')  # Redirect back to show profile interface
                 
@@ -698,14 +702,18 @@ def player_leaderboard(request):
                 player.best_position = None
                 player.best_position_win_rate = 0
     
-    # Create position-specific leaderboards
+    # ── 10-match minimum: record total before filtering ──────────────
+    MIN_MATCHES = 10
+    total_players = len(players_with_stats)
+    players_with_stats = [p for p in players_with_stats if p.accurate_matches_played >= MIN_MATCHES]
+
+    # Create position-specific leaderboards (Flex removed)
     position_leaderboards = {}
-    positions = ['pointer', 'milieu', 'tirer', 'flex']  # Use lowercase to match MatchPlayer.role choices
+    positions = ['pointer', 'milieu', 'tirer']  # Flex excluded
     position_display_names = {
         'pointer': 'Pointer',
-        'milieu': 'Milieu', 
+        'milieu': 'Milieu',
         'tirer': 'Shooter',
-        'flex': 'Flex'
     }
     
     for pos in positions:
@@ -742,8 +750,9 @@ def player_leaderboard(request):
         'selected_position': position,
         'sort_by': sort_by,
         'order': order,
+        'total_players': total_players,
     }
-    
+
     return render(request, 'teams/player_leaderboard.html', context)
 
 def player_profile(request, player_id):
@@ -1795,12 +1804,16 @@ def team_management_dashboard(request):
                 messages.success(request, f'Welcome to {team.name} Team Management!')
             
             # Route to different views based on action
+            # SMART ROUTING: Skip intermediary pages, go to decision page
             if action == 'find_next':
-                return redirect('team_matches')
+                from pfc_core.team_smart_router import resolve_find_next
+                return resolve_find_next(request, team)
             elif action == 'activate':
-                return redirect('team_start_match')
+                from pfc_core.team_smart_router import resolve_find_next
+                return resolve_find_next(request, team)
             elif action == 'submit_score':
-                return redirect('team_submit_score')
+                from pfc_core.team_smart_router import resolve_submit_score
+                return resolve_submit_score(request, team)
             else:
                 return redirect('team_management_dashboard')
                 
@@ -1980,79 +1993,90 @@ def team_management_dashboard(request):
 
 def edit_player_profile(request):
     """
-    Simplified player profile editing and transfer - only requires codename and destination team PIN
+    Session-based player profile editing.
+    Identity is resolved from session (no codename input required).
+    Supports: profile picture upload, preferred position, team transfer via PIN.
     """
+    # Resolve player from session
+    session_codename = request.session.get('player_codename')
     authenticated_player = None
     player_profile = None
-    
+
+    if session_codename:
+        try:
+            player_codename_obj = PlayerCodename.objects.get(codename=session_codename.upper())
+            authenticated_player = player_codename_obj.player
+        except PlayerCodename.DoesNotExist:
+            authenticated_player = None
+
+    if authenticated_player:
+        # Get or create profile
+        try:
+            player_profile = authenticated_player.profile
+        except PlayerProfile.DoesNotExist:
+            player_profile = PlayerProfile.objects.create(
+                player=authenticated_player,
+                email='',
+                skill_level=1
+            )
+
     if request.method == 'POST':
-        form = EditPlayerProfileForm(request.POST, request.FILES)
-        if form.is_valid():
-            authenticated_player = form.cleaned_data['authenticated_player']
-            
-            # Get or create the player profile
-            try:
-                player_profile = authenticated_player.profile
-            except PlayerProfile.DoesNotExist:
-                player_profile = PlayerProfile.objects.create(
-                    player=authenticated_player,
-                    email='',
-                    skill_level=1
-                )
-            
-            # Update profile picture if provided
-            profile_picture = form.cleaned_data.get('profile_picture')
+        if not authenticated_player:
+            messages.error(request, 'You must be signed in to edit your profile.')
+            return redirect('codename_login')
+
+        action = request.POST.get('action', '')
+
+        # --- Update profile picture ---
+        if action == 'update_picture':
+            profile_picture = request.FILES.get('profile_picture')
             if profile_picture:
                 player_profile.profile_picture = profile_picture
                 player_profile.save()
-                messages.success(request, 'Profile picture updated successfully!')
-            
-            # Handle team transfer if requested
-            change_team = form.cleaned_data.get('change_team')
-            if change_team:
-                destination_team = form.cleaned_data['destination_team']
-                old_team = authenticated_player.team
-                
-                # Update player's team
-                authenticated_player.team = destination_team
-                authenticated_player.save()
-                
-                messages.success(request, f'Successfully transferred from {old_team.name} to {destination_team.name}!')
-            
-            # Redirect based on what was updated
-            if change_team:
-                # Redirect to new team page
-                return redirect('team_detail', team_id=authenticated_player.team.id)
-            elif profile_picture:
-                # Redirect to player profile to show the updated picture
-                return redirect('player_profile', player_id=authenticated_player.id)
+                messages.success(request, 'Profile picture updated!')
             else:
-                messages.info(request, 'No changes were made to your profile.')
-        else:
-            # Form is not valid, but check if we have authentication data for display
-            codename = form.cleaned_data.get('codename') if 'codename' in form.cleaned_data else None
-            
-            if codename:
+                messages.info(request, 'No picture selected.')
+            return redirect('edit_player_profile')
+
+        # --- Update preferred position ---
+        if action == 'update_position':
+            position = request.POST.get('preferred_position', '').strip()
+            valid_positions = ['pointer', 'milieu', 'tirer', 'flex']
+            if position in valid_positions:
+                player_profile.preferred_position = position
+                player_profile.save()
+                messages.success(request, 'Position preference saved!')
+            else:
+                messages.error(request, 'Invalid position selected.')
+            return redirect('edit_player_profile')
+
+        # --- Team transfer via PIN ---
+        if action == 'transfer_team':
+            new_team_pin = request.POST.get('new_team_pin', '').strip()
+            if not new_team_pin:
+                messages.error(request, 'Please enter a team PIN.')
+            else:
                 try:
-                    from friendly_games.models import PlayerCodename
-                    player_codename = PlayerCodename.objects.get(codename=codename.upper())
-                    authenticated_player = player_codename.player
-                    try:
-                        player_profile = authenticated_player.profile
-                    except PlayerProfile.DoesNotExist:
-                        player_profile = None
-                except PlayerCodename.DoesNotExist:
-                    pass
-    
-    else:
-        form = EditPlayerProfileForm()
-    
+                    from .models import Team
+                    destination_team = Team.objects.get(pin=new_team_pin)
+                    old_team_name = authenticated_player.team.name
+                    authenticated_player.team = destination_team
+                    authenticated_player.save()
+                    messages.success(request, f'Transferred from {old_team_name} to {destination_team.name}!')
+                except Team.DoesNotExist:
+                    messages.error(request, 'Invalid team PIN. Please check and try again.')
+            return redirect('edit_player_profile')
+
     context = {
-        'form': form,
         'authenticated_player': authenticated_player,
         'player_profile': player_profile,
+        'position_choices': [
+            ('pointer', 'Pointer'),
+            ('milieu', 'Milieu'),
+            ('tirer', 'Tireur'),
+        ],
     }
-    
+
     return render(request, 'teams/edit_player_profile.html', context)
 
 

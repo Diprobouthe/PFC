@@ -557,60 +557,102 @@ def tournament_overview(request, tournament_id):
 
 # Mêlée Mode Views
 def tournament_register_melee(request, tournament_id):
-    """View for individual player registration in Mêlée tournaments"""
+    """View for individual player registration in Mêlée tournaments.
+    Player identity is resolved from the current session — no manual codename entry.
+    """
+    from friendly_games.models import PlayerCodename
+    from .models import MeleePlayer
+
     tournament = get_object_or_404(Tournament, id=tournament_id)
-    
-    # Check if tournament is in Mêlée mode
+
+    # ── Guard: must be a Mêlée tournament ──────────────────────────────────────
     if not tournament.is_melee:
         messages.error(request, "This tournament is not configured for Mêlée mode.")
         return redirect('tournament_detail', tournament_id=tournament.id)
-    
-    # Check if tournament is still accepting registrations
+
+    # ── Guard: still accepting registrations ───────────────────────────────────
     if not tournament.is_active:
         messages.error(request, "This tournament is no longer accepting registrations.")
         return redirect('tournament_detail', tournament_id=tournament.id)
-    
-    # Check if teams have already been generated
+
+    # ── Guard: teams not yet generated ─────────────────────────────────────────
     if tournament.melee_teams_generated:
-        messages.error(request, "Registration is closed. Teams have already been generated for this tournament.")
+        messages.error(request, "Registration is closed. Teams have already been generated.")
         return redirect('tournament_detail', tournament_id=tournament.id)
-    
-    from .forms import MeleePlayerRegistrationForm
-    
-    if request.method == 'POST':
-        form = MeleePlayerRegistrationForm(tournament, request.POST)
-        if form.is_valid():
-            melee_player = form.save()
-            messages.success(
-                request, 
-                f"Successfully registered for {tournament.name}! You will be assigned to a team when registration closes."
+
+    # ── Resolve player from session ────────────────────────────────────────────
+    session_codename = request.session.get('player_codename')
+    session_player = None
+    already_registered = False
+
+    if session_codename:
+        try:
+            pc = PlayerCodename.objects.select_related('player').get(
+                codename=session_codename.upper()
             )
+            session_player = pc.player
+            already_registered = MeleePlayer.objects.filter(
+                tournament=tournament, player=session_player
+            ).exists()
+        except PlayerCodename.DoesNotExist:
+            session_player = None
+
+    # ── Handle POST (one-tap registration) ─────────────────────────────────────
+    if request.method == 'POST':
+        if not session_player:
+            messages.error(request, "Please log in with your PFC identity before registering.")
+            return redirect('tournament_register_melee', tournament_id=tournament.id)
+
+        if already_registered:
+            messages.info(request, "You are already registered for this tournament.")
             return redirect('tournament_detail', tournament_id=tournament.id)
-    else:
-        form = MeleePlayerRegistrationForm(tournament)
-    
-    # Get current registrations for display
+
+        # Check capacity
+        if tournament.max_participants:
+            current_count = MeleePlayer.objects.filter(tournament=tournament).count()
+            if current_count >= tournament.max_participants:
+                messages.error(
+                    request,
+                    f"Tournament is full ({tournament.max_participants} players maximum)."
+                )
+                return redirect('tournament_register_melee', tournament_id=tournament.id)
+
+        # Register the session player directly — no form, no codename input
+        MeleePlayer.objects.create(
+            tournament=tournament,
+            player=session_player,
+            original_team=session_player.team,
+        )
+        messages.success(
+            request,
+            f"You are registered for {tournament.name}! "
+            f"You will be assigned to a team when registration closes."
+        )
+        return redirect('tournament_detail', tournament_id=tournament.id)
+
+    # ── Build context for GET ───────────────────────────────────────────────────
     current_registrations = tournament.melee_players.all().select_related('player')
     team_size = 2 if tournament.melee_format == "doublets" else 3
-    estimated_teams = len(current_registrations) // team_size
-    
-    # Check if tournament is full
+    reg_count = current_registrations.count()
+    estimated_teams = reg_count // team_size
+
     is_full = False
     if tournament.max_participants:
-        is_full = len(current_registrations) >= tournament.max_participants
-    
+        is_full = reg_count >= tournament.max_participants
+
     context = {
         'tournament': tournament,
-        'form': form,
+        'session_player': session_player,
+        'already_registered': already_registered,
         'current_registrations': current_registrations,
-        'registration_count': len(current_registrations),
+        'registration_count': reg_count,
         'max_participants': tournament.max_participants,
         'is_full': is_full,
         'team_size': team_size,
         'estimated_teams': estimated_teams,
-        'leftover_players': len(current_registrations) % team_size,
+        'leftover_players': reg_count % team_size,
     }
-    
+
     return render(request, 'tournaments/melee_register.html', context)
 
 def tournament_melee_status(request, tournament_id):

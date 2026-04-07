@@ -184,6 +184,11 @@
                                                                     {% if match.status == 'completed' %}
                                                                         <p class="mb-0">Score: {{ match.team1_score }} - {{ match.team2_score }}</p>
                                                                     {% endif %}
+                                                                    {% if match.time_limit_minutes and match.status == 'active' %}
+                                                                    <div class="mt-1">
+                                                                        {% include "partials/timer_badge.html" with timer_seconds=match.time_remaining_seconds timer_expired=match.is_time_expired timer_limit=match.time_limit_minutes timer_id=match.id %}
+                                                                    </div>
+                                                                    {% endif %}
                                                                 </div>
                                                                 <span class="badge {% if match.status == 'pending' %}bg-warning{% elif match.status == 'active' %}bg-success{% elif match.status == 'waiting_validation' %}bg-info{% else %}bg-secondary{% endif %} rounded-pill">
                                                                     {{ match.get_status_display }}
@@ -214,4 +219,14 @@
         </div>
     </div>
 </div>
+
+{% for round in tournament.rounds.all %}
+{% for match in round.matches.all %}
+{% if match.time_limit_minutes and match.status == 'active' and not match.is_time_expired %}
+<script>
+{% include "partials/timer_countdown_js.html" with timer_seconds=match.time_remaining_seconds timer_total=match.timer_total_seconds timer_id=match.id timer_sound=False %}
+</script>
+{% endif %}
+{% endfor %}
+{% endfor %}
 {% endblock %}

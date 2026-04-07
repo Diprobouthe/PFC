@@ -1,422 +1,546 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ game.name }} - Friendly Game{% endblock %}
+{% block title %}#{{ game.match_number }} · Friendly Game{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="display-4 mb-4">{{ game.name }}</h1>
-            <p class="lead">Friendly Game Details</p>
+<style>
+/* ── Full-screen mobile shell ── */
+.fg-shell {
+    min-height: calc(100dvh - 56px); /* subtract navbar */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 12px 16px 16px;
+    max-width: 480px;
+    margin: 0 auto;
+    gap: 0;
+}
+
+/* ── Top bar: match number + status ── */
+.fg-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.fg-match-num {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #6c757d;
+    letter-spacing: 0.05em;
+}
+.fg-match-num span {
+    color: #212529;
+    font-size: 1rem;
+}
+.fg-status-badge {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+/* ── Teams strip ── */
+.fg-teams {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.fg-team {
+    flex: 1;
+    border-radius: 10px;
+    padding: 8px 10px;
+    min-height: 0;
+}
+.fg-team-black {
+    background: #212529;
+    color: #fff;
+}
+.fg-team-white {
+    background: #f8f9fa;
+    color: #212529;
+    border: 1px solid #dee2e6;
+}
+.fg-team-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    margin-bottom: 4px;
+}
+.fg-team-player {
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fg-team-pos {
+    font-size: 0.68rem;
+    opacity: 0.55;
+}
+
+/* ── Primary action area ── */
+.fg-action {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+/* ── Primary button ── */
+.fg-btn-primary {
+    width: 100%;
+    padding: 18px 24px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    border-radius: 14px;
+    border: none;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.fg-btn-primary:active {
+    transform: scale(0.97);
+}
+.fg-btn-start {
+    background: #198754;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(25,135,84,0.35);
+}
+.fg-btn-start:hover { color: #fff; background: #157347; }
+
+.fg-btn-score {
+    background: #ffc107;
+    color: #212529;
+    box-shadow: 0 4px 16px rgba(255,193,7,0.35);
+}
+.fg-btn-score:hover { color: #212529; background: #ffca2c; }
+
+.fg-btn-live {
+    background: #0d6efd;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(13,110,253,0.35);
+}
+.fg-btn-live:hover { color: #fff; background: #0b5ed7; }
+
+.fg-btn-validate {
+    background: #0d6efd;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(13,110,253,0.35);
+}
+.fg-btn-validate:hover { color: #fff; background: #0b5ed7; }
+
+.fg-btn-rematch {
+    background: #6f42c1;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(111,66,193,0.35);
+}
+.fg-btn-rematch:hover { color: #fff; background: #5a32a3; }
+
+/* ── Completed score display ── */
+.fg-final-score {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 0 8px;
+}
+.fg-score-block {
+    text-align: center;
+}
+.fg-score-num {
+    font-size: 3.5rem;
+    font-weight: 900;
+    line-height: 1;
+}
+.fg-score-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.55;
+    margin-top: 2px;
+}
+.fg-score-winner {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #ffc107;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.fg-score-sep {
+    font-size: 2rem;
+    font-weight: 300;
+    color: #adb5bd;
+    align-self: center;
+}
+
+/* ── Pending validation notice ── */
+.fg-pending-notice {
+    background: #fff3cd;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #664d03;
+    text-align: center;
+    line-height: 1.4;
+}
+
+/* ── Timer (timed games) ── */
+.fg-timer {
+    text-align: center;
+    padding: 6px 0;
+}
+
+/* ── Bottom bar: secondary actions ── */
+.fg-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid #e9ecef;
+    gap: 8px;
+}
+.fg-btn-ghost {
+    font-size: 0.78rem;
+    color: #6c757d;
+    background: none;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 6px 12px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.fg-btn-ghost:hover { color: #495057; background: #f8f9fa; }
+
+.fg-share-btn {
+    font-size: 0.78rem;
+    color: #6c757d;
+    background: none;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.fg-share-btn:hover { color: #495057; background: #f8f9fa; }
+
+/* ── Share drawer (hidden by default) ── */
+.fg-share-drawer {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 20px 32px;
+    z-index: 1050;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+    max-width: 480px;
+    margin: 0 auto;
+}
+.fg-share-drawer.open { display: block; }
+.fg-share-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 1049;
+}
+.fg-share-overlay.open { display: block; }
+.fg-share-code {
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-align: center;
+    color: #212529;
+    padding: 8px 0 4px;
+}
+.fg-share-hint {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: center;
+    margin-bottom: 14px;
+}
+.fg-share-apps {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.fg-share-app-btn {
+    flex: 1;
+    max-width: 100px;
+    padding: 10px 8px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.fg-share-app-btn i { font-size: 1.2rem; }
+.fg-share-wa  { background: #25D366; color: #fff; }
+.fg-share-fb  { background: #1877F2; color: #fff; }
+.fg-share-vb  { background: #7360f2; color: #fff; }
+.fg-share-copy { background: #f8f9fa; color: #212529; border: 1px solid #dee2e6; }
+</style>
+
+<div class="fg-shell">
+
+    <!-- TOP BAR -->
+    <div class="fg-topbar">
+        <div class="fg-match-num">
+            CODE&nbsp;<span>#{{ game.match_number|default:"—" }}</span>
+        </div>
+        <span class="fg-status-badge
+            {% if game.status == 'WAITING_FOR_PLAYERS' %}bg-primary text-white
+            {% elif game.status == 'ACTIVE' %}bg-warning text-dark
+            {% elif game.status == 'PENDING_VALIDATION' %}bg-info text-white
+            {% elif game.status == 'COMPLETED' %}bg-success text-white
+            {% else %}bg-secondary text-white{% endif %}">
+            {{ game.get_status_display }}
+        </span>
+    </div>
+
+    <!-- TEAMS STRIP -->
+    <div class="fg-teams">
+        <div class="fg-team fg-team-black">
+            <div class="fg-team-label">⚫ Black</div>
+            {% for player in players %}{% if player.team == 'BLACK' %}
+            <div class="fg-team-player">
+                {{ player.player.name }}
+                <span class="fg-team-pos">{{ player.position }}</span>
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+        <div class="fg-team fg-team-white">
+            <div class="fg-team-label">⚪ White</div>
+            {% for player in players %}{% if player.team == 'WHITE' %}
+            <div class="fg-team-player">
+                {{ player.player.name }}
+                <span class="fg-team-pos">{{ player.position }}</span>
+            </div>
+            {% endif %}{% endfor %}
         </div>
     </div>
 
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h3 class="mb-0">Game Information</h3>
+    <!-- PRIMARY ACTION AREA -->
+    <div class="fg-action">
+
+        {% if game.status == 'WAITING_FOR_PLAYERS' %}
+            <!-- ── BEFORE MATCH: START ── -->
+            <a href="{% url 'friendly_games:start_match' game.id %}" class="fg-btn-primary fg-btn-start">
+                <i class="fas fa-play-circle"></i> Start Match
+            </a>
+
+        {% elif game.status == 'ACTIVE' %}
+            <!-- ── DURING MATCH: LIVE SCORE ── -->
+            {% if game.is_timed and game.time_limit_minutes and not game.is_time_expired %}
+            <div class="fg-timer">
+                {% include "partials/timer_card.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_expired=game.is_time_expired timer_limit=game.time_limit_minutes timer_id="friendly" %}
+            </div>
+            {% endif %}
+            {% if game.live_scoreboard %}
+            <a href="{% url 'scoreboard_detail' game.live_scoreboard.id %}" class="fg-btn-primary fg-btn-live">
+                <i class="fas fa-chart-line"></i> Live Score
+            </a>
+            {% endif %}
+            <a href="{% url 'friendly_games:submit_score' game.id %}" class="fg-btn-primary fg-btn-score" style="font-size:1rem; padding:12px 24px;">
+                <i class="fas fa-clipboard-check"></i> Submit Final Score
+            </a>
+
+        {% elif game.status == 'PENDING_VALIDATION' %}
+            <!-- ── PENDING: VALIDATE ── -->
+            {% if game.result %}
+            <div class="fg-pending-notice">
+                <strong>{{ game.result.submitted_by_team|title }} team</strong> submitted
+                <strong>Black {{ game.black_team_score }} – White {{ game.white_team_score }}</strong>.<br>
+                {{ game.result.get_other_team|title }} team must validate.
+            </div>
+            <a href="{% url 'friendly_games:validate_result' game.id %}" class="fg-btn-primary fg-btn-validate">
+                <i class="fas fa-check-circle"></i> Validate Result
+            </a>
+            {% endif %}
+
+        {% elif game.status == 'COMPLETED' %}
+            <!-- ── COMPLETED: FINAL SCORE + REMATCH ── -->
+            <div class="fg-final-score">
+                <div class="fg-score-block">
+                    <div class="fg-score-num" style="color:#212529;">{{ game.black_team_score }}</div>
+                    <div class="fg-score-label">Black</div>
+                    {% if game.black_team_score > game.white_team_score %}<div class="fg-score-winner">Winner</div>{% endif %}
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5>Game Details</h5>
-                            <ul class="list-unstyled">
-                                <li><strong>Name:</strong> {{ game.name }}</li>
-                                <li><strong>Status:</strong> 
-                                    <span class="badge 
-                                        {% if game.status == 'DRAFT' %}bg-secondary
-                                        {% elif game.status == 'READY' %}bg-primary
-                                        {% elif game.status == 'ACTIVE' %}bg-warning
-                                        {% elif game.status == 'PENDING_VALIDATION' %}bg-info
-                                        {% elif game.status == 'COMPLETED' %}bg-success
-                                        {% else %}bg-danger{% endif %}">
-                                        {{ game.get_status_display }}
-                                    </span>
-                                </li>
-                                <li><strong>Target Score:</strong> {{ game.target_score }} points</li>
-                                <li><strong>Created:</strong> {{ game.created_at|date:"M d, Y H:i" }}</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h5>Match Number & Sharing</h5>
-                            <div class="alert alert-info">
-                                {% if game.match_number %}
-                                <h4 class="alert-heading">#{{ game.match_number }}</h4>
-                                <p class="mb-2">Share this match number for others to join!</p>
-                                
-                                <!-- Conditional Sharing Section -->
-                                {% if game.status != 'ACTIVE' and game.status != 'COMPLETED' %}
-                                <div class="mt-3">
-                                    <h6 class="mb-2">📱 Share on Social Media</h6>
-                                    
-                                    <!-- Pre-formatted sharing text -->
-                                    <div class="card bg-light mb-3">
-                                        <div class="card-body p-2">
-                                            <small class="text-muted">Ready to copy & paste:</small>
-                                            <div id="shareText" class="mt-1 p-2 bg-white border rounded" style="font-family: monospace; font-size: 0.9em;">
-🎯 Join my Petanque game: "{{ game.name }}"<br>
-🔗 Link: {{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}<br>
-🎮 Game Code: {{ game.match_number }}<br>
-Let's play! 🥎
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Copy and Share Buttons -->
-                                    <div class="d-grid gap-2">
-                                        <button class="btn btn-primary btn-sm" onclick="copyShareText()">
-                                            <i class="fas fa-copy"></i> Copy Invitation Text
-                                        </button>
-                                        
-                                        <div class="row g-1">
-                                            <div class="col-4">
-                                                <a href="https://wa.me/?text={{ 'Join my Petanque game: '|urlencode }}{{ game.name|urlencode }}%0A{{ 'Link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}%0A{{ 'Game Code: '|urlencode }}{{ game.match_number }}%0A{{ 'Let\'s play! 🥎'|urlencode }}" 
-                                                   target="_blank" class="btn btn-success btn-sm w-100">
-                                                    <i class="fab fa-whatsapp"></i> WhatsApp
-                                                </a>
-                                            </div>
-                                            <div class="col-4">
-                                                <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}&quote={{ 'Join my Petanque game: '|urlencode }}{{ game.name|urlencode }}{{ ' - Game Code: '|urlencode }}{{ game.match_number }}" 
-                                                   target="_blank" class="btn btn-primary btn-sm w-100">
-                                                    <i class="fab fa-facebook"></i> Facebook
-                                                </a>
-                                            </div>
-                                            <div class="col-4">
-                                                <a href="viber://forward?text={{ 'Join my Petanque game: '|urlencode }}{{ game.name|urlencode }}%0A{{ 'Link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}%0A{{ 'Game Code: '|urlencode }}{{ game.match_number }}%0A{{ 'Let\'s play! 🥎'|urlencode }}" 
-                                                   target="_blank" class="btn btn-secondary btn-sm w-100">
-                                                    <i class="fab fa-viber"></i> Viber
-                                                </a>
-                                            </div>
-                                        </div>
-                                        
-                                        <small class="text-muted text-center mt-1">
-                                            <i class="fas fa-info-circle"></i> Players use the link + code to join your game
-                                        </small>
-                                    </div>
-                                </div>
-                                {% else %}
-                                <div class="mt-3">
-                                    <div class="alert alert-info">
-                                        <i class="fas fa-info-circle"></i> <strong>Game is {{ game.get_status_display|lower }}</strong> - Use the live scoreboard below to track the game.
-                                    </div>
-                                </div>
-                                {% endif %}
-                                {% else %}
-                                <h4 class="alert-heading">No Match Number</h4>
-                                <p class="mb-0">This game was created with the legacy system.</p>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Live Scoreboard Section for Active and Completed Games -->
-                    {% if game.live_scoreboard and game.status == 'ACTIVE' or game.status == 'COMPLETED' %}
-                    <div class="row mt-4">
-                        <div class="col-12">
-                            <div class="card border-info">
-                                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center" 
-                                     style="cursor: pointer;" onclick="toggleFriendlyGameLiveScoreboard()">
-                                    <h6 class="mb-0">
-                                        <i class="fas fa-chart-line"></i> Live Scoreboard
-                                    </h6>
-                                    <button type="button" class="btn btn-sm btn-outline-light" id="toggleFriendlyGameLiveScoreboardBtn">
-                                        <i class="fas fa-eye" id="toggleFriendlyGameLiveScoreboardIcon"></i> 
-                                        <span id="toggleFriendlyGameLiveScoreboardText">Show Scores</span>
-                                    </button>
-                                </div>
-                                <div class="card-body" id="friendlyGameLiveScoreboardContent" style="display: none;">
-                                    <div class="row align-items-center">
-                                        <div class="col-8">
-                                            <p class="mb-1">
-                                                <strong>Live Score:</strong> 
-                                                <span class="badge bg-dark">{{ game.live_scoreboard.team1_score }}</span>
-                                                <span class="mx-1">-</span>
-                                                <span class="badge bg-light text-dark">{{ game.live_scoreboard.team2_score }}</span>
-                                            </p>
-                                            {% if game.live_scoreboard.last_updated_by %}
-                                                <small class="text-muted">
-                                                    Updated {{ game.live_scoreboard.updated_at|timesince }} ago
-                                                </small>
-                                            {% endif %}
-                                            <div class="mt-1">
-                                                <span class="badge {% if game.live_scoreboard.is_active %}bg-success{% else %}bg-secondary{% endif %} badge-sm">
-                                                    {% if game.live_scoreboard.is_active %}Live{% else %}Final{% endif %}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="col-4 text-end">
-                                            <a href="{% url 'scoreboard_detail' game.live_scoreboard.id %}" class="btn btn-sm btn-info me-1">
-                                                <i class="fas fa-edit"></i> Update
-                                            </a>
-                                            <a href="{% url 'scoreboard_embed' game.live_scoreboard.id %}" class="btn btn-sm btn-outline-info" target="_blank">
-                                                <i class="fas fa-external-link-alt"></i>
-                                            </a>
-                                        </div>
-                                    </div>
-                                    <div class="alert alert-info mt-2 mb-0 py-1">
-                                        <small><i class="fas fa-info-circle"></i> Live scores help players and spectators follow the match in real time. However, a match is only counted in the standings once both teams verify the final score.</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if game.status == 'COMPLETED' %}
-                    <div class="row mt-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header bg-success text-white">
-                                    <h4 class="mb-0">
-                                        <i class="fas fa-trophy"></i> Final Score
-                                    </h4>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="card bg-dark text-white">
-                                                <div class="card-body text-center">
-                                                    <h3>Black Team</h3>
-                                                    <h1 class="display-3">{{ game.black_team_score }}</h1>
-                                                    {% if game.black_team_score > game.white_team_score %}
-                                                        <span class="badge bg-warning fs-6">WINNER</span>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="card bg-light">
-                                                <div class="card-body text-center">
-                                                    <h3>White Team</h3>
-                                                    <h1 class="display-3">{{ game.white_team_score }}</h1>
-                                                    {% if game.white_team_score > game.black_team_score %}
-                                                        <span class="badge bg-warning fs-6">WINNER</span>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Validation Status -->
-                                    <div class="row mt-3">
-                                        <div class="col-12 text-center">
-                                            <div class="alert 
-                                                {% if game.validation_status == 'FULLY_VALIDATED' %}alert-success
-                                                {% elif game.validation_status == 'PARTIALLY_VALIDATED' %}alert-warning
-                                                {% else %}alert-secondary{% endif %} mb-0">
-                                                <strong>
-                                                    {% if game.validation_status == 'FULLY_VALIDATED' %}
-                                                        <i class="fas fa-check-double"></i> Fully Validated
-                                                    {% elif game.validation_status == 'PARTIALLY_VALIDATED' %}
-                                                        <i class="fas fa-check"></i> Partially Validated
-                                                    {% else %}
-                                                        <i class="fas fa-clock"></i> Not Validated
-                                                    {% endif %}
-                                                </strong>
-                                                <br>
-                                                <small>
-                                                    {% if game.validation_status == 'FULLY_VALIDATED' %}
-                                                        Statistics recorded for all validated players
-                                                    {% elif game.validation_status == 'PARTIALLY_VALIDATED' %}
-                                                        Statistics recorded for some players
-                                                    {% else %}
-                                                        No statistics recorded - casual game
-                                                    {% endif %}
-                                                </small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <div class="d-grid gap-2 mt-4">
-                        {% if game.status == 'WAITING_FOR_PLAYERS' %}
-                        <a href="{% url 'friendly_games:start_match' game.id %}" class="btn btn-success btn-lg">
-                            <i class="fas fa-play"></i> Start Match
-                        </a>
-                        <small class="text-muted text-center mt-2">
-                            Start the match when all players are ready
-                        </small>
-                        
-                        {% elif game.status == 'ACTIVE' or game.status == 'PENDING_VALIDATION' %}
-                            {% if game.result %}
-                                <!-- Result submitted, waiting for validation -->
-                                <div class="alert alert-info text-center">
-                                    <h5><i class="fas fa-hourglass-half"></i> Waiting for Validation</h5>
-                                    <p class="mb-2">
-                                        <strong>{{ game.result.submitted_by_team|title }} Team</strong> submitted the result:
-                                        <strong>Black {{ game.black_team_score }} - White {{ game.white_team_score }}</strong>
-                                    </p>
-                                    <p class="mb-0">
-                                        <strong>{{ game.result.get_other_team|title }} Team</strong> needs to validate this result.
-                                    </p>
-                                </div>
-                                
-                                <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-check-circle"></i> Validate Result ({{ game.result.get_other_team|title }} Team)
-                                </a>
-                                <small class="text-muted text-center mt-2">
-                                    {{ game.result.get_other_team|title }} team can agree or disagree with the submitted result
-                                </small>
-                            {% else %}
-                                <!-- No result submitted yet -->
-                                <a href="{% url 'friendly_games:submit_score' game.id %}" class="btn btn-warning btn-lg">
-                                    <i class="fas fa-clipboard-check"></i> Submit Score
-                                </a>
-                                <small class="text-muted text-center mt-2">
-                                    Submit the final score when the match is complete
-                                </small>
-                            {% endif %}
-                        
-                        {% elif game.status == 'COMPLETED' %}
-                        <div class="alert alert-success text-center">
-                            <i class="fas fa-check-circle"></i> Match Completed
-                            {% if game.result %}
-                                <br><small class="text-muted">
-                                    Validated by {{ game.result.validated_by_team|title }} team 
-                                    on {{ game.result.validated_at|date:"M d, Y H:i" }}
-                                </small>
-                            {% endif %}
-                        </div>
-                        
-                        <!-- Rematch Button -->
-                        <form method="POST" action="{% url 'friendly_games:rematch' game.id %}" style="display: inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="fas fa-redo"></i> Rematch - Play Again
-                            </button>
-                        </form>
-                        <small class="text-muted text-center mt-2">
-                            Create a new game with the same players and positions
-                        </small>
-                        {% endif %}
-                        
-                        <a href="{% url 'friendly_games:create_game' %}" class="btn btn-outline-success">
-                            <i class="fas fa-plus"></i> Create Another Game
-                        </a>
-                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">
-                            <i class="fas fa-home"></i> Back to Home
-                        </a>
-                    </div>
+                <div class="fg-score-sep">–</div>
+                <div class="fg-score-block">
+                    <div class="fg-score-num" style="color:#6c757d;">{{ game.white_team_score }}</div>
+                    <div class="fg-score-label">White</div>
+                    {% if game.white_team_score > game.black_team_score %}<div class="fg-score-winner">Winner</div>{% endif %}
                 </div>
             </div>
-        </div>
+            <form method="POST" action="{% url 'friendly_games:rematch' game.id %}" style="width:100%;">
+                {% csrf_token %}
+                <button type="submit" class="fg-btn-primary fg-btn-rematch">
+                    <i class="fas fa-redo"></i> Rematch
+                </button>
+            </form>
+        {% endif %}
+
     </div>
 
-    {% if players %}
-    <div class="row justify-content-center mt-4">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h4 class="mb-0">Players</h4>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Black Team</h6>
-                            <ul class="list-unstyled">
-                                {% for player in players %}
-                                    {% if player.team == 'BLACK' %}
-                                    <li>{{ player.player.name }} ({{ player.position }}) 
-                                        {% if player.codename_verified %}✓{% else %}✗{% endif %}
-                                    </li>
-                                    {% endif %}
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>White Team</h6>
-                            <ul class="list-unstyled">
-                                {% for player in players %}
-                                    {% if player.team == 'WHITE' %}
-                                    <li>{{ player.player.name }} ({{ player.position }}) 
-                                        {% if player.codename_verified %}✓{% else %}✗{% endif %}
-                                    </li>
-                                    {% endif %}
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- BOTTOM BAR -->
+    <div class="fg-bottom">
+        <a href="{% url 'home' %}" class="fg-btn-ghost">
+            <i class="fas fa-home"></i> Home
+        </a>
+        <a href="{% url 'friendly_games:create_game' %}" class="fg-btn-ghost">
+            <i class="fas fa-plus"></i> New Game
+        </a>
+        {% if game.match_number and game.status != 'COMPLETED' %}
+        <button class="fg-share-btn" onclick="openShare()">
+            <i class="fas fa-share-alt"></i> Share
+        </button>
+        {% endif %}
     </div>
-    {% endif %}
+
 </div>
 
-<script>
-function copyShareText() {
-    // Get the share text content
-    const shareTextElement = document.getElementById('shareText');
-    const shareText = `🎯 Join my Petanque game: "{{ game.name }}"
-🔗 Link: {{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}
-🎮 Game Code: {{ game.match_number }}
-Let's play! 🥎`;
-    
-    // Copy to clipboard
-    navigator.clipboard.writeText(shareText).then(function() {
-        // Show success feedback
-        const button = event.target.closest('button');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        button.classList.remove('btn-primary');
-        button.classList.add('btn-success');
-        
-        // Reset button after 2 seconds
-        setTimeout(function() {
-            button.innerHTML = originalText;
-            button.classList.remove('btn-success');
-            button.classList.add('btn-primary');
-        }, 2000);
-    }).catch(function(err) {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = shareText;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        
-        // Show success feedback
-        const button = event.target.closest('button');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        button.classList.remove('btn-primary');
-        button.classList.add('btn-success');
-        
-        setTimeout(function() {
-            button.innerHTML = originalText;
-            button.classList.remove('btn-success');
-            button.classList.add('btn-primary');
-        }, 2000);
-    });
-}
+<!-- SHARE OVERLAY + DRAWER -->
+{% if game.match_number and game.status != 'COMPLETED' %}
+<div class="fg-share-overlay" id="shareOverlay" onclick="closeShare()"></div>
+<div class="fg-share-drawer" id="shareDrawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:0.8rem;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:0.08em;">Share Game Code</span>
+        <button onclick="closeShare()" style="background:none;border:none;font-size:1.2rem;color:#6c757d;cursor:pointer;">✕</button>
+    </div>
+    <div class="fg-share-code">#{{ game.match_number }}</div>
+    <div class="fg-share-hint">Share this code — players enter it at the join page</div>
+    <div class="fg-share-apps">
+        <a href="https://wa.me/?text={{ 'Join my Pétanque game! Code: '|urlencode }}{{ game.match_number }}%0A{{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}"
+           target="_blank" class="fg-share-app-btn fg-share-wa">
+            <i class="fab fa-whatsapp"></i> WhatsApp
+        </a>
+        <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}"
+           target="_blank" class="fg-share-app-btn fg-share-fb">
+            <i class="fab fa-facebook"></i> Facebook
+        </a>
+        <a href="viber://forward?text={{ 'Join my Pétanque game! Code: '|urlencode }}{{ game.match_number }}%0A{{ request.scheme }}://{{ request.get_host }}{% url 'friendly_games:join_game' %}"
+           target="_blank" class="fg-share-app-btn fg-share-vb">
+            <i class="fab fa-viber"></i> Viber
+        </a>
+        <button onclick="copyCode()" class="fg-share-app-btn fg-share-copy" id="copyBtn">
+            <i class="fas fa-copy"></i> Copy
+        </button>
+    </div>
+</div>
+{% endif %}
 
-// Toggle Friendly Game Live Scoreboard Section
-function toggleFriendlyGameLiveScoreboard() {
-    const content = document.getElementById('friendlyGameLiveScoreboardContent');
-    const icon = document.getElementById('toggleFriendlyGameLiveScoreboardIcon');
-    const text = document.getElementById('toggleFriendlyGameLiveScoreboardText');
-    const btn = document.getElementById('toggleFriendlyGameLiveScoreboardBtn');
-    
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        icon.className = 'fas fa-eye-slash';
-        text.textContent = 'Hide Scores';
-        btn.classList.remove('btn-outline-light');
-        btn.classList.add('btn-light');
-    } else {
-        content.style.display = 'none';
-        icon.className = 'fas fa-eye';
-        text.textContent = 'Show Scores';
-        btn.classList.remove('btn-light');
-        btn.classList.add('btn-outline-light');
-    }
+<script>
+function openShare() {
+    document.getElementById('shareOverlay').classList.add('open');
+    document.getElementById('shareDrawer').classList.add('open');
 }
+function closeShare() {
+    document.getElementById('shareOverlay').classList.remove('open');
+    document.getElementById('shareDrawer').classList.remove('open');
+}
+function copyCode() {
+    const code = '{{ game.match_number }}';
+    const url = '{{ request.scheme }}://{{ request.get_host }}{% url "friendly_games:join_game" %}';
+    const text = `Join my Pétanque game! Code: ${code}\n${url}`;
+    navigator.clipboard.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+    });
+    const btn = document.getElementById('copyBtn');
+    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; }, 2000);
+}
+{% if game.is_timed and game.time_limit_minutes and game.status == 'ACTIVE' and not game.is_time_expired %}
+{% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_id="friendly" timer_sound=True %}
+{% endif %}
+
+// ── WebSocket-based PFC state listener ──────────────────────────
+// Subscribes to live game events via WebSocket.
+// On any state-change event, calls /my-matches/next-url/ (the PFC
+// decision engine) and redirects if the correct destination changed.
+// Falls back to polling if WebSocket is unavailable.
+{% if game.status == 'ACTIVE' or game.status == 'PENDING_VALIDATION' or game.status == 'READY' %}
+(function() {
+    const GAME_ID     = {{ game.id }};
+    const NEXT_URL_API = '/my-matches/next-url/';
+    const CURRENT_PATH = window.location.pathname;
+    let _redirecting = false;
+    let _pollFallback = null;
+
+    function evaluateAndRedirect() {
+        if (_redirecting) return;
+        fetch(NEXT_URL_API, {credentials: 'same-origin'})
+            .then(r => r.json())
+            .then(data => {
+                if (!data.authenticated || !data.next_url) return;
+                if (data.next_url !== CURRENT_PATH) {
+                    _redirecting = true;
+                    if (_pollFallback) clearInterval(_pollFallback);
+                    window.location.href = data.next_url;
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Prefer WebSocket
+    const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
+    const wsUrl = wsScheme + '://' + window.location.host + '/ws/game/' + GAME_ID + '/';
+    let ws;
+    try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'match.state_changed') evaluateAndRedirect();
+            } catch(err) {}
+        };
+        ws.onerror = function() {
+            if (!_pollFallback) _pollFallback = setInterval(evaluateAndRedirect, 3000);
+        };
+        ws.onclose = function() {
+            if (!_redirecting && !_pollFallback)
+                _pollFallback = setInterval(evaluateAndRedirect, 3000);
+        };
+    } catch(e) {
+        _pollFallback = setInterval(evaluateAndRedirect, 3000);
+    }
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            if (_pollFallback) { clearInterval(_pollFallback); _pollFallback = null; }
+            if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+        }
+    });
+})();
+{% endif %}
 </script>
 {% endblock %}
-

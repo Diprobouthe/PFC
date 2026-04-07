@@ -1,209 +1,381 @@
 {% extends 'base.html' %}
 
-{% block title %}Validate Score - Petanque Platform{% endblock %}
+{% block title %}Validate Score · PFC{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="mb-4">Validate Score as {{ team.name }}</h1>
-            
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">{{ match.team1.name }} vs {{ match.team2.name }}</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <p><strong>Tournament:</strong> {{ match.tournament.name }}</p>
-                            <p><strong>Round:</strong> {{ match.round }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Status:</strong> 
-                                <span class="badge bg-info">{{ match.get_status_display }}</span>
-                            </p>
-                            {% if match.court %}
-                                <p><strong>Court:</strong> {{ match.court.name }}</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">Submitted Score</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row text-center">
-                                        <div class="col-5">
-                                            <h3>{{ match.team1.name }}</h3>
-                                            <h1 class="display-1">{{ match.team1_score }}</h1>
-                                        </div>
-                                        <div class="col-2 d-flex align-items-center justify-content-center">
-                                            <h2>vs</h2>
-                                        </div>
-                                        <div class="col-5">
-                                            <h3>{{ match.team2.name }}</h3>
-                                            <h1 class="display-1">{{ match.team2_score }}</h1>
-                                        </div>
-                                    </div>
-                                    
-                                    {% if result.notes %}
-                                        <div class="mt-3">
-                                            <p><strong>Notes:</strong> {{ result.notes }}</p>
-                                        </div>
-                                    {% endif %}
-                                    
-                                    {% if result.photo_evidence %}
-                                        <div class="mt-3">
-                                            <p><strong>Photo Evidence:</strong></p>
-                                            <img src="{{ result.photo_evidence.url }}" alt="Match Evidence" class="img-fluid rounded">
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger">
-                                {% for error in form.non_field_errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+<style>
+/* ── Shell ── */
+.vr-shell {
+    min-height: calc(100dvh - 56px);
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px 90px;
+    max-width: 480px;
+    margin: 0 auto;
+    gap: 10px;
+}
 
-                        <div class="form-group mb-3">
-                            <div class="row justify-content-center">
-                                <div class="col-6 col-md-4 text-center">
-                                    <input class="d-none" type="radio" name="validation_action" 
-                                           id="id_validation_action_0" value="agree" required>
-                                    <label class="btn btn-outline-success w-100 py-5" for="id_validation_action_0" 
-                                           style="font-size: 5rem; cursor: pointer; border-width: 3px;">
-                                        <i class="fas fa-thumbs-up"></i>
-                                    </label>
-                                </div>
-                                <div class="col-6 col-md-4 text-center">
-                                    <input class="d-none" type="radio" name="validation_action" 
-                                           id="id_validation_action_1" value="disagree" required>
-                                    <label class="btn btn-outline-danger w-100 py-5" for="id_validation_action_1" 
-                                           style="font-size: 5rem; cursor: pointer; border-width: 3px;">
-                                        <i class="fas fa-thumbs-down"></i>
-                                    </label>
-                                </div>
-                            </div>
-                            <style>
-                                /* Make selected button solid */
-                                input[type="radio"]:checked + label.btn-outline-success {
-                                    background-color: #198754;
-                                    color: white;
-                                    border-color: #198754;
-                                }
-                                input[type="radio"]:checked + label.btn-outline-danger {
-                                    background-color: #dc3545;
-                                    color: white;
-                                    border-color: #dc3545;
-                                }
-                                /* Hover effect */
-                                label.btn-outline-success:hover {
-                                    background-color: #198754;
-                                    color: white;
-                                }
-                                label.btn-outline-danger:hover {
-                                    background-color: #dc3545;
-                                    color: white;
-                                }
-                            </style>
-                            {% if form.validation_action.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.validation_action.errors %}
-                                        {{ error }}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="form-group mb-3">
-                            <label for="{{ form.pin.id_for_label }}"><strong>{{ form.pin.label }}:</strong></label>
-                            <input type="password" name="pin" maxlength="6" class="form-control" required id="id_pin" 
-                                   placeholder="Enter your team PIN" 
-                                   value="{% if request.session.team_pin %}{{ request.session.team_pin }}{% endif %}">
-                            {% if form.pin.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.pin.errors %}
-                                        {{ error }}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            {% if request.session.team_pin %}
-                            <div class="form-text text-success">
-                                <i class="fas fa-check-circle"></i> Auto-filled from saved PIN
-                            </div>
-                            {% else %}
-                            <small class="form-text text-muted">Enter your team's 6-digit PIN to confirm your choice.</small>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mt-4 text-center">
-                            <a href="{% url 'match_detail' match.id %}" class="btn btn-secondary btn-lg">
-                                <i class="fas fa-arrow-left"></i> Back to Match
-                            </a>
-                        </div>
-                        
-                        <script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            const agreeBtn = document.getElementById('id_validation_action_0');
-                            const disagreeBtn = document.getElementById('id_validation_action_1');
-                            const form = document.querySelector('form');
-                            const pinInput = document.getElementById('id_pin');
-                            
-                            function handleValidation(action, actionText, color) {
-                                // Check if PIN is filled
-                                if (!pinInput.value || pinInput.value.trim() === '') {
-                                    alert('Please enter your Team PIN first.');
-                                    return false;
-                                }
-                                
-                                // Show confirmation dialog
-                                const message = action === 'agree' 
-                                    ? 'Are you sure you want to AGREE with the submitted score?\n\nThe match will be marked as completed.'
-                                    : 'Are you sure you want to DISAGREE with the submitted score?\n\nThe result will be cleared for resubmission.';
-                                
-                                if (confirm(message)) {
-                                    // Submit the form
-                                    form.submit();
-                                } else {
-                                    // Uncheck the radio button if user cancels
-                                    if (action === 'agree') {
-                                        agreeBtn.checked = false;
-                                    } else {
-                                        disagreeBtn.checked = false;
-                                    }
-                                }
-                            }
-                            
-                            // Add click handlers to the label buttons
-                            document.querySelector('label[for="id_validation_action_0"]').addEventListener('click', function(e) {
-                                e.preventDefault();
-                                agreeBtn.checked = true;
-                                handleValidation('agree', 'AGREE', 'success');
-                            });
-                            
-                            document.querySelector('label[for="id_validation_action_1"]').addEventListener('click', function(e) {
-                                e.preventDefault();
-                                disagreeBtn.checked = true;
-                                handleValidation('disagree', 'DISAGREE', 'danger');
-                            });
-                        });
-                        </script>
-                    </form>
+/* ── Top bar ── */
+.vr-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0 4px;
+}
+.vr-vs {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #212529;
+}
+.vr-validating {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: #cfe2ff;
+    color: #084298;
+}
+
+/* ── Section label ── */
+.vr-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #6c757d;
+    margin-bottom: 4px;
+}
+
+/* ── Info strip ── */
+.vr-info-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: #495057;
+}
+.vr-info-strip i { color: #6c757d; }
+
+/* ── Submitted score display ── */
+.vr-score-block {
+    background: #fff;
+    border: 2px solid #dee2e6;
+    border-radius: 14px;
+    padding: 16px 12px 12px;
+    text-align: center;
+}
+.vr-score-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.vr-score-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.vr-team-name {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6c757d;
+}
+.vr-score-num {
+    font-size: 4rem;
+    font-weight: 900;
+    line-height: 1;
+    color: #212529;
+}
+.vr-score-num.winner { color: #198754; }
+.vr-score-sep {
+    font-size: 1.6rem;
+    color: #adb5bd;
+    font-weight: 300;
+    padding-top: 20px;
+}
+.vr-submitted-by {
+    font-size: 0.7rem;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+/* ── Photo evidence ── */
+.vr-photo {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+}
+.vr-photo img {
+    width: 100%;
+    display: block;
+    max-height: 180px;
+    object-fit: cover;
+}
+
+/* ── Notes ── */
+.vr-notes {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    color: #495057;
+    font-style: italic;
+}
+
+/* ── Agree / Disagree chips ── */
+.vr-choice-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.vr-choice-btn {
+    position: relative;
+    border-radius: 14px;
+    padding: 18px 12px;
+    cursor: pointer;
+    border: 2.5px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all 0.15s;
+    user-select: none;
+}
+.vr-choice-btn.agree {
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+    color: #0a3622;
+}
+.vr-choice-btn.agree:hover,
+.vr-choice-btn.agree.selected {
+    background: #198754;
+    border-color: #198754;
+    color: #fff;
+}
+.vr-choice-btn.disagree {
+    background: #f8d7da;
+    border-color: #f1aeb5;
+    color: #58151c;
+}
+.vr-choice-btn.disagree:hover,
+.vr-choice-btn.disagree.selected {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: #fff;
+}
+.vr-choice-icon {
+    font-size: 2rem;
+}
+.vr-choice-radio { display: none; }
+
+/* ── Error block ── */
+.vr-error {
+    background: #f8d7da;
+    border: 1px solid #f5c2c7;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #842029;
+}
+
+/* ── Sticky action bar ── */
+.vr-sticky-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 14px;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    max-width: 480px;
+    margin: 0 auto;
+}
+.vr-confirm-btn {
+    flex: 1;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #0d6efd;
+    color: #fff;
+    transition: filter 0.15s;
+    opacity: 0.5;
+    pointer-events: none;
+}
+.vr-confirm-btn.ready {
+    opacity: 1;
+    pointer-events: auto;
+}
+.vr-confirm-btn.ready:hover { filter: brightness(0.92); }
+.vr-confirm-btn.agree-ready  { background: #198754; }
+.vr-confirm-btn.disagree-ready { background: #dc3545; }
+.vr-back-btn {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1.5px solid #dee2e6;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+.vr-back-btn:hover { background: #e9ecef; color: #212529; }
+</style>
+
+<div class="vr-shell">
+
+    <!-- Top bar -->
+    <div class="vr-topbar">
+        <span class="vr-vs">{{ match.team1.name }} vs {{ match.team2.name }}</span>
+        <span class="vr-validating">{{ team.name }}</span>
+    </div>
+
+    {% if messages %}
+    {% for msg in messages %}
+    <div class="vr-error">{{ msg }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Court / round info -->
+    {% if match.court or match.round %}
+    <div class="vr-info-strip">
+        {% if match.court %}<i class="fas fa-map-marker-alt"></i> {{ match.court.name }}{% if match.court.court_complex %} · {{ match.court.court_complex.name }}{% endif %}{% endif %}
+        {% if match.round %}{% if match.court %} &nbsp;·&nbsp; {% endif %}<i class="fas fa-trophy"></i> Round {{ match.round }}{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Submitted score -->
+    <div class="vr-label">Submitted Score</div>
+    <div class="vr-score-block">
+        <div class="vr-score-row">
+            <div class="vr-score-col">
+                <div class="vr-team-name">{{ match.team1.name }}</div>
+                <div class="vr-score-num {% if match.team1_score > match.team2_score %}winner{% endif %}">
+                    {{ match.team1_score }}
+                </div>
+            </div>
+            <div class="vr-score-sep">:</div>
+            <div class="vr-score-col">
+                <div class="vr-team-name">{{ match.team2.name }}</div>
+                <div class="vr-score-num {% if match.team2_score > match.team1_score %}winner{% endif %}">
+                    {{ match.team2_score }}
                 </div>
             </div>
         </div>
+        <div class="vr-submitted-by">
+            Submitted by {{ result.submitted_by.name }}
+        </div>
     </div>
+
+    <!-- Photo evidence (if any) -->
+    {% if result.photo_evidence %}
+    <div class="vr-photo">
+        <img src="{{ result.photo_evidence.url }}" alt="Match Evidence">
+    </div>
+    {% endif %}
+
+    <!-- Notes (if any) -->
+    {% if result.notes %}
+    <div class="vr-notes">"{{ result.notes }}"</div>
+    {% endif %}
+
+    <!-- Agree / Disagree -->
+    <div class="vr-label">Your Decision</div>
+
+    {% if form.errors %}
+    <div class="vr-error">
+        {% for err in form.non_field_errors %}{{ err }} {% endfor %}
+        {% for field in form %}{% for err in field.errors %}{{ err }} {% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" id="vrForm">
+        {% csrf_token %}
+        <!-- PIN injected server-side; never shown to user -->
+        <input type="hidden" name="pin" value="">
+
+        <div class="vr-choice-grid">
+            <!-- Agree -->
+            <div class="vr-choice-btn agree" id="agreeBtn" onclick="selectChoice('agree')">
+                <input type="radio" name="validation_action" value="agree" id="vrAgree" class="vr-choice-radio">
+                <div class="vr-choice-icon"><i class="fas fa-thumbs-up"></i></div>
+                <div>Agree</div>
+            </div>
+            <!-- Disagree -->
+            <div class="vr-choice-btn disagree" id="disagreeBtn" onclick="selectChoice('disagree')">
+                <input type="radio" name="validation_action" value="disagree" id="vrDisagree" class="vr-choice-radio">
+                <div class="vr-choice-icon"><i class="fas fa-thumbs-down"></i></div>
+                <div>Disagree</div>
+            </div>
+        </div>
+
+    </form>
+
 </div>
+
+<!-- Sticky action bar -->
+<div class="vr-sticky-bar">
+    <a href="{% url 'match_detail' match.id %}" class="vr-back-btn"><i class="fas fa-arrow-left"></i></a>
+    <button type="button" id="vrConfirmBtn" class="vr-confirm-btn" onclick="confirmChoice()">
+        <i class="fas fa-check"></i> <span id="vrConfirmLabel">Select a decision</span>
+    </button>
+</div>
+
+<script>
+let selectedChoice = null;
+
+function selectChoice(choice) {
+    selectedChoice = choice;
+
+    // Update chip appearance
+    document.getElementById('agreeBtn').classList.toggle('selected', choice === 'agree');
+    document.getElementById('disagreeBtn').classList.toggle('selected', choice === 'disagree');
+
+    // Check the hidden radio
+    document.getElementById(choice === 'agree' ? 'vrAgree' : 'vrDisagree').checked = true;
+
+    // Update confirm button
+    const btn = document.getElementById('vrConfirmBtn');
+    const label = document.getElementById('vrConfirmLabel');
+    btn.className = 'vr-confirm-btn ready ' + choice + '-ready';
+    label.textContent = choice === 'agree' ? 'Confirm — Agree' : 'Confirm — Disagree';
+}
+
+function confirmChoice() {
+    if (!selectedChoice) return;
+
+    const msg = selectedChoice === 'agree'
+        ? 'Confirm you AGREE with the submitted score?\nThe match will be marked as completed.'
+        : 'Confirm you DISAGREE with the submitted score?\nThe result will be cleared for resubmission.';
+
+    if (confirm(msg)) {
+        document.getElementById('vrForm').submit();
+    }
+}
+</script>
+
 {% endblock %}

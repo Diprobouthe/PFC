@@ -13,6 +13,7 @@ from friendly_games.models import FriendlyGame, PlayerCodename  # Import Friendl
 from billboard.models import BillboardEntry  # Import Billboard for auto-registration
 from .forms import MatchActivationForm, MatchResultForm, MatchValidationForm
 from .utils import auto_assign_court, get_court_assignment_status
+from pfc_events.signals import notify_match_state_changed
 from .utils import detect_match_type, validate_match_type  # Import match type utilities
 
 logger = logging.getLogger(__name__)
@@ -135,23 +136,120 @@ def match_list(request, tournament_id=None):
 
 def match_detail(request, match_id):
     match = get_object_or_404(Match, id=match_id)
-    team_pin = request.session.get("team_pin")
-    team_obj = None
-    if team_pin:
-        try:
-            team_obj = Team.objects.get(pin=team_pin)
-        except Team.DoesNotExist:
-            pass # Team not found for PIN, team_obj remains None
-            
+
     # Get MatchPlayer entries for display
     match_players_team1 = MatchPlayer.objects.filter(match=match, team=match.team1).select_related("player")
     match_players_team2 = MatchPlayer.objects.filter(match=match, team=match.team2).select_related("player")
 
+    # ---- Session-bound team identification (match-context aware) ----
+    # Priority 1: resolve from player codename → MatchPlayer → match team
+    # This correctly handles Mêlée teams where the session team PIN
+    # belongs to the player's original team, not the Mêlée team.
+    my_team = None
+    opponent_team = None
+    codename = request.session.get('player_codename')
+    if codename:
+        from friendly_games.models import PlayerCodename
+        try:
+            player_codename_obj = PlayerCodename.objects.get(codename=codename.upper())
+            player = player_codename_obj.player
+            mp = MatchPlayer.objects.filter(match=match, player=player).select_related('team').first()
+            if mp:
+                my_team = mp.team
+                opponent_team = match.team2 if my_team == match.team1 else match.team1
+        except (PlayerCodename.DoesNotExist, Exception):
+            pass
+    # Priority 2: fall back to team PIN session (non-player sessions, e.g. admin/coach)
+    if my_team is None:
+        team_pin = request.session.get("team_pin")
+        if team_pin:
+            try:
+                team_obj = Team.objects.get(pin=team_pin)
+                if team_obj == match.team1:
+                    my_team = match.team1
+                    opponent_team = match.team2
+                elif team_obj == match.team2:
+                    my_team = match.team2
+                    opponent_team = match.team1
+            except Team.DoesNotExist:
+                pass
+
+    # ---- Activation state ----
+    activations = list(match.activations.all())
+    activated_teams = [a.team for a in activations]
+    my_team_activated = my_team in activated_teams if my_team else False
+    opponent_activated = opponent_team in activated_teams if opponent_team else False
+    both_activated = len(activated_teams) >= 2
+
+    # ---- Pre-game countdown (duration is set per-tournament by admin) ----
+    # When both teams activate, match.start_time is set (status becomes active).
+    # We use start_time as the anchor for the pre-game countdown.
+    pregame_seconds_remaining = None
+    pregame_end_epoch = None
+    timer_start_epoch = None   # epoch ms when the MATCH TIMER should start (after pregame)
+    PREGAME_DURATION = (match.tournament.pregame_countdown_minutes or 3) * 60
+    if match.status == 'active' and match.start_time:
+        elapsed = (timezone.now() - match.start_time).total_seconds()
+        remaining = PREGAME_DURATION - elapsed
+        pregame_end_dt = match.start_time + timezone.timedelta(seconds=PREGAME_DURATION)
+        if remaining > 0:
+            pregame_seconds_remaining = int(remaining)
+            pregame_end_epoch = int(pregame_end_dt.timestamp() * 1000)
+        # timer_start_epoch marks when the match timer begins (= end of pre-game window)
+        timer_start_epoch = int(pregame_end_dt.timestamp() * 1000)
+    # ---- Post-countdown redirect URL ----
+    # Priority: live scoreboard (if active) → submit-result page
+    # This is used by the pregame countdown JS to know where to send the player
+    # after the "Find Your Court" window ends.
+    submit_url = None
+    if my_team:
+        # Check if a live scoreboard exists for this match
+        _scoreboard_url = None
+        try:
+            from matches.models import LiveScoreboard as _LS
+            _sb = _LS.objects.get(tournament_match=match)
+            if _sb.is_active:
+                _scoreboard_url = reverse('scoreboard_detail',
+                                          kwargs={'scoreboard_id': _sb.id})
+        except Exception:
+            pass
+        # Use scoreboard URL if available, otherwise fall back to submit-result
+        submit_url = _scoreboard_url or reverse('match_submit_result',
+                                                 args=[match.id, my_team.id])
+
+    # ---- Result for waiting_validation ----
+    result = None
+    if match.status == 'waiting_validation':
+        try:
+            result = match.result
+        except Exception:
+            pass
+
+        # Auto-redirect the opposing team to the validation page.
+        # The submitting team stays here (waiting state).
+        if result and my_team and result.submitted_by != my_team:
+            return redirect('match_validate_result', match_id=match.id, team_id=my_team.id)
+
     context = {
         "match": match,
-        "team": team_obj, # Pass current team if logged in via PIN
+        "team": my_team,
         "match_players_team1": match_players_team1,
         "match_players_team2": match_players_team2,
+        # Session-bound helpers
+        "my_team": my_team,
+        "opponent_team": opponent_team,
+        "my_team_activated": my_team_activated,
+        "opponent_activated": opponent_activated,
+        "both_activated": both_activated,
+        "activated_teams": activated_teams,
+        # Pre-game countdown
+        "pregame_seconds_remaining": pregame_seconds_remaining,
+        "pregame_end_epoch": pregame_end_epoch,
+        "timer_start_epoch": timer_start_epoch,
+        "PREGAME_DURATION": PREGAME_DURATION,
+        "submit_url": submit_url,
+        # Result
+        "result": result,
     }
     return render(request, "matches/match_detail.html", context)
 
@@ -196,10 +294,36 @@ def match_activate(request, match_id, team_id):
     match = get_object_or_404(Match, id=match_id)
     team = get_object_or_404(Team, id=team_id)
     tournament = match.tournament
-
     if team != match.team1 and team != match.team2:
         messages.error(request, "This team is not part of this match.")
         return redirect("match_detail", match_id=match.id)
+    # ── Session-bound authority check (match-context aware) ────────────────
+    # Priority 1: resolve from player codename → MatchPlayer → match team
+    # This handles Mêlée players whose session team PIN is their original team.
+    session_team = None
+    codename = request.session.get('player_codename')
+    if codename:
+        from friendly_games.models import PlayerCodename as PC
+        try:
+            pc = PC.objects.get(codename=codename.upper())
+            mp = MatchPlayer.objects.filter(match=match, player=pc.player).select_related('team').first()
+            if mp:
+                session_team = mp.team
+        except Exception:
+            pass
+    # Priority 2: fall back to team PIN session
+    if session_team is None:
+        session_pin = request.session.get("team_pin")
+        if session_pin:
+            try:
+                session_team = Team.objects.get(pin=session_pin)
+            except Team.DoesNotExist:
+                pass
+    # Enforce: if a session team is known, the URL team_id must match it
+    if session_team is not None and session_team != team:
+        messages.error(request, "You are not authorised to act on behalf of this team.")
+        return redirect("match_detail", match_id=match.id)
+    # ───────────────────────────────────────────────────────────────
 
     existing_activation = match.activations.order_by("activated_at").first()
     is_initiating = not existing_activation
@@ -330,6 +454,7 @@ def match_activate(request, match_id, team_id):
             if is_initiating:
                 match.status = "pending_verification"
                 match.save()
+                notify_match_state_changed(match.id, match.status)
                 messages.success(request, "Match initiated successfully. Waiting for the other team to validate.")
                 return redirect("match_detail", match_id=match.id)
             elif is_validating: 
@@ -343,6 +468,7 @@ def match_activate(request, match_id, team_id):
                     match.start_time = timezone.now()
                     match.waiting_for_court = False
                     match.save()
+                    notify_match_state_changed(match.id, match.status)
                     
                     # Auto-register players to Billboard
                     auto_register_players_to_billboard(match)
@@ -371,6 +497,39 @@ def match_activate(request, match_id, team_id):
         first_team_match_players_qs = MatchPlayer.objects.filter(match=match, team=first_activating_team)
         first_team_match_players = [mp.player for mp in first_team_match_players_qs]
 
+    # ---- Smart preselection logic ----
+    # Determine required player count from tournament format
+    required_count = None
+    if tournament:
+        allowed = (tournament.allowed_match_types or {}).get('allowed_match_types', [])
+        if len(allowed) == 1:
+            type_map = {'doublet': 2, 'triplet': 3, 'tete_a_tete': 1}
+            required_count = type_map.get(allowed[0])
+        elif not allowed:
+            # Fall back to play_format flags
+            if tournament.has_triplets and not tournament.has_doublets:
+                required_count = 3
+            elif tournament.has_doublets and not tournament.has_triplets:
+                required_count = 2
+            elif tournament.melee_format == 'doublets':
+                required_count = 2
+            elif tournament.melee_format == 'triplets':
+                required_count = 3
+
+    # Collect team players with their preferred positions
+    team_players_qs = Player.objects.filter(team=team).select_related('profile')
+    team_players_with_pos = []
+    for p in team_players_qs:
+        try:
+            pos = p.profile.preferred_position or 'milieu'
+        except Exception:
+            pos = 'milieu'
+        team_players_with_pos.append({'player': p, 'preferred_position': pos})
+
+    team_size = len(team_players_with_pos)
+    # Auto-preselect only when format is defined AND team size == required count
+    auto_preselect = (required_count is not None) and (team_size == required_count)
+
     context = {
         "match": match,
         "team": team,
@@ -378,31 +537,80 @@ def match_activate(request, match_id, team_id):
         "is_initiating": is_initiating,
         "is_validating": is_validating,
         "first_team_match_players": first_team_match_players,
+        # Smart activation helpers
+        "team_pin": team.pin,
+        "team_players_with_pos": team_players_with_pos,
+        "auto_preselect": auto_preselect,
+        "required_count": required_count,
+        "pos_choices": [
+            ('pointer', 'Pointer'),
+            ('milieu', 'Milieu'),
+            ('tirer', 'Shooter'),
+        ],
     }
     return render(request, "matches/match_activate.html", context)
 
 def match_submit_result(request, match_id, team_id):
     match = get_object_or_404(Match, id=match_id)
     team = get_object_or_404(Team, id=team_id)
-
     if team != match.team1 and team != match.team2:
         messages.error(request, "This team is not part of this match.")
         return redirect("match_detail", match_id=match.id)
-
+    # ── Session-bound authority check (match-context aware) ────────────────
+    _session_team = None
+    _codename = request.session.get('player_codename')
+    if _codename:
+        from friendly_games.models import PlayerCodename as PC
+        try:
+            _pc = PC.objects.get(codename=_codename.upper())
+            _mp = MatchPlayer.objects.filter(match=match, player=_pc.player).select_related('team').first()
+            if _mp:
+                _session_team = _mp.team
+        except Exception:
+            pass
+    if _session_team is None:
+        _session_pin = request.session.get("team_pin")
+        if _session_pin:
+            try:
+                _session_team = Team.objects.get(pin=_session_pin)
+            except Team.DoesNotExist:
+                pass
+    if _session_team is not None and _session_team != team:
+        messages.error(request, "You are not authorised to submit results for this team.")
+        return redirect("match_detail", match_id=match.id)
+    # ───────────────────────────────────────────────────────────────
     if match.status != "active":
-        messages.error(request, "Results can only be submitted for active matches.")
+        # Not active — redirect silently
         return redirect("match_detail", match_id=match.id)
 
     try:
         existing_result = match.result
         if match.status == "waiting_validation":
-             messages.info(request, "Results already submitted. Waiting for validation.")
-             return redirect("match_detail", match_id=match.id)
+            # Already submitted — redirect silently, match_detail shows waiting state
+            return redirect("match_detail", match_id=match.id)
     except MatchResult.DoesNotExist:
         pass
 
+    # ── Live-score pre-fill ─────────────────────────────────────────────────
+    # When a live scoreboard exists for this match, use its scores as the
+    # default values for the submit form (same behaviour as friendly games).
+    # The live score is purely a hint — the user can still edit before submitting.
+    live_score_team1 = None
+    live_score_team2 = None
+    try:
+        from matches.models import LiveScoreboard as _LS
+        _sb = _LS.objects.get(tournament_match=match)
+        live_score_team1 = _sb.team1_score
+        live_score_team2 = _sb.team2_score
+    except Exception:
+        pass
+    # ────────────────────────────────────────────────────────────────────────
+
     if request.method == "POST":
-        form = MatchResultForm(match, team, request.POST, request.FILES)
+        # Inject team PIN silently so user never needs to type it
+        post_data = request.POST.copy()
+        post_data["pin"] = team.pin
+        form = MatchResultForm(match, team, post_data, request.FILES)
         if form.is_valid():
             try:
                 old_result = match.result
@@ -421,43 +629,74 @@ def match_submit_result(request, match_id, team_id):
             match.team2_score = form.cleaned_data["team2_score"]
             match.status = "waiting_validation"
             match.save()
+            notify_match_state_changed(match.id, match.status)
 
-            messages.success(request, "Results submitted successfully. Waiting for validation from the other team.")
+            # Submitting team returns to match_detail (waiting state)
+            # The opposing team navigates to validation themselves
             return redirect("match_detail", match_id=match.id)
     else:
         form = MatchResultForm(match, team)
+        # Override initial values with live scoreboard scores if available
+        if live_score_team1 is not None:
+            form.fields["team1_score"].initial = live_score_team1
+        if live_score_team2 is not None:
+            form.fields["team2_score"].initial = live_score_team2
 
     context = {
         "match": match,
         "team": team,
         "form": form,
+        "live_score_team1": live_score_team1,
+        "live_score_team2": live_score_team2,
     }
     return render(request, "matches/match_submit_result.html", context)
 
 def match_validate_result(request, match_id, team_id):
     match = get_object_or_404(Match, id=match_id)
     team = get_object_or_404(Team, id=team_id)
-
     if team != match.team1 and team != match.team2:
         messages.error(request, "This team is not part of this match.")
         return redirect("match_detail", match_id=match.id)
-
+    # ── Session-bound authority check (match-context aware) ────────────────
+    _session_team_v = None
+    _codename_v = request.session.get('player_codename')
+    if _codename_v:
+        from friendly_games.models import PlayerCodename as PC
+        try:
+            _pc_v = PC.objects.get(codename=_codename_v.upper())
+            _mp_v = MatchPlayer.objects.filter(match=match, player=_pc_v.player).select_related('team').first()
+            if _mp_v:
+                _session_team_v = _mp_v.team
+        except Exception:
+            pass
+    if _session_team_v is None:
+        _session_pin_v = request.session.get("team_pin")
+        if _session_pin_v:
+            try:
+                _session_team_v = Team.objects.get(pin=_session_pin_v)
+            except Team.DoesNotExist:
+                pass
+    if _session_team_v is not None and _session_team_v != team:
+        messages.error(request, "You are not authorised to validate results for this team.")
+        return redirect("match_detail", match_id=match.id)
+    # ───────────────────────────────────────────────────────────────
     if match.status != "waiting_validation":
-        messages.error(request, "This match is not waiting for validation.")
         return redirect("match_detail", match_id=match.id)
 
     try:
         result = match.result
     except MatchResult.DoesNotExist:
-        messages.error(request, "No results have been submitted for this match.")
         return redirect("match_detail", match_id=match.id)
 
     if result.submitted_by == team:
-        messages.error(request, "You cannot validate your own result submission.")
+        # Self-validation silently blocked — match_detail shows waiting state
         return redirect("match_detail", match_id=match.id)
 
     if request.method == "POST":
-        form = MatchValidationForm(match, team, request.POST)
+        # Inject team PIN silently so user never needs to type it
+        post_data = request.POST.copy()
+        post_data["pin"] = team.pin
+        form = MatchValidationForm(match, team, post_data)
         if form.is_valid():
             validation_action = form.cleaned_data["validation_action"]
 
@@ -481,6 +720,7 @@ def match_validate_result(request, match_id, team_id):
                     match.winner = None
                     match.loser = None
                 match.save()
+                notify_match_state_changed(match.id, match.status)  # completed
                 
                 # ===== AUTO-SHUFFLE CHECK =====
                 # Check if we should automatically shuffle players after round completion
@@ -597,16 +837,17 @@ def match_validate_result(request, match_id, team_id):
                         match.court.is_available = True
                         match.court.save(update_fields=["is_available"])
                         logger.info(f"Court {match.court.name} marked as available - no matches waiting") 
-                messages.success(request, "Results validated and match completed.")
+                # Redirect silently — match_detail UI communicates completed state
                 return redirect("match_detail", match_id=match.id)
-            
+
             elif validation_action == "disagree":
-                result.delete() # Delete the submitted result
-                match.status = "active" # Revert match to active for resubmission
+                result.delete()  # Delete the submitted result
+                match.status = "active"  # Revert match to active for resubmission
                 match.team1_score = None
                 match.team2_score = None
                 match.save()
-                messages.warning(request, "Results disagreed. The match is now active again for resubmission of scores.")
+                notify_match_state_changed(match.id, match.status)
+                # Redirect silently — match_detail UI communicates active state
                 return redirect("match_detail", match_id=match.id)
     else:
         form = MatchValidationForm(match, team)
@@ -618,3 +859,67 @@ def match_validate_result(request, match_id, team_id):
         "form": form,
     }
     return render(request, "matches/match_validate_result.html", context)
+
+
+# ── Polling endpoint ────────────# ── Polling endpoint ────────────────────────────────────────────
+from django.http import JsonResponse as _JsonResponse
+
+def match_status_api(request, match_id):
+    """
+    Session-aware polling endpoint for match_detail.html.
+    Returns routing information for the current session user so the
+    polling JS can redirect the opposing team to validation automatically.
+    """
+    try:
+        match = Match.objects.select_related('team1', 'team2').get(id=match_id)
+    except Match.DoesNotExist:
+        return _JsonResponse({'error': 'not found'}, status=404)
+
+    payload = {
+        'status': match.status,
+        'current_user_team': None,
+        'submitted_by_team': None,
+        'should_redirect_to_validation': False,
+        'validation_url': None,
+    }
+
+    if match.status != 'waiting_validation':
+        return _JsonResponse(payload)
+
+    # Resolve submitted_by team
+    submitted_by_team = None
+    try:
+        submitted_by_team = match.result.submitted_by
+        payload['submitted_by_team'] = submitted_by_team.id if submitted_by_team else None
+    except Exception:
+        pass
+
+    # Resolve current session user's team in this match
+    my_team = None
+    codename = request.session.get('player_codename')
+    if codename:
+        try:
+            pc = PlayerCodename.objects.get(codename=codename.upper())
+            mp = MatchPlayer.objects.filter(match=match, player=pc.player).select_related('team').first()
+            if mp:
+                my_team = mp.team
+        except Exception:
+            pass
+    if my_team is None:
+        team_pin = request.session.get('team_pin')
+        if team_pin:
+            try:
+                t = Team.objects.get(pin=team_pin)
+                if t in (match.team1, match.team2):
+                    my_team = t
+            except Team.DoesNotExist:
+                pass
+
+    if my_team:
+        payload['current_user_team'] = my_team.id
+        # Opposing team should redirect; submitting team stays
+        if submitted_by_team and my_team != submitted_by_team:
+            payload['should_redirect_to_validation'] = True
+            payload['validation_url'] = reverse('match_validate_result', args=[match.id, my_team.id])
+
+    return _JsonResponse(payload)

@@ -1,5 +1,6 @@
 from django.utils.translation import gettext as _
 import logging
+import random
 from courts.models import Court
 
 logger = logging.getLogger(__name__)
@@ -163,9 +164,10 @@ def auto_assign_court(match):
     if not available_courts.exists():
         logger.info(f"No available courts for match {match.id}")
         return None
-    
-    # Get the first available court
-    available_court = available_courts.first()
+
+    # Pick a random available court (not sequential / join-order)
+    court_list = list(available_courts)
+    available_court = random.choice(court_list)
     
     if available_court:
         # Assign court to match

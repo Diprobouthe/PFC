@@ -13,11 +13,32 @@ class PlayerCodenameAdmin(admin.ModelAdmin):
 
 @admin.register(FriendlyGame)
 class FriendlyGameAdmin(admin.ModelAdmin):
-    list_display = ['name', 'match_number', 'status', 'validation_status', 'created_at', 'completed_at']
-    list_filter = ['status', 'validation_status', 'created_at']
+    list_display = [
+        'name', 'match_number', 'status', 'validation_status',
+        'court_complex', 'court', 'is_timed', 'time_limit_minutes',
+        'created_at', 'completed_at',
+    ]
+    list_filter = ['status', 'validation_status', 'is_timed', 'court_complex', 'created_at']
     search_fields = ['name', 'match_number', 'game_pin']
-    readonly_fields = ['created_at', 'started_at', 'completed_at']
+    readonly_fields = ['created_at', 'started_at', 'completed_at', 'timer_started_at']
     ordering = ['-created_at']
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'match_number', 'game_pin', 'status', 'validation_status'),
+        }),
+        ('Court', {
+            'fields': ('court_complex', 'court'),
+        }),
+        ('Timed Game', {
+            'fields': ('is_timed', 'time_limit_minutes', 'timer_started_at', 'timer_expired'),
+        }),
+        ('Scores', {
+            'fields': ('target_score', 'black_team_score', 'white_team_score'),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'started_at', 'completed_at', 'expires_at'),
+        }),
+    )
 
 
 @admin.register(FriendlyGamePlayer)

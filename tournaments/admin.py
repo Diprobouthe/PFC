@@ -11,6 +11,7 @@ from .admin_helpers import (
 )
 from .admin_actions import complete_and_assign_badges, reset_automation_status
 from .admin_shuffle import shuffle_melee_players_action
+from .admin_melee_swap import MeleePlayerSwapAdminMixin
 
 # --- Inlines --- 
 
@@ -95,9 +96,9 @@ class TournamentAdmin(admin.ModelAdmin):
             "description": "Configure advertisement banner for tournament overview page"
         }),
         ("Match Timer Configuration", {
-            "fields": ("default_time_limit_minutes",),
+            "fields": ("default_time_limit_minutes", "pregame_countdown_minutes"),
             "classes": ("collapse",),
-            "description": "Set default time limit for all matches in this tournament. Timer starts when both teams activate the match."
+            "description": "Set default time limit for all matches in this tournament. Timer starts when both teams activate the match. 'Pre-game countdown' controls the 'Find Your Court' window shown immediately after both teams activate."
         }),
     )
     actions = [
@@ -433,14 +434,16 @@ class TournamentTeamAdmin(admin.ModelAdmin):
 
 
 @admin.register(MeleePlayer)
-class MeleePlayerAdmin(admin.ModelAdmin):
-    list_display = ("player", "tournament", "registered_at", "assigned_team")
+class MeleePlayerAdmin(MeleePlayerSwapAdminMixin, admin.ModelAdmin):
+    list_display = ("player", "tournament", "registered_at", "assigned_team", "original_team", "swap_button")
     list_filter = ("tournament", "registered_at", "assigned_team")
     search_fields = ("player__name", "tournament__name", "assigned_team__name")
     readonly_fields = ("registered_at",)
     autocomplete_fields = ["player", "tournament", "assigned_team"]
     ordering = ("tournament", "registered_at")
-    
+
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('player', 'tournament', 'assigned_team')
+        return super().get_queryset(request).select_related(
+            'player', 'tournament', 'assigned_team', 'original_team'
+        )
 

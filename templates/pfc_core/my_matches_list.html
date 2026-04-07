@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Active Matches - PFC{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="display-5 mb-2">
+            <i class="fas fa-user-circle text-primary me-3"></i>
+            My Active Matches
+        </h1>
+        <p class="lead text-muted">All your current participations and pending actions</p>
+    </div>
+
+    {% if no_login %}
+        <!-- Not Logged In -->
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Not Logged In:</strong> Please log in with your player codename to see your active matches.
+        </div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickLoginModal">
+            <i class="fas fa-sign-in-alt me-2"></i>Login with Codename
+        </button>
+
+    {% elif no_teams %}
+        <!-- No Teams -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>No Teams:</strong> You're not currently a member of any team.
+        </div>
+        <a href="/" class="btn btn-primary">
+            <i class="fas fa-home me-2"></i>Back to Home
+        </a>
+
+    {% elif not candidates %}
+        <!-- No Active Matches -->
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>All Clear!</strong> You have no pending or active matches at the moment.
+        </div>
+        <div class="mt-4">
+            <a href="/friendly-games/create/" class="btn btn-primary me-2">
+                <i class="fas fa-plus me-2"></i>Create Friendly Game
+            </a>
+            <a href="/tournaments/" class="btn btn-secondary">
+                <i class="fas fa-trophy me-2"></i>View Tournaments
+            </a>
+        </div>
+
+    {% else %}
+        <!-- Matches Found -->
+        <div class="alert alert-primary mb-4">
+            <i class="fas fa-list me-2"></i>
+            <strong>{{ total_count }} Active Item{{ total_count|pluralize:"s" }}</strong> found for {{ player.name }}
+        </div>
+
+        {% for item in candidates %}
+        <div class="card mb-3 {% if item.is_recommended %}border-danger shadow-lg{% else %}shadow-sm{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title mb-1">
+                            {% if item.is_recommended %}
+                                <i class="fas fa-star text-warning me-2"></i>
+                            {% endif %}
+                            {{ item.label }}
+                        </h5>
+                        <span class="badge bg-{% if item.match_type == 'tournament' %}primary{% else %}success{% endif %} me-2">
+                            {{ item.match_type|title }}
+                        </span>
+                    </div>
+                    <div>
+                        <a href="{{ item.url }}" class="btn {% if item.is_recommended %}btn-danger btn-lg{% else %}btn-outline-primary{% endif %}">
+                            {% if item.is_recommended %}
+                                <i class="fas fa-arrow-right me-2"></i>Go Now
+                            {% else %}
+                                Go →
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+    {% endif %}
+
+    <!-- Back Button -->
+    <div class="mt-4">
+        <a href="/" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}
