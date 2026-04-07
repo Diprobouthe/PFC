@@ -82,7 +82,7 @@
     .pfc-cta-btn:active { transform: scale(.95) translateY(1px); }
     .pfc-cta-btn img { height: 52px; width: auto; }
 
-    /* RIGHT: Refresh + Burger — larger touch targets */
+    /* RIGHT: Refresh + Invites + Burger — larger touch targets */
     .pfc-actions {
         display: flex;
         align-items: center;
@@ -105,6 +105,21 @@
         -webkit-tap-highlight-color: transparent;
     }
     .pfc-action-btn:hover { background: rgba(255,255,255,.25); color: #fff; }
+    /* Invite button badge */
+    .pfc-invite-wrap { position: relative; display: inline-flex; }
+    .pfc-invite-badge {
+        display: none;
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 9px;
+        height: 9px;
+        background: #ff5252;
+        border-radius: 50%;
+        border: 1.5px solid #0d47a1;
+        pointer-events: none;
+    }
+    .pfc-invite-badge.has-invites { display: block; }
     .navbar-toggler {
         border: 1.5px solid rgba(255,255,255,.45) !important;
         background: rgba(255,255,255,.12) !important;
@@ -140,12 +155,19 @@
                 <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
             </a>
 
-            <!-- RIGHT: Refresh + Burger only -->
+            <!-- RIGHT: Refresh + Invites + Burger -->
             <div class="pfc-actions">
                 <!-- Refresh -->
                 <button class="pfc-action-btn" onclick="refreshPage()" title="Refresh">
                     <i class="fas fa-sync-alt"></i>
                 </button>
+                <!-- Invitations -->
+                <span class="pfc-invite-wrap">
+                    <a href="{% url 'invites:hub' %}" class="pfc-action-btn" title="Invitations" id="pfc-invite-btn">
+                        <i class="fas fa-envelope"></i>
+                    </a>
+                    <span class="pfc-invite-badge" id="pfc-invite-badge"></span>
+                </span>
                 <!-- Burger -->
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                     <span class="navbar-toggler-icon"></span>
@@ -191,7 +213,7 @@
                         </li>
                     {% endif %}
                     
-                    <!-- Team PIN Authentication Status -->
+                    <!-- Team PIN Authentication Status (session indicator only — no login button) -->
                     <div id="teamNavSection">
                         {% if team_session.is_logged_in %}
                             <li class="nav-item dropdown">
@@ -207,12 +229,6 @@
                                         <i class="fas fa-sign-out-alt me-1"></i>Logout Team
                                     </a></li>
                                 </ul>
-                            </li>
-                        {% else %}
-                            <li class="nav-item">
-                                <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#teamLoginModal">
-                                    <i class="fas fa-users me-1"></i>Team Login
-                                </button>
                             </li>
                         {% endif %}
                     </div>
@@ -310,5 +326,27 @@
     
     <!-- Extra JavaScript Block -->
     {% block extra_js %}{% endblock %}
+
+    <!-- Invite badge: poll /invites/inbox/ for pending count -->
+    <script>
+    (function () {
+        var badge = document.getElementById('pfc-invite-badge');
+        if (!badge) return;
+        function checkInvites() {
+            fetch('/invites/inbox/')
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (data && data.invites && data.invites.length > 0) {
+                        badge.classList.add('has-invites');
+                    } else {
+                        badge.classList.remove('has-invites');
+                    }
+                })
+                .catch(function () {});
+        }
+        checkInvites();
+        setInterval(checkInvites, 30000);
+    })();
+    </script>
 </body>
 </html>

@@ -43,7 +43,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
     'https://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
     'http://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
-    'https://pfc-platform.onrender.com',
+    'https://pfc-e1ce.onrender.com/',
     'http://localhost:8000',
     'https://localhost:8000',
     'http://127.0.0.1:8000',
@@ -53,8 +53,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Session and CSRF cookie settings for sandbox environment
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
-CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
+CSRF_COOKIE_SECURE = True  # Set to True in production with HTTPS
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 X_FRAME_OPTIONS = 'SAMEORIGIN'
@@ -242,10 +242,8 @@ STATICFILES_DIRS = [
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
-# On Render, the persistent disk is mounted at /var/media (set via MEDIA_ROOT env var).
-# Locally falls back to BASE_DIR/media.
-_RENDER_MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "")
-MEDIA_ROOT = Path(_RENDER_MEDIA_ROOT) if _RENDER_MEDIA_ROOT else BASE_DIR / "media"
+MEDIA_ROOT = "/var/media"
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

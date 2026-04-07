@@ -227,11 +227,7 @@ function logoutTeam() {
             // Update navigation
             const teamNavSection = document.getElementById('teamNavSection');
             if (teamNavSection) {
-                teamNavSection.innerHTML = `
-                    <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#teamLoginModal">
-                        <i class="fas fa-users me-1"></i>Team Login
-                    </button>
-                `;
+                teamNavSection.innerHTML = ''; // Team Login button removed from nav
             }
             
             // Clear auto-filled fields
