@@ -1,3 +1,4 @@
+from pfc_core.media_uploads import court_complex_photo_path
 from django.db import models
 
 class Court(models.Model):
@@ -139,7 +140,7 @@ class CourtComplexPhoto(models.Model):
         related_name='photos'
     )
     image = models.ImageField(
-        upload_to='court_complex_photos/', 
+        upload_to=court_complex_photo_path, 
         help_text="Photo of the court complex"
     )
     caption = models.CharField(

@@ -6,75 +6,80 @@ def get_recent_matches_with_participation(player, matches):
     """
     Get recent matches with participation data for a player.
     Returns match data with 'played' flag indicating if player actually participated.
+
+    Player-side detection uses MatchPlayer records (not player.team) so that
+    Melée players who change teams between rounds always get the correct result.
     """
     recent_matches = []
-    
+
+    # Build a map of match_id -> actual team the player was on, using MatchPlayer.
+    # This is the authoritative source for which side the player played.
+    try:
+        from matches.models import MatchPlayer as _MP
+        _mp_map = {
+            mp.match_id: mp.team
+            for mp in _MP.objects.filter(
+                match__in=matches, player=player
+            ).select_related('team')
+        }
+    except Exception:
+        _mp_map = {}
+
+    def _resolve_side(match):
+        """Return (actual_team, opponent_name, team_score, opp_score, won)."""
+        actual_team = _mp_map.get(match.id) or player.team
+        if actual_team == match.team1:
+            t_score = match.team1_score if match.team1_score is not None else 0
+            o_score = match.team2_score if match.team2_score is not None else 0
+            opp_name = match.team2.name if match.team2 else 'Unknown'
+        else:
+            t_score = match.team2_score if match.team2_score is not None else 0
+            o_score = match.team1_score if match.team1_score is not None else 0
+            opp_name = match.team1.name if match.team1 else 'Unknown'
+        won = t_score > o_score
+        return actual_team, opp_name, t_score, o_score, won
+
     try:
         from matches.models_participant import TeamMatchParticipant
-        
+
         for match in matches:
-            # Check if player has participation record for this match
             participation = TeamMatchParticipant.objects.filter(
-                match=match,
-                player=player
+                match=match, player=player
             ).first()
-            
-            # Determine opponent team
-            if match.team1 == player.team:
-                opponent_team = match.team2.name
-                team_score = match.team1_score
-                opponent_score = match.team2_score
-                won = match.winner == match.team1 if match.winner else False
-            else:
-                opponent_team = match.team1.name
-                team_score = match.team2_score
-                opponent_score = match.team1_score
-                won = match.winner == match.team2 if match.winner else False
-            
+
+            actual_team, opp_name, t_score, o_score, won = _resolve_side(match)
+
             match_data = {
                 'date': match.end_time or match.start_time,
-                'opponent_team': opponent_team,
-                'team_score': team_score,
-                'opponent_score': opponent_score,
+                'opponent_team': opp_name,
+                'team_score': t_score,
+                'opponent_score': o_score,
                 'played': participation.played if participation else False,
                 'position': participation.position if participation and participation.played else None,
                 'won': won if participation and participation.played else False,
                 'match_id': match.id,
                 'tournament': match.tournament.name if match.tournament else 'Unknown'
             }
-            
             recent_matches.append(match_data)
-            
+
     except ImportError:
         # Fallback to old method if TeamMatchParticipant doesn't exist yet
         for match in matches:
-            # Determine opponent team
-            if match.team1 == player.team:
-                opponent_team = match.team2.name
-                team_score = match.team1_score
-                opponent_score = match.team2_score
-                won = match.winner == match.team1 if match.winner else False
-            else:
-                opponent_team = match.team1.name
-                team_score = match.team2_score
-                opponent_score = match.team1_score
-                won = match.winner == match.team2 if match.winner else False
-            
-            # Assume all players played (old behavior)
+            actual_team, opp_name, t_score, o_score, won = _resolve_side(match)
+
             match_data = {
                 'date': match.end_time or match.start_time,
-                'opponent_team': opponent_team,
-                'team_score': team_score,
-                'opponent_score': opponent_score,
+                'opponent_team': opp_name,
+                'team_score': t_score,
+                'opponent_score': o_score,
                 'played': True,  # Assume played in old system
                 'position': 'Unknown',
                 'won': won,
                 'match_id': match.id,
                 'tournament': match.tournament.name if match.tournament else 'Unknown'
             }
-            
             recent_matches.append(match_data)
-    
+
     return recent_matches
 
 

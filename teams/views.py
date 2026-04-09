@@ -131,7 +131,11 @@ def team_create(request):
                     if default_storage.exists(profile_picture_path):
                         # Read the temporary file content
                         file_content = default_storage.open(profile_picture_path, 'rb').read()
-                        file_name = os.path.basename(profile_picture_path)
+                        # Determine extension from temp path
+                        import os as _os2
+                        _ext2 = _os2.path.splitext(profile_picture_path)[1].lower() or '.jpg'
+                        # Use deterministic filename: player_<id>.<ext>
+                        clean_name = f"player_{player.pk}{_ext2}"
                         
                         # Create player profile with the image
                         player_profile = PlayerProfile.objects.create(
@@ -140,9 +144,9 @@ def team_create(request):
                             skill_level=1
                         )
                         
-                        # Save the profile picture
+                        # Save the profile picture — upload_to callable sets the folder
                         player_profile.profile_picture.save(
-                            file_name,
+                            clean_name,
                             ContentFile(file_content),
                             save=True
                         )
@@ -430,11 +434,11 @@ def public_player_create(request):
                     from django.conf import settings
                     from django.core.files.storage import default_storage
                     
-                    # Create a unique filename
-                    file_extension = os.path.splitext(profile_picture.name)[1]
-                    temp_filename = f"temp_profile_{uuid.uuid4()}{file_extension}"
-                    
-                    # Save the file temporarily
+                    # Save the file temporarily with a clean UUID name
+                    # (the model's upload_to callable sets the final path)
+                    import os as _os
+                    _ext = _os.path.splitext(profile_picture.name)[1].lower() or '.jpg'
+                    temp_filename = f"{uuid.uuid4().hex}{_ext}"
                     temp_path = default_storage.save(f"temp/{temp_filename}", profile_picture)
                     profile_picture_path = temp_path
                 
@@ -818,7 +822,48 @@ def player_profile(request, player_id):
             team_queries,
             status='completed'  # Only show completed matches
         ).select_related('team1', 'team2', 'tournament', 'round').order_by('-end_time')
-    
+
+    # ---- Player-side detection for result indicators ----
+    # For each match, determine which team the player actually played for
+    # using MatchPlayer records (handles Mêlée players who change teams).
+    # Attach player_team, player_won, player_skull, opponent_name,
+    # player_score, opponent_score to each match object so the template
+    # can render W / L / 💀 correctly without guessing from score position.
+    try:
+        from matches.models import MatchPlayer as _MatchPlayer
+        _mp_map = {
+            mp.match_id: mp.team
+            for mp in _MatchPlayer.objects.filter(
+                match__in=tournament_matches, player=player
+            ).select_related('team')
+        }
+    except Exception:
+        _mp_map = {}
+
+    for match in tournament_matches:
+        # Determine the team the player was actually on in this match
+        actual_team = _mp_map.get(match.id)
+        if actual_team is None:
+            # Fallback: use current team if no MatchPlayer record found
+            actual_team = player.team
+
+        if actual_team == match.team1:
+            p_score = match.team1_score if match.team1_score is not None else 0
+            o_score = match.team2_score if match.team2_score is not None else 0
+            opp_name = match.team2.name if match.team2 else "Unknown"
+        else:
+            p_score = match.team2_score if match.team2_score is not None else 0
+            o_score = match.team1_score if match.team1_score is not None else 0
+            opp_name = match.team1.name if match.team1 else "Unknown"
+
+        match.player_team = actual_team
+        match.player_score = p_score
+        match.opponent_score = o_score
+        match.opponent_name = opp_name
+        match.player_won = p_score > o_score
+        # Skull = player's side scored 0 and lost (absolute defeat)
+        match.player_skull = (p_score == 0 and o_score > 0)
+
     # Get friendly game matches (for Friendly Games tab)
     friendly_matches = []
     try:
@@ -2031,8 +2076,16 @@ def edit_player_profile(request):
         if action == 'update_picture':
             profile_picture = request.FILES.get('profile_picture')
             if profile_picture:
-                player_profile.profile_picture = profile_picture
-                player_profile.save()
+                # Use .save() so the upload_to callable generates the
+                # deterministic path (player_profiles/player_<id>.<ext>)
+                import os as _os3
+                _ext3 = _os3.path.splitext(profile_picture.name)[1].lower() or '.jpg'
+                clean_name = f"player_{player_profile.player_id}{_ext3}"
+                player_profile.profile_picture.save(
+                    clean_name,
+                    profile_picture,
+                    save=True
+                )
                 messages.success(request, 'Profile picture updated!')
             else:
                 messages.info(request, 'No picture selected.')

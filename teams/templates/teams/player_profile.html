@@ -544,47 +544,45 @@ a.mh-card::after {
                     <div class="pp-section-body">
                         <div class="mh-list">
                             {% for match in matches %}
-                            {% if match.winner == player.team %}
+                            {% if match.player_won %}
                                 <a href="{% url 'match_detail' match.id %}" class="mh-card win">
                                     <div class="mh-result win">W</div>
                                     <div class="mh-main">
                                         <div class="mh-opponent">
-                                            <span class="mh-type-badge">T</span>{% if match.team1 == player.team %}{{ match.team2.name }}{% else %}{{ match.team1.name }}{% endif %}
+                                            <span class="mh-type-badge">T</span>{{ match.opponent_name }}
                                         </div>
                                         <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.end_time|date:"M d, Y" }}</div>
                                     </div>
                                     <div class="mh-right">
-                                        <div class="mh-score">{{ match.team1_score }}&ndash;{{ match.team2_score }}</div>
+                                        <div class="mh-score">{{ match.player_score }}&ndash;{{ match.opponent_score }}</div>
                                     </div>
                                 </a>
-                            {% else %}
-                                {% if match.team1_score == 0 or match.team2_score == 0 %}
+                            {% elif match.player_skull %}
                                 <a href="{% url 'match_detail' match.id %}" class="mh-card skull">
                                     <div class="mh-result skull">&#x1F480;</div>
                                     <div class="mh-main">
                                         <div class="mh-opponent">
-                                            <span class="mh-type-badge">T</span>{% if match.team1 == player.team %}{{ match.team2.name }}{% else %}{{ match.team1.name }}{% endif %}
+                                            <span class="mh-type-badge">T</span>{{ match.opponent_name }}
                                         </div>
                                         <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.end_time|date:"M d, Y" }}</div>
                                     </div>
                                     <div class="mh-right">
-                                        <div class="mh-score">{{ match.team1_score }}&ndash;{{ match.team2_score }}</div>
+                                        <div class="mh-score">{{ match.player_score }}&ndash;{{ match.opponent_score }}</div>
                                     </div>
                                 </a>
-                                {% else %}
+                            {% else %}
                                 <a href="{% url 'match_detail' match.id %}" class="mh-card loss">
                                     <div class="mh-result loss">L</div>
                                     <div class="mh-main">
                                         <div class="mh-opponent">
-                                            <span class="mh-type-badge">T</span>{% if match.team1 == player.team %}{{ match.team2.name }}{% else %}{{ match.team1.name }}{% endif %}
+                                            <span class="mh-type-badge">T</span>{{ match.opponent_name }}
                                         </div>
                                         <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.end_time|date:"M d, Y" }}</div>
                                     </div>
                                     <div class="mh-right">
-                                        <div class="mh-score">{{ match.team1_score }}&ndash;{{ match.team2_score }}</div>
+                                        <div class="mh-score">{{ match.player_score }}&ndash;{{ match.opponent_score }}</div>
                                     </div>
                                 </a>
-                                {% endif %}
                             {% endif %}
                             {% endfor %}
 
@@ -676,7 +674,7 @@ a.mh-card::after {
                                     <div class="mh-right"><div class="mh-score">{{ match.team_score }}&ndash;{{ match.opponent_score }}</div></div>
                                 {% if match.match_id %}</a>{% else %}</div>{% endif %}
                                 {% else %}
-                                    {% if match.team_score == 0 or match.opponent_score == 0 %}
+                                    {% if match.team_score == 0 and match.opponent_score > 0 %}
                                     {% if match.match_id %}<a href="{% url 'match_detail' match.match_id %}" class="mh-card skull">{% else %}<div class="mh-card skull">{% endif %}
                                         <div class="mh-result skull">&#x1F480;</div>
                                         <div class="mh-main">

@@ -8,6 +8,11 @@ from django.utils import timezone
 from datetime import datetime
 import json
 from django.core.exceptions import ValidationError
+from pfc_core.media_uploads import (
+    player_profile_picture_path,
+    team_logo_path,
+    team_photo_path,
+)
 from .image_utils import (
     optimize_profile_picture, 
     optimize_team_logo, 
@@ -185,7 +190,7 @@ class PlayerProfile(models.Model):
     
     # Media
     profile_picture = models.ImageField(
-        upload_to='player_profiles/',
+        upload_to=player_profile_picture_path,
         blank=True,
         null=True
     )
@@ -201,18 +206,19 @@ class PlayerProfile(models.Model):
                 raise ValidationError("Profile picture must be smaller than 3MB")
     
     def save(self, *args, **kwargs):
-        """Override save to optimize images"""
-        # Only optimize new uploads, not existing records
+        """Override save to optimize images.
+
+        The upload_to callable (player_profile_picture_path) handles the
+        deterministic folder/filename.  We only need to resize/compress the
+        image content here; the name on the ContentFile is a clean UUID that
+        the callable will replace with player_<id>.<ext>.
+        """
+        # Only optimize new uploads (file object present), not existing records
         if self.profile_picture and hasattr(self.profile_picture, 'file') and not self.pk:
             try:
-                # Optimize the image
                 optimized_image = optimize_profile_picture(self.profile_picture)
-                # Ensure the filename doesn't have nested paths
-                if optimized_image.name:
-                    # Extract just the filename without any path components
-                    import os
-                    filename = os.path.basename(optimized_image.name)
-                    optimized_image.name = filename
+                # optimized_image.name is already a clean UUID-based name from
+                # image_utils.py; the upload_to callable will set the final path.
                 self.profile_picture = optimized_image
             except Exception as e:
                 # If optimization fails, keep original image
@@ -727,13 +733,13 @@ class TeamProfile(models.Model):
     
     # ===== PICTURES =====
     logo_svg = models.FileField(
-        upload_to='team_logos/', 
+        upload_to=team_logo_path, 
         blank=True, 
         null=True,
         help_text="Team logo in SVG format (vector graphics, scalable)"
     )
     team_photo_jpg = models.ImageField(
-        upload_to='team_photos/', 
+        upload_to=team_photo_path, 
         blank=True, 
         null=True,
         help_text="Team photo in JPG format (group photo, team picture)"
@@ -1150,13 +1156,13 @@ class TeamProfile(models.Model):
     
     # ===== PICTURES =====
     logo_svg = models.FileField(
-        upload_to='team_logos/', 
+        upload_to=team_logo_path, 
         blank=True, 
         null=True,
         help_text="Team logo in SVG format (vector graphics, scalable)"
     )
     team_photo_jpg = models.ImageField(
-        upload_to='team_photos/', 
+        upload_to=team_photo_path, 
         blank=True, 
         null=True,
         help_text="Team photo in JPG format (group photo, team picture)"

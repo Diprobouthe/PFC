@@ -1,3 +1,4 @@
+from pfc_core.media_uploads import tournament_banner_path
 from django.db import models
 from teams.models import Team
 from courts.models import Court
@@ -95,7 +96,7 @@ class Tournament(models.Model):
 
     # Advertisement Banner fields
     banner_image = models.ImageField(
-        upload_to='tournament_banners/',
+        upload_to=tournament_banner_path,
         blank=True,
         null=True,
         help_text="Banner image for advertisement (max 2MB, jpg/png/svg)"

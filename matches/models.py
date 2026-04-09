@@ -1,3 +1,4 @@
+from pfc_core.media_uploads import match_evidence_photo_path
 from django.db import models
 from django.utils import timezone
 from courts.models import Court
@@ -242,7 +243,7 @@ class MatchResult(models.Model):
     match = models.OneToOneField(Match, related_name="result", on_delete=models.CASCADE)
     submitted_by = models.ForeignKey("teams.Team", related_name="submitted_results", on_delete=models.CASCADE)
     validated_by = models.ForeignKey("teams.Team", related_name="validated_results", on_delete=models.CASCADE, null=True, blank=True)
-    photo_evidence = models.ImageField(upload_to="match_evidence/", null=True, blank=True)
+    photo_evidence = models.ImageField(upload_to=match_evidence_photo_path, null=True, blank=True)
     notes = models.TextField(blank=True, null=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
     validated_at = models.DateTimeField(null=True, blank=True)

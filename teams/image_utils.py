@@ -67,10 +67,14 @@ def optimize_image(image_file, max_width=800, max_height=600, quality=85, format
         
         output_buffer.seek(0)
         
-        # PRESERVE ORIGINAL FILENAME - this is crucial for display
-        original_name = image_file.name
+        # Use a UUID-based name; the model's upload_to callable
+        # determines the final folder and filename.
+        import uuid as _uuid
+        _, _ext = os.path.splitext(image_file.name)
+        _ext = _ext.lower() if _ext else '.jpg'
+        clean_name = f"{_uuid.uuid4().hex}{_ext}"
         
-        return ContentFile(output_buffer.getvalue(), name=original_name)
+        return ContentFile(output_buffer.getvalue(), name=clean_name)
         
     except Exception as e:
         print(f"Image optimization failed: {e}")

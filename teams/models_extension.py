@@ -1,3 +1,4 @@
+from pfc_core.media_uploads import player_profile_picture_path
 from django.db import models
 from django.conf import settings
 from .models import Player
@@ -51,7 +52,7 @@ class PlayerProfile(models.Model):
     
     # Media
     profile_picture = models.ImageField(
-        upload_to='player_profiles/',
+        upload_to=player_profile_picture_path,
         blank=True,
         null=True
     )

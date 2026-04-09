@@ -39,7 +39,13 @@
         overflow: visible;
     }
 
-    /* LEFT: PFC text — clickable, links to home */
+    /* LEFT GROUP: PFC text + Refresh */
+    .pfc-left-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
     .pfc-brand-link {
         display: flex;
         align-items: center;
@@ -145,22 +151,23 @@
     <nav class="pfc-navbar navbar navbar-expand-lg navbar-dark">
         <div class="container">
 
-            <!-- LEFT: PFC text — clickable, links to home -->
-            <a href="{% url 'home' %}" class="pfc-brand-link" title="Home">
-                <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC">
-            </a>
+            <!-- LEFT: PFC logo + Refresh -->
+            <div class="pfc-left-group">
+                <a href="{% url 'home' %}" class="pfc-brand-link" title="Home">
+                    <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC">
+                </a>
+                <button class="pfc-action-btn" onclick="refreshPage()" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
 
             <!-- CENTRE: Ball icon — PRIMARY ACTION (smart router) -->
             <a href="{% url 'my_active_matches' %}" class="pfc-cta-btn" title="PFC — Go to my match">
                 <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
             </a>
 
-            <!-- RIGHT: Refresh + Invites + Burger -->
+            <!-- RIGHT: Invites + Burger -->
             <div class="pfc-actions">
-                <!-- Refresh -->
-                <button class="pfc-action-btn" onclick="refreshPage()" title="Refresh">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
                 <!-- Invitations -->
                 <span class="pfc-invite-wrap">
                     <a href="{% url 'invites:hub' %}" class="pfc-action-btn" title="Invitations" id="pfc-invite-btn">
