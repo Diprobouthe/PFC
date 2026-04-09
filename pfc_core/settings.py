@@ -262,7 +262,7 @@ MEDIA_URL = "/media/"
 # On Render, the persistent disk is mounted at /var/media (set via MEDIA_ROOT env var).
 # Locally falls back to BASE_DIR/media.
 _RENDER_MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "")
-MEDIA_ROOT = Path(_RENDER_MEDIA_ROOT) if _RENDER_MEDIA_ROOT else BASE_DIR / "media"
+MEDIA_ROOT = Path(_RENDER_MEDIA_ROOT) if _RENDER_MEDIA_ROOT else "/var/media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
