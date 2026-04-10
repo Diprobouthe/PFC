@@ -27,7 +27,7 @@ from django.db.models import Q
 from friendly_games.models import PlayerCodename
 from teams.models import Player
 from courts.models import CourtComplex
-from tournaments.models import Tournament
+from tournaments.models import Tournament, TournamentTeam
 
 from .models import Invitation, TeamBuildSession
 
@@ -289,6 +289,16 @@ def accept_invite(request, token):
         if session.is_ready and session.status == TeamBuildSession.SESSION_OPEN:
             team = session.create_team()
             if team:
+                # Auto-register the new team into the tournament if this is a
+                # tournament build session. get_or_create prevents duplicates.
+                tournament_registered = False
+                if session.is_tournament_type and session.tournament_id:
+                    _, tournament_registered = TournamentTeam.objects.get_or_create(
+                        tournament_id=session.tournament_id,
+                        team=team,
+                        defaults={"is_active": True},
+                    )
+
                 # Notify all accepted players + creator
                 all_pids = list(
                     session.accepted_players.values_list("pk", flat=True)
@@ -298,16 +308,18 @@ def accept_invite(request, token):
                         f"player_{pid}",
                         "session.ready",
                         {
-                            "session_id": session.pk,
-                            "team_id":    team.pk,
-                            "team_name":  team.name,
-                            "team_pin":   team.pin,
+                            "session_id":            session.pk,
+                            "team_id":               team.pk,
+                            "team_name":             team.name,
+                            "team_pin":              team.pin,
+                            "tournament_registered": tournament_registered,
                         },
                     )
-                result["team_created"] = True
-                result["team_id"]      = team.pk
-                result["team_name"]    = team.name
-                result["team_pin"]     = team.pin
+                result["team_created"]          = True
+                result["team_id"]               = team.pk
+                result["team_name"]             = team.name
+                result["team_pin"]              = team.pin
+                result["tournament_registered"] = tournament_registered
 
     return JsonResponse(result)
 

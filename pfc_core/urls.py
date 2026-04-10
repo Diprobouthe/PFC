@@ -1,7 +1,7 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
-from django.conf.urls.static import static
+from django.views.static import serve
 from . import views
 from . import auth_views
 from . import simple_creator
@@ -25,13 +25,13 @@ urlpatterns = [
     path('friendly-games/', include('friendly_games.urls')),  # New parallel friendly games system
     path('billboard/', include('billboard.urls')),  # Billboard module for player activity declarations
     path('invites/', include('invites.urls')),  # Targeted invitation system
-    
+
     # Shot Accuracy Tracker API
     path('api/shoot/', include('shooting.urls')),
-    
+
     # Shooting Practice Module (v0.1)
     path('practice/', include('practice.urls')),
-    
+
     # Simple Tournament Creator
     path('simple/', simple_creator.simple_creator_home, name='simple_creator_home'),
     path('simple/create/', simple_creator.create_simple_tournament, name='create_simple_tournament'),
@@ -41,14 +41,14 @@ urlpatterns = [
     path('simple/courts/', simple_creator.get_available_courts, name='get_available_courts'),
     path('simple/validate-voucher/', simple_creator.validate_voucher, name='validate_voucher'),
     path('simple/cleanup/<int:tournament_id>/', simple_creator.cleanup_empty_mele_teams, name='cleanup_empty_mele_teams'),
-    
+
     # Authentication URLs
     path('player-auth/', include('player_auth.urls')),  # New: Google + Email OTP auth
     path('auth/login/', auth_views.codename_login, name='codename_login'),
     path('auth/logout/', auth_views.codename_logout, name='codename_logout'),
     path('auth/status/', auth_views.codename_status, name='codename_status'),
     path('auth/modal/', auth_views.quick_login_modal, name='quick_login_modal'),
-    
+
     # Team PIN Authentication URLs
     path('auth/team/login/', auth_views.team_pin_login, name='team_pin_login'),
     path('auth/team/logout/', auth_views.team_pin_logout, name='team_pin_logout'),
@@ -57,15 +57,18 @@ urlpatterns = [
     path('auth/team/check/', views.check_team_session, name='check_team_session'),
 ]
 
-# Serve media files during development and production
-if settings.DEBUG or True:  # Force media serving for sandbox/production
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-from django.urls import re_path
-from django.views.static import serve
-from django.conf import settings
-
+# ---------------------------------------------------------------------------
+# Permanent explicit media-serving route.
+# Uses django.views.static.serve directly so media files (player images,
+# team logos, court photos, etc.) are always accessible regardless of the
+# DEBUG setting or deployment environment (including Render production).
+#
+# IMPORTANT: Do NOT replace this with the static(...) helper — that helper
+# is development-only and will not serve files when DEBUG=False.
+# This re_path must remain in all future URL configurations.
+# ---------------------------------------------------------------------------
 urlpatterns += [
-    re_path(r'^media/(?P<path>.*)$', serve, {
-        'document_root': settings.MEDIA_ROOT,
+    re_path(r"^media/(?P<path>.*)$", serve, {
+        "document_root": settings.MEDIA_ROOT,
     }),
 ]

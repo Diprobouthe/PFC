@@ -151,14 +151,11 @@
     <nav class="pfc-navbar navbar navbar-expand-lg navbar-dark">
         <div class="container">
 
-            <!-- LEFT: PFC logo + Refresh -->
+            <!-- LEFT: PFC logo -->
             <div class="pfc-left-group">
                 <a href="{% url 'home' %}" class="pfc-brand-link" title="Home">
                     <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC">
                 </a>
-                <button class="pfc-action-btn" onclick="refreshPage()" title="Refresh">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
             </div>
 
             <!-- CENTRE: Ball icon — PRIMARY ACTION (smart router) -->
@@ -307,26 +304,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Refresh Page Function -->
-    <script>
-        function refreshPage() {
-            // Add a subtle loading indicator
-            const refreshBtn = document.querySelector('button[onclick="refreshPage()"]');
-            if (refreshBtn) {
-                const originalContent = refreshBtn.innerHTML;
-                refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Refreshing...';
-                refreshBtn.disabled = true;
-                
-                // Small delay to show the loading state, then refresh
-                setTimeout(() => {
-                    location.reload();
-                }, 300);
-            } else {
-                // Fallback if button not found
-                location.reload();
-            }
-        }
-    </script>
+
     
     <!-- Team PIN Auto-Fill JavaScript -->
     <script src="{% static 'js/team_pin_autofill.js' %}"></script>
