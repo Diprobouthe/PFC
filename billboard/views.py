@@ -13,7 +13,6 @@ import json
 from .models import BillboardEntry, BillboardResponse, BillboardSettings
 from .forms import BillboardEntryForm, BillboardResponseForm, QuickResponseForm
 from teams.models import Team
-from courts.models import CourtComplex
 
 
 def team_search_api(request):
@@ -164,12 +163,7 @@ class BillboardListView(ListView):
         context['total_at_courts'] = sum(1 + entry.responses.count() for entry in context['at_courts'])
         context['total_going_to_courts'] = sum(1 + entry.responses.count() for entry in context['going_to_courts'])
         context['total_looking_for_match'] = sum(1 + entry.responses.count() for entry in context['looking_for_match'])
-
-        # One-tap UI context
-        context['courts'] = CourtComplex.objects.order_by('name')
-        context['time_slots'] = BillboardEntry.TIME_SLOTS
-        context['session_codename'] = self.request.session.get('player_codename', '')
-
+        
         return context
 
 

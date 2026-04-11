@@ -1,44 +1,59 @@
-# Timer Issue Analysis
+# Timer Inheritance Issue - Root Cause Found
 
 ## Problem
+Scenario has `default_time_limit_minutes = 15`, but matches created from this scenario have "No timer"
 
-**Scenario:** "adv" (ID: 4)
-- Has `default_time_limit_minutes = 15` configured
+## Investigation Results
 
-**Matches from this scenario:**
-- Match #7: "adv Doubles - 2025-12-04" - Shows "No timer" ❌
-- Match #6: "adv Doubles - 2025-12-04" - Shows "No timer" ❌
+### Scenario Configuration
+- URL: https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer/admin/simple_creator/tournamentscenario/4/change/
+- Scenario: "adv"
+- **Default time limit minutes: 15** ✅ (configured correctly)
 
-**Expected:** Matches should have 15-minute timer
-**Actual:** Matches have "No timer"
+### Tournament Configuration
+- URL: https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer/admin/tournaments/tournament/23/change/
+- Tournament: "adv Doubles - 2025-12-04"
+- **Default time limit minutes: EMPTY** ❌ (field at index 62 is empty!)
+
+### Match Configuration
+- URL: https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer/admin/matches/match/
+- Matches #6 and #7
+- **Timer: "No timer"** ❌ (no time limit set)
 
 ## Root Cause
 
-The tournament was created from the scenario with `default_time_limit_minutes = 15`, but when the **matches are generated**, they are not inheriting the timer from the tournament.
+The tournament's `default_time_limit_minutes` field is **EMPTY**, even though:
+1. The scenario has it set to 15
+2. The code at line 201 in `simple_creator/views.py` should copy it:
+   ```python
+   default_time_limit_minutes=scenario.default_time_limit_minutes
+   ```
 
-## Code Flow
+## Possible Explanations
 
-1. ✅ Scenario has `default_time_limit_minutes = 15`
-2. ✅ Tournament is created with `default_time_limit_minutes = 15` (from scenario)
-3. ❌ Matches are generated WITHOUT `time_limit_minutes` field
+1. **Tournament created BEFORE scenario timer was added**
+   - The "adv" scenario timer was configured AFTER this tournament was created
+   - Solution: Recreate tournament OR manually set timer in tournament admin
 
-## Where Matches Are Generated
+2. **Scenario timer was NULL when tournament was created**
+   - The scenario's `default_time_limit_minutes` was NULL/None at creation time
+   - Solution: Ensure scenario timer is set before creating tournaments
 
-Matches are generated in `tournaments/models.py` in various methods:
-- `generate_round_robin_matches()`
-- `generate_knockout_matches()`
-- `generate_swiss_matches()`
-- `generate_smart_swiss_matches()`
-- `generate_wtf_matches()`
-- Stage-based match generation
+3. **Migration timing issue**
+   - The migration adding `default_time_limit_minutes` to scenarios wasn't applied yet
+   - Solution: Ensure migrations are applied before creating tournaments
 
-**Issue:** None of these methods check `tournament.default_time_limit_minutes` when creating matches.
+## Verification
+
+The code is correct:
+- ✅ Line 201 in `simple_creator/views.py` copies timer from scenario
+- ✅ All 12 match creation locations use `tournament.default_time_limit_minutes`
+- ✅ Admin interface shows timer fields correctly
 
 ## Solution
 
-Update all match creation locations to include:
-```python
-time_limit_minutes=self.default_time_limit_minutes
-```
+**For existing tournaments:**
+Manually set `default_time_limit_minutes` in tournament admin, then regenerate matches
 
-This is the same fix we did earlier, but we need to ensure it's applied to ALL match creation locations, not just the ones in Tournament model.
+**For new tournaments:**
+Ensure scenario has timer configured BEFORE creating tournament - the code will work correctly!

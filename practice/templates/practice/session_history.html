@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Practice Session History - Petanque Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+.history-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.session-card {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    border: 1px solid #e9ecef;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.session-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.session-type-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.session-type-shooting {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.session-type-pointing {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.session-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+}
+
+.session-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.filter-section {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+}
+
+.stats-overview {
+    background: linear-gradient(135deg, #3f51b5 0%, #5c6bc0 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.overview-item {
+    text-align: center;
+}
+
+.overview-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.overview-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .session-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .session-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .overview-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    
+    .overview-value {
+        font-size: 2rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="history-container">
+        <!-- Page Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h2 mb-2">
+                    <i class="fas fa-history me-2"></i>Practice Session History
+                </h1>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-user me-1"></i>{{ player_name|default:session_codename }}
+                </p>
+            </div>
+            <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Practice
+            </a>
+        </div>
+
+        <!-- Overall Statistics -->
+        <div class="stats-overview">
+            <h3 class="mb-1">Your Practice Journey</h3>
+            <p class="mb-0 opacity-75">Track your progress over time</p>
+            <div class="overview-grid">
+                <div class="overview-item">
+                    <div class="overview-value">{{ total_sessions }}</div>
+                    <div class="overview-label">Total Sessions</div>
+                </div>
+                <div class="overview-item">
+                    <div class="overview-value">
+                        {{ sessions|length|add:"0" }}
+                    </div>
+                    <div class="overview-label">Completed</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sessions List -->
+        {% if sessions %}
+            <div class="mb-3">
+                <h5 class="text-muted">
+                    <i class="fas fa-list me-2"></i>All Sessions ({{ total_sessions }})
+                </h5>
+            </div>
+
+            {% for item in sessions %}
+                {% with session=item.session summary=item.summary %}
+                <div class="session-card">
+                    <div class="session-header">
+                        <div>
+                            <span class="session-type-badge session-type-{{ session.practice_type }}">
+                                {% if session.practice_type == 'shooting' %}
+                                    <i class="fas fa-bullseye me-1"></i>Shooting Practice
+                                {% else %}
+                                    <i class="fas fa-dot-circle me-1"></i>Pointing Practice
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>{{ session.started_at|date:"M d, Y" }}
+                            <i class="fas fa-clock ms-2 me-1"></i>{{ session.started_at|time:"H:i" }}
+                        </div>
+                    </div>
+
+                    <div class="session-stats">
+                        <div class="stat-item">
+                            <div class="stat-value text-primary">{{ summary.total_shots }}</div>
+                            <div class="stat-label">Total Shots</div>
+                        </div>
+                        
+                        {% if session.practice_type == 'shooting' %}
+                            <div class="stat-item">
+                                <div class="stat-value text-success">{{ summary.hit_percentage }}%</div>
+                                <div class="stat-label">Hit Rate</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value text-warning">{{ summary.carreau_percentage }}%</div>
+                                <div class="stat-label">Carreau Rate</div>
+                            </div>
+                        {% else %}
+                            <div class="stat-item">
+                                <div class="stat-value text-success">{{ session.perfect_percentage|floatformat:0 }}%</div>
+                                <div class="stat-label">Perfect Rate</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value text-info">{{ session.good_percentage|floatformat:0 }}%</div>
+                                <div class="stat-label">Good Rate</div>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="stat-item">
+                            <div class="stat-value text-danger">{{ summary.longest_streak }}</div>
+                            <div class="stat-label">Best Streak</div>
+                        </div>
+                        
+                        <div class="stat-item">
+                            <div class="stat-value text-muted">{{ summary.duration }}</div>
+                            <div class="stat-label">Duration</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                        <div class="text-muted small">
+                            <i class="fas fa-ruler me-1"></i>Distance: {{ session.distance }}
+                            {% if session.sequence_tracking %}
+                                <i class="fas fa-sort-numeric-down ms-3 me-1"></i>Sequence: ON
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'practice:session_summary' session.id %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-chart-line me-1"></i>View Details
+                        </a>
+                    </div>
+                </div>
+                {% endwith %}
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No Practice Sessions Yet</h4>
+                <p class="text-muted mb-4">Start your first practice session to track your progress!</p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary">
+                        <i class="fas fa-bullseye me-2"></i>Start Shooting Practice
+                    </a>
+                    <a href="{% url 'practice:pointing_practice' %}" class="btn btn-success">
+                        <i class="fas fa-dot-circle me-2"></i>Start Pointing Practice
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
