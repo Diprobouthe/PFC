@@ -1,44 +1,38 @@
-# Timer Issue Analysis
+# Timer Not Transferred from Scenario to Tournament - CONFIRMED
 
-## Problem
+## Evidence
 
-**Scenario:** "adv" (ID: 4)
-- Has `default_time_limit_minutes = 15` configured
+### Scenario #5 (advt3)
+- URL: https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer/admin/simple_creator/tournamentscenario/5/change/
+- **Default time limit minutes: 15** ✅ (index 63, visible in screenshot)
 
-**Matches from this scenario:**
-- Match #7: "adv Doubles - 2025-12-04" - Shows "No timer" ❌
-- Match #6: "adv Doubles - 2025-12-04" - Shows "No timer" ❌
+### Tournament #26 (advt3 Doubles - 2025-12-04)
+- URL: https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer/admin/tournaments/tournament/26/change/
+- **Default time limit minutes: EMPTY** ❌ (index 67, empty input field)
 
-**Expected:** Matches should have 15-minute timer
-**Actual:** Matches have "No timer"
+## Problem Confirmed
 
-## Root Cause
+The scenario has `default_time_limit_minutes = 15`, but the tournament created from it has `default_time_limit_minutes = None/NULL`.
 
-The tournament was created from the scenario with `default_time_limit_minutes = 15`, but when the **matches are generated**, they are not inheriting the timer from the tournament.
+## Code Review
 
-## Code Flow
+The code in `simple_creator/views.py` line 201 should be copying the timer:
 
-1. ✅ Scenario has `default_time_limit_minutes = 15`
-2. ✅ Tournament is created with `default_time_limit_minutes = 15` (from scenario)
-3. ❌ Matches are generated WITHOUT `time_limit_minutes` field
-
-## Where Matches Are Generated
-
-Matches are generated in `tournaments/models.py` in various methods:
-- `generate_round_robin_matches()`
-- `generate_knockout_matches()`
-- `generate_swiss_matches()`
-- `generate_smart_swiss_matches()`
-- `generate_wtf_matches()`
-- Stage-based match generation
-
-**Issue:** None of these methods check `tournament.default_time_limit_minutes` when creating matches.
-
-## Solution
-
-Update all match creation locations to include:
 ```python
-time_limit_minutes=self.default_time_limit_minutes
+tournament = Tournament.objects.create(
+    ...
+    default_time_limit_minutes=scenario.default_time_limit_minutes  # Line 201
+)
 ```
 
-This is the same fix we did earlier, but we need to ensure it's applied to ALL match creation locations, not just the ones in Tournament model.
+## Possible Causes
+
+1. **Migration not applied**: The `default_time_limit_minutes` field might not exist in the database yet
+2. **Field name mismatch**: The scenario model field name might be different
+3. **NULL value**: The scenario's timer might be NULL in the database even though it shows 15 in the admin
+
+## Next Steps
+
+1. Check if migration was applied to add `default_time_limit_minutes` to TournamentScenario model
+2. Verify the field name in the TournamentScenario model
+3. Check the actual database value for scenario #5
