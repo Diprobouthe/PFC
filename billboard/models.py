@@ -173,3 +173,20 @@ from billboard.analytics_models import (
     DailyUsageStats,
     UsageAnalyticsSummary
 )
+
+# Import presence prefs model (must be after BillboardEntry is defined)
+from billboard.presence_prefs import UserPresencePrefs
+
+# ── Post-save signal: update smart defaults whenever an entry is created ──────
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=BillboardEntry)
+def _update_presence_prefs(sender, instance, created, **kwargs):
+    """Keep UserPresencePrefs in sync after every BillboardEntry save."""
+    if created:
+        try:
+            UserPresencePrefs.update_from_entry(instance)
+        except Exception:
+            pass  # Never break the save flow
+
