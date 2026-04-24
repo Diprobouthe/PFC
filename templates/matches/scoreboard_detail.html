@@ -140,6 +140,42 @@
 #toast-msg.toast-ok { background: #198754; color: #fff; }
 #toast-msg.toast-err { background: #dc3545; color: #fff; }
 
+/* ── Court banner ─────────────────────────────────────────────── */
+.court-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #e8f4fd;
+    border: 1px solid #b3d9f7;
+    border-radius: 10px;
+    padding: 7px 14px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0d6efd;
+}
+.court-banner i { font-size: 0.9rem; }
+.court-banner .court-complex {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #6c757d;
+    margin-left: 4px;
+}
+.court-banner-waiting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #fff3cd;
+    border: 1px solid #ffe082;
+    border-radius: 10px;
+    padding: 7px 14px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #664d03;
+}
 /* ── Disclaimer (collapsed) ────────────────────────────────────── */
 .disclaimer-sm {
     font-size: 0.7rem;
@@ -159,6 +195,32 @@
         </span>
         <a href="{% url 'scoreboard_embed' scoreboard.id %}" target="_blank"><i class="fas fa-expand"></i> Full</a>
     </div>
+
+    <!-- Court banner: persistent, always visible -->
+    {% if scoreboard.tournament_match and scoreboard.tournament_match.court %}
+    <div class="court-banner">
+        <i class="fas fa-map-marker-alt"></i>
+        Court <strong>{{ scoreboard.tournament_match.court.number }}</strong>
+        {% if scoreboard.tournament_match.court.name %}&nbsp;&middot;&nbsp;{{ scoreboard.tournament_match.court.name }}{% endif %}
+        {% if scoreboard.tournament_match.court.court_complex %}<span class="court-complex">{{ scoreboard.tournament_match.court.court_complex.name }}</span>{% endif %}
+    </div>
+    {% elif scoreboard.tournament_match and scoreboard.tournament_match.waiting_for_court %}
+    <div class="court-banner-waiting">
+        <i class="fas fa-hourglass-half"></i> Waiting for a court to become available
+    </div>
+    {% elif scoreboard.friendly_game and scoreboard.friendly_game.court %}
+    <div class="court-banner">
+        <i class="fas fa-map-marker-alt"></i>
+        Court <strong>{{ scoreboard.friendly_game.court.number }}</strong>
+        {% if scoreboard.friendly_game.court.name %}&nbsp;&middot;&nbsp;{{ scoreboard.friendly_game.court.name }}{% endif %}
+        {% if scoreboard.friendly_game.court_complex %}<span class="court-complex">{{ scoreboard.friendly_game.court_complex.name }}</span>{% endif %}
+    </div>
+    {% elif scoreboard.friendly_game and scoreboard.friendly_game.court_complex %}
+    <div class="court-banner">
+        <i class="fas fa-map-marker-alt"></i>
+        {{ scoreboard.friendly_game.court_complex.name }}
+    </div>
+    {% endif %}
 
     <!-- Timer (friendly timed games only) -->
     {% if scoreboard.friendly_game and scoreboard.friendly_game.is_timed and scoreboard.friendly_game.timer_started_at %}
@@ -350,7 +412,11 @@
                 if (d.success) {
                     syncDisplay(d.team1_score, d.team2_score);
                     showToast('Updated', true);
-                    if (!d.is_active) setTimeout(function(){ location.reload(); }, 1500);
+                    // If scoring ended, update status pill in-place (no reload)
+                    if (!d.is_active) {
+                        var pill = document.querySelector('.status-pill');
+                        if (pill) { pill.textContent = 'Ended'; pill.className = 'status-pill ended'; }
+                    }
                 } else {
                     showToast(d.error || 'Error', false);
                 }
@@ -382,7 +448,7 @@
                     document.getElementById('team1-score-select').value = 0;
                     document.getElementById('team2-score-select').value = 0;
                     showToast('Reset', true);
-                    setTimeout(function(){ location.reload(); }, 1000);
+                    // No reload — WS push will confirm state to all viewers
                 } else {
                     showToast(d.error || 'Error', false);
                 }
@@ -390,6 +456,82 @@
             .catch(function(){ showToast('Network error', false); });
         });
     }
+})();
+
+/* ── WebSocket live-push receiver ───────────────────────────────────
+   Listens for score.updated events pushed by the server when ANY
+   player updates the score.  Updates the live display in-place.
+   The write path (fetch form above) is unchanged.
+------------------------------------------------------------------- */
+(function(){
+    var scoreboardId = {{ scoreboard.id }};
+    var wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
+    var wsUrl = wsScheme + '://' + window.location.host + '/ws/scoreboard/' + scoreboardId + '/';
+
+    var team1El = document.getElementById('team1-score');
+    var team2El = document.getElementById('team2-score');
+    var sel1    = document.getElementById('team1-score-select');
+    var sel2    = document.getElementById('team2-score-select');
+    var pill    = document.querySelector('.status-pill');
+
+    function flashEl(el) {
+        if (!el) return;
+        el.style.transition = 'color 0.15s';
+        el.style.color = '#ffc107';
+        setTimeout(function(){ el.style.color = ''; }, 600);
+    }
+
+    var retryDelay = 2000;
+
+    function connect() {
+        var ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() { retryDelay = 2000; };
+
+        ws.onmessage = function(e) {
+            var data;
+            try { data = JSON.parse(e.data); } catch(ex) { return; }
+            if (data.type !== 'score.updated') return;
+
+            var newT1 = data.team1_score;
+            var newT2 = data.team2_score;
+
+            // Update live display
+            if (team1El && parseInt(team1El.textContent) !== newT1) {
+                team1El.textContent = newT1;
+                flashEl(team1El);
+            }
+            if (team2El && parseInt(team2El.textContent) !== newT2) {
+                team2El.textContent = newT2;
+                flashEl(team2El);
+            }
+
+            // Keep score-wheel selects in sync so the next submit
+            // starts from the current server value
+            if (sel1) sel1.value = newT1;
+            if (sel2) sel2.value = newT2;
+
+            // Update status pill
+            if (pill) {
+                if (data.is_active) {
+                    pill.textContent = 'Live';
+                    pill.className = 'status-pill live';
+                } else {
+                    pill.textContent = 'Ended';
+                    pill.className = 'status-pill ended';
+                }
+            }
+        };
+
+        ws.onclose = function() {
+            setTimeout(connect, retryDelay);
+            retryDelay = Math.min(retryDelay * 2, 30000);
+        };
+
+        ws.onerror = function() { ws.close(); };
+    }
+
+    connect();
 })();
 </script>
 {% endblock %}

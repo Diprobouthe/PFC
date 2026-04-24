@@ -260,11 +260,7 @@
         LIVE TOURNAMENT
     </div>
     
-    <!-- Auto-refresh Info -->
-    <div class="refresh-info">
-        <i class="fas fa-sync-alt me-2"></i>
-        Auto-refresh: 15s
-    </div>
+    <!-- Live indicator only — no auto-refresh countdown needed -->
     
     <!-- Tournament Header -->
     <div class="tournament-header">
@@ -418,33 +414,9 @@
             });
         });
         
-        // Auto-refresh every 15 seconds
-        setInterval(function() {
-            // Store current scores before refresh
-            const currentScores = {};
-            const scoreElements = document.querySelectorAll('[data-match-id]');
-            scoreElements.forEach(element => {
-                const matchId = element.getAttribute('data-match-id');
-                const team = element.getAttribute('data-team');
-                const key = `${matchId}-${team}`;
-                currentScores[key] = parseInt(element.textContent) || 0;
-            });
-            
-            // Reload page
-            location.reload();
-        }, 15000);
-        
-        // Add visual feedback for page refresh
-        let refreshCounter = 15;
-        const refreshInfo = document.querySelector('.refresh-info');
-        
-        setInterval(function() {
-            refreshCounter--;
-            if (refreshCounter <= 0) {
-                refreshCounter = 15;
-            }
-            refreshInfo.innerHTML = `<i class="fas fa-sync-alt me-2"></i>Auto-refresh: ${refreshCounter}s`;
-        }, 1000);
+        // Polling removed — tournament_overview is a spectator display.
+        // Score updates are pushed via WebSocket when match state changes.
+        // No client-side reload needed.
         
         // Timer countdowns for timed matches
         (function initTimers() {

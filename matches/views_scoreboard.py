@@ -15,8 +15,30 @@ import logging
 
 from .models import LiveScoreboard, ScoreUpdate, ScorekeeperRating
 from friendly_games.models import PlayerCodename
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 logger = logging.getLogger(__name__)
+
+
+def _broadcast_score(scoreboard):
+    """Push a score.updated event to all clients watching this scoreboard."""
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+    group = f"scoreboard_{scoreboard.id}"
+    payload = {
+        "type": "score_updated",   # maps to score_updated() handler in consumer
+        "scoreboard_id": scoreboard.id,
+        "team1_score": scoreboard.team1_score,
+        "team2_score": scoreboard.team2_score,
+        "last_updated_by": scoreboard.last_updated_by or "",
+        "is_active": scoreboard.is_active,
+    }
+    try:
+        async_to_sync(channel_layer.group_send)(group, payload)
+    except Exception as exc:
+        logger.warning("score broadcast failed for scoreboard %s: %s", scoreboard.id, exc)
 
 
 def live_scores_list(request):
@@ -190,7 +212,10 @@ def update_scoreboard(request, scoreboard_id):
         # Inform players when a score reaches 13 (game likely complete)
         if team1_score >= 13 or team2_score >= 13:
             response_data['message'] = 'Score reached 13 — ready to submit final result.'
-        
+
+        # Broadcast updated score to all spectators and players watching this scoreboard
+        _broadcast_score(scoreboard)
+
         return JsonResponse(response_data)
         
     except ValueError as e:
@@ -237,6 +262,9 @@ def reset_scoreboard(request, scoreboard_id):
             update_type='reset'
         )
         
+        # Broadcast reset to all spectators and players watching this scoreboard
+        _broadcast_score(scoreboard)
+
         return JsonResponse({
             'success': True,
             'team1_score': 0,

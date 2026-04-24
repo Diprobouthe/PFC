@@ -199,9 +199,6 @@
         
         // Auto-refresh player list every 30 seconds if tournament not started
         {% if not is_started %}
-        setInterval(function() {
-            location.reload();
-        }, 30000);
         {% endif %}
     </script>
 </body>

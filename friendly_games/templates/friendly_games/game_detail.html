@@ -483,64 +483,40 @@ function copyCode() {
 {% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_id="friendly" timer_sound=True %}
 {% endif %}
 
-// ── WebSocket-based PFC state listener ──────────────────────────
-// Subscribes to live game events via WebSocket.
-// On any state-change event, calls /my-matches/next-url/ (the PFC
-// decision engine) and redirects if the correct destination changed.
-// Falls back to polling if WebSocket is unavailable.
-{% if game.status == 'ACTIVE' or game.status == 'PENDING_VALIDATION' or game.status == 'READY' %}
-(function() {
-    const GAME_ID     = {{ game.id }};
-    const NEXT_URL_API = '/my-matches/next-url/';
-    const CURRENT_PATH = window.location.pathname;
-    let _redirecting = false;
-    let _pollFallback = null;
+// ── WebSocket-based PFC state listener (server-authoritative) ───────
+    // The server pushes next_url in the payload.  No polling, no fetch.
+    {% if game.status == 'ACTIVE' or game.status == 'PENDING_VALIDATION' or game.status == 'READY' %}
+    (function() {
+        const GAME_ID     = {{ game.id }};
+        const CURRENT_PATH = window.location.pathname;
+        let _redirecting = false;
 
-    function evaluateAndRedirect() {
-        if (_redirecting) return;
-        fetch(NEXT_URL_API, {credentials: 'same-origin'})
-            .then(r => r.json())
-            .then(data => {
-                if (!data.authenticated || !data.next_url) return;
-                if (data.next_url !== CURRENT_PATH) {
-                    _redirecting = true;
-                    if (_pollFallback) clearInterval(_pollFallback);
-                    window.location.href = data.next_url;
-                }
-            })
-            .catch(() => {});
-    }
-
-    // Prefer WebSocket
-    const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
-    const wsUrl = wsScheme + '://' + window.location.host + '/ws/game/' + GAME_ID + '/';
-    let ws;
-    try {
-        ws = new WebSocket(wsUrl);
-        ws.onmessage = function(e) {
-            try {
-                const data = JSON.parse(e.data);
-                if (data.type === 'match.state_changed') evaluateAndRedirect();
-            } catch(err) {}
-        };
-        ws.onerror = function() {
-            if (!_pollFallback) _pollFallback = setInterval(evaluateAndRedirect, 3000);
-        };
-        ws.onclose = function() {
-            if (!_redirecting && !_pollFallback)
-                _pollFallback = setInterval(evaluateAndRedirect, 3000);
-        };
-    } catch(e) {
-        _pollFallback = setInterval(evaluateAndRedirect, 3000);
-    }
-
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            if (_pollFallback) { clearInterval(_pollFallback); _pollFallback = null; }
-            if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+        function handleStateChange(data) {
+            if (_redirecting) return;
+            if (data.next_url && data.next_url !== CURRENT_PATH) {
+                _redirecting = true;
+                window.location.href = data.next_url;
+                return;
+            }
         }
-    });
-})();
-{% endif %}
+
+        const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
+        const wsUrl = wsScheme + '://' + window.location.host + '/ws/game/' + GAME_ID + '/';
+        let ws;
+        try {
+            ws = new WebSocket(wsUrl);
+            ws.onmessage = function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'match.state_changed') handleStateChange(data);
+                } catch(err) {}
+            };
+        } catch(e) {}
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && ws && ws.readyState === WebSocket.OPEN) ws.close();
+        });
+    })();
+    {% endif %}
 </script>
 {% endblock %}

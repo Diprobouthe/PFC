@@ -1210,6 +1210,10 @@ def player_profile(request, player_id):
     except Exception as e:
         rating_chart_data = {'has_data': False}
     
+    # Determine if the viewer is looking at their own profile
+    session_player_id = request.session.get('player_id')
+    is_own_profile = (session_player_id is not None and int(session_player_id) == player.id)
+
     context = {
         'player': player,
         'matches': tournament_matches,  # Tournament matches for match history table
@@ -1223,6 +1227,7 @@ def player_profile(request, player_id):
         'bell_curve_data': bell_curve_data,  # NEW: Bell curve skill comparison data
         'rating_chart_data': rating_chart_data,  # NEW: Rating progression chart data
         'tracker_enabled': True,  # Enable shooting practice tracker tab
+        'is_own_profile': is_own_profile,  # True only when viewing your own profile
     }
     
     return render(request, 'teams/player_profile.html', context)

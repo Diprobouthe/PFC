@@ -146,6 +146,25 @@
             {{ scoreboard.get_match_name }}
         </div>
         
+        <!-- Court Info: persistent for spectators -->
+        {% if scoreboard.tournament_match and scoreboard.tournament_match.court %}
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:1.1rem;font-weight:700;letter-spacing:0.02em;">
+            <i class="fas fa-map-marker-alt me-2"></i>Court {{ scoreboard.tournament_match.court.number }}{% if scoreboard.tournament_match.court.name %} &middot; {{ scoreboard.tournament_match.court.name }}{% endif %}{% if scoreboard.tournament_match.court.court_complex %} &middot; {{ scoreboard.tournament_match.court.court_complex.name }}{% endif %}
+        </div>
+        {% elif scoreboard.tournament_match and scoreboard.tournament_match.waiting_for_court %}
+        <div style="background:rgba(255,193,7,0.25);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:0.95rem;font-weight:600;color:#ffe082;">
+            <i class="fas fa-hourglass-half me-2"></i>Waiting for court assignment
+        </div>
+        {% elif scoreboard.friendly_game and scoreboard.friendly_game.court %}
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:1.1rem;font-weight:700;">
+            <i class="fas fa-map-marker-alt me-2"></i>Court {{ scoreboard.friendly_game.court.number }}{% if scoreboard.friendly_game.court.name %} &middot; {{ scoreboard.friendly_game.court.name }}{% endif %}{% if scoreboard.friendly_game.court_complex %} &middot; {{ scoreboard.friendly_game.court_complex.name }}{% endif %}
+        </div>
+        {% elif scoreboard.friendly_game and scoreboard.friendly_game.court_complex %}
+        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:1.1rem;font-weight:700;">
+            <i class="fas fa-map-marker-alt me-2"></i>{{ scoreboard.friendly_game.court_complex.name }}
+        </div>
+        {% endif %}
+
         <!-- Score Display -->
         <div class="score-display">
             <div class="row align-items-center">
@@ -260,52 +279,86 @@
         </div>
     </div>
     
-    <!-- Auto-refresh script -->
+    <!-- Live score WebSocket client -->
     <script>
-        // Auto-refresh every 10 seconds to get latest scores
-        setInterval(function() {
-            location.reload();
-        }, 10000);
-        
-        // Add some visual effects
-        document.addEventListener('DOMContentLoaded', function() {
-            // Animate score changes
-            const team1Score = document.getElementById('team1-score');
-            const team2Score = document.getElementById('team2-score');
-            
-            // Store initial scores
-            let lastTeam1Score = parseInt(team1Score.textContent);
-            let lastTeam2Score = parseInt(team2Score.textContent);
-            
-            // Check for score changes on refresh
-            function checkScoreChanges() {
-                const currentTeam1Score = parseInt(team1Score.textContent);
-                const currentTeam2Score = parseInt(team2Score.textContent);
-                
-                if (currentTeam1Score !== lastTeam1Score) {
-                    team1Score.style.animation = 'pulse 1s ease-in-out';
-                    setTimeout(() => team1Score.style.animation = '', 1000);
-                    lastTeam1Score = currentTeam1Score;
-                }
-                
-                if (currentTeam2Score !== lastTeam2Score) {
-                    team2Score.style.animation = 'pulse 1s ease-in-out';
-                    setTimeout(() => team2Score.style.animation = '', 1000);
-                    lastTeam2Score = currentTeam2Score;
-                }
+        // ── Pulse animation ──────────────────────────────────────────────────
+        const _pulseStyle = document.createElement('style');
+        _pulseStyle.textContent = `
+            @keyframes pulse {
+                0%   { transform: scale(1); }
+                50%  { transform: scale(1.15); }
+                100% { transform: scale(1); }
             }
-            
-            // Add pulse animation CSS
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes pulse {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.1); }
-                    100% { transform: scale(1); }
-                }
-            `;
-            document.head.appendChild(style);
-        });
+        `;
+        document.head.appendChild(_pulseStyle);
+
+        function flashScore(el) {
+            el.style.animation = 'none';
+            el.offsetHeight; // reflow
+            el.style.animation = 'pulse 0.6s ease-in-out';
+            setTimeout(() => el.style.animation = '', 700);
+        }
+
+        // ── WebSocket live score push ──────────────────────────────────
+        // No polling. No reload. Server pushes score changes directly.
+        (function() {
+            const scoreboardId = {{ scoreboard.id }};
+            const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
+            const wsUrl = wsScheme + '://' + window.location.host + '/ws/scoreboard/' + scoreboardId + '/';
+
+            const team1El = document.getElementById('team1-score');
+            const team2El = document.getElementById('team2-score');
+            const statusEl = document.querySelector('.status-info span');
+            const statusDot = document.querySelector('.status-info .fa-circle');
+
+            let retryDelay = 2000;
+            let retryTimer = null;
+
+            function connect() {
+                const ws = new WebSocket(wsUrl);
+
+                ws.onopen = function() {
+                    retryDelay = 2000; // reset backoff on successful connect
+                };
+
+                ws.onmessage = function(e) {
+                    const data = JSON.parse(e.data);
+                    if (data.type !== 'score.updated') return;
+
+                    const newT1 = data.team1_score;
+                    const newT2 = data.team2_score;
+
+                    if (parseInt(team1El.textContent) !== newT1) {
+                        team1El.textContent = newT1;
+                        flashScore(team1El);
+                    }
+                    if (parseInt(team2El.textContent) !== newT2) {
+                        team2El.textContent = newT2;
+                        flashScore(team2El);
+                    }
+
+                    // Update live/final status badge
+                    if (statusEl) {
+                        statusEl.textContent = data.is_active ? 'LIVE' : 'FINAL';
+                    }
+                    if (statusDot) {
+                        statusDot.className = 'fas fa-circle ' + (data.is_active ? 'text-success' : 'text-secondary') + ' me-2';
+                    }
+                };
+
+                ws.onclose = function() {
+                    // Exponential backoff reconnect (max 30s)
+                    retryTimer = setTimeout(connect, retryDelay);
+                    retryDelay = Math.min(retryDelay * 2, 30000);
+                };
+
+                ws.onerror = function() {
+                    ws.close();
+                };
+            }
+
+            connect();
+        })();
     </script>
 </body>
 </html>

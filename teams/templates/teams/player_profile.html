@@ -377,7 +377,7 @@ a.mh-card::after {
             </div>
             <div class="pp-hero-badges">
                 <span class="pp-badge">{{ player.team.name }}</span>
-                {% if player.team.pin %}<span class="pp-badge pin">PIN: {{ player.team.pin }}</span>{% endif %}
+                {% if is_own_profile and player.team.pin %}<span class="pp-badge pin">PIN: {{ player.team.pin }}</span>{% endif %}
                 {% if player.profile.get_preferred_position_display %}
                     <span class="pp-badge">{{ player.profile.get_preferred_position_display }}</span>
                 {% endif %}
