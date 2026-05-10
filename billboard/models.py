@@ -1,7 +1,10 @@
+import logging
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 from courts.models import CourtComplex
+
+logger = logging.getLogger('billboard.presence')
 
 
 class BillboardEntry(models.Model):
@@ -90,20 +93,29 @@ class BillboardEntry(models.Model):
         return self.get_responses().count()
     
     @classmethod
-    def get_daily_count(cls, codename, action_type):
-        """Get count of entries for a codename and action type today"""
-        today = timezone.now().date()
+    def get_daily_count(cls, codename, action_type, court=None):
+        """
+        Get count of entries for a codename and action type today.
+        Uses court-local date when a court is provided so that the
+        daily limit resets at midnight in the court's timezone, not
+        at midnight UTC on the server.
+        """
+        if court is not None:
+            from courts.timezone_utils import get_court_local_date
+            today = get_court_local_date(court)
+        else:
+            today = timezone.now().date()
         return cls.objects.filter(
             codename=codename,
             action_type=action_type,
             created_at__date=today,
             is_active=True
         ).count()
-    
+
     @classmethod
-    def can_create_entry(cls, codename, action_type):
-        """Check if user can create another entry of this type today"""
-        return cls.get_daily_count(codename, action_type) < 2
+    def can_create_entry(cls, codename, action_type, court=None):
+        """Check if user can create another entry of this type today."""
+        return cls.get_daily_count(codename, action_type, court=court) < 2
 
 
 class BillboardResponse(models.Model):

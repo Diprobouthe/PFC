@@ -44,6 +44,10 @@ class Team(models.Model):
         default=False,
         help_text="True if this team is a subteam of another team"
     )
+    is_archived = models.BooleanField(
+        default=False,
+        help_text="Archived teams are hidden from all dropdowns and selection fields. History is preserved."
+    )
     subteam_type = models.CharField(
         max_length=20,
         blank=True,

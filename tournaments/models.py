@@ -1710,3 +1710,6 @@ class Bracket(models.Model):
 
 # Import partnership tracking models and mêlée player stats
 from .partnership_models import MeleePartnership, MeleeShuffleHistory, MeleePlayerStats
+
+# Import poule/group models
+from .poule_models import Poule, PouleTeam

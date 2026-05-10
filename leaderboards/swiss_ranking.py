@@ -282,3 +282,172 @@ def get_traditional_rankings(tournament, stage=None):
     
     logger.info(f"Traditional rankings calculated for {len(rankings)} teams")
     return rankings
+
+
+# ---------------------------------------------------------------------------
+# Multi-stage global leaderboard
+# ---------------------------------------------------------------------------
+
+def is_multistage_team_tournament(tournament):
+    """
+    Return True only for multi-stage tournaments that are NOT mêlée / super-mêlée.
+    Mêlée and super-mêlée use player-based leaderboards and must not be affected.
+    """
+    if tournament.format != 'multi_stage':
+        return False
+    # Exclude mêlée formats
+    if getattr(tournament, 'is_melee', False):
+        return False
+    return True
+
+
+def _determine_team_status(team, tournament, stages, current_stage_number):
+    """
+    Determine the display status of a team in a multi-stage tournament.
+
+    Rules:
+    - If the team's current_stage_number equals the highest stage, and
+      the tournament has a completed final stage with a winner, mark as champion.
+    - If the team advanced to the last stage but did not win, mark as finalist
+      (for 2-team finals) or semi-finalist (for 4-team semi-finals).
+    - If the team did not advance beyond their initial stage, mark as eliminated
+      with the stage name.
+    - If the tournament is still in progress and the team is still active,
+      mark as active.
+    """
+    from matches.models import Match
+
+    max_stage = max(s.stage_number for s in stages) if stages else 1
+    team_stage = team.current_stage_number
+
+    # Check if team is still active in the tournament
+    if team.is_active and team_stage == current_stage_number:
+        return 'active'
+
+    # Team did not advance beyond their stage → eliminated
+    if team_stage < max_stage:
+        stage_obj = next((s for s in stages if s.stage_number == team_stage), None)
+        stage_name = stage_obj.name if stage_obj else f"Stage {team_stage}"
+        return f'eliminated ({stage_name})'
+
+    # Team reached the final stage
+    final_stage = next((s for s in stages if s.stage_number == max_stage), None)
+    if final_stage:
+        # Check if there's a winner in the final stage
+        final_matches = Match.objects.filter(
+            tournament=tournament,
+            stage=final_stage,
+            status='completed'
+        )
+        if final_matches.exists():
+            # Find the champion (team that won the most final-stage matches)
+            wins = {}
+            for m in final_matches:
+                if m.winner:
+                    wins[m.winner_id] = wins.get(m.winner_id, 0) + 1
+            if wins:
+                champion_id = max(wins, key=wins.get)
+                if team.team_id == champion_id:
+                    return 'champion'
+                # Finalist = reached final stage but did not win
+                stage_teams_count = tournament.tournamentteam_set.filter(
+                    current_stage_number=max_stage
+                ).count()
+                if stage_teams_count <= 2:
+                    return 'finalist'
+                return 'semi-finalist'
+
+    return 'active'
+
+
+def get_global_multistage_rankings(tournament):
+    """
+    Build a unified global leaderboard for a multi-stage team tournament.
+
+    Strategy
+    --------
+    1. Collect ALL TournamentTeam records for this tournament (no is_active filter).
+    2. For each team, aggregate stats across ALL stages they participated in.
+    3. Determine the team's status (active / eliminated / champion / finalist).
+    4. Sort by:
+       a. Stage reached (desc) — teams that advanced further rank higher
+       b. Swiss points (desc) — primary tie-breaker within same stage
+       c. Buchholz score (desc) — secondary tie-breaker
+       d. Point difference (desc) — tertiary tie-breaker
+    5. Return a list of ranking dicts compatible with the existing leaderboard
+       entry creation code.
+    """
+    logger.info(f"Building global multi-stage rankings for tournament {tournament.name}")
+
+    stages = list(tournament.stages.order_by('stage_number'))
+    if not stages:
+        logger.warning(f"No stages found for tournament {tournament.name}")
+        return []
+
+    max_stage = max(s.stage_number for s in stages)
+    current_stage_number = max_stage  # The highest stage that has matches
+
+    # Get ALL tournament teams — do NOT filter by is_active or current_stage_number
+    all_tournament_teams = tournament.tournamentteam_set.select_related('team').all()
+
+    rankings = []
+    for team_tt in all_tournament_teams:
+        # Aggregate stats across ALL stages this team participated in
+        from matches.models import Match
+        from django.db.models import Q
+
+        team_matches = Match.objects.filter(
+            tournament=tournament,
+            status='completed'
+        ).filter(Q(team1=team_tt.team) | Q(team2=team_tt.team))
+
+        matches_played = team_matches.count()
+        matches_won = team_matches.filter(winner=team_tt.team).count()
+        matches_lost = matches_played - matches_won
+
+        points_scored = 0
+        points_conceded = 0
+        for match in team_matches:
+            if match.team1_id == team_tt.team_id:
+                points_scored += match.team1_score or 0
+                points_conceded += match.team2_score or 0
+            else:
+                points_scored += match.team2_score or 0
+                points_conceded += match.team1_score or 0
+
+        # Determine status
+        status = _determine_team_status(team_tt, tournament, stages, current_stage_number)
+
+        rankings.append({
+            'team': team_tt.team,
+            'tournament_team': team_tt,
+            'stage_reached': team_tt.current_stage_number,
+            'tournament_status': status,
+            'swiss_points': team_tt.swiss_points,
+            'buchholz_score': team_tt.buchholz_score,
+            'matches_played': matches_played,
+            'matches_won': matches_won,
+            'matches_lost': matches_lost,
+            'points_scored': points_scored,
+            'points_conceded': points_conceded,
+            'point_difference': points_scored - points_conceded,
+        })
+
+    # Sort: stage_reached desc → swiss_points desc → buchholz desc → point_diff desc
+    rankings.sort(key=lambda x: (
+        x['stage_reached'],
+        x['swiss_points'],
+        x['buchholz_score'],
+        x['point_difference'],
+        x['points_scored'],
+    ), reverse=True)
+
+    # Assign positions
+    for i, r in enumerate(rankings):
+        r['position'] = i + 1
+
+    logger.info(
+        f"Global multi-stage rankings: {len(rankings)} teams "
+        f"(stages 1–{max_stage})"
+    )
+    return rankings

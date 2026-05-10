@@ -30,6 +30,7 @@ class Match(models.Model):
     stage = models.ForeignKey("tournaments.Stage", related_name="matches", on_delete=models.CASCADE, null=True, blank=True)
     round = models.ForeignKey("tournaments.Round", related_name="matches", on_delete=models.CASCADE, null=True, blank=True)
     bracket = models.ForeignKey("tournaments.Bracket", related_name="matches", on_delete=models.CASCADE, null=True, blank=True)
+    poule = models.ForeignKey("tournaments.Poule", related_name="matches", on_delete=models.SET_NULL, null=True, blank=True, help_text="Poule this match belongs to (only set for poule-format stages)")
     team1 = models.ForeignKey("teams.Team", related_name="matches_as_team1", on_delete=models.CASCADE)
     team2 = models.ForeignKey("teams.Team", related_name="matches_as_team2", on_delete=models.CASCADE)
     team1_score = models.PositiveIntegerField(null=True, blank=True)

@@ -43,6 +43,7 @@ ALLOWED_HOSTS = [
     'www.pfc.events',
     'pfc-e1ce.onrender.com',
     'pfc-platform.onrender.com',
+    '8000-i3s0rjhjuovyc5djxtgnl-3bf937d8.us2.manus.computer',
 ]
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
@@ -60,6 +61,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
     'http://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
     'https://pfc-platform.onrender.com',
+    'https://8000-i3s0rjhjuovyc5djxtgnl-3bf937d8.us2.manus.computer',
+    'http://8000-i3s0rjhjuovyc5djxtgnl-3bf937d8.us2.manus.computer',
     'https://pfc.events',
     'https://www.pfc.events',
     'https://pfc-e1ce.onrender.com',

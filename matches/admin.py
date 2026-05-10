@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import Match, MatchActivation, MatchResult, NextOpponentRequest
+from pfc_core.admin_filters import ActiveTeamMixin, ActiveTournamentMixin
 
 class MatchActivationInline(admin.TabularInline):
     model = MatchActivation
@@ -13,7 +14,7 @@ class MatchResultInline(admin.TabularInline):
     readonly_fields = ['submitted_at', 'validated_at']
 
 @admin.register(Match)
-class MatchAdmin(admin.ModelAdmin):
+class MatchAdmin(ActiveTeamMixin, ActiveTournamentMixin, admin.ModelAdmin):
     list_display = ('id', 'tournament', 'team1', 'team2', 'status_badge', 'score_display', 'court_display', 'timer_status', 'timing_display', 'actions_display')
     list_filter = ('status', 'tournament', 'round', 'start_time')
     search_fields = ('team1__name', 'team2__name', 'tournament__name')
@@ -126,21 +127,21 @@ class MatchAdmin(admin.ModelAdmin):
     assign_courts.short_description = "Assign courts to selected matches"
 
 @admin.register(MatchActivation)
-class MatchActivationAdmin(admin.ModelAdmin):
+class MatchActivationAdmin(ActiveTeamMixin, ActiveTournamentMixin, admin.ModelAdmin):
     list_display = ('match', 'team', 'activated_at')
     list_filter = ('activated_at', 'team')
     search_fields = ('match__team1__name', 'match__team2__name', 'team__name')
     readonly_fields = ['activated_at']
 
 @admin.register(MatchResult)
-class MatchResultAdmin(admin.ModelAdmin):
+class MatchResultAdmin(ActiveTeamMixin, ActiveTournamentMixin, admin.ModelAdmin):
     list_display = ('match', 'submitted_by', 'validated_by', 'submitted_at', 'validated_at')
     list_filter = ('submitted_at', 'validated_at')
     search_fields = ('match__team1__name', 'match__team2__name', 'submitted_by__name', 'validated_by__name')
     readonly_fields = ['submitted_at', 'validated_at']
 
 @admin.register(NextOpponentRequest)
-class NextOpponentRequestAdmin(admin.ModelAdmin):
+class NextOpponentRequestAdmin(ActiveTeamMixin, ActiveTournamentMixin, admin.ModelAdmin):
     list_display = ('tournament', 'requesting_team', 'target_team', 'status_badge', 'created_at', 'actions_display')
     list_filter = ('status', 'tournament', 'created_at')
     search_fields = ('requesting_team__name', 'target_team__name', 'tournament__name')

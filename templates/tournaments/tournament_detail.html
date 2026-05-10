@@ -146,10 +146,17 @@
                     {% if teams %}
                         <div class="list-group">
                             {% for team in teams %}
-                                <a href="{% url 'team_detail' team.id %}" class="list-group-item list-group-item-action">
-                                    <h5 class="mb-1">{{ team.name }}</h5>
-                                    <p class="mb-1">Players: {{ team.players.count }}</p>
-                                </a>
+                                {% if team.profile.profile_type == 'full' %}
+                                    <a href="{% url 'team_detail' team.id %}" class="list-group-item list-group-item-action">
+                                        <h5 class="mb-1">{{ team.name }}</h5>
+                                        <p class="mb-1">Players: {{ team.players.count }}</p>
+                                    </a>
+                                {% else %}
+                                    <div class="list-group-item">
+                                        <h5 class="mb-1">{{ team.name }}</h5>
+                                        <p class="mb-1">Players: {{ team.players.count }}</p>
+                                    </div>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     {% else %}

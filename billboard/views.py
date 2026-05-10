@@ -14,6 +14,7 @@ from .models import BillboardEntry, BillboardResponse, BillboardSettings
 from .forms import BillboardEntryForm, BillboardResponseForm, QuickResponseForm
 from teams.models import Team
 from courts.models import CourtComplex
+from courts.timezone_utils import get_court_local_now
 
 
 def team_search_api(request):
@@ -152,10 +153,14 @@ class BillboardListView(ListView):
         
         # "Currently at Courts" should only show people from the last 2 hours (auto check-out)
         # Other sections keep the 24-hour window
-        at_courts_cutoff = timezone.now() - timedelta(hours=2)
+        # Use court-local now per entry's court complex so Athens courts are not affected by server UTC offset
+        def _at_courts_cutoff(entry):
+            court = entry.court_complex
+            return (get_court_local_now(court) if court else timezone.now()) - timedelta(hours=2)
+
         context['at_courts'] = [
-            e for e in entries 
-            if e.action_type == 'AT_COURTS' and e.created_at >= at_courts_cutoff
+            e for e in entries
+            if e.action_type == 'AT_COURTS' and e.created_at >= _at_courts_cutoff(e)
         ]
         context['going_to_courts'] = [e for e in entries if e.action_type == 'GOING_TO_COURTS']
         context['looking_for_match'] = [e for e in entries if e.action_type == 'LOOKING_FOR_MATCH']

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static court_tz_tags %}
 
 {% block title %}Billboard — PFC{% endblock %}
 
@@ -132,9 +132,9 @@ canvas.bb-chart{width:100%!important;max-height:180px}
     <div class="bb-presence-group-hdr"><span class="dot dot-green"></span>{{ group.grouper }}</div>
     <div class="bb-presence-chips">
       {% for entry in group.list %}
-      <span class="bb-pchip here" title="{{ entry.created_at|timesince }} ago{% if entry.message %} · {{ entry.message }}{% endif %}">
+      <span class="bb-pchip here" title="{{ entry.created_at|court_timesince:entry.court_complex }} ago{% if entry.message %} · {{ entry.message }}{% endif %}">
         {{ entry.get_player_name }}
-        <span class="bb-pchip-time">{{ entry.created_at|time:"H:i" }}</span>
+        <span class="bb-pchip-time">{{ entry.created_at|court_time:entry.court_complex }}</span>
       </span>
       {% for r in entry.get_responses %}
       <span class="bb-pchip here" title="joined">{{ r.get_player_name }}</span>

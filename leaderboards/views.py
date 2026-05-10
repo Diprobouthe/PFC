@@ -2,7 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, F, Q
 from .models import Leaderboard, LeaderboardEntry, TeamStatistics, MatchStatistics
-from .swiss_ranking import is_swiss_tournament, get_swiss_rankings, get_traditional_rankings, get_stage_rankings, is_wtf_tournament
+from .swiss_ranking import (
+    is_swiss_tournament, get_swiss_rankings, get_traditional_rankings,
+    get_stage_rankings, is_wtf_tournament,
+    is_multistage_team_tournament, get_global_multistage_rankings,
+)
 from .wtf_ranking import get_wtf_rankings, get_wtf_stage_rankings, update_wtf_statistics
 from tournaments.models import Tournament
 from teams.models import Team
@@ -39,36 +43,51 @@ def leaderboard_index(request):
 def tournament_leaderboard(request, tournament_id):
     """View for displaying tournament leaderboard with Swiss support"""
     tournament = get_object_or_404(Tournament, id=tournament_id)
-    
+
     # Get or create leaderboard
     leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
-    
+
     # Update leaderboard entries
     update_tournament_leaderboard(tournament)
-    
+
     # Get entries ordered by position
     entries = leaderboard.entries.all().order_by('position')
-    
+
     # Get Swiss-specific data if applicable
     swiss_data = None
     if is_swiss_tournament(tournament):
         swiss_rankings = get_swiss_rankings(tournament)
         swiss_data = {ranking['team'].id: ranking for ranking in swiss_rankings}
-    
+
     # Get WTF-specific data if applicable
     wtf_data = None
     if is_wtf_tournament(tournament):
-        # Update WTF statistics first
         update_wtf_statistics(tournament)
         wtf_rankings = get_wtf_rankings(tournament)
         wtf_data = {ranking['team'].id: ranking for ranking in wtf_rankings}
-    
+
+    # Determine if this is a multi-stage team tournament (not mêlée)
+    is_multistage = is_multistage_team_tournament(tournament)
+
+    # Build stage summary for multi-stage tournaments
+    stages_summary = []
+    if is_multistage:
+        for stage in tournament.stages.order_by('stage_number'):
+            stages_summary.append({
+                'stage_number': stage.stage_number,
+                'name': stage.name or f'Stage {stage.stage_number}',
+                'format': stage.get_format_display(),
+                'num_qualifiers': stage.num_qualifiers,
+            })
+
     context = {
         'tournament': tournament,
         'leaderboard': leaderboard,
         'entries': entries,
         'is_swiss': is_swiss_tournament(tournament),
         'is_wtf': is_wtf_tournament(tournament),
+        'is_multistage': is_multistage,
+        'stages_summary': stages_summary,
         'swiss_data': swiss_data,
         'wtf_data': wtf_data,
     }
@@ -159,18 +178,46 @@ def match_statistics(request, match_id):
     return render(request, 'leaderboards/match_statistics.html', context)
 
 def update_tournament_leaderboard(tournament):
-    """Update leaderboard entries for a tournament with Swiss system support"""
+    """Update leaderboard entries for a tournament.
+
+    For multi-stage TEAM tournaments (not mêlée/super-mêlée), a unified global
+    ranking is built that includes ALL participating teams across all stages.
+    Eliminated teams are preserved with their status and stage reached.
+
+    For all other formats the existing per-format logic is used unchanged.
+    """
     leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
-    
+
     # Clear existing entries to rebuild
     LeaderboardEntry.objects.filter(leaderboard=leaderboard).delete()
-    
-    # Use appropriate ranking system based on tournament format
+
+    # ------------------------------------------------------------------ #
+    # Multi-stage TEAM tournament → unified global ranking                #
+    # ------------------------------------------------------------------ #
+    if is_multistage_team_tournament(tournament):
+        rankings = get_global_multistage_rankings(tournament)
+        for ranking in rankings:
+            LeaderboardEntry.objects.create(
+                leaderboard=leaderboard,
+                team=ranking['team'],
+                position=ranking['position'],
+                matches_played=ranking['matches_played'],
+                matches_won=ranking['matches_won'],
+                matches_lost=ranking['matches_lost'],
+                points_scored=ranking['points_scored'],
+                points_conceded=ranking['points_conceded'],
+                swiss_points=ranking.get('swiss_points', 0),
+                buchholz_score=ranking.get('buchholz_score', 0.0),
+                stage_reached=ranking.get('stage_reached', 1),
+                tournament_status=ranking.get('tournament_status', 'active'),
+            )
+        return
+
+    # ------------------------------------------------------------------ #
+    # All other formats — existing logic unchanged                        #
+    # ------------------------------------------------------------------ #
     if is_swiss_tournament(tournament):
-        # Use Swiss ranking with Buchholz tie-breaking
         rankings = get_swiss_rankings(tournament)
-        
-        # Create leaderboard entries with Swiss-specific data
         for ranking in rankings:
             LeaderboardEntry.objects.create(
                 leaderboard=leaderboard,
@@ -185,12 +232,8 @@ def update_tournament_leaderboard(tournament):
                 buchholz_score=ranking.get('buchholz_score', 0.0),
             )
     elif is_wtf_tournament(tournament):
-        # Use WTF ranking with πετΑ Index
-        # Update WTF statistics first
         update_wtf_statistics(tournament)
         rankings = get_wtf_rankings(tournament)
-        
-        # Create leaderboard entries with WTF-specific data
         for ranking in rankings:
             LeaderboardEntry.objects.create(
                 leaderboard=leaderboard,
@@ -201,15 +244,11 @@ def update_tournament_leaderboard(tournament):
                 matches_lost=ranking['matches_lost'],
                 points_scored=ranking['points_scored'],
                 points_conceded=ranking['points_conceded'],
-                # WTF-specific fields (if available in LeaderboardEntry model)
-                swiss_points=ranking.get('swiss_points', 0),  # WTF still uses Swiss points
-                buchholz_score=ranking.get('peta_index', 0.0),  # Store πετΑ Index in buchholz_score field
+                swiss_points=ranking.get('swiss_points', 0),
+                buchholz_score=ranking.get('peta_index', 0.0),
             )
     else:
-        # Use traditional ranking for non-Swiss/WTF tournaments
         rankings = get_traditional_rankings(tournament)
-        
-        # Create leaderboard entries with traditional data
         for ranking in rankings:
             LeaderboardEntry.objects.create(
                 leaderboard=leaderboard,

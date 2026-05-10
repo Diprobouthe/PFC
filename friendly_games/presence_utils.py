@@ -19,6 +19,7 @@ import logging
 from django.utils import timezone
 from billboard.models import BillboardEntry
 from friendly_games.models import PlayerCodename
+from courts.timezone_utils import get_court_local_date
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +57,12 @@ def register_friendly_game_players_at_court(game):
                 codename = player_codename_obj.codename
 
                 # Idempotent: skip if already registered at this complex today
+                # Use court-local date so Athens courts are not affected by server UTC offset
                 already_registered = BillboardEntry.objects.filter(
                     codename=codename,
                     action_type='AT_COURTS',
                     court_complex=court_complex,
-                    created_at__date=timezone.now().date(),
+                    created_at__date=get_court_local_date(court_complex),
                     is_active=True,
                 ).exists()
 

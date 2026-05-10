@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib import messages
 from django.utils.html import format_html
 from .models import Tournament, TournamentTeam, Round, Bracket, TournamentCourt, Stage, MeleePlayer
+from .poule_models import Poule, PouleTeam
 from .admin_helpers import (
     retry_automation_action,
     advance_stage_action, 
@@ -12,6 +13,7 @@ from .admin_helpers import (
 from .admin_actions import complete_and_assign_badges, reset_automation_status
 from .admin_shuffle import shuffle_melee_players_action
 from .admin_melee_swap import MeleePlayerSwapAdminMixin
+from pfc_core.admin_filters import ActiveTeamMixin, ActiveTournamentMixin
 
 # --- Inlines --- 
 
@@ -22,7 +24,7 @@ class StageInline(admin.TabularInline):
     fields = ("stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team")
     ordering = ["stage_number"]
 
-class TournamentTeamInline(admin.TabularInline):
+class TournamentTeamInline(ActiveTeamMixin, admin.TabularInline):
     model = TournamentTeam
     extra = 1
     autocomplete_fields = ["team"]
@@ -365,6 +367,16 @@ class TournamentAdmin(admin.ModelAdmin):
             )
     
     restore_melee_players_to_original_teams.short_description = "Restore mêlée players to original teams"
+    def get_search_results(self, request, queryset, search_term):
+        """
+        Called by autocomplete_fields widgets that point at Tournament.
+        Exclude archived tournaments from autocomplete results.
+        """
+        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
+        if request.path.endswith('/autocomplete/'):
+            queryset = queryset.filter(is_archived=False)
+        return queryset, use_distinct
+
 
 @admin.register(Stage)
 class StageAdmin(admin.ModelAdmin):
@@ -425,7 +437,7 @@ class TournamentCourtAdmin(admin.ModelAdmin):
     search_fields = ("tournament__name", "court__number")
 
 @admin.register(TournamentTeam)
-class TournamentTeamAdmin(admin.ModelAdmin):
+class TournamentTeamAdmin(ActiveTeamMixin, ActiveTournamentMixin, admin.ModelAdmin):
     list_display = ("team", "tournament", "seeding_position", "is_active", "current_stage_number")
     list_filter = ("tournament", "team", "is_active", "current_stage_number")
     search_fields = ("tournament__name", "team__name")
@@ -434,7 +446,7 @@ class TournamentTeamAdmin(admin.ModelAdmin):
 
 
 @admin.register(MeleePlayer)
-class MeleePlayerAdmin(MeleePlayerSwapAdminMixin, admin.ModelAdmin):
+class MeleePlayerAdmin(ActiveTeamMixin, ActiveTournamentMixin, MeleePlayerSwapAdminMixin, admin.ModelAdmin):
     list_display = ("player", "tournament", "registered_at", "assigned_team", "original_team", "swap_button")
     list_filter = ("tournament", "registered_at", "assigned_team")
     search_fields = ("player__name", "tournament__name", "assigned_team__name")
@@ -447,3 +459,7 @@ class MeleePlayerAdmin(MeleePlayerSwapAdminMixin, admin.ModelAdmin):
             'player', 'tournament', 'assigned_team', 'original_team'
         )
 
+
+
+# ── Poule / Group admin (registers PouleAdmin) ────────────────────────────────
+from . import poule_admin  # noqa: F401, E402

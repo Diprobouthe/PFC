@@ -5,6 +5,7 @@ import logging
 from django.utils import timezone
 from django.db.models import Count, Avg, Max, Sum, Q
 from datetime import datetime, timedelta, date
+from courts.timezone_utils import get_court_local_now, get_court_local_date
 from billboard.analytics_models import (
     CourtComplexUsageSnapshot,
     HourlyUsageStats,
@@ -31,7 +32,7 @@ def record_usage_snapshot(court_complex):
             court_complex=court_complex,
             action_type='AT_COURTS',
             is_active=True,
-            created_at__gte=timezone.now() - timedelta(hours=2)
+            created_at__gte=get_court_local_now(court_complex) - timedelta(hours=2)
         ).count()
         
         # Create snapshot
@@ -60,9 +61,9 @@ def update_hourly_stats(court_complex, target_date=None, target_hour=None):
     from billboard.models import BillboardEntry
     
     if target_date is None:
-        target_date = timezone.now().date()
+        target_date = get_court_local_date(court_complex)
     if target_hour is None:
-        target_hour = timezone.now().hour
+        target_hour = get_court_local_now(court_complex).hour
     
     try:
         # Get all entries for this hour
@@ -104,7 +105,7 @@ def update_hourly_stats(court_complex, target_date=None, target_hour=None):
                     (timezone.now() - entry.created_at).total_seconds() / 60,
                     24 * 60  # Max 24 hours
                 )
-            durations.append(duration)
+                durations.append(duration)
         
         avg_duration = sum(durations) / len(durations) if durations else None
         
@@ -139,7 +140,7 @@ def update_daily_stats(court_complex, target_date=None):
         target_date: Date to calculate stats for (default: today)
     """
     if target_date is None:
-        target_date = timezone.now().date()
+        target_date = get_court_local_date(court_complex)
     
     try:
         # Get all hourly stats for this day
@@ -208,7 +209,7 @@ def get_current_occupancy(court_complex):
         court_complex=court_complex,
         action_type='AT_COURTS',
         is_active=True,
-        created_at__gte=timezone.now() - timedelta(hours=2)
+        created_at__gte=get_court_local_now(court_complex) - timedelta(hours=2)
     ).count()
 
 

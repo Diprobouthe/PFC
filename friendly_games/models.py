@@ -131,6 +131,18 @@ class FriendlyGame(models.Model):
     black_team_score = models.PositiveIntegerField(default=0)
     white_team_score = models.PositiveIntegerField(default=0)
 
+    # Creator / host — the player who created this game.
+    # Only the creator can start the game.
+    # Nullable for backwards compatibility with games created before this field.
+    creator_player = models.ForeignKey(
+        'teams.Player',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_friendly_games',
+        help_text='Player who created this game (only they can start it)',
+    )
+
     # ── Court assignment ─────────────────────────────────────────────────────
     court_complex = models.ForeignKey(
         CourtComplex,
@@ -215,6 +227,17 @@ class FriendlyGame(models.Model):
         if self.expires_at:
             return timezone.now() > self.expires_at
         return False
+
+    def is_pre_start_expired(self):
+        """
+        Returns True if the game was created more than 10 minutes ago
+        and has never been started (still WAITING_FOR_PLAYERS).
+        Used to auto-expire stale unstarted games.
+        """
+        if self.status != 'WAITING_FOR_PLAYERS':
+            return False
+        age_seconds = (timezone.now() - self.created_at).total_seconds()
+        return age_seconds > 600  # 10 minutes
 
     # ── Freshness scoring ────────────────────────────────────────────────────
     @property

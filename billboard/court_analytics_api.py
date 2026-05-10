@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from courts.models import CourtComplex
+from courts.timezone_utils import get_court_local_now
 from billboard.models import BillboardEntry
 
 
@@ -42,11 +43,13 @@ def api_analytics_summary(request):
     Returns per-court overview stats for the last 30 days.
     """
     courts = CourtComplex.objects.order_by("name")
-    now = timezone.now()
-    two_hours_ago = now - timedelta(hours=2)
     result = []
 
     for court in courts:
+        # Use court-local now so the 2-hour cutoff is correct for each court's timezone
+        court_now = get_court_local_now(court)
+        two_hours_ago = court_now - timedelta(hours=2)
+
         qs = _entry_qs(days=30, court=court)
         total = qs.count()
         current = qs.filter(
@@ -55,10 +58,15 @@ def api_analytics_summary(request):
             is_active=True,
         ).count()
 
-        # Peak hour
+        # Peak hour — bucket by court-local hour
+        import pytz
+        try:
+            court_tz = pytz.timezone(court.timezone_name)
+        except Exception:
+            court_tz = pytz.utc
         hour_counts = defaultdict(int)
         for e in qs.values_list("created_at", flat=True):
-            local_dt = timezone.localtime(e)
+            local_dt = e.astimezone(court_tz)
             hour_counts[local_dt.hour] += 1
         peak_hour = max(hour_counts, key=hour_counts.get) if hour_counts else None
 
@@ -96,15 +104,21 @@ def api_analytics_court(request, court_id):
     except CourtComplex.DoesNotExist:
         return JsonResponse({"ok": False, "error": "Court not found"}, status=404)
 
-    now = timezone.now()
-    two_hours_ago = now - timedelta(hours=2)
+    # Use court-local now so the 2-hour cutoff is correct for this court's timezone
+    court_now = get_court_local_now(court)
+    two_hours_ago = court_now - timedelta(hours=2)
     qs_30 = _entry_qs(days=30, court=court)
     qs_7  = _entry_qs(days=7,  court=court)
 
-    # ── Hourly distribution (0-23) ────────────────────────────────────────────
+    # ── Hourly distribution (0-23) — bucket by court-local hour ──────────────
+    import pytz
+    try:
+        court_tz = pytz.timezone(court.timezone_name)
+    except Exception:
+        court_tz = pytz.utc
     hour_counts = defaultdict(int)
     for e in qs_30.values_list("created_at", flat=True):
-        local_dt = timezone.localtime(e)
+        local_dt = e.astimezone(court_tz)
         hour_counts[local_dt.hour] += 1
     hourly = [
         {"hour": h, "label": f"{h:02d}:00", "count": hour_counts.get(h, 0)}
@@ -114,7 +128,7 @@ def api_analytics_court(request, court_id):
     # ── Day-of-week distribution ──────────────────────────────────────────────
     day_counts = defaultdict(int)
     for e in qs_30.values_list("created_at", flat=True):
-        local_dt = timezone.localtime(e)
+        local_dt = e.astimezone(court_tz)
         day_counts[local_dt.weekday()] += 1
     daily = [
         {"day": d, "label": DAY_NAMES[d], "count": day_counts.get(d, 0)}
@@ -125,7 +139,7 @@ def api_analytics_court(request, court_id):
     qs_56 = _entry_qs(days=56, court=court)
     week_counts = defaultdict(int)
     for e in qs_56.values_list("created_at", flat=True):
-        local_dt = timezone.localtime(e)
+        local_dt = e.astimezone(court_tz)
         week_start = (local_dt.date() - timedelta(days=local_dt.weekday())).isoformat()
         week_counts[week_start] += 1
     weekly = sorted(

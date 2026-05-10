@@ -83,7 +83,7 @@ def update_melee_player_stats_from_match(match):
         match: Match object (must belong to a mêlée tournament)
     """
     from tournaments.partnership_models import MeleePartnership
-    import re
+    from matches.models import MatchPlayer
     
     tournament = match.tournament
     
@@ -97,36 +97,30 @@ def update_melee_player_stats_from_match(match):
     if not team1 or not team2:
         return
     
-    # Extract round number from match.round
+    # Get round number directly from the Round model field (number_in_stage)
+    # This is the stage-local round number used in MeleePartnership records.
     round_number = None
     if match.round:
-        round_match = re.search(r'Round (\d+)', str(match.round))
-        if round_match:
-            round_number = int(round_match.group(1))
+        round_number = match.round.number_in_stage
     
     if not round_number:
-        print(f"Warning: Could not extract round number from match {match.id}")
+        print(f"Warning: Could not determine round number for match {match.id}")
         return
     
     # Determine winner
     if match.team1_score > match.team2_score:
         winning_team = team1
         losing_team = team2
-        winning_score = match.team1_score
-        losing_score = match.team2_score
     elif match.team2_score > match.team1_score:
         winning_team = team2
         losing_team = team1
-        winning_score = match.team2_score
-        losing_score = match.team1_score
     else:
         # Draw - treat as no winner
         winning_team = None
         losing_team = None
-        winning_score = match.team1_score
-        losing_score = match.team2_score
     
-    # Get players from MeleePartnership
+    # --- Resolve players for each team ---
+    # Primary source: MeleePartnership (created when teams are shuffled/generated)
     team1_partnership = MeleePartnership.objects.filter(
         tournament=tournament,
         round_number=round_number,
@@ -139,18 +133,29 @@ def update_melee_player_stats_from_match(match):
         team_name=team2.name
     ).first()
     
-    if not team1_partnership or not team2_partnership:
-        print(f"Warning: Could not find partnerships for match {match.id} round {round_number}")
-        return
+    if team1_partnership:
+        team1_players = [team1_partnership.player1, team1_partnership.player2]
+        if hasattr(team1_partnership, 'player3') and team1_partnership.player3:
+            team1_players.append(team1_partnership.player3)
+    else:
+        # Fallback: use MatchPlayer records which are always populated for every match
+        team1_mp_qs = MatchPlayer.objects.filter(match=match, team=team1).select_related('player')
+        team1_players = [mp.player for mp in team1_mp_qs if mp.player]
+        if not team1_players:
+            print(f"Warning: No players found for team {team1.name} in match {match.id}")
+            return
     
-    # Get players from partnerships
-    team1_players = [team1_partnership.player1, team1_partnership.player2]
-    if hasattr(team1_partnership, 'player3') and team1_partnership.player3:
-        team1_players.append(team1_partnership.player3)
-    
-    team2_players = [team2_partnership.player1, team2_partnership.player2]
-    if hasattr(team2_partnership, 'player3') and team2_partnership.player3:
-        team2_players.append(team2_partnership.player3)
+    if team2_partnership:
+        team2_players = [team2_partnership.player1, team2_partnership.player2]
+        if hasattr(team2_partnership, 'player3') and team2_partnership.player3:
+            team2_players.append(team2_partnership.player3)
+    else:
+        # Fallback: use MatchPlayer records
+        team2_mp_qs = MatchPlayer.objects.filter(match=match, team=team2).select_related('player')
+        team2_players = [mp.player for mp in team2_mp_qs if mp.player]
+        if not team2_players:
+            print(f"Warning: No players found for team {team2.name} in match {match.id}")
+            return
     
     with transaction.atomic():
         # Update stats for team1 players

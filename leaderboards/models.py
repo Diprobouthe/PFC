@@ -25,7 +25,18 @@ class LeaderboardEntry(models.Model):
     # Swiss-specific fields (populated for Swiss tournaments)
     swiss_points = models.IntegerField(default=0, help_text="Swiss tournament points (3 per win)")
     buchholz_score = models.FloatField(default=0.0, help_text="Buchholz tie-breaker score")
-    
+
+    # Multi-stage tracking fields
+    stage_reached = models.PositiveIntegerField(
+        default=1,
+        help_text="Highest stage number this team reached in the tournament"
+    )
+    tournament_status = models.CharField(
+        max_length=30,
+        default='active',
+        help_text="Team status: active, eliminated, champion, finalist, semi-finalist"
+    )
+
     class Meta:
         unique_together = ('leaderboard', 'team')
         ordering = ['position']

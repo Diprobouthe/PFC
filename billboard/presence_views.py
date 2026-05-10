@@ -10,6 +10,7 @@ Endpoints:
   POST /billboard/api/leave/          — mark player as no longer at courts
 """
 import json
+import logging
 from datetime import timedelta, date
 
 from django.http import JsonResponse
@@ -18,8 +19,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from courts.models import CourtComplex
+from courts.timezone_utils import get_court_local_now
 from billboard.models import BillboardEntry, BillboardSettings
 from billboard.presence_prefs import UserPresencePrefs
+
+logger = logging.getLogger('billboard.presence')
 
 
 # ── Auth helper ───────────────────────────────────────────────────────────────
@@ -40,12 +44,16 @@ def _snap_to_slot(dt):
     return f"{dt.hour:02d}:{minute:02d}"
 
 
-def _get_defaults(codename):
+def _get_defaults(codename, court_complex=None):
     """
     Return a dict of smart defaults for the one-tap form.
     Falls back gracefully when no history exists.
+    Uses court-local time when a court_complex is provided.
     """
-    now = timezone.localtime()
+    if court_complex:
+        now = get_court_local_now(court_complex)
+    else:
+        now = timezone.localtime()
     today_str = now.date().isoformat()
     tomorrow_str = (now.date() + timedelta(days=1)).isoformat()
     now_slot = _snap_to_slot(now)
@@ -135,20 +143,39 @@ def api_im_here(request):
     if not court:
         return JsonResponse({"ok": False, "error": "No court complex available"}, status=400)
 
-    # Check daily limit
+    # Check daily limit — pass court so the limit uses court-local date
     settings = BillboardSettings.get_settings()
-    if not BillboardEntry.can_create_entry(codename, "AT_COURTS"):
+    if not BillboardEntry.can_create_entry(codename, "AT_COURTS", court=court):
         return JsonResponse({
             "ok": False,
             "error": f"You can only post {settings.max_entries_per_day} 'I'm here' entries per day.",
         }, status=400)
 
-    # Resolve date
+    # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
     raw_date = data.get("scheduled_date")
+    court_local_now = get_court_local_now(court)
     try:
-        sched_date = date.fromisoformat(raw_date) if raw_date else timezone.localtime().date()
+        sched_date = date.fromisoformat(raw_date) if raw_date else court_local_now.date()
     except ValueError:
-        sched_date = timezone.localtime().date()
+        sched_date = court_local_now.date()
+
+    # ── DEBUG: log server UTC vs court-local time ────────────────────────────────
+    server_now = timezone.now()
+    logger.info(
+        "[PRESENCE][AT_COURTS] codename=%s court=%s(%s) "
+        "server_utc=%s court_local=%s sched_date=%s",
+        codename, court.name, court.timezone_name,
+        server_now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        court_local_now.strftime("%Y-%m-%d %H:%M:%S %Z"),
+        sched_date,
+    )
+    print(
+        f"[PRESENCE][AT_COURTS] codename={codename} court={court.name}({court.timezone_name}) "
+        f"server_utc={server_now.strftime('%Y-%m-%d %H:%M:%S UTC')} "
+        f"court_local={court_local_now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"sched_date={sched_date}"
+    )
+    # ───────────────────────────────────────────────────────────────────
 
     message = str(data.get("message", ""))[:200]
 
@@ -210,24 +237,43 @@ def api_going(request):
     if not court:
         return JsonResponse({"ok": False, "error": "No court complex available"}, status=400)
 
-    # Check daily limit
+    # Check daily limit — pass court so the limit uses court-local date
     settings = BillboardSettings.get_settings()
-    if not BillboardEntry.can_create_entry(codename, "GOING_TO_COURTS"):
+    if not BillboardEntry.can_create_entry(codename, "GOING_TO_COURTS", court=court):
         return JsonResponse({
             "ok": False,
             "error": f"You can only post {settings.max_entries_per_day} 'Going' entries per day.",
         }, status=400)
 
-    # Resolve date
+    # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
+    court_local_now = get_court_local_now(court)
     raw_date = data.get("scheduled_date")
     try:
-        sched_date = date.fromisoformat(raw_date) if raw_date else timezone.localtime().date()
+        sched_date = date.fromisoformat(raw_date) if raw_date else court_local_now.date()
     except ValueError:
-        sched_date = timezone.localtime().date()
+        sched_date = court_local_now.date()
+
+    # ── DEBUG: log server UTC vs court-local time ────────────────────────────────
+    server_now = timezone.now()
+    logger.info(
+        "[PRESENCE][GOING] codename=%s court=%s(%s) "
+        "server_utc=%s court_local=%s sched_date=%s",
+        codename, court.name, court.timezone_name,
+        server_now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        court_local_now.strftime("%Y-%m-%d %H:%M:%S %Z"),
+        sched_date,
+    )
+    print(
+        f"[PRESENCE][GOING] codename={codename} court={court.name}({court.timezone_name}) "
+        f"server_utc={server_now.strftime('%Y-%m-%d %H:%M:%S UTC')} "
+        f"court_local={court_local_now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"sched_date={sched_date}"
+    )
+    # ───────────────────────────────────────────────────────────────────
 
     # Resolve time
-    now = timezone.localtime()
-    defaults = _get_defaults(codename)
+    now = court_local_now
+    defaults = _get_defaults(codename, court_complex=court)
     raw_time = data.get("scheduled_time") or defaults["preferred_time"]
     # Validate against TIME_SLOTS
     valid_slots = [s[0] for s in BillboardEntry.TIME_SLOTS]

@@ -1,95 +1,172 @@
 {% extends 'base.html' %}
 
-{% block title %}Leaderboard - Petanque Platform{% endblock %}
+{% block title %}Leaderboard – {{ tournament.name }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="mb-4">{{ tournament.name }} Leaderboard</h1>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Standings</h5>
-                </div>
-                <div class="card-body">
-                    {% if entries %}
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Position</th>
-                                        <th>Team</th>
-                                        <th>Matches Played</th>
-                                        <th>Won</th>
-                                        <th>Lost</th>
-                                        {% if is_swiss %}
-                                            <th>Swiss Points</th>
-                                            <th>Buchholz Score</th>
-                                        {% elif is_wtf %}
-                                            <th>Swiss Points</th>
-                                            <th>πετΑ Index</th>
-                                        {% endif %}
-                                        <th>Points Scored</th>
-                                        <th>Points Conceded</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for entry in entries %}
-                                        <tr>
-                                            <td>{{ entry.position }}</td>
-                                            <td>
-                                                <a href="{% url 'team_detail' entry.team.id %}">
-                                                    {{ entry.team.name }}
-                                                </a>
-                                            </td>
-                                            <td>{{ entry.matches_played }}</td>
-                                            <td>{{ entry.matches_won }}</td>
-                                            <td>{{ entry.matches_lost }}</td>
-                                            {% if is_swiss %}
-                                                <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
-                                                <td>{{ entry.buchholz_score|default:0|floatformat:1 }}</td>
-                                            {% elif is_wtf %}
-                                                <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
-                                                <td><strong>{{ entry.buchholz_score|default:0|floatformat:3 }}</strong></td>
-                                            {% endif %}
-                                            <td>{{ entry.points_scored }}</td>
-                                            <td>{{ entry.points_conceded }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        {% if is_swiss %}
-                            <div class="mt-3">
-                                <small class="text-muted">
-                                    <strong>Swiss Tournament Ranking:</strong> Teams are ranked by Swiss Points (3 per win), 
-                                    then by Buchholz Score (sum of opponents' Swiss points) for tie-breaking.
-                                </small>
-                            </div>
-                        {% elif is_wtf %}
-                            <div class="mt-3">
-                                <small class="text-muted">
-                                    <strong>WTF (πετΑ Index) Tournament Ranking:</strong> Teams are ranked by πετΑ Index, 
-                                    which considers Strength of Schedule (SoS), Quality of Resistance (QoR), 
-                                    Swiss Soft Factor (SSF), and optional Base Rating (BR). 
-                                    This system rewards quality of opposition and resistance, not just victories.
-                                </small>
-                            </div>
-                        {% endif %}
-                    {% else %}
-                        <p class="text-muted">No leaderboard entries found.</p>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <div class="mt-4">
-                <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Tournament
-                </a>
-            </div>
+  <div class="row">
+    <div class="col-12">
+      <h1 class="mb-2">{{ tournament.name }} — Leaderboard</h1>
+
+      {# ------------------------------------------------------------------ #}
+      {# Multi-stage: show stage pipeline summary                            #}
+      {# ------------------------------------------------------------------ #}
+      {% if is_multistage and stages_summary %}
+      <div class="card mb-3">
+        <div class="card-header py-2">
+          <strong>Tournament Stages</strong>
         </div>
+        <div class="card-body py-2">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            {% for stage in stages_summary %}
+              <span class="badge bg-secondary fs-6 px-3 py-2">
+                Stage {{ stage.stage_number }}: {{ stage.name }}
+                <small class="text-white-50">({{ stage.format }}{% if stage.num_qualifiers %}&nbsp;&middot;&nbsp;{{ stage.num_qualifiers }} qualify{% endif %})</small>
+              </span>
+              {% if not forloop.last %}<span class="text-muted">&rarr;</span>{% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ------------------------------------------------------------------ #}
+      {# Main standings table                                                #}
+      {# ------------------------------------------------------------------ #}
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            Standings
+            {% if is_multistage %}
+              <small class="text-muted fw-normal">— all {{ entries|length }} teams, all stages</small>
+            {% endif %}
+          </h5>
+        </div>
+        <div class="card-body">
+          {% if entries %}
+          <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th>#</th>
+                  <th>Team</th>
+                  {% if is_multistage %}
+                    <th>Stage Reached</th>
+                    <th>Status</th>
+                  {% endif %}
+                  <th>Played</th>
+                  <th>Won</th>
+                  <th>Lost</th>
+                  {% if is_swiss %}
+                    <th>Swiss Pts</th>
+                    <th>Buchholz</th>
+                  {% elif is_wtf %}
+                    <th>Swiss Pts</th>
+                    <th>&#960;&#949;&#964;&#913; Index</th>
+                  {% endif %}
+                  <th>Pts For</th>
+                  <th>Pts Against</th>
+                  <th>Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in entries %}
+                <tr class="{% if entry.tournament_status == 'champion' %}table-warning{% elif entry.tournament_status == 'finalist' %}table-info{% elif entry.tournament_status != 'active' and is_multistage %}text-muted{% endif %}">
+                  <td>
+                    {% if entry.position == 1 %}
+                      <span class="fw-bold text-warning">1</span>
+                    {% elif entry.position == 2 %}
+                      <span class="fw-bold text-secondary">2</span>
+                    {% elif entry.position == 3 %}
+                      <span class="fw-bold">3</span>
+                    {% else %}
+                      {{ entry.position }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if entry.team.profile.profile_type == 'full' %}
+                      <a href="{% url 'team_detail' entry.team.id %}">{{ entry.team.name }}</a>
+                    {% else %}
+                      {{ entry.team.name }}
+                    {% endif %}
+                  </td>
+                  {% if is_multistage %}
+                    <td>Stage {{ entry.stage_reached }}</td>
+                    <td>
+                      {% if entry.tournament_status == 'champion' %}
+                        <span class="badge bg-warning text-dark">Champion</span>
+                      {% elif entry.tournament_status == 'finalist' %}
+                        <span class="badge bg-info text-dark">Finalist</span>
+                      {% elif entry.tournament_status == 'semi-finalist' %}
+                        <span class="badge bg-primary">Semi-finalist</span>
+                      {% elif entry.tournament_status == 'active' %}
+                        <span class="badge bg-success">Active</span>
+                      {% else %}
+                        <span class="badge bg-secondary">{{ entry.tournament_status|capfirst }}</span>
+                      {% endif %}
+                    </td>
+                  {% endif %}
+                  <td>{{ entry.matches_played }}</td>
+                  <td>{{ entry.matches_won }}</td>
+                  <td>{{ entry.matches_lost }}</td>
+                  {% if is_swiss %}
+                    <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
+                    <td>{{ entry.buchholz_score|default:0|floatformat:1 }}</td>
+                  {% elif is_wtf %}
+                    <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
+                    <td><strong>{{ entry.buchholz_score|default:0|floatformat:3 }}</strong></td>
+                  {% endif %}
+                  <td>{{ entry.points_scored }}</td>
+                  <td>{{ entry.points_conceded }}</td>
+                  <td>
+                    {% if entry.point_difference > 0 %}
+                      <span class="text-success">+{{ entry.point_difference }}</span>
+                    {% elif entry.point_difference < 0 %}
+                      <span class="text-danger">{{ entry.point_difference }}</span>
+                    {% else %}
+                      0
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {# Legend / footnotes #}
+          <div class="mt-3">
+            {% if is_multistage %}
+              <small class="text-muted">
+                <strong>Global Tournament Ranking:</strong>
+                All teams that participated are shown regardless of which stage they were eliminated in.
+                Teams that advanced further rank higher; within the same stage, Swiss points and Buchholz score are used as tie-breakers.
+              </small>
+            {% elif is_swiss %}
+              <small class="text-muted">
+                <strong>Swiss Tournament Ranking:</strong>
+                Teams are ranked by Swiss Points (3 per win), then by Buchholz Score (sum of opponents' Swiss points) for tie-breaking.
+              </small>
+            {% elif is_wtf %}
+              <small class="text-muted">
+                <strong>WTF (&#960;&#949;&#964;&#913; Index) Tournament Ranking:</strong>
+                Teams are ranked by &#960;&#949;&#964;&#913; Index, which considers Strength of Schedule (SoS), Quality of Resistance (QoR),
+                Swiss Soft Factor (SSF), and optional Base Rating (BR).
+              </small>
+            {% endif %}
+          </div>
+
+          {% else %}
+          <p class="text-muted">No leaderboard entries found.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Back to Tournament
+        </a>
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}

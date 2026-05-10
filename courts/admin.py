@@ -42,14 +42,21 @@ class CourtAdmin(admin.ModelAdmin):
 
 @admin.register(CourtComplex)
 class CourtComplexAdmin(admin.ModelAdmin):
-    list_display = ('name', 'get_court_count', 'get_court_numbers', 'public_accessibility', 'average_rating')
-    list_filter = ('public_accessibility', 'has_shadow_daytime', 'has_night_lighting')
+    list_display = ('name', 'timezone_name', 'get_court_count', 'get_court_numbers', 'public_accessibility', 'average_rating')
+    list_filter = ('public_accessibility', 'has_shadow_daytime', 'has_night_lighting', 'timezone_name')
     search_fields = ('name', 'description')
     filter_horizontal = ('courts',)  # Nice interface for ManyToMany
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'description', 'courts')
+        }),
+        ('Timezone', {
+            'fields': ('timezone_name',),
+            'description': (
+                'IANA timezone name for this court complex (e.g. "Europe/Athens", "America/New_York"). '
+                'Used to compute court-local date/time for presence and analytics.'
+            ),
         }),
         ('Facility Information', {
             'fields': ('distance_to_toilet', 'distance_to_water_hose', 'has_shadow_daytime', 'has_night_lighting', 'public_accessibility')

@@ -185,6 +185,7 @@ def create_game(request):
                 court=assigned_court,
                 is_timed=is_timed,
                 time_limit_minutes=time_limit_minutes,
+                creator_player=creator_player,  # track who created the game
             )
             
             # Add black team players
@@ -322,15 +323,30 @@ def game_detail(request, game_id):
                 return redirect('friendly_games:validate_result', game_id=game.id)
 
     # Detect session player's team for the polling JS
+    # Also compute is_creator and is_joined for the pre-start button logic
     session_team = None
+    is_creator = False
+    is_joined = False
     from pfc_core.session_utils import CodenameSessionManager
     _sc = CodenameSessionManager.get_logged_in_codename(request)
     if _sc:
+        _sc_upper = _sc.upper()
         for gp in players:
             try:
-                if gp.player.codename_profile.codename == _sc:
+                if gp.player.codename_profile.codename == _sc_upper:
                     session_team = gp.team  # 'BLACK' or 'WHITE'
+                    is_joined = True
+                    # Check if this player is the creator
+                    if game.creator_player and game.creator_player.id == gp.player.id:
+                        is_creator = True
                     break
+            except Exception:
+                pass
+        # If no match via codename_profile, check creator by codename directly
+        if not is_joined and game.creator_player:
+            try:
+                if game.creator_player.codename_profile.codename == _sc_upper:
+                    is_creator = True
             except Exception:
                 pass
 
@@ -338,6 +354,8 @@ def game_detail(request, game_id):
         'game': game,
         'players': players,
         'session_team': session_team or '',
+        'is_creator': is_creator,
+        'is_joined': is_joined,
     }
 
     return render(request, 'friendly_games/game_detail.html', context)
@@ -730,19 +748,41 @@ def join_game(request):
 
 def start_match(request, game_id):
     """
-    Start a friendly game match - transition from WAITING_FOR_PLAYERS to ACTIVE
-    Players can participate without codenames, but validation requires verified players
+    Start a friendly game match - transition from WAITING_FOR_PLAYERS to ACTIVE.
+    Only the creator/host can start the game.
     """
     game = get_object_or_404(FriendlyGame, id=game_id)
-    
-    # Check if game can be started
+
+    # ── Auto-expire if unstarted for more than 10 minutes ────────────────────
+    if game.is_pre_start_expired():
+        game.status = 'CANCELLED'
+        game.save()
+        messages.error(request, 'This game has expired (not started within 10 minutes) and has been cancelled.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+
+    # ── Creator-only check ────────────────────────────────────────────────────
+    # If the game has a creator_player set, only that player can start it.
+    if game.creator_player:
+        session_codename = CodenameSessionManager.get_logged_in_codename(request)
+        is_creator = False
+        if session_codename:
+            try:
+                cp = game.creator_player.codename_profile
+                is_creator = (cp.codename == session_codename.upper())
+            except Exception:
+                is_creator = False
+        if not is_creator:
+            messages.error(request, 'Only the game creator can start this game.')
+            return redirect('friendly_games:game_detail', game_id=game.id)
+
+    # ── Check if game can be started ─────────────────────────────────────────
     if game.status != 'WAITING_FOR_PLAYERS':
         messages.error(request, f'Game cannot be started. Current status: {game.get_status_display()}')
         return redirect('friendly_games:game_detail', game_id=game.id)
-    
+
     # Use the basic validation check from the model
     can_start, reason = game.can_start()
-    
+
     if not can_start:
         messages.error(request, f'Cannot start game: {reason}')
         return redirect('friendly_games:game_detail', game_id=game.id)
@@ -910,6 +950,58 @@ def check_codename(request, game_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+
+
+def leave_game(request, game_id):
+    """
+    Allow a joined player to leave a friendly game before it starts.
+    Only works when the game is still WAITING_FOR_PLAYERS.
+    The player is identified via their session codename.
+    """
+    if request.method != 'POST':
+        return redirect('friendly_games:game_detail', game_id=game_id)
+
+    game = get_object_or_404(FriendlyGame, id=game_id)
+
+    # Can only leave before the game starts
+    if game.status != 'WAITING_FOR_PLAYERS':
+        messages.error(request, 'You cannot leave a game that has already started.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+
+    # Identify the requesting player via session codename
+    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    if not session_codename:
+        messages.error(request, 'You must be logged in with a codename to leave a game.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+
+    # Find the FriendlyGamePlayer record for this session player
+    game_player = None
+    for gp in game.players.select_related('player').all():
+        try:
+            if gp.player.codename_profile.codename == session_codename.upper():
+                game_player = gp
+                break
+        except Exception:
+            continue
+
+    if not game_player:
+        messages.error(request, 'You are not in this game.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+
+    # Prevent the creator from leaving (they should cancel instead)
+    if game.creator_player and game.creator_player.id == game_player.player.id:
+        messages.error(request, 'The game creator cannot leave. Cancel the game instead.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+
+    player_name = game_player.player.name
+    team_name = game_player.team.title()
+    game_player.delete()
+
+    # Update validation status after player leaves
+    game.update_validation_status()
+
+    messages.success(request, f'{player_name} has left the {team_name} team. You can now join the correct side.')
+    return redirect('friendly_games:game_detail', game_id=game.id)
 
 
 def rematch(request, game_id):

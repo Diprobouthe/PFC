@@ -13,21 +13,28 @@ from friendly_games.models import PlayerCodename
 
 # Enhanced public team views
 def team_list(request):
-    """Enhanced team list with profiles, logos, and statistics"""
-    # Filter out Mêlée teams and child teams from public view
+    """Enhanced team list with profiles, logos, and statistics.
+    Only Full Profile teams are shown publicly. Minimal, sub-team, and friendly
+    profile teams are functional entities but are hidden from public discovery.
+    """
+    # Filter out Mêlée teams, child teams, and non-full-profile teams from public view
     teams = Team.objects.filter(
         ~Q(name__icontains='Mêlée Team'),  # Hide Mêlée teams
         parent_team__isnull=True  # Hide child teams (subteams)
     ).order_by('name')
     
-    # Prepare teams with profile data
+    # Prepare teams with profile data — only include Full Profile teams
     teams_with_profiles = []
     for team in teams:
         try:
             profile = team.profile
         except:
-            # Create profile if it doesn't exist
-            profile = TeamProfile.objects.create(team=team)
+            # Teams without a profile are treated as minimal (no public presence)
+            continue
+        
+        # Only show Full Profile teams in the public list
+        if profile.profile_type != 'full':
+            continue
         
         # Get accurate team statistics (this will sync if needed)
         stats = profile.get_accurate_statistics()
@@ -48,14 +55,22 @@ def team_list(request):
     return render(request, 'teams/team_list.html', {'teams_with_profiles': teams_with_profiles})
 
 def team_detail(request, team_id):
-    """Enhanced team detail with full profile, clickable players, and statistics"""
+    """Enhanced team detail with full profile, clickable players, and statistics.
+    Minimal Profile teams do not have a public profile page — they return 404.
+    """
+    from django.http import Http404
     team = get_object_or_404(Team, id=team_id)
     
     # Get or create team profile
     try:
         profile = team.profile
     except:
-        profile = TeamProfile.objects.create(team=team)
+        # No profile means no public presence
+        raise Http404("Team profile not found.")
+    
+    # Minimal Profile teams are not publicly accessible
+    if profile.profile_type in ('minimal', 'sub_team', 'friendly'):
+        raise Http404("This team does not have a public profile page.")
     
     # Get players with their profiles
     players = team.players.select_related('profile').all()
@@ -104,7 +119,12 @@ def team_create(request):
         form = TeamForm(request.POST)
         if form.is_valid():
             team = form.save()
-            
+
+            # Upgrade the auto-created minimal profile to full, since this is
+            # an intentional public team registration (not an auto-generated team).
+            from .models import TeamProfile
+            TeamProfile.objects.filter(team=team).update(profile_type='full')
+
             # Check if there's a pending player creation
             pending_player = request.session.get('pending_player')
             if pending_player:
@@ -302,7 +322,7 @@ def team_login(request):
                 profile = current_team.profile
             except:
                 from .models import TeamProfile
-                profile = TeamProfile.objects.create(team=current_team)
+                profile, _ = TeamProfile.objects.get_or_create(team=current_team, defaults={'profile_type': 'minimal'})
         except Team.DoesNotExist:
             # Clear invalid session
             request.session.pop('team_id', None)
@@ -463,10 +483,10 @@ def public_player_create(request):
                         name='Friendly Games',
                         pin='000000'  # Special PIN for system team
                     )
-                    # Create a profile for the system team
+                    # Update the auto-created minimal profile with system team details
                     from .models import TeamProfile
-                    TeamProfile.objects.create(
-                        team=selected_team,
+                    TeamProfile.objects.filter(team=selected_team).update(
+                        profile_type='minimal',
                         description='Default team for friendly games and casual players',
                         motto='Play for fun!'
                     )
@@ -523,11 +543,16 @@ def team_search_api(request):
         if len(query) < 2:  # Require at least 2 characters
             return JsonResponse({'teams': []})
         
-        # Search teams by name (case-insensitive) excluding only Friendly Games
+        # Search teams by name (case-insensitive).
+        # Exclude Friendly Games system team, mêlée teams, and teams with non-full profiles
+        # (minimal, sub_team, friendly) — same visibility rule as the public team list.
         teams = Team.objects.filter(
-            name__icontains=query
+            name__icontains=query,
+            profile__profile_type='full',   # Only full-profile teams are publicly discoverable
         ).exclude(
             name='Friendly Games'
+        ).exclude(
+            name__icontains='Mêlée Team'
         ).values('id', 'name')[:10]  # Limit to 10 results
         
         return JsonResponse({'teams': list(teams)})
@@ -1628,7 +1653,7 @@ def team_profile_view(request, team_id):
         profile = team.profile
     except:
         from .models import TeamProfile
-        profile = TeamProfile.objects.create(team=team)
+        profile, _ = TeamProfile.objects.get_or_create(team=team, defaults={'profile_type': 'minimal'})
     
     # Check access permissions
     can_edit = check_team_profile_access(request, team)
@@ -1659,7 +1684,7 @@ def team_profile_edit(request, team_id):
         profile = team.profile
     except:
         from .models import TeamProfile
-        profile = TeamProfile.objects.create(team=team)
+        profile, _ = TeamProfile.objects.get_or_create(team=team, defaults={'profile_type': 'minimal'})
     
     if request.method == 'POST':
         from .forms import TeamProfileForm
@@ -1720,7 +1745,7 @@ def team_management_interface(request, team_id):
         profile = team.profile
     except:
         from .models import TeamProfile
-        profile = TeamProfile.objects.create(team=team)
+        profile, _ = TeamProfile.objects.get_or_create(team=team, defaults={'profile_type': 'minimal'})
     
     # Get Friendly Team for player transfers
     friendly_team = None
@@ -1833,7 +1858,7 @@ def team_management_dashboard(request):
                 profile = current_team.profile
             except:
                 from .models import TeamProfile
-                profile = TeamProfile.objects.create(team=current_team)
+                profile, _ = TeamProfile.objects.get_or_create(team=current_team, defaults={'profile_type': 'minimal'})
         except Team.DoesNotExist:
             # Clear invalid session
             request.session.pop('team_id', None)

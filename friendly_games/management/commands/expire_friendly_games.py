@@ -24,7 +24,10 @@ from friendly_games.models import FriendlyGame
 # Statuses that are "terminal" — these games are already done
 TERMINAL_STATUSES = {'COMPLETED', 'CANCELLED', 'EXPIRED'}
 
-# Games older than this are considered stale and should be expired
+# Unstarted games (WAITING_FOR_PLAYERS) expire after 10 minutes
+PRE_START_EXPIRATION_MINUTES = 10
+
+# Games in other non-terminal states (ACTIVE, PENDING_VALIDATION, etc.) expire after 24 hours
 EXPIRATION_HOURS = 24
 
 
@@ -40,37 +43,45 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-        cutoff = timezone.now() - timedelta(hours=EXPIRATION_HOURS)
+        now = timezone.now()
 
-        # Find non-terminal games older than 24h
-        stale_games = FriendlyGame.objects.filter(
-            created_at__lt=cutoff,
-        ).exclude(
-            status__in=TERMINAL_STATUSES,
+        # 1. Unstarted games: expire after 10 minutes
+        pre_start_cutoff = now - timedelta(minutes=PRE_START_EXPIRATION_MINUTES)
+        pre_start_stale = FriendlyGame.objects.filter(
+            status='WAITING_FOR_PLAYERS',
+            created_at__lt=pre_start_cutoff,
         )
 
-        count = stale_games.count()
+        # 2. Other non-terminal games (ACTIVE, PENDING_VALIDATION, etc.): expire after 24h
+        long_cutoff = now - timedelta(hours=EXPIRATION_HOURS)
+        long_stale = FriendlyGame.objects.filter(
+            created_at__lt=long_cutoff,
+        ).exclude(
+            status__in=TERMINAL_STATUSES | {'WAITING_FOR_PLAYERS'},
+        )
 
-        if count == 0:
+        total = pre_start_stale.count() + long_stale.count()
+
+        if total == 0:
             self.stdout.write(self.style.SUCCESS('No stale friendly games found.'))
             return
 
         if dry_run:
             self.stdout.write(self.style.WARNING(
-                f'[DRY RUN] Would cancel {count} friendly game(s):'
+                f'[DRY RUN] Would cancel {total} friendly game(s):'
             ))
-            for g in stale_games[:20]:
-                age_h = (timezone.now() - g.created_at).total_seconds() / 3600
+            for g in list(pre_start_stale[:10]) + list(long_stale[:10]):
+                age_m = (now - g.created_at).total_seconds() / 60
                 self.stdout.write(
                     f'  id={g.id} name="{g.name}" status={g.status} '
-                    f'age={age_h:.1f}h match_number={g.match_number}'
+                    f'age={age_m:.1f}min match_number={g.match_number}'
                 )
-            if count > 20:
-                self.stdout.write(f'  ... and {count - 20} more')
             return
 
         # Mark as CANCELLED — no deletion
-        cancelled_count = stale_games.update(status='CANCELLED')
+        c1 = pre_start_stale.update(status='CANCELLED')
+        c2 = long_stale.update(status='CANCELLED')
         self.stdout.write(self.style.SUCCESS(
-            f'Marked {cancelled_count} stale friendly game(s) as CANCELLED.'
+            f'Marked {c1 + c2} stale friendly game(s) as CANCELLED '
+            f'({c1} unstarted >10min, {c2} other >24h).'
         ))

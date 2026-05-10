@@ -1,5 +1,6 @@
 from pfc_core.media_uploads import court_complex_photo_path
 from django.db import models
+import zoneinfo
 
 class Court(models.Model):
     number = models.IntegerField(unique=True)
@@ -61,6 +62,13 @@ class CourtComplex(models.Model):
         help_text="Public access hours (e.g., 'Mon-Fri: 09:00-22:00')"
     )
     
+    # Timezone for this court complex — used for presence/attendance "now" calculations
+    timezone_name = models.CharField(
+        max_length=100,
+        default="Europe/Athens",
+        help_text="IANA timezone name for this court complex (e.g. 'Europe/Athens', 'America/New_York')"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -85,6 +93,13 @@ class CourtComplex(models.Model):
     def get_court_count(self):
         """Get count of courts assigned to this complex"""
         return self.courts.count()
+
+    def get_timezone(self):
+        """Return a zoneinfo.ZoneInfo object for this complex's timezone."""
+        try:
+            return zoneinfo.ZoneInfo(self.timezone_name)
+        except (zoneinfo.ZoneInfoNotFoundError, Exception):
+            return zoneinfo.ZoneInfo("Europe/Athens")
     
     class Meta:
         ordering = ['name']

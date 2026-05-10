@@ -119,6 +119,63 @@
             font-size: 0.9rem;
             backdrop-filter: blur(5px);
         }
+
+        /* ── PFC branding ───────────────────────────────────────────── */
+        .pfc-brand-bar {
+            position: absolute;
+            top: 1.2rem;
+            left: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.12);
+            backdrop-filter: blur(6px);
+            border-radius: 20px;
+            padding: 5px 14px 5px 10px;
+        }
+        .pfc-brand-bar img {
+            height: 22px;
+            width: auto;
+            filter: brightness(0) invert(1);
+            opacity: 0.9;
+        }
+        .pfc-brand-bar span {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.75);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* ── Share bar ──────────────────────────────────────────────── */
+        .share-bar {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .share-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .share-btn:hover { opacity: 0.88; transform: translateY(-1px); text-decoration: none; }
+        .share-btn-copy   { background: rgba(255,255,255,0.18); color: #fff; backdrop-filter: blur(4px); }
+        .share-btn-native { background: rgba(255,255,255,0.18); color: #fff; backdrop-filter: blur(4px); }
         
         @media (max-width: 768px) {
             .match-title { font-size: 1.8rem; }
@@ -133,6 +190,12 @@
 </head>
 <body>
     <div class="scoreboard-container">
+
+        <!-- PFC branding (top-left) -->
+        <div class="pfc-brand-bar">
+            <img src="/static/PFCtextwhite.svg" alt="PFC">
+        </div>
+
         <!-- Status Info -->
         <div class="status-info">
             <div class="d-flex align-items-center">
@@ -211,7 +274,7 @@
                             {% endfor %}
                         </div>
                     {% endif %}
-                    <div class="score text-primary" id="team1-score">{{ scoreboard.team1_score }}</div>
+                    <div class="score" style="color:#ffffff;" id="team1-score">{{ scoreboard.team1_score }}</div>
                 </div>
                 <div class="col-2">
                     <div class="vs-separator">-</div>
@@ -259,7 +322,7 @@
                             {% endfor %}
                         </div>
                     {% endif %}
-                    <div class="score {% if scoreboard.friendly_game %}text-warning{% else %}text-success{% endif %}" id="team2-score">{{ scoreboard.team2_score }}</div>
+                    <div class="score" style="color:#ffc107;" id="team2-score">{{ scoreboard.team2_score }}</div>
                 </div>
             </div>
         </div>
@@ -277,6 +340,19 @@
             <i class="fas fa-info-circle me-1"></i>
             Unofficial Score
         </div>
+
+        <!-- Share bar (bottom-center) -->
+        <div class="share-bar" id="share-bar">
+            <!-- Native Share (Web Share API) — shown on supported devices -->
+            <button id="btn-native" class="share-btn share-btn-native" style="display:none;">
+                <i class="fas fa-share-nodes"></i> Share
+            </button>
+            <!-- Copy link fallback -->
+            <button id="btn-copy" class="share-btn share-btn-copy">
+                <i class="fas fa-link"></i> Copy link
+            </button>
+        </div>
+
     </div>
     
     <!-- Live score WebSocket client -->
@@ -358,6 +434,60 @@
             }
 
             connect();
+        })();
+
+        // ── Share buttons ─────────────────────────────────────────────────────
+        (function() {
+            // Build the canonical share URL: the embed page URL itself
+            // (spectators can share the same page they are viewing)
+            var shareUrl = window.location.href;
+            var shareTitle = document.title || 'PFC Live Score';
+            var shareText  = shareTitle + ' — Watch live on PFC';
+
+            // Web Share API (native share sheet on mobile)
+            var btnNative = document.getElementById('btn-native');
+            if (btnNative && navigator.share) {
+                btnNative.style.display = 'inline-flex';
+                btnNative.addEventListener('click', function() {
+                    navigator.share({
+                        title: shareTitle,
+                        text:  shareText,
+                        url:   shareUrl
+                    }).catch(function() {}); // ignore AbortError
+                });
+            }
+
+            // Copy link fallback
+            var btnCopy = document.getElementById('btn-copy');
+            if (btnCopy) {
+                btnCopy.addEventListener('click', function() {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(shareUrl).then(function() {
+                            var orig = btnCopy.innerHTML;
+                            btnCopy.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                            setTimeout(function() { btnCopy.innerHTML = orig; }, 2000);
+                        }).catch(function() { fallbackCopy(shareUrl); });
+                    } else {
+                        fallbackCopy(shareUrl);
+                    }
+                });
+            }
+
+            function fallbackCopy(text) {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity  = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch(e) {}
+                document.body.removeChild(ta);
+                if (btnCopy) {
+                    var orig = btnCopy.innerHTML;
+                    btnCopy.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    setTimeout(function() { btnCopy.innerHTML = orig; }, 2000);
+                }
+            }
         })();
     </script>
 </body>

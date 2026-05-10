@@ -351,10 +351,52 @@
     <div class="fg-action">
 
         {% if game.status == 'WAITING_FOR_PLAYERS' %}
-            <!-- ── BEFORE MATCH: START ── -->
-            <a href="{% url 'friendly_games:start_match' game.id %}" class="fg-btn-primary fg-btn-start">
-                <i class="fas fa-play-circle"></i> Start Match
-            </a>
+            <!-- ── BEFORE MATCH: START (creator only) or LEAVE (joined players) ── -->
+
+            {# Determine if the session player is the creator #}
+            {% with session_codename=request.session.codename %}
+
+            {# Check if session player is the creator #}
+            {% if game.creator_player %}
+                {# Creator sees Start; everyone else sees Leave if they are in the game #}
+                {% for gp in players %}
+                    {% if gp.player.id == game.creator_player.id %}
+                        {# This player is the creator — Start button is handled below #}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            {# We pass session_team from the view (already computed) #}
+            {% if game.creator_player and session_team %}
+                {# Session player is in the game — check if they are the creator #}
+                {% for gp in players %}
+                    {% if gp.player.id == game.creator_player.id %}
+                        {# creator's codename check is done server-side; template only shows buttons #}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            {# Simple server-side logic: view passes is_creator and is_joined in context #}
+            {% if is_creator %}
+                <a href="{% url 'friendly_games:start_match' game.id %}" class="fg-btn-primary fg-btn-start">
+                    <i class="fas fa-play-circle"></i> Start Match
+                </a>
+            {% elif is_joined %}
+                <form method="POST" action="{% url 'friendly_games:leave_game' game.id %}" style="width:100%;">
+                    {% csrf_token %}
+                    <button type="submit" class="fg-btn-primary" style="background:#dc3545;color:#fff;box-shadow:0 4px 16px rgba(220,53,69,0.35);">
+                        <i class="fas fa-sign-out-alt"></i> Leave Game
+                    </button>
+                </form>
+                <p style="font-size:0.78rem;color:#6c757d;text-align:center;margin-top:4px;">Joined the wrong side? Leave and re-join on the correct team.</p>
+            {% else %}
+                {# Not in the game yet — show Join button #}
+                <a href="{% url 'friendly_games:join_game' %}?match_number={{ game.match_number }}" class="fg-btn-primary fg-btn-start" style="background:#0d6efd;box-shadow:0 4px 16px rgba(13,110,253,0.35);">
+                    <i class="fas fa-user-plus"></i> Join Game
+                </a>
+            {% endif %}
+
+            {% endwith %}
 
         {% elif game.status == 'ACTIVE' %}
             <!-- ── DURING MATCH: LIVE SCORE ── -->

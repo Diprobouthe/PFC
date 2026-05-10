@@ -11,6 +11,7 @@ from tournaments.models import Tournament, TournamentTeam, TournamentCourt, Roun
 from courts.models import Court
 from friendly_games.models import FriendlyGame, PlayerCodename  # Import FriendlyGame and PlayerCodename models
 from billboard.models import BillboardEntry  # Import Billboard for auto-registration
+from courts.timezone_utils import get_court_local_date
 from .forms import MatchActivationForm, MatchResultForm, MatchValidationForm
 from .utils import auto_assign_court, get_court_assignment_status
 from pfc_events.signals import notify_match_state_changed
@@ -47,11 +48,12 @@ def auto_register_players_to_billboard(match):
                 codename = player_codename.codename
                 
                 # Check if player already has an active "AT_COURTS" entry for this court complex today
+                # Use court-local date so Athens courts are not affected by server UTC offset
                 existing_entry = BillboardEntry.objects.filter(
                     codename=codename,
                     action_type='AT_COURTS',
                     court_complex=court_complex,
-                    created_at__date=timezone.now().date(),
+                    created_at__date=get_court_local_date(court_complex),
                     is_active=True
                 ).first()
                 
@@ -457,31 +459,41 @@ def match_activate(request, match_id, team_id):
                 notify_match_state_changed(match.id, match.status)
                 messages.success(request, "Match initiated successfully. Waiting for the other team to validate.")
                 return redirect("match_detail", match_id=match.id)
-            elif is_validating: 
+            elif is_validating:
                 # Try to assign court FIRST before changing match status
                 logger.debug(f"Attempting to call auto_assign_court for match {match.id}")
                 court = auto_assign_court(match)
 
                 if court:
-                    # Court available - activate the match
+                    # Court available — activate the match
                     match.status = "active"
                     match.start_time = timezone.now()
                     match.waiting_for_court = False
                     match.save()
                     notify_match_state_changed(match.id, match.status)
-                    
+
                     # Auto-register players to Billboard
                     auto_register_players_to_billboard(match)
-                    
+
                     status_message = get_court_assignment_status(match)
                     messages.success(request, f"Match validated and activated! {status_message}")
                 else:
-                    # No court available - keep match in waiting state
+                    # No court available — keep match in waiting state.
+                    # Show a clear, specific message so it is never confused with
+                    # a player/team validation error.
                     match.waiting_for_court = True
                     match.save()
-                    
-                    messages.warning(request, "Match validated, but no courts are currently available. The match will start automatically when a court becomes free.")
-                
+                    logger.info(
+                        f"Match {match.id} validated but no court available — "
+                        f"set to waiting_for_court"
+                    )
+                    messages.warning(
+                        request,
+                        "Match validated successfully. "
+                        "No court is currently available — the match will start "
+                        "automatically as soon as a court becomes free."
+                    )
+
                 return redirect("match_detail", match_id=match.id)
         else:
             # Form validation failed - this includes PIN validation errors

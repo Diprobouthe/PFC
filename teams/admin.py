@@ -32,13 +32,77 @@ class TeamProfileInline(admin.StackedInline):
         }),
     )
 
+class ProfileTypeFilter(admin.SimpleListFilter):
+    """Filter teams by their TeamProfile.profile_type."""
+    title = 'Profile Type'
+    parameter_name = 'profile_type'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('full', 'Full (Public)'),
+            ('minimal', 'Minimal (Hidden)'),
+            ('sub_team', 'Sub-Team'),
+            ('friendly', 'Friendly'),
+            ('no_profile', 'No Profile'),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'no_profile':
+            return queryset.filter(profile__isnull=True)
+        if self.value():
+            return queryset.filter(profile__profile_type=self.value())
+        return queryset
+
+
+class HasTournamentHistoryFilter(admin.SimpleListFilter):
+    """Filter teams by whether they have tournament participation history."""
+    title = 'Tournament History'
+    parameter_name = 'has_tournament_history'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('yes', 'Has tournament history (protected)'),
+            ('no', 'No tournament history'),
+        ]
+
+    def queryset(self, request, queryset):
+        from tournaments.models import TournamentTeam
+        teams_with_history = TournamentTeam.objects.values_list('team_id', flat=True).distinct()
+        if self.value() == 'yes':
+            return queryset.filter(pk__in=teams_with_history)
+        if self.value() == 'no':
+            return queryset.exclude(pk__in=teams_with_history)
+        return queryset
+
+
+class ArchiveStatusFilter(admin.SimpleListFilter):
+    """Filter teams by archive status: Active / Archived / All."""
+    title = 'Archive Status'
+    parameter_name = 'archive_status'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('active', 'Active (not archived)'),
+            ('archived', 'Archived'),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'active':
+            return queryset.filter(is_archived=False)
+        if self.value() == 'archived':
+            return queryset.filter(is_archived=True)
+        return queryset  # 'All' — no filter applied
+
+
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_subteam', 'parent_team', 'subteam_type', 'created_at', 'player_count', 'has_profile')
-    list_filter = ('is_subteam', 'subteam_type', 'created_at')
+    list_display = ('name', 'is_archived_display', 'profile_type_display', 'is_subteam', 'parent_team',
+                    'subteam_type', 'created_at', 'player_count', 'tournament_count', 'has_profile', 'is_protected')
+    list_filter = (ArchiveStatusFilter, ProfileTypeFilter, HasTournamentHistoryFilter, 'is_subteam', 'subteam_type', 'created_at')
     search_fields = ('name', 'parent_team__name')
     inlines = [PlayerInline, TeamAvailabilityInline, TeamProfileInline]
-    
+    actions = ['archive_teams', 'unarchive_teams']
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'pin')
@@ -47,19 +111,126 @@ class TeamAdmin(admin.ModelAdmin):
             'fields': ('parent_team', 'is_subteam', 'subteam_type'),
             'description': 'Configure subteam relationships. Leave blank for regular teams.'
         }),
+        ('Archive', {
+            'fields': ('is_archived',),
+            'description': 'Archived teams are hidden from all dropdowns. Their history is preserved.'
+        }),
     )
-    
+
+    def is_archived_display(self, obj):
+        if obj.is_archived:
+            return '<span style="background:#dc3545;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Archived</span>'
+        return '<span style="background:#28a745;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Active</span>'
+    is_archived_display.allow_tags = True
+    is_archived_display.short_description = 'Status'
+    is_archived_display.admin_order_field = 'is_archived'
+
+    def archive_teams(self, request, queryset):
+        updated = queryset.update(is_archived=True)
+        self.message_user(request, f'{updated} team(s) archived. They are now hidden from all dropdowns.')
+    archive_teams.short_description = 'Archive selected teams (hide from dropdowns)'
+
+    def unarchive_teams(self, request, queryset):
+        updated = queryset.update(is_archived=False)
+        self.message_user(request, f'{updated} team(s) unarchived. They will appear in dropdowns again.')
+    unarchive_teams.short_description = 'Unarchive selected teams (restore to dropdowns)'
+
     def player_count(self, obj):
         return obj.players.count()
     player_count.short_description = 'Players'
-    
+
     def has_profile(self, obj):
         return hasattr(obj, 'profile')
     has_profile.boolean = True
     has_profile.short_description = 'Has Profile'
-    
+
+    def profile_type_display(self, obj):
+        try:
+            pt = obj.profile.profile_type
+        except Exception:
+            return '—'
+        colours = {'full': '#28a745', 'minimal': '#6c757d', 'sub_team': '#17a2b8', 'friendly': '#fd7e14'}
+        colour = colours.get(pt, '#6c757d')
+        return f'<span style="background:{colour};color:#fff;padding:2px 7px;border-radius:10px;font-size:11px;">{pt}</span>'
+    profile_type_display.allow_tags = True
+    profile_type_display.short_description = 'Profile Type'
+    profile_type_display.admin_order_field = 'profile__profile_type'
+
+    def tournament_count(self, obj):
+        try:
+            from tournaments.models import TournamentTeam
+            return TournamentTeam.objects.filter(team=obj).values('tournament').distinct().count()
+        except Exception:
+            return 0
+    tournament_count.short_description = 'Tournaments'
+
+    def is_protected(self, obj):
+        """True if team has tournament history and should not be deleted."""
+        try:
+            from tournaments.models import TournamentTeam
+            return TournamentTeam.objects.filter(team=obj).exists()
+        except Exception:
+            return False
+    is_protected.boolean = True
+    is_protected.short_description = 'Protected'
+
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('parent_team')
+        # The admin list shows ALL teams (including archived) so admins can manage them.
+        # Archived teams are excluded only from dropdowns/autocomplete via get_search_results.
+        return super().get_queryset(request).select_related('parent_team', 'profile')
+
+    def get_search_results(self, request, queryset, search_term):
+        """
+        Called by autocomplete_fields widgets in OTHER admin classes that
+        point at Team. Exclude archived teams from autocomplete results.
+        """
+        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
+        if request.path.endswith('/autocomplete/'):
+            queryset = queryset.filter(is_archived=False)
+        return queryset, use_distinct
+
+    def delete_model(self, request, obj):
+        """Block deletion of teams that have tournament history."""
+        try:
+            from tournaments.models import TournamentTeam
+            if TournamentTeam.objects.filter(team=obj).exists():
+                from django.contrib import messages as admin_messages
+                self.message_user(
+                    request,
+                    f'Cannot delete "{obj.name}" — it has tournament history. '
+                    'Archive or reassign the team instead.',
+                    level='ERROR',
+                )
+                return  # Do not delete
+        except Exception:
+            pass
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        """Block bulk deletion of teams with tournament history."""
+        try:
+            from tournaments.models import TournamentTeam
+            protected_ids = set(
+                TournamentTeam.objects.filter(team__in=queryset)
+                .values_list('team_id', flat=True)
+                .distinct()
+            )
+            if protected_ids:
+                safe = queryset.exclude(pk__in=protected_ids)
+                blocked_names = ', '.join(
+                    queryset.filter(pk__in=protected_ids).values_list('name', flat=True)
+                )
+                self.message_user(
+                    request,
+                    f'Blocked deletion of protected teams: {blocked_names}. '
+                    'Only teams without tournament history were deleted.',
+                    level='WARNING',
+                )
+                super().delete_queryset(request, safe)
+                return
+        except Exception:
+            pass
+        super().delete_queryset(request, queryset)
 
 class PlayerProfileInline(admin.StackedInline):
     model = PlayerProfile
