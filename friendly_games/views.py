@@ -1013,15 +1013,32 @@ def rematch(request, game_id):
     if request.method != 'POST':
         messages.error(request, 'Invalid request method.')
         return redirect('friendly_games:game_detail', game_id=game_id)
-    
+
     # Get the original game
     original_game = get_object_or_404(FriendlyGame, id=game_id)
-    
-    # Create new game with same configuration
+
+    # Resolve the rematch initiator from session — they become the creator/host of the new game.
+    # Do NOT carry over ownership from the original game.
+    rematch_initiator = None
+    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    if session_codename:
+        try:
+            from friendly_games.models import PlayerCodename
+            cn_obj = PlayerCodename.objects.get(codename=session_codename.upper())
+            rematch_initiator = cn_obj.player
+        except Exception:
+            pass
+
+    # Create new game with same configuration; assign ownership to the rematch initiator.
+    # Copy time settings (is_timed, time_limit_minutes) from the original game.
+    # Do NOT copy timer_started_at or timer_expired — those are runtime state, not settings.
     new_game = FriendlyGame.objects.create(
         name=f"{original_game.name} - Rematch",
         target_score=original_game.target_score,
-        status='WAITING_FOR_PLAYERS'
+        status='WAITING_FOR_PLAYERS',
+        creator_player=rematch_initiator,  # rematch initiator is the new host
+        is_timed=original_game.is_timed,
+        time_limit_minutes=original_game.time_limit_minutes,
     )
     
     # Copy all players with same teams and positions
