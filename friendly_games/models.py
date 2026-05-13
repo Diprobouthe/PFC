@@ -607,10 +607,15 @@ class FriendlyGameResult(models.Model):
         Final validation status depends on both teams' codename participation.
         """
         from django.utils import timezone
+        from courts.timezone_utils import get_court_local_now
+        
+        # Use court-local time if the game has a court complex assigned
+        _result_complex = self.game.court_complex if self.game else None
+        _result_now = get_court_local_now(_result_complex) if _result_complex else timezone.now()
         
         self.validated_by_team = validating_team
         self.validation_action = action
-        self.validated_at = timezone.now()
+        self.validated_at = _result_now
         
         if validator_codename:
             self.validator_codename = validator_codename
@@ -638,7 +643,7 @@ class FriendlyGameResult(models.Model):
         # Update game status based on validation action
         if action == 'agree':
             self.game.status = 'COMPLETED'
-            self.game.completed_at = timezone.now()
+            self.game.completed_at = _result_now
             self.game.save()
             
             # Update game validation status based on THREE-TIER system

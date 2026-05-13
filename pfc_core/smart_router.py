@@ -228,14 +228,19 @@ def _resolve_nearby_friendly_games(request, player):
     if not complex_id:
         return None
 
-    # Auto-expire unstarted games older than 10 minutes before querying
-    # This prevents stale WAITING_FOR_PLAYERS games from polluting routing
+    # Auto-expire stale games before querying — two tiers:
+    #   Tier 1: Unstarted (WAITING_FOR_PLAYERS) > 10 minutes → CANCELLED
+    #   Tier 2: Started but unvalidated (ACTIVE, PENDING_VALIDATION) > 6 hours → CANCELLED
     from django.utils import timezone as _tz
     from datetime import timedelta as _td
-    _pre_start_cutoff = _tz.now() - _td(minutes=10)
+    _now = _tz.now()
     FriendlyGame.objects.filter(
         status='WAITING_FOR_PLAYERS',
-        created_at__lt=_pre_start_cutoff,
+        created_at__lt=_now - _td(minutes=10),
+    ).update(status='CANCELLED')
+    FriendlyGame.objects.filter(
+        status__in=['ACTIVE', 'PENDING_VALIDATION'],
+        created_at__lt=_now - _td(hours=6),
     ).update(status='CANCELLED')
 
     # Find joinable games at this complex

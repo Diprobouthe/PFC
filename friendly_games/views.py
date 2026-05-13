@@ -11,6 +11,7 @@ from .models import FriendlyGame, FriendlyGamePlayer, PlayerCodename, FriendlyGa
 from pfc_core.session_utils import CodenameSessionManager
 from .court_utils import resolve_court_assignment, get_court_context_for_form, courts_for_complex_json
 from .presence_utils import register_friendly_game_players_at_court
+from courts.timezone_utils import get_court_local_now
 from pfc_events.signals import notify_game_state_changed
 
 logger = logging.getLogger(__name__)
@@ -789,10 +790,13 @@ def start_match(request, game_id):
     
     # Start the game
     game.status = 'ACTIVE'
-    game.started_at = timezone.now()
+    # Use court-local time so started_at reflects the venue's local clock
+    _game_complex = game.court_complex
+    _game_now = get_court_local_now(_game_complex) if _game_complex else timezone.now()
+    game.started_at = _game_now
     # Start timer if timed game
     if game.is_timed and game.time_limit_minutes:
-        game.timer_started_at = timezone.now()
+        game.timer_started_at = _game_now
     game.save()
     notify_game_state_changed(game.id, game.status)
 

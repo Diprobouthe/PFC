@@ -429,6 +429,13 @@
 
         {% elif game.status == 'COMPLETED' %}
             <!-- ── COMPLETED: FINAL SCORE + REMATCH ── -->
+            {% if game.live_scoreboard %}
+            <div class="text-center" style="margin-bottom:6px;">
+                <a href="{% url 'score_history' game.live_scoreboard.id %}" style="font-size:0.78rem;color:#6c757d;">
+                    <i class="fas fa-history"></i> Score Progression History
+                </a>
+            </div>
+            {% endif %}
             <div class="fg-final-score">
                 <div class="fg-score-block">
                     <div class="fg-score-num" style="color:#212529;">{{ game.black_team_score }}</div>

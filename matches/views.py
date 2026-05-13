@@ -11,7 +11,7 @@ from tournaments.models import Tournament, TournamentTeam, TournamentCourt, Roun
 from courts.models import Court
 from friendly_games.models import FriendlyGame, PlayerCodename  # Import FriendlyGame and PlayerCodename models
 from billboard.models import BillboardEntry  # Import Billboard for auto-registration
-from courts.timezone_utils import get_court_local_date
+from courts.timezone_utils import get_court_local_date, get_court_local_now
 from .forms import MatchActivationForm, MatchResultForm, MatchValidationForm
 from .utils import auto_assign_court, get_court_assignment_status
 from pfc_events.signals import notify_match_state_changed
@@ -467,7 +467,9 @@ def match_activate(request, match_id, team_id):
                 if court:
                     # Court available — activate the match
                     match.status = "active"
-                    match.start_time = timezone.now()
+                    # Use court-local time so start_time reflects the venue's local clock
+                    _court_complex = court.courtcomplex_set.first()
+                    match.start_time = get_court_local_now(_court_complex) if _court_complex else timezone.now()
                     match.waiting_for_court = False
                     match.save()
                     notify_match_state_changed(match.id, match.status)
@@ -714,11 +716,14 @@ def match_validate_result(request, match_id, team_id):
 
             if validation_action == "agree":
                 result.validated_by = team
-                result.validated_at = timezone.now()
+                # Use court-local time for validation and end timestamps
+                _match_complex = match.court.courtcomplex_set.first() if match.court else None
+                _court_now = get_court_local_now(_match_complex) if _match_complex else timezone.now()
+                result.validated_at = _court_now
                 result.save()
 
                 match.status = "completed"
-                match.end_time = timezone.now()
+                match.end_time = _court_now
                 if match.start_time:
                     match.duration = match.end_time - match.start_time
                 
@@ -842,7 +847,9 @@ def match_validate_result(request, match_id, team_id):
                         next_match_to_assign.court = match.court
                         next_match_to_assign.waiting_for_court = False
                         next_match_to_assign.status = "active" # Make it active
-                        next_match_to_assign.start_time = timezone.now()
+                        # Use court-local time for the newly started match
+                        _next_complex = match.court.courtcomplex_set.first()
+                        next_match_to_assign.start_time = get_court_local_now(_next_complex) if _next_complex else timezone.now()
                         next_match_to_assign.save()
                     else:
                         # No matches waiting, mark court as available

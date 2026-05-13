@@ -20,4 +20,5 @@ urlpatterns = [
     path('scoreboard/<int:scoreboard_id>/reset/', views_scoreboard.reset_scoreboard, name='reset_scoreboard'),
     path('scoreboard/<int:scoreboard_id>/embed/', views_scoreboard.scoreboard_embed, name='scoreboard_embed'),
     path('scoreboard/<int:scoreboard_id>/rate/', views_scoreboard.rate_scorekeeper, name='rate_scorekeeper'),
+    path('scoreboard/<int:scoreboard_id>/history/', views_scoreboard.score_history, name='score_history'),
 ]

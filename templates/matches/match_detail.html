@@ -549,6 +549,15 @@
          ══════════════════════════════════════════ -->
     {% elif match.status == 'completed' %}
 
+    <!-- Score history link (if live scoreboard exists) -->
+    {% if match.live_scoreboard %}
+    <div class="text-center mb-2">
+        <a href="{% url 'score_history' match.live_scoreboard.id %}" style="font-size:0.8rem;color:#6c757d;">
+            <i class="fas fa-history"></i> Score Progression History
+        </a>
+    </div>
+    {% endif %}
+
     <!-- Final score -->
     <div class="md-label">Final Score</div>
     <div class="md-score-block">

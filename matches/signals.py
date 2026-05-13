@@ -84,7 +84,13 @@ def auto_assign_waiting_matches_when_court_available(sender, instance, created, 
                     if assigned_court:
                         # Court assigned - activate the match
                         match.status = "active"
-                        match.start_time = timezone.now()
+                        # Use court-local time so start_time reflects the venue's local clock
+                        try:
+                            from courts.timezone_utils import get_court_local_now
+                            _complex = assigned_court.courtcomplex_set.first()
+                            match.start_time = get_court_local_now(_complex) if _complex else timezone.now()
+                        except Exception:
+                            match.start_time = timezone.now()
                         match.waiting_for_court = False
                         match.save()
                         

@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Q
+from django.urls import reverse
 import json
 import logging
 
@@ -19,6 +20,30 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_scorekeeper_names(score_history_qs):
+    """
+    Build a codename → player name lookup dict for a queryset of ScoreUpdate rows.
+    Uses a single batch query to avoid N+1 lookups.
+    Returns a dict: {codename_str: player_name_str or None}
+    """
+    codenames = set(
+        v for v in score_history_qs.values_list('scorekeeper_codename', flat=True)
+        if v
+    )
+    if not codenames:
+        return {}
+    try:
+        mapping = {
+            pc.codename: pc.player.name
+            for pc in PlayerCodename.objects.filter(
+                codename__in=codenames
+            ).select_related('player')
+        }
+    except Exception:
+        mapping = {}
+    return mapping
 
 
 def _broadcast_score(scoreboard):
@@ -81,8 +106,17 @@ def scoreboard_detail(request, scoreboard_id):
     
     scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
     
-    # Get recent score updates for history
-    recent_updates = scoreboard.score_updates.all()[:10]
+    # Get full score history (ordered oldest-first for progression display)
+    score_history = list(scoreboard.score_updates.order_by('timestamp'))
+    recent_updates = score_history  # keep backward compat alias
+
+    # Resolve codenames → player names in one batch query (privacy: never expose raw codenames)
+    scorekeeper_names = _resolve_scorekeeper_names(
+        scoreboard.score_updates.all()  # pass the original queryset for the values_list
+    )
+    for _upd in score_history:
+        _upd.scorekeeper_display_name = scorekeeper_names.get(_upd.scorekeeper_codename) or ''
+
     
     # Get session context for auto-filling codename
     session_context = SessionManager.get_session_context(request)
@@ -94,12 +128,16 @@ def scoreboard_detail(request, scoreboard_id):
     team1_name = None
     team2_name = None
     
+    # Resolve court complex for timezone-aware timestamp display
+    court_complex = None
     if scoreboard.tournament_match:
         match_id = scoreboard.tournament_match.id
         team1_id = scoreboard.tournament_match.team1.id
         team2_id = scoreboard.tournament_match.team2.id
         team1_name = scoreboard.tournament_match.team1.name
         team2_name = scoreboard.tournament_match.team2.name
+        if scoreboard.tournament_match.court:
+            court_complex = scoreboard.tournament_match.court.courtcomplex_set.first()
     elif scoreboard.friendly_game:
         match_id = scoreboard.friendly_game.id
         # For friendly games, we'll use the game ID as both team references
@@ -108,6 +146,7 @@ def scoreboard_detail(request, scoreboard_id):
         team2_id = scoreboard.friendly_game.id  # Use game ID as placeholder
         team1_name = scoreboard.get_team1_name()
         team2_name = scoreboard.get_team2_name()
+        court_complex = scoreboard.friendly_game.court_complex
     
     # Resolve which team the current session belongs to (for single submit button)
     my_team_id = None
@@ -139,6 +178,7 @@ def scoreboard_detail(request, scoreboard_id):
     context = {
         'scoreboard': scoreboard,
         'recent_updates': recent_updates,
+        'score_history': score_history,
         'score_range': range(14),  # 0-13 for rolling selectors
         'session_codename': session_context.get('session_codename'),
         'player_logged_in': session_context.get('player_logged_in', False),
@@ -151,6 +191,10 @@ def scoreboard_detail(request, scoreboard_id):
         'team2_name': team2_name,
         'my_team_id': my_team_id,   # session-resolved team — used for single submit button
         'has_submit_links': match_id is not None,
+        # Court complex for timezone-aware timestamp display in templates
+        'court_complex': court_complex,
+        # Codename → player name map (privacy: templates must use this, never raw codename)
+        'scorekeeper_names': scorekeeper_names,
     }
     
     return render(request, 'matches/scoreboard_detail.html', context)
@@ -187,6 +231,20 @@ def update_scoreboard(request, scoreboard_id):
         # Optional: Validate codename exists (for better UX, but not required)
         codename_exists = PlayerCodename.objects.filter(codename=scorekeeper_codename).exists()
         
+        # Determine update_type for pétanque scoring.
+        # In pétanque, a single end can award multiple points (1–6) to ONE team.
+        # increment: exactly one team's score increased (by any amount), the other stayed the same.
+        # correction: both teams' scores changed, any score decreased, or any other anomaly.
+        prev_t1 = scoreboard.team1_score
+        prev_t2 = scoreboard.team2_score
+        delta1 = team1_score - prev_t1
+        delta2 = team2_score - prev_t2
+        is_normal_increment = (
+            (delta1 > 0 and delta2 == 0) or   # team1 scored, team2 unchanged
+            (delta1 == 0 and delta2 > 0)       # team2 scored, team1 unchanged
+        )
+        update_type = 'increment' if is_normal_increment else 'correction'
+
         # Update the scoreboard
         scoreboard.update_scores(team1_score, team2_score, scorekeeper_codename)
         
@@ -196,7 +254,7 @@ def update_scoreboard(request, scoreboard_id):
             team1_score=team1_score,
             team2_score=team2_score,
             scorekeeper_codename=scorekeeper_codename,
-            update_type='increment'
+            update_type=update_type
         )
         
         # Prepare response
@@ -294,6 +352,65 @@ def scoreboard_embed(request, scoreboard_id):
     }
     
     return render(request, 'matches/scoreboard_embed.html', context)
+
+
+def score_history(request, scoreboard_id):
+    """
+    Full score progression history for a scoreboard.
+    Accessible from both the scoreboard detail page and the match/game detail pages.
+    """
+    scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
+
+    # Full history ordered oldest-first for chronological progression
+    history = list(scoreboard.score_updates.order_by('timestamp'))
+
+    # Resolve codenames → player names in one batch query (privacy: never expose raw codenames)
+    scorekeeper_names = _resolve_scorekeeper_names(
+        scoreboard.score_updates.all()  # pass the original queryset for the values_list
+    )
+    for _upd in history:
+        _upd.scorekeeper_display_name = scorekeeper_names.get(_upd.scorekeeper_codename) or ''
+
+    # Determine final score from the last history entry (or current scoreboard state)
+    final_score_t1 = None
+    final_score_t2 = None
+    if history:
+        last = history[-1]  # history is now a list, use index instead of .last()
+        if last:
+            final_score_t1 = last.team1_score
+            final_score_t2 = last.team2_score
+    elif not scoreboard.is_active:
+        final_score_t1 = scoreboard.team1_score
+        final_score_t2 = scoreboard.team2_score
+
+    # Smart back URL: prefer the match/game detail page
+    back_url = None
+    if scoreboard.tournament_match:
+        back_url = reverse('match_detail', kwargs={'match_id': scoreboard.tournament_match.id})
+    elif scoreboard.friendly_game:
+        back_url = reverse('friendly_games:game_detail', kwargs={'game_id': scoreboard.friendly_game.id})
+    if not back_url:
+        back_url = reverse('scoreboard_detail', kwargs={'scoreboard_id': scoreboard_id})
+
+    # Resolve court complex for timezone-aware timestamp display
+    court_complex = None
+    if scoreboard.tournament_match and scoreboard.tournament_match.court:
+        court_complex = scoreboard.tournament_match.court.courtcomplex_set.first()
+    elif scoreboard.friendly_game:
+        court_complex = scoreboard.friendly_game.court_complex
+
+    context = {
+        'scoreboard': scoreboard,
+        'score_history': history,
+        'final_score_t1': final_score_t1,
+        'final_score_t2': final_score_t2,
+        'back_url': back_url,
+        # Court complex for timezone-aware timestamp display in templates
+        'court_complex': court_complex,
+        # Codename → player name map (privacy: templates must use this, never raw codename)
+        'scorekeeper_names': scorekeeper_names,
+    }
+    return render(request, 'matches/score_history.html', context)
 
 
 @require_http_methods(["POST"])

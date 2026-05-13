@@ -134,7 +134,16 @@ class Match(models.Model):
         # Only update status and timing if not already completed
         if self.status != "completed":
             self.status = "completed"
-            self.end_time = timezone.now()
+            # Use court-local time if a court complex is available
+            if self.court:
+                try:
+                    from courts.timezone_utils import get_court_local_now
+                    _complex = self.court.courtcomplex_set.first()
+                    self.end_time = get_court_local_now(_complex) if _complex else timezone.now()
+                except Exception:
+                    self.end_time = timezone.now()
+            else:
+                self.end_time = timezone.now()
             if self.start_time:
                 self.duration = self.end_time - self.start_time
         

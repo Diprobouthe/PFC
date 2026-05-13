@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load court_tz_tags %}
+
+{% block title %}Score History · {{ scoreboard.get_match_name }}{% endblock %}
+
+{% block content %}
+<style>
+.sh-shell {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 12px 16px 32px;
+}
+.sh-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.sh-back {
+    font-size: 0.85rem;
+    color: #6c757d;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.sh-back:hover { color: #0d6efd; }
+.sh-title {
+    font-size: 1rem;
+    font-weight: 700;
+    flex: 1;
+    text-align: center;
+}
+.sh-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 0.78rem;
+    color: #6c757d;
+}
+.sh-teams {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+.sh-team1 { font-weight: 700; color: #0d6efd; }
+.sh-team2 { font-weight: 700; color: #198754; }
+.sh-sep { color: #adb5bd; font-weight: 300; }
+.sh-final {
+    font-size: 1.5rem;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 4px;
+}
+.sh-final-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6c757d;
+    text-align: center;
+    margin-bottom: 16px;
+}
+.sh-table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid #dee2e6;
+}
+.sh-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.sh-table thead tr {
+    background: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+.sh-table th {
+    padding: 7px 8px;
+    font-weight: 600;
+    color: #6c757d;
+    white-space: nowrap;
+}
+.sh-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+}
+.sh-table tbody tr:last-child td { border-bottom: none; }
+.sh-table tbody tr.row-reset { background: #fff8f0; }
+.sh-table tbody tr.row-correction { background: #f0f8ff; }
+
+.badge-reset {
+    font-size: 0.65rem;
+    background: #fff3cd;
+    color: #664d03;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.badge-correction {
+    font-size: 0.65rem;
+    background: #cfe2ff;
+    color: #084298;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.badge-increment {
+    font-size: 0.65rem;
+    color: #adb5bd;
+}
+.sh-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: #adb5bd;
+    font-size: 0.85rem;
+}
+</style>
+
+<div class="sh-shell">
+
+    <!-- Header -->
+    <div class="sh-header">
+        <a href="{{ back_url }}" class="sh-back"><i class="fas fa-arrow-left"></i> Back</a>
+        <div class="sh-title">Score History</div>
+        <div style="width:60px;"></div><!-- spacer to center title -->
+    </div>
+
+    <!-- Match name + teams -->
+    <div class="sh-teams">
+        <span class="sh-team1">{{ scoreboard.get_team1_name }}</span>
+        <span class="sh-sep">vs</span>
+        <span class="sh-team2">{{ scoreboard.get_team2_name }}</span>
+    </div>
+
+    <!-- Final score (if completed) -->
+    {% if final_score_t1 is not None %}
+    <div class="sh-final">
+        <span style="color:#0d6efd;">{{ final_score_t1 }}</span>
+        <span style="color:#adb5bd;font-weight:300;"> – </span>
+        <span style="color:#198754;">{{ final_score_t2 }}</span>
+    </div>
+    <div class="sh-final-label">Final Score</div>
+    {% endif %}
+
+    <!-- Meta: event count + date -->
+    <div class="sh-meta">
+        <span>{{ score_history|length }} score event{{ score_history|length|pluralize }}</span>
+        {% if scoreboard.created_at %}
+        <span>{{ scoreboard.created_at|court_localtime:court_complex|date:"d M Y" }}</span>
+        {% endif %}
+    </div>
+
+    <!-- History table -->
+    {% if score_history %}
+    <div class="sh-table-wrap">
+        <table class="sh-table">
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Time</th>
+                    <th style="text-align:center;color:#0d6efd;">{{ scoreboard.get_team1_name }}</th>
+                    <th style="text-align:center;color:#adb5bd;">–</th>
+                    <th style="text-align:center;color:#198754;">{{ scoreboard.get_team2_name }}</th>
+                    <th style="text-align:left;">By</th>
+                    <th style="text-align:center;">Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for update in score_history %}
+                <tr class="{% if update.update_type == 'reset' %}row-reset{% elif update.update_type == 'correction' %}row-correction{% endif %}">
+                    <td style="color:#6c757d;white-space:nowrap;">{{ update.timestamp|court_localtime:court_complex|time:"H:i:s" }}</td>
+                    <td style="text-align:center;font-weight:700;color:#0d6efd;">{{ update.team1_score }}</td>
+                    <td style="text-align:center;color:#adb5bd;">–</td>
+                    <td style="text-align:center;font-weight:700;color:#198754;">{{ update.team2_score }}</td>
+                    <td style="color:#495057;">{{ update.scorekeeper_display_name }}</td>
+                    <td style="text-align:center;">
+                        {% if update.update_type == 'reset' %}
+                            <span class="badge-reset">reset</span>
+                        {% elif update.update_type == 'correction' %}
+                            <span class="badge-correction">fix</span>
+                        {% else %}
+                            <span class="badge-increment">+1</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="sh-empty">
+        <i class="fas fa-history" style="font-size:2rem;margin-bottom:8px;display:block;"></i>
+        No score events recorded for this match.
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
