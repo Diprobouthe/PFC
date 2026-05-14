@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-
+{% load court_tz_tags %}
 {% block title %}Join Game · PFC{% endblock %}
 
 {% block content %}
@@ -344,7 +344,7 @@ let gameData = {
         match_number: '{{ prefill_game.match_number }}',
         status: '{{ prefill_game.status }}',
         target_score: {{ prefill_game.target_score }},
-        created_at: '{{ prefill_game.created_at|date:"M d, Y H:i" }}'
+        created_at: '{{ prefill_game.created_at|court_localtime:prefill_game.court_complex|date:"M d, Y H:i" }}'
     },
     teams: {
         black: {

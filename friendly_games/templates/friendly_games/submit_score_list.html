@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static court_tz_tags %}
 
 {% block title %}Submit Friendly Game Scores{% endblock %}
 
@@ -47,7 +47,7 @@
                                             {{ game.name }}
                                         </h6>
                                         <small class="text-muted">
-                                            <i class="fas fa-calendar"></i> {{ game.created_at|date:"M d, Y H:i" }}
+                                            <i class="fas fa-calendar"></i> {{ game.created_at|court_localtime:game.court_complex|date:"M d, Y H:i" }}
                                             {% if game.player_team %}
                                             | <i class="fas fa-users"></i> You're on: 
                                             <span class="badge {% if game.player_team == 'BLACK' %}bg-dark{% else %}bg-light text-dark{% endif %}">
@@ -104,8 +104,8 @@
                                             {{ game.name }}
                                         </h6>
                                         <small class="text-muted">
-                                            <i class="fas fa-calendar"></i> {{ game.created_at|date:"M d, Y H:i" }}
-                                            | <i class="fas fa-clock"></i> Submitted: {{ game.result.created_at|date:"M d, H:i" }}
+                                            <i class="fas fa-calendar"></i> {{ game.created_at|court_localtime:game.court_complex|date:"M d, Y H:i" }}
+                                            | <i class="fas fa-clock"></i> Submitted: {{ game.result.created_at|court_localtime:game.court_complex|date:"M d, H:i" }}
                                         </small>
                                         
                                         <!-- Submitted Scores -->

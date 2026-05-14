@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static court_tz_tags %}
 
 {% block title %}Matches - Petanque Platform{% endblock %}
 
@@ -342,7 +342,7 @@
                                 <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
                                 <div class="ml-meta">{{ match.tournament.name }}{% if match.round %} · Round {{ match.round.number }}{% endif %}</div>
                                 {% if match.start_time %}
-                                    <div class="ml-meta" style="margin-bottom:0;">Started {{ match.start_time|date:"M j, H:i" }}</div>
+                                    <div class="ml-meta" style="margin-bottom:0;">Started {{ match.start_time|court_localtime:match.court.courtcomplex_set.first|date:"M j, H:i" }}</div>
                                 {% endif %}
                                 {% if match.time_limit_minutes %}
                                     {% include "partials/timer_badge.html" with timer_seconds=match.time_remaining_seconds timer_expired=match.is_time_expired timer_limit=match.time_limit_minutes timer_id=match.id %}
@@ -520,8 +520,8 @@
                             <div class="ml-accent accent-waiting"></div>
                             <div class="ml-card-body">
                                 <div class="ml-teams">Game #{{ game.match_number }}</div>
-                                <div class="ml-meta">Created {{ game.created_at|date:"M j, H:i" }}</div>
-                                <div class="ml-meta" style="margin-bottom:0;">Expires {{ game.expires_at|date:"M j, H:i" }}</div>
+                                <div class="ml-meta">Created {{ game.created_at|court_localtime:game.court_complex|date:"M j, H:i" }}</div>
+                                <div class="ml-meta" style="margin-bottom:0;">Expires {{ game.expires_at|court_localtime:game.court_complex|date:"M j, H:i" }}</div>
                             </div>
                             <div class="ml-card-right">
                                 <span class="ml-status-badge badge-waiting">Waiting</span>
@@ -552,8 +552,8 @@
                             <div class="ml-accent accent-active"></div>
                             <div class="ml-card-body">
                                 <div class="ml-teams">Game #{{ game.match_number }}</div>
-                                <div class="ml-meta">Started {{ game.started_at|date:"M j, H:i" }}</div>
-                                <div class="ml-meta" style="margin-bottom:0;">{{ game.started_at|timesince }} ago</div>
+                                <div class="ml-meta">Started {{ game.started_at|court_localtime:game.court_complex|date:"M j, H:i" }}</div>
+                                <div class="ml-meta" style="margin-bottom:0;">{{ game.started_at|court_timesince:game.court_complex }} ago</div>
                             </div>
                             <div class="ml-card-right">
                                 <span class="ml-status-badge badge-active">Active</span>
@@ -586,7 +586,7 @@
                                 <div class="ml-meta">
                                     Submitted by
                                     {% if game.result.submitted_by_team == 'BLACK' %}Black{% else %}White{% endif %} team
-                                    {% if game.result.submitted_at %}· {{ game.result.submitted_at|date:"M j, H:i" }}{% endif %}
+                                    {% if game.result.submitted_at %}· {{ game.result.submitted_at|court_localtime:game.court_complex|date:"M j, H:i" }}{% endif %}
                                 </div>
                                 <div style="display:flex;gap:6px;margin-top:6px;">
                                     <a href="{% url 'friendly_games:validate_result' game.id %}" class="ml-action-btn">
@@ -619,7 +619,7 @@
                             <div class="ml-accent accent-done"></div>
                             <div class="ml-card-body">
                                 <div class="ml-teams">Game #{{ game.match_number }}</div>
-                                <div class="ml-meta">{{ game.completed_at|date:"M j, H:i" }}</div>
+                                <div class="ml-meta">{{ game.completed_at|court_localtime:game.court_complex|date:"M j, H:i" }}</div>
                                 <div class="ml-score">
                                     <span>⚫ {{ game.black_team_score }}</span>
                                     <span class="ml-score-sep">–</span>
