@@ -807,12 +807,13 @@ def ai_coach_report(request, player_id):
         id=player_id
     )
 
-    # Access control: own profile or staff
+    # Access control: only the profile owner may download their own report.
+    # This is personal performance data — staff access is intentionally excluded.
     session_player_id = request.session.get('player_id')
     is_own = session_player_id is not None and int(session_player_id) == player.id
-    is_staff = request.user.is_authenticated and request.user.is_staff
-    if not (is_own or is_staff):
-        raise Http404("Report not accessible.")
+    if not is_own:
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("You do not have permission to access this player's AI Coach Report.")
 
     profile = getattr(player, 'profile', None)
     if profile is None:

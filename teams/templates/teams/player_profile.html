@@ -393,16 +393,16 @@ a.mh-card::after {
                 {% endif %}
             </div>
         </div>
+        {% if is_own_profile %}
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
             <a href="{% url 'edit_player_profile' %}" class="pp-edit-btn">
                 <i class="fas fa-edit"></i> Edit
             </a>
-            {% if is_own_profile or request.user.is_staff %}
             <a href="{% url 'ai_coach_report' player.id %}" class="pp-ai-report-btn" title="Download your full performance dossier for AI coaching analysis">
                 <i class="fas fa-robot"></i> AI Coach Report
             </a>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
 
     <!-- ===== QUICK STATS ===== -->
