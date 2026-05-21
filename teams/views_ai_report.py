@@ -808,9 +808,17 @@ def ai_coach_report(request, player_id):
     )
 
     # Access control: only the profile owner may download their own report.
-    # This is personal performance data — staff access is intentionally excluded.
-    session_player_id = request.session.get('player_id')
-    is_own = session_player_id is not None and int(session_player_id) == player.id
+    # Uses the codename-based session (session['player_codename']) which is the
+    # platform's primary login system — NOT the legacy session['player_id'] key.
+    is_own = False
+    session_codename = request.session.get('player_codename')
+    if session_codename and request.session.get('session_active'):
+        try:
+            from friendly_games.models import PlayerCodename as _PC
+            _pc = _PC.objects.get(codename=session_codename.upper())
+            is_own = (_pc.player_id == player.id)
+        except Exception:
+            is_own = False
     if not is_own:
         from django.core.exceptions import PermissionDenied
         raise PermissionDenied("You do not have permission to access this player's AI Coach Report.")

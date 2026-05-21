@@ -1235,9 +1235,19 @@ def player_profile(request, player_id):
     except Exception as e:
         rating_chart_data = {'has_data': False}
     
-    # Determine if the viewer is looking at their own profile
-    session_player_id = request.session.get('player_id')
-    is_own_profile = (session_player_id is not None and int(session_player_id) == player.id)
+    # Determine if the viewer is looking at their own profile.
+    # The platform uses codename-based sessions (session['player_codename']),
+    # NOT session['player_id'] which belongs to a different legacy login flow.
+    # We resolve the logged-in player via PlayerCodename -> Player and compare.
+    is_own_profile = False
+    session_codename = request.session.get('player_codename')
+    if session_codename and request.session.get('session_active'):
+        try:
+            from friendly_games.models import PlayerCodename as _PC
+            _pc = _PC.objects.get(codename=session_codename.upper())
+            is_own_profile = (_pc.player_id == player.id)
+        except Exception:
+            is_own_profile = False
 
     context = {
         'player': player,
