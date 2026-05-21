@@ -12,8 +12,8 @@ class ScenarioStageInline(admin.TabularInline):
 
 @admin.register(TournamentScenario)
 class TournamentScenarioAdmin(admin.ModelAdmin):
-    list_display = ['display_name', 'name', 'is_free', 'tournament_type', 'draft_type', 'max_doubles_players', 'max_triples_players']
-    list_filter = ['is_free', 'tournament_type', 'draft_type']
+    list_display = ['display_name', 'name', 'scenario_mode', 'is_free', 'tournament_type', 'draft_type', 'max_doubles_players', 'max_triples_players']
+    list_filter = ['is_free', 'scenario_mode', 'tournament_type', 'draft_type']
     search_fields = ['name', 'display_name']
     readonly_fields = ['created_at']
     
@@ -31,12 +31,16 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
             'fields': ('default_court_complex', 'max_courts', 'recommended_courts'),
             'description': 'Court complex is REQUIRED for all tournaments using this scenario.'
         }),
+        ('Scenario Mode', {
+            'fields': ('scenario_mode',),
+            'description': 'Determines what type of tournament is created: Mêlée (individual registration), Super Mêlée (Mêlée + player shuffle after each round), or Normal Team Tournament (uses existing team registration system).'
+        }),
         ('Tournament Configuration', {
             'fields': ('tournament_type', 'num_rounds', 'matches_per_team', 'draft_type')
         }),
-        ('Match Timer Configuration', {
-            'fields': ('default_time_limit_minutes',),
-            'description': 'Set default time limit for all matches in tournaments using this scenario.'
+        ('Timing Configuration', {
+            'fields': ('default_time_limit_minutes', 'pregame_countdown_minutes'),
+            'description': 'Match time limit and pre-game court countdown. Leave pregame blank to use the system default (3 minutes).'
         }),
         ('Metadata', {
             'fields': ('created_at',),

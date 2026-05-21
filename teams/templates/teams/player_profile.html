@@ -81,6 +81,16 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     text-decoration: none !important; background: #fff !important;
     white-space: nowrap !important;
 }
+.pp-ai-report-btn {
+    flex-shrink: 0 !important;
+    display: inline-flex !important; align-items: center !important; gap: 6px !important;
+    padding: 10px 16px !important; border-radius: 14px !important;
+    border: 2px solid #7c3aed !important; color: #7c3aed !important;
+    font-size: 14px !important; font-weight: 700 !important;
+    text-decoration: none !important; background: #faf5ff !important;
+    white-space: nowrap !important; margin-top: 6px !important;
+}
+.pp-ai-report-btn:hover { background: #ede9fe !important; color: #5b21b6 !important; border-color: #5b21b6 !important; }
 
 /* ---- QUICK STATS STRIP — 4 big boxes ---- */
 .pp-stats-strip {
@@ -383,9 +393,16 @@ a.mh-card::after {
                 {% endif %}
             </div>
         </div>
-        <a href="{% url 'edit_player_profile' %}" class="pp-edit-btn">
-            <i class="fas fa-edit"></i> Edit
-        </a>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+            <a href="{% url 'edit_player_profile' %}" class="pp-edit-btn">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+            {% if is_own_profile or request.user.is_staff %}
+            <a href="{% url 'ai_coach_report' player.id %}" class="pp-ai-report-btn" title="Download your full performance dossier for AI coaching analysis">
+                <i class="fas fa-robot"></i> AI Coach Report
+            </a>
+            {% endif %}
+        </div>
     </div>
 
     <!-- ===== QUICK STATS ===== -->

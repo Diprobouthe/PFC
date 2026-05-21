@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import api_views
+from . import views_ai_report
 
 urlpatterns = [
     path('', views.team_list, name='team_list'),
@@ -13,6 +14,7 @@ urlpatterns = [
     path('players/friendly-leaderboard/', views.friendly_games_leaderboard, name='friendly_games_leaderboard'),
     path('players/pfc-market/', views.pfc_market, name='pfc_market'),
     path('players/<int:player_id>/', views.player_profile, name='player_profile'),
+    path('players/<int:player_id>/ai-coach-report/', views_ai_report.ai_coach_report, name='ai_coach_report'),
     path('players/create/', views.public_player_create, name='public_player_create'),
     path('players/edit/', views.edit_player_profile, name='edit_player_profile'),
     path('players/login/', views.player_login, name='player_login'),
@@ -21,4 +23,3 @@ urlpatterns = [
     path('api/player-lookup/', api_views.player_lookup_api, name='player_lookup_api'),
     path('<int:team_id>/pin/', views.show_team_pin, name='show_team_pin'),
 ]
-

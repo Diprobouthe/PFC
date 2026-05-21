@@ -27,6 +27,25 @@ class TournamentScenario(models.Model):
     recommended_courts = models.PositiveIntegerField(default=3, help_text="Default/recommended number of courts for this scenario")
     stages = models.JSONField(blank=True, null=True, help_text="Multi-stage tournament configuration (JSON format)")
     
+    # Scenario mode — determines what kind of tournament is created
+    scenario_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ('melee', 'Mêlée (individual registration, dynamic teams)'),
+            ('super_melee', 'Super Mêlée (Mêlée + player shuffle after each round)'),
+            ('team', 'Normal Team Tournament (existing team registration)'),
+        ],
+        default='melee',
+        help_text="Type of tournament this scenario creates"
+    )
+
+    # Pre-game court countdown (maps to Tournament.pregame_countdown_minutes)
+    pregame_countdown_minutes = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration in minutes of the pre-game 'Find Your Court' countdown. Leave blank to use the system default (3 minutes)."
+    )
+
     # Tournament configuration
     tournament_type = models.CharField(max_length=20, choices=[
         ('swiss', 'Swiss'),

@@ -1,67 +1,84 @@
 """
 PFC MARKET - Stock Exchange Style Player Leaderboard
-Shows all players ranked by rating with trend indicators based on last 2 games
+Shows all players ranked by rating with trend indicators based on recent 3-day window.
 """
 from django.shortcuts import render
 from django.db.models import Q
+from django.utils import timezone
+from datetime import timedelta
 from .models import PlayerProfile
 import json
 
 
-def calculate_player_trend(profile):
+def calculate_player_trend(profile, window_days=3):
     """
-    Calculate player's rating trend based on last 2 games.
+    Calculate player's rating trend based on games played in the last `window_days` days.
+    Falls back to last 2 games if no activity in the window (so the market is never empty).
+
     Returns: {
         'direction': 'up' | 'down' | 'neutral',
-        'change': float (total change in last 2 games),
-        'percentage': float (percentage change)
+        'change': float (total change in window),
+        'percentage': float (percentage change),
+        'games_analyzed': int,
+        'window_label': str  (e.g. '3d' or '2 games')
     }
     """
+    empty = {
+        'direction': 'neutral',
+        'change': 0.0,
+        'percentage': 0.0,
+        'games_analyzed': 0,
+        'window_label': f'{window_days}d'
+    }
+
     if not profile.rating_history:
-        return {
-            'direction': 'neutral',
-            'change': 0.0,
-            'percentage': 0.0,
-            'games_analyzed': 0
-        }
-    
+        return empty
+
     history = profile.rating_history
-    if len(history) < 1:
-        return {
-            'direction': 'neutral',
-            'change': 0.0,
-            'percentage': 0.0,
-            'games_analyzed': 0
-        }
-    
-    # Get last 2 games (or fewer if player hasn't played 2 games yet)
-    recent_games = history[-2:] if len(history) >= 2 else history[-1:]
-    
-    # Calculate total change from these games
-    total_change = sum(game.get('change', 0) for game in recent_games)
-    
-    # Get the rating before these games for percentage calculation
-    if len(history) >= 2:
-        base_rating = history[-2].get('old_value', 100.0)
-    else:
-        base_rating = history[0].get('old_value', 100.0)
-    
-    # Calculate percentage change
+    if not history:
+        return empty
+
+    # --- Try 3-day window first ---
+    cutoff = timezone.now() - timedelta(days=window_days)
+    recent_games = []
+    for entry in history:
+        ts_str = entry.get('timestamp')
+        if ts_str:
+            try:
+                from django.utils.dateparse import parse_datetime
+                ts = parse_datetime(ts_str)
+                if ts and ts >= cutoff:
+                    recent_games.append(entry)
+            except Exception:
+                pass
+
+    window_label = f'{window_days}d'
+
+    # --- Fallback: last 2 games if window is empty ---
+    if not recent_games:
+        recent_games = history[-2:] if len(history) >= 2 else history[-1:]
+        window_label = f'{len(recent_games)} game{"s" if len(recent_games) != 1 else ""}'
+
+    # Sum changes
+    total_change = sum(g.get('change', 0) for g in recent_games)
+
+    # Base rating for percentage
+    base_rating = recent_games[0].get('old_value', 100.0) if recent_games else 100.0
     percentage_change = (total_change / base_rating * 100) if base_rating > 0 else 0.0
-    
-    # Determine direction
+
     if total_change > 0:
         direction = 'up'
     elif total_change < 0:
         direction = 'down'
     else:
         direction = 'neutral'
-    
+
     return {
         'direction': direction,
         'change': round(total_change, 2),
         'percentage': round(percentage_change, 2),
-        'games_analyzed': len(recent_games)
+        'games_analyzed': len(recent_games),
+        'window_label': window_label
     }
 
 
@@ -85,6 +102,7 @@ def pfc_market(request):
             'trend_change': trend['change'],
             'trend_percentage': trend['percentage'],
             'games_analyzed': trend['games_analyzed'],
+            'window_label': trend['window_label'],
             'team': profile.player.team.name if profile.player.team else 'No Team',
             'rank': 0  # Will be set after sorting
         })

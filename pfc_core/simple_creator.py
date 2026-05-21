@@ -78,12 +78,14 @@ def get_available_scenarios():
                     'name': scenario.display_name,
                     'description': scenario.description,
                     'is_free': scenario.is_free,
+                    'scenario_mode': getattr(scenario, 'scenario_mode', 'melee'),
                     'tournament_type': scenario.tournament_type,
                     'draft_type': scenario.draft_type,
                     'num_rounds': scenario.num_rounds,
                     'matches_per_team': getattr(scenario, 'matches_per_team', 3),
                     'max_doubles': scenario.max_doubles_players,
                     'max_triples': scenario.max_triples_players,
+                    'pregame_countdown_minutes': getattr(scenario, 'pregame_countdown_minutes', None),
                 }
             return scenarios
         except Exception:
@@ -162,18 +164,27 @@ def create_simple_tournament(request):
         max_players = scenario[f'max_{format_type}']  # Use scenario limit for max participants
         tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
         
-        # Get timer from scenario object if available
-        timer_minutes = None
+        # Determine scenario mode (default to 'melee' for backwards compatibility)
+        scenario_mode = scenario.get('scenario_mode', 'melee')
+        is_melee_mode = scenario_mode in ('melee', 'super_melee')
+        is_super_melee = scenario_mode == 'super_melee'
+        is_team_mode = scenario_mode == 'team'
+
+        # Get timer and pregame countdown from scenario
+        timer_minutes = scenario.get('pregame_countdown_minutes', None)  # match time limit
+        pregame_countdown = None
         if USE_DYNAMIC_SCENARIOS and 'id' in scenario:
             try:
                 scenario_obj = TournamentScenario.objects.get(id=scenario['id'])
                 timer_minutes = scenario_obj.default_time_limit_minutes
+                pregame_countdown = scenario_obj.pregame_countdown_minutes  # may be None
             except TournamentScenario.DoesNotExist:
                 pass
-        
-        tournament = Tournament.objects.create(
+
+        # Build tournament kwargs based on mode
+        tournament_kwargs = dict(
             name=tournament_name,
-            description=f"Simple {scenario['name']} tournament with {num_courts} courts",
+            description=f"Simple {scenario['name']} tournament ({scenario_mode.replace('_', ' ').title()}) with {num_courts} courts",
             start_date=start_datetime,
             end_date=end_datetime,
             format="multi_stage",
@@ -181,13 +192,30 @@ def create_simple_tournament(request):
             has_triplets=(format_type == "triples"),
             has_doublets=(format_type == "doubles"),
             is_active=True,
-            is_melee=True,
-            melee_format="triplets" if format_type == "triples" else "doublets",
-            melee_teams_generated=False,
             automation_status="idle",
-            max_participants=max_players,  # Set registration limit based on scenario
-            default_time_limit_minutes=timer_minutes  # Apply scenario timer
+            default_time_limit_minutes=timer_minutes,
         )
+        if pregame_countdown is not None:
+            tournament_kwargs['pregame_countdown_minutes'] = pregame_countdown
+
+        if is_melee_mode:
+            # Mêlée and Super Mêlée: individual player registration, dynamic team generation
+            tournament_kwargs.update(
+                is_melee=True,
+                melee_format="triplets" if format_type == "triples" else "doublets",
+                melee_teams_generated=False,
+                max_participants=max_players,
+                shuffle_players_after_round=is_super_melee,
+            )
+        else:
+            # Normal Team Tournament: team-based registration, no melee
+            tournament_kwargs.update(
+                is_melee=False,
+                melee_teams_generated=False,
+                max_participants=None,  # Team tournaments use team count, not player count
+            )
+
+        tournament = Tournament.objects.create(**tournament_kwargs)
         
         # Assign real courts from scenario's default court complex
         from tournaments.models import TournamentCourt
@@ -257,6 +285,7 @@ def create_simple_tournament(request):
             'tournament_id': tournament.id,
             'tournament_name': tournament.name,
             'scenario': scenario['name'],
+            'scenario_mode': scenario_mode,
             'format': format_type.title(),
             'court_complex': scenario_obj.default_court_complex.name,
             'selected_courts': real_courts,
@@ -265,7 +294,7 @@ def create_simple_tournament(request):
             'voucher_used': voucher_code if not scenario['is_free'] else None,
             'registration_link': f'/tournaments/{tournament.id}/',
             'management_link': f'/simple/manage/{tournament.id}/',
-            'status': 'created',  # Tournament created but not started
+            'status': 'created',
         }
         
         messages.success(request, f'Tournament "{tournament_name}" created successfully with {num_courts} courts from {scenario_obj.default_court_complex.name}!')
@@ -291,39 +320,65 @@ def manage_tournament(request, tournament_id):
     """Tournament management page for game creator"""
     try:
         tournament = Tournament.objects.get(id=tournament_id)
-        
-        # Get registered players (MeleePlayer objects)
-        from tournaments.models import MeleePlayer
-        registered_players = MeleePlayer.objects.filter(tournament=tournament).select_related('player')
-        
-        # Get tournament teams if generated
-        team_pins = []
-        if tournament.melee_teams_generated:
-            for team in tournament.teams.all():
-                if team.pin and team.name.startswith('Mêlée Team'):
-                    team_pins.append({
-                        'name': team.name,
-                        'pin': team.pin,
-                        'players': [p.name for p in team.players.all()]
-                    })
-        
-        # Get scenario info for team generation
-        scenario_key = 'fair' if 'Fair' in tournament.name else 'madness'
-        scenarios = get_available_scenarios()
-        scenario = scenarios.get(scenario_key, scenarios.get('fair', {}))
-        
+        from tournaments.models import MeleePlayer, TournamentTeam
+
+        is_melee_mode = tournament.is_melee
+
+        if is_melee_mode:
+            # Mêlée / Super Mêlée: show individual player registrations
+            registered_players = MeleePlayer.objects.filter(tournament=tournament).select_related('player')
+            registered_teams = None
+            team_count = 0
+
+            # Collect generated team PINs
+            team_pins = []
+            if tournament.melee_teams_generated:
+                for team in tournament.teams.all():
+                    if team.pin and team.name.startswith('Mêlée Team'):
+                        team_pins.append({
+                            'name': team.name,
+                            'pin': team.pin,
+                            'players': [p.name for p in team.players.all()]
+                        })
+
+            can_start = registered_players.count() >= 4 and not tournament.melee_teams_generated
+            is_started = tournament.melee_teams_generated
+        else:
+            # Normal Team Tournament: show registered teams
+            registered_players = None
+            registered_teams = TournamentTeam.objects.filter(
+                tournament=tournament, is_active=True
+            ).select_related('team').prefetch_related('team__players')
+            team_count = registered_teams.count()
+            team_pins = []
+
+            # For team tournaments, "started" means matches have been generated
+            from matches.models import Match
+            has_matches = Match.objects.filter(tournament=tournament).exists()
+            can_start = team_count >= 2 and not has_matches
+            is_started = has_matches
+
+        # Determine scenario mode label
+        if is_melee_mode:
+            mode_label = 'Super Mêlée' if tournament.shuffle_players_after_round else 'Mêlée'
+        else:
+            mode_label = 'Team Tournament'
+
         context = {
             'tournament': tournament,
+            'is_melee_mode': is_melee_mode,
+            'mode_label': mode_label,
             'registered_players': registered_players,
-            'player_count': registered_players.count(),
+            'player_count': registered_players.count() if registered_players is not None else 0,
+            'registered_teams': registered_teams,
+            'team_count': team_count,
             'team_pins': team_pins,
-            'scenario': scenario,
-            'can_start': registered_players.count() >= 4 and not tournament.melee_teams_generated,
-            'is_started': tournament.melee_teams_generated,
+            'can_start': can_start,
+            'is_started': is_started,
         }
-        
+
         return render(request, 'simple_tournament_manage.html', context)
-        
+
     except Tournament.DoesNotExist:
         messages.error(request, 'Tournament not found')
         return redirect('simple_creator_home')
@@ -333,41 +388,63 @@ def start_tournament(request, tournament_id):
     """Start tournament - generate teams and matches automatically"""
     if request.method != 'POST':
         return redirect('manage_tournament', tournament_id=tournament_id)
-    
+
     try:
         tournament = Tournament.objects.get(id=tournament_id)
-        
-        if tournament.melee_teams_generated:
-            messages.error(request, 'Tournament has already been started')
-            return redirect('manage_tournament', tournament_id=tournament_id)
-        
-        # Get scenario info
-        scenario_key = 'fair' if 'Fair' in tournament.name else 'madness'
-        scenarios = get_available_scenarios()
-        scenario = scenarios.get(scenario_key, scenarios.get('fair', {}))
-        
-        # Generate teams based on scenario using admin function
-        algorithm = scenario.get('draft_type', 'balance')  # 'balance' or 'snake'
-        
-        try:
-            teams_created = tournament.generate_melee_teams(algorithm)
-            
-            if teams_created > 0:
-                # Use existing tournament automation - just call generate_matches()
-                matches_created = tournament.generate_matches()
-                
-                if matches_created and matches_created > 0:
-                    messages.success(request, f'Tournament started! Generated {teams_created} teams and {matches_created} matches.')
+
+        if tournament.is_melee:
+            # ---- Mêlée / Super Mêlée path ----
+            if tournament.melee_teams_generated:
+                messages.error(request, 'Tournament has already been started')
+                return redirect('manage_tournament', tournament_id=tournament_id)
+
+            # Determine draft algorithm from scenario
+            scenarios = get_available_scenarios()
+            # Try to find the matching scenario by name fragment
+            scenario = None
+            for key, s in scenarios.items():
+                if key in tournament.name or s.get('name', '') in tournament.name:
+                    scenario = s
+                    break
+            algorithm = scenario.get('draft_type', 'balance') if scenario else 'balance'
+
+            try:
+                teams_created = tournament.generate_melee_teams(algorithm)
+                if teams_created > 0:
+                    matches_created = tournament.generate_matches()
+                    if matches_created and matches_created > 0:
+                        messages.success(request, f'Tournament started! Generated {teams_created} teams and {matches_created} matches.')
+                    else:
+                        messages.warning(request, f'Teams generated ({teams_created}) but no matches created. Check tournament configuration.')
                 else:
-                    messages.warning(request, f'Teams generated ({teams_created}) but no matches created. Check tournament configuration.')
-            else:
-                messages.error(request, 'Failed to generate teams. Please check player registrations.')
-                
-        except Exception as e:
-            messages.error(request, f'Error starting tournament: {str(e)}')
-        
+                    messages.error(request, 'Failed to generate teams. Please check player registrations.')
+            except Exception as e:
+                messages.error(request, f'Error generating teams: {str(e)}')
+
+        else:
+            # ---- Normal Team Tournament path ----
+            from matches.models import Match
+            if Match.objects.filter(tournament=tournament).exists():
+                messages.error(request, 'Tournament has already been started (matches exist)')
+                return redirect('manage_tournament', tournament_id=tournament_id)
+
+            from tournaments.models import TournamentTeam
+            team_count = TournamentTeam.objects.filter(tournament=tournament, is_active=True).count()
+            if team_count < 2:
+                messages.error(request, f'Need at least 2 registered teams to start. Currently: {team_count}')
+                return redirect('manage_tournament', tournament_id=tournament_id)
+
+            try:
+                matches_created = tournament.generate_matches()
+                if matches_created and matches_created > 0:
+                    messages.success(request, f'Tournament started! Generated {matches_created} matches for {team_count} teams.')
+                else:
+                    messages.warning(request, 'No matches were created. Check tournament stage configuration.')
+            except Exception as e:
+                messages.error(request, f'Error generating matches: {str(e)}')
+
         return redirect('manage_tournament', tournament_id=tournament_id)
-        
+
     except Tournament.DoesNotExist:
         messages.error(request, 'Tournament not found')
         return redirect('simple_creator_home')
