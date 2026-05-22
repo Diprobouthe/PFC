@@ -1032,19 +1032,7 @@
     </div><!-- /.practice-container -->
 </div><!-- /.container -->
 
-<!-- Loading Modal (Open Shot only) -->
-<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-sm modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body text-center">
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mb-0">Processing...</p>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- No loading modal — all interactions use inline button state -->
 {% endblock %}
 
 {% block extra_js %}
@@ -1123,7 +1111,7 @@ if (startBtn) {
         const courtId   = document.getElementById('courtComplex')?.value || '';
 
         startBtn.disabled = true;
-        showLoading();
+        startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting…';
         try {
             const data = await postJSON('{% url "practice:start_session" %}', {
                 practice_type: 'shooting',
@@ -1136,12 +1124,12 @@ if (startBtn) {
             } else {
                 showError(data.error || 'Could not start session.');
                 startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Session';
             }
         } catch (e) {
             showError('Network error. Please try again.');
             startBtn.disabled = false;
-        } finally {
-            hideLoading();
+            startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Session';
         }
     });
 }
@@ -1159,11 +1147,12 @@ function setButtonsEnabled(enabled) {
 
 function updateOpenShotUI(data) {
     const el = id => document.getElementById(id);
-    if (el('totalShots'))        el('totalShots').textContent      = data.total_shots ?? '';
-    if (el('hitPercentage'))     el('hitPercentage').textContent   = (data.hit_percentage ?? 0).toFixed(1) + '%';
-    if (el('carreauCount'))      el('carreauCount').textContent    = data.carreaux ?? 0;
-    if (el('petitCarreauCount')) el('petitCarreauCount').textContent = data.petit_carreaux ?? 0;
-    if (el('currentStreak'))     el('currentStreak').textContent   = data.current_streak ?? 0;
+    const stats = data.session_stats || data;  // support both nested and flat
+    if (el('totalShots'))        el('totalShots').textContent      = stats.total_shots ?? '';
+    if (el('hitPercentage'))     el('hitPercentage').textContent   = (stats.hit_percentage ?? 0).toFixed(1) + '%';
+    if (el('carreauCount'))      el('carreauCount').textContent    = stats.carreaux ?? 0;
+    if (el('petitCarreauCount')) el('petitCarreauCount').textContent = stats.petit_carreaux ?? 0;
+    if (el('currentStreak'))     el('currentStreak').textContent   = stats.current_streak ?? 0;
 
     const hist = el('shotHistory');
     if (hist && data.recent_shots) {
@@ -1193,7 +1182,6 @@ document.querySelectorAll('.shot-btn').forEach(btn => {
         triggerButtonFeedback(btn);
         const outcome = btn.dataset.outcome;
         setButtonsEnabled(false);
-        showLoading();
         try {
             const data = await postJSON('{% url "practice:record_shot" %}', { outcome });
             if (data.success) {
@@ -1204,7 +1192,6 @@ document.querySelectorAll('.shot-btn').forEach(btn => {
         } catch (e) {
             showError('Network error.');
         } finally {
-            hideLoading();
             setButtonsEnabled(true);
         }
     });
