@@ -1,566 +1,1038 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% load static %}
 
 {% block title %}Shooting Practice - Petanque Platform{% endblock %}
 
-{% block extra_css %}
+{% block content %}
 <style>
-/* Practice-specific styles following PFC design language */
+/* ============================================================
+   Practice — shared layout
+   ============================================================ */
 .practice-container {
-    max-width: 600px;
+    max-width: 520px;
     margin: 0 auto;
 }
 
-.session-header {
-    background: linear-gradient(135deg, #3f51b5 0%, #303f9f 100%);
-    color: white;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
-}
-
-.shot-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1rem;
-    margin: 2rem 0;
-}
-
+/* ============================================================
+   SHARED SHOT BUTTONS — icon + label + pts
+   ============================================================ */
 .shot-btn {
-    padding: 2rem 1rem;
-    font-size: 1.25rem;
-    font-weight: 600;
-    border: none !important;
-    border-radius: 0.5rem;
-    transition: all 0.2s ease;
-    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-    min-height: 120px;
+    padding: 0;
+    font-weight: 700;
+    border-radius: 0.75rem !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-}
-
-.shot-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
-}
-
-.shot-btn:active {
-    transform: translateY(0);
-}
-
-/* Remove focus outline from all shot buttons by default */
-.shot-btn:focus {
-    outline: none;
-    box-shadow: none;
-}
-
-/* Remove focus outline when disabled */
-.shot-btn:disabled:focus {
-    outline: none !important;
-    box-shadow: none !important;
-}
-
-/* Remove Bootstrap's default focus styles */
-.shot-btn.btn:focus,
-.shot-btn.btn:active:focus {
-    outline: none !important;
-    box-shadow: none !important;
-    border: none !important;
-}
-
-/* Remove borders from all button states */
-.shot-btn,
-.shot-btn:hover,
-.shot-btn:active,
-.shot-btn:focus,
-.shot-btn:disabled,
-.shot-btn.disabled {
-    border: none !important;
-    outline: none !important;
-}
-
-/* Ensure Bootstrap btn class doesn't add borders */
-.btn.shot-btn,
-.btn.shot-btn:hover,
-.btn.shot-btn:active,
-.btn.shot-btn:focus,
-.btn.shot-btn:disabled {
-    border: none !important;
-    outline: none !important;
-}
-
-.btn-active-feedback {
-    animation: pulse-highlight 0.3s ease-out;
     position: relative;
-    z-index: 10;
+    overflow: visible;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    min-height: 96px;
+    gap: 0;
+}
+.shot-btn:hover  { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+.shot-btn:active { transform: scale(0.94); }
+.shot-btn:focus, .shot-btn:disabled:focus,
+.shot-btn.btn:focus, .shot-btn.btn:active:focus {
+    outline: none !important; box-shadow: none !important;
+}
+.shot-btn, .shot-btn:hover, .shot-btn:active, .shot-btn:focus,
+.shot-btn:disabled, .shot-btn.disabled,
+.btn.shot-btn, .btn.shot-btn:hover, .btn.shot-btn:active,
+.btn.shot-btn:focus, .btn.shot-btn:disabled {
+    border: 2px solid transparent !important; outline: none !important;
 }
 
-@keyframes pulse-highlight {
-    0% {
-        transform: scale(1);
-        filter: brightness(1);
-    }
-    50% {
-        transform: scale(0.95);
-        filter: brightness(1.3);
-    }
-    100% {
-        transform: scale(1);
-        filter: brightness(1);
-    }
-}
+/* ── Button colours ── */
+.shot-btn-miss          { background: #fff0f0 !important; color: #dc3545 !important; border-color: #dc3545 !important; }
+.shot-btn-hit           { background: #f0fff4 !important; color: #28a745 !important; border-color: #28a745 !important; }
+.shot-btn-carreau       { background: #fffbf0 !important; color: #1a56db !important; border-color: #1a56db !important; }
+.shot-btn-petit-carreau { background: #f0f7ff !important; color: #1a56db !important; border-color: #1a56db !important; }
 
-.shot-btn-miss {
-    background-color: #dc3545;
-    color: white;
-}
-
-.shot-btn-miss:hover {
-    background-color: #c82333;
-    color: white;
-}
-
-.shot-btn-hit {
-    background-color: #28a745;
-    color: white;
-}
-
-.shot-btn-hit:hover {
-    background-color: #218838;
-    color: white;
-}
-
-.shot-btn-carreau {
-    background-color: #ffc107;
-    color: #212529;
-}
-
-.shot-btn-carreau:hover {
-    background-color: #e0a800;
-    color: #212529;
-}
-
-.shot-btn-petit-carreau {
-    background-color: #ff9800;
-    color: white;
-}
-
-.shot-btn-petit-carreau:hover {
-    background-color: #e68900;
-    color: white;
-}
-
-.shot-history {
-    background-color: #f8f9fa;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    min-height: 80px;
-}
-
-.shot-badge {
-    display: inline-flex;
+/* ── Icon inside button ── */
+.shot-icon {
+    display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    font-size: 1.2rem;
-    font-weight: 600;
-    margin: 0.25rem;
+    margin-bottom: 0.2rem;
+    line-height: 1;
+}
+.shot-icon svg {
+    width: 36px;
+    height: 36px;
+    display: block;
+}
+/* Carreau: filled star */
+.shot-btn-carreau .shot-icon svg       { fill: #1a56db; stroke: none; }
+/* Petit Carreau: half-star */
+.shot-btn-petit-carreau .shot-icon svg path:first-child { fill: #1a56db; stroke: none; }
+.shot-btn-petit-carreau .shot-icon svg path:last-child  { fill: none; stroke: #1a56db; stroke-width: 1.5; }
+/* Hit: checkmark stroke only */
+.shot-btn-hit .shot-icon svg  { fill: none; stroke: #28a745; stroke-width: 2.8; }
+/* Miss: X stroke only */
+.shot-btn-miss .shot-icon svg { fill: none; stroke: #dc3545; stroke-width: 2.8; }
+
+.shot-label {
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-top: 0.1rem;
+}
+.shot-pts-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    margin-top: 0.05rem;
+    opacity: 0.9;
+}
+.shot-btn-carreau .shot-pts-label,
+.shot-btn-petit-carreau .shot-pts-label { color: #1a56db; }
+.shot-btn-hit .shot-pts-label           { color: #28a745; }
+.shot-btn-miss .shot-pts-label          { color: #dc3545; }
+
+/* ── 2×2 grid ── */
+.shot-buttons-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+    margin: 0.5rem 0;
+}
+
+/* ============================================================
+   TACTILE PRESSED-STATE FEEDBACK
+   ============================================================ */
+@keyframes btn-press-blue {
+    0%   { box-shadow: 0 0 0 0 rgba(26,86,219,0.9),  0 0 0 0 rgba(26,86,219,0.5);  transform: scale(0.92); filter: brightness(1.3); }
+    30%  { box-shadow: 0 0 0 10px rgba(26,86,219,0.4), 0 0 0 5px rgba(26,86,219,0.25); transform: scale(0.97); filter: brightness(1.15); }
+    70%  { box-shadow: 0 0 0 20px rgba(26,86,219,0.1), 0 0 0 12px rgba(26,86,219,0.05); transform: scale(1.0); filter: brightness(1.05); }
+    100% { box-shadow: 0 0 0 28px rgba(26,86,219,0),  0 0 0 18px rgba(26,86,219,0);  transform: scale(1.0); filter: brightness(1.0); }
+}
+@keyframes btn-press-green {
+    0%   { box-shadow: 0 0 0 0 rgba(40,167,69,0.9),  0 0 0 0 rgba(40,167,69,0.5);  transform: scale(0.92); filter: brightness(1.3); }
+    30%  { box-shadow: 0 0 0 10px rgba(40,167,69,0.4), 0 0 0 5px rgba(40,167,69,0.25); transform: scale(0.97); filter: brightness(1.15); }
+    70%  { box-shadow: 0 0 0 20px rgba(40,167,69,0.1), 0 0 0 12px rgba(40,167,69,0.05); transform: scale(1.0); filter: brightness(1.05); }
+    100% { box-shadow: 0 0 0 28px rgba(40,167,69,0),  0 0 0 18px rgba(40,167,69,0);  transform: scale(1.0); filter: brightness(1.0); }
+}
+@keyframes btn-press-red {
+    0%   { box-shadow: 0 0 0 0 rgba(220,53,69,0.9),  0 0 0 0 rgba(220,53,69,0.5);  transform: scale(0.92); filter: brightness(1.3); }
+    30%  { box-shadow: 0 0 0 10px rgba(220,53,69,0.4), 0 0 0 5px rgba(220,53,69,0.25); transform: scale(0.97); filter: brightness(1.15); }
+    70%  { box-shadow: 0 0 0 20px rgba(220,53,69,0.1), 0 0 0 12px rgba(220,53,69,0.05); transform: scale(1.0); filter: brightness(1.05); }
+    100% { box-shadow: 0 0 0 28px rgba(220,53,69,0),  0 0 0 18px rgba(220,53,69,0);  transform: scale(1.0); filter: brightness(1.0); }
+}
+.btn-pressed-blue  { animation: btn-press-blue  0.65s cubic-bezier(0.22,0.61,0.36,1) forwards !important; z-index:10; }
+.btn-pressed-green { animation: btn-press-green 0.65s cubic-bezier(0.22,0.61,0.36,1) forwards !important; z-index:10; }
+.btn-pressed-red   { animation: btn-press-red   0.65s cubic-bezier(0.22,0.61,0.36,1) forwards !important; z-index:10; }
+
+/* ============================================================
+   Shot history badges (Open Shot)
+   ============================================================ */
+.shot-history { min-height: 50px; }
+.shot-sequence { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.shot-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%;
+    font-size: 1.1rem; cursor: default;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.shot-badge-miss           { background: #dc3545; color: white; }
+.shot-badge-hit            { background: #28a745; color: white; }
+.shot-badge-petit_carreau  { background: #fd7e14; color: white; }
+.shot-badge-carreau        { background: #ffc107; color: #212529; }
+
+/* ============================================================
+   Stats list (Open Shot)
+   ============================================================ */
+.stats-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.stat-row   { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid #f0f0f0; }
+.stat-row:last-child { border-bottom: none; }
+.stat-label-clear { color: #6c757d; font-size: 0.88rem; }
+.stat-value-clear { font-size: 1.05rem; }
+
+/* ============================================================
+   Control buttons
+   ============================================================ */
+.control-buttons { display: flex; gap: 0.55rem; margin-top: 0.5rem; }
+.control-buttons .btn { flex: 1; font-size: 0.88rem; padding: 0.55rem 0.5rem; }
+
+/* ============================================================
+   Open Shot session header
+   ============================================================ */
+.session-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1a56db 100%);
     color: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease;
+    border-radius: 0.75rem;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 4px 12px rgba(26,86,219,0.25);
+}
+.drill-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.4);
+    color: white;
+    border-radius: 1rem;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-top: 0.3rem;
 }
 
-.shot-badge:hover {
-    transform: scale(1.1);
-}
-
-.shot-badges-container {
+/* ============================================================
+   Court selector (start form)
+   ============================================================ */
+.court-selector-label {
+    font-weight: 700;
+    margin-bottom: 0.5rem;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: center;
-    max-width: 100%;
-    overflow-x: auto;
-    padding: 0.5rem 0;
+    align-items: center;
+    gap: 0.4rem;
+}
+.court-selector-note {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
 }
 
-.shot-sequence {
-    text-align: center;
-}
+/* ============================================================
+   TIR DE PRÉCISION — Redesigned guided session
+   Matches the mockup: white cards, clean hierarchy, no purple
+   ============================================================ */
 
-.shot-badge-miss {
-    background-color: #dc3545;
-}
-
-.shot-badge-hit {
-    background-color: #28a745;
-}
-
-.shot-badge-carreau {
-    background-color: #ffc107;
-    color: #212529;
-}
-
-.stats-list {
+/* ── TdP page wrapper ── */
+.tdp-session-wrapper {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
 }
 
-.stat-row {
+/* ── TdP top nav bar ── */
+.tdp-topbar {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1a56db 100%);
+    color: white;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #f8f9fa;
+    justify-content: space-between;
+    box-shadow: 0 4px 12px rgba(26,86,219,0.25);
+}
+.tdp-topbar-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+}
+.tdp-topbar-sub {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    margin-top: 0.1rem;
+}
+.tdp-topbar-icon {
+    font-size: 1.6rem;
+    opacity: 0.9;
 }
 
-.stat-row:last-child {
-    border-bottom: none;
-}
-
-.stat-label-clear {
-    font-size: 1rem;
-    color: #495057;
-    font-weight: 500;
-}
-
-.stat-value-clear {
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-/* Legacy grid styles for backward compatibility */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1rem;
-    margin: 1.5rem 0;
-}
-
-.stat-card {
+/* ── Overall progress card ── */
+.tdp-overall-progress {
     background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 0.75rem;
+    padding: 0.65rem 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e8ecf0;
+}
+.tdp-overall-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #1a56db;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+.tdp-overall-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.tdp-overall-bar-outer {
+    flex: 1;
+    height: 8px;
+    background: #e8ecf0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.tdp-overall-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, #1a56db, #3b82f6);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+    min-width: 2px;
+}
+.tdp-overall-pct {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #1a56db;
+    white-space: nowrap;
+}
+.tdp-overall-shots {
+    font-size: 0.78rem;
+    color: #6b7280;
+    white-space: nowrap;
 }
 
-.stat-value {
-    font-size: 1.5rem;
+/* ── Stats strip (4 columns) ── */
+.tdp-stats-strip {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 0.65rem 0.5rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e8ecf0;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 0;
+}
+.tdp-stat-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.25rem;
+    border-right: 1px solid #e8ecf0;
+    text-align: center;
+}
+.tdp-stat-cell:last-child { border-right: none; }
+.tdp-stat-key {
+    font-size: 0.6rem;
     font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #9ca3af;
+    margin-bottom: 0.15rem;
+}
+.tdp-stat-val {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1;
+}
+.tdp-stat-val.score-val { color: #1a56db; }
+.tdp-stat-val.dist-val  { color: #1a56db; }
+.tdp-stat-sub {
+    font-size: 0.6rem;
+    color: #9ca3af;
+    margin-top: 0.1rem;
+}
+
+/* ── Atelier stepper ── */
+.tdp-stepper {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e8ecf0;
+}
+.tdp-stepper-track {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+.tdp-stepper-track::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: #e8ecf0;
+    transform: translateY(-50%);
+    z-index: 0;
+}
+.tdp-step-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    position: relative;
+    z-index: 1;
+    flex: 1;
+}
+.tdp-step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e8ecf0;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 800;
+    transition: all 0.3s ease;
+    border: 2px solid #e8ecf0;
+}
+.tdp-step-circle.complete {
+    background: #1a56db;
+    color: white;
+    border-color: #1a56db;
+}
+.tdp-step-circle.active {
+    background: #1a56db;
+    color: white;
+    border-color: #1a56db;
+    box-shadow: 0 0 0 4px rgba(26,86,219,0.2);
+}
+.tdp-step-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-align: center;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.tdp-step-node.complete .tdp-step-label,
+.tdp-step-node.active   .tdp-step-label { color: #1a56db; font-weight: 700; }
+
+/* ── Atelier guide card ── */
+.tdp-guide-card {
+    background: white;
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e8ecf0;
+}
+.tdp-guide-card.animate-in {
+    animation: atelier-slide-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+@keyframes atelier-slide-in {
+    0%   { opacity: 0; transform: scale(0.96) translateY(-6px); }
+    100% { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.tdp-guide-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+.tdp-guide-badge {
+    background: #1a56db;
+    color: white;
+    border-radius: 0.4rem;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.tdp-guide-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
     line-height: 1.2;
 }
 
-.stat-label {
-    font-size: 0.875rem;
-    color: #6c757d;
-    margin-top: 0.25rem;
-    letter-spacing: 0.5px;
-}
-
-.control-buttons {
+.tdp-guide-body {
     display: flex;
-    gap: 1rem;
-    justify-content: center;
-    margin-top: 2rem;
+    gap: 0.75rem;
+    align-items: flex-start;
 }
-
-/* Mobile-First Shot Buttons */
-.shot-buttons-mobile {
-    margin: 2rem 0;
-    padding: 0 1rem;
-}
-
-.shot-btn-miss {
-    background-color: #dc3545 !important;
-    border-color: #dc3545 !important;
-    color: white !important;
-    min-height: 100px;
-    padding: 1.5rem;
+.tdp-guide-diagram {
+    flex-shrink: 0;
+    background: #f8fafc;
+    border: 1px solid #e8ecf0;
+    border-radius: 0.5rem;
+    padding: 0.35rem;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
 }
-
-.shot-btn-hit {
-    background-color: #28a745 !important;
-    border-color: #28a745 !important;
-    color: white !important;
-    min-height: 100px;
-    padding: 1.5rem;
+.tdp-guide-right {
+    flex: 1;
+    min-width: 0;
+}
+.tdp-guide-desc {
+    font-size: 0.78rem;
+    color: #6b7280;
+    line-height: 1.4;
+    margin-bottom: 0.4rem;
+}
+.tdp-guide-legend {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
 }
-
-.shot-btn-carreau {
-    background-color: #ffc107 !important;
-    border-color: #ffc107 !important;
-    color: #212529 !important;
-    min-height: 100px;
-    padding: 1.5rem;
+.tdp-legend-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.68rem;
+    color: #6b7280;
+}
+.tdp-legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Shot counter dots */
+.tdp-shot-dots {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+}
+.tdp-shot-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid #d1d5db;
+    background: white;
     transition: all 0.2s ease;
 }
-
-.shot-btn-miss:hover, .shot-btn-miss:focus {
-    background-color: #c82333 !important;
-    border-color: #bd2130 !important;
-    transform: scale(1.02);
+.tdp-shot-dot.filled  { background: #1a56db; border-color: #1a56db; }
+.tdp-shot-dot.current {
+    border-color: #1a56db;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(26,86,219,0.2);
+    animation: dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+    0%,100% { box-shadow: 0 0 0 3px rgba(26,86,219,0.2); }
+    50%      { box-shadow: 0 0 0 5px rgba(26,86,219,0.08); }
 }
 
-.shot-btn-hit:hover, .shot-btn-hit:focus {
-    background-color: #218838 !important;
-    border-color: #1e7e34 !important;
-    transform: scale(1.02);
+/* ── Distance chips ── */
+.tdp-dist-chips {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin: 0.5rem 0 0.25rem;
+}
+.tdp-dist-chip {
+    padding: 0.2rem 0.7rem;
+    border: 1.5px solid #d1d5db;
+    border-radius: 1rem;
+    background: white;
+    color: #374151;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    line-height: 1.4;
+}
+.tdp-dist-chip.selected {
+    background: #1a56db;
+    color: white;
+    border-color: #1a56db;
+}
+.tdp-dist-chip:hover:not(.selected) {
+    border-color: #1a56db;
+    color: #1a56db;
 }
 
-.shot-btn-carreau:hover, .shot-btn-carreau:focus {
-    background-color: #e0a800 !important;
-    border-color: #d39e00 !important;
-    transform: scale(1.02);
+/* ── Scoring legend strip ── */
+.tdp-scoring-legend {
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.72rem;
+    color: #6b7280;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+    border: 1px solid #e8ecf0;
+}
+.tdp-scoring-legend span { white-space: nowrap; }
+.tdp-scoring-legend .sc-carreau       { color: #1a56db; font-weight: 700; }
+.tdp-scoring-legend .sc-petit-carreau { color: #1a56db; font-weight: 700; }
+.tdp-scoring-legend .sc-hit           { color: #28a745; font-weight: 700; }
+.tdp-scoring-legend .sc-miss          { color: #dc3545; font-weight: 700; }
+
+/* ── Info hint bar ── */
+.tdp-hint-bar {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.78rem;
+    color: #1e40af;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 
-@media (max-width: 576px) {
-    .shot-buttons {
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
-    }
-    
-    .shot-btn {
-        padding: 1.5rem 1rem;
-        min-height: 80px;
-    }
-    
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .control-buttons {
-        flex-direction: column;
-    }
-    
-    .shot-buttons-mobile {
-        padding: 0;
-    }
-    
-    .shot-btn-miss, .shot-btn-hit, .shot-btn-carreau {
-        min-height: 120px;
-        font-size: 1.1rem;
-    }
+/* ── Mini shot log ── */
+.tdp-mini-log {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.2rem;
+    padding: 0.3rem 0.1rem 0.15rem;
+    min-height: 1.4rem;
+    max-height: 2rem;
+    scrollbar-width: none;
+    margin-top: 0.4rem;
+    border-top: 1px solid #f3f4f6;
+}
+.tdp-mini-log::-webkit-scrollbar { display: none; }
+.tdp-mini-dot {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; font-weight: 800; color: white;
+    flex-shrink: 0;
+}
+.tdp-mini-miss    { background: #dc3545; }
+.tdp-mini-hit     { background: #28a745; }
+.tdp-mini-reussi  { background: #1a56db; }
+.tdp-mini-carreau { background: #1a56db; }
+.tdp-mini-jack    { background: #7c3aed; }
+.tdp-mini-sep     { width: 2px; height: 20px; background: #d1d5db; border-radius: 1px; margin: 0 0.1rem; align-self: center; flex-shrink: 0; }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 400px) {
+    .shot-btn { min-height: 88px; }
+    .tdp-stat-val { font-size: 1rem; }
+    .tdp-step-circle { width: 28px; height: 28px; font-size: 0.75rem; }
+    .tdp-step-label { font-size: 0.55rem; }
 }
 </style>
-{% endblock %}
-
-{% block content %}
-<div class="container mt-4">
+<div class="container mt-2 mb-4">
     <div class="practice-container">
+
         <!-- Back Navigation -->
-        <div class="mb-3">
+        <div class="mb-2">
             <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left me-2"></i>Back to Practice
             </a>
         </div>
 
-        <!-- Session Header -->
-        <div class="session-header text-center">
-            <h1 class="h3 mb-2">
-                <i class="fas fa-bullseye me-2"></i>Shooting Practice
-            </h1>
-            <p class="mb-0 opacity-75">{{ player_name|default:session_codename }}</p>
+        {% if not active_session %}
+        <!-- ===================================================
+             START SESSION CARD
+             =================================================== -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-bullseye me-2"></i>Shooting Practice</h5>
+                <div class="small text-muted mt-1">{{ player_name|default:session_codename }}</div>
+            </div>
+            <div class="card-body">
+
+                <!-- Court Complex -->
+                <div class="mb-3">
+                    <div class="court-selector-label">
+                        <i class="fas fa-map-marker-alt text-danger"></i>Court Complex
+                    </div>
+                    <select id="courtComplex" class="form-select form-select-lg">
+                        <option value="">-- No specific court --</option>
+                        {% for cc in court_complexes %}
+                            <option value="{{ cc.id }}" {% if forloop.first and court_complexes %}selected{% endif %}>{{ cc.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="court-selector-note">Where are you practicing today?</div>
+                </div>
+
+                <!-- Drill Type -->
+                <div class="mb-3">
+                    <label for="drillType" class="form-label fw-bold">
+                        <i class="fas fa-crosshairs me-2"></i>Drill Type
+                    </label>
+                    <select id="drillType" class="form-select form-select-lg" onchange="onDrillTypeChange(this.value)">
+                        <option value="" selected>Open Shot (default)</option>
+                        <option value="open">Open Shot</option>
+                        <option value="boule_in_line">Balls in a Line</option>
+                        <option value="hidden_target">Hidden Target</option>
+                        <option value="boule_behind_boule">Boule Behind Boule</option>
+                        <option value="sequence">Sequence Drill</option>
+                        <option value="tir_de_precision">Tir de Précision</option>
+                        <option value="obstacle">Obstacle Shot</option>
+                        <option value="tactical">Tactical Situation</option>
+                    </select>
+                    <div class="form-text" id="drillTypeHint">Choose the type of shooting drill for this session.</div>
+                </div>
+
+                <!-- Distance (hidden for TdP) -->
+                <div class="mb-3" id="distanceRow">
+                    <label for="sessionDistance" class="form-label fw-bold">
+                        <i class="fas fa-ruler me-2"></i>Throwing Distance
+                    </label>
+                    <select id="sessionDistance" class="form-select form-select-lg">
+                        <option value="6m">6 meters</option>
+                        <option value="7m" selected>7 meters</option>
+                        <option value="8m">8 meters</option>
+                        <option value="9m">9 meters</option>
+                        <option value="10m">10 meters</option>
+                        <option value="ing">InG</option>
+                    </select>
+                </div>
+
+                <!-- Sequence Tracking (hidden for TdP) -->
+                <div class="mb-3" id="sequenceRow">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-sort-numeric-down me-2"></i>Sequence Tracking
+                    </label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="sequenceTracking" checked>
+                        <label class="form-check-label" for="sequenceTracking">
+                            <span id="sequenceTrackingLabel">ON — Shots must be entered in order</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- TdP info box -->
+                <div id="tdpInfoBox" class="d-none" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem;">
+                    <div class="fw-bold mb-1" style="color:#1e40af;font-size:0.9rem;"><i class="fas fa-trophy me-1"></i>Tir de Précision &mdash; 5 ateliers &bull; 20 shots &bull; max 100 pts</div>
+                    <div style="font-size:0.8rem;color:#374151;">
+                        Use <strong>★ Carreau</strong>, <strong>☆ Petit Carreau</strong>, <strong>✓ Hit</strong>, <strong>✕ Miss</strong> to record each shot.
+                        The session guides you through each atelier in order.
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <button id="startSessionBtn" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-play me-2"></i>Start Session
+                    </button>
+                </div>
+            </div>
         </div>
 
-        {% if not active_session %}
-            <!-- Start Session Card -->
-            <div class="card">
+        {% if recent_sessions %}
+        <div class="card mt-3 shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-history me-2"></i>Recent Sessions</h5>
+            </div>
+            <div class="card-body p-0">
+                {% for session in recent_sessions %}
+                <div class="d-flex justify-content-between align-items-center px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                    <div>
+                        <div class="fw-semibold small">{{ session.started_at|date:"M d, Y H:i" }}</div>
+                        <div class="small text-muted">
+                            {{ session.total_shots }} shots
+                            {% if session.drill_type == 'tir_de_precision' %}
+                                &bull; Tir de Précision &bull; Score: {{ session.tdp_score }}
+                            {% else %}
+                                &bull; {{ session.duration }}
+                                {% if session.drill_type %}
+                                    &bull;
+                                    {% for val, label in session.DRILL_TYPE_CHOICES %}
+                                        {% if val == session.drill_type %}{{ label }}{% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endif %}
+                            {% if session.court_complex %}
+                                &bull; {{ session.court_complex.name }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        {% if session.drill_type == 'tir_de_precision' %}
+                            <span class="badge" style="background:#1a56db;">{{ session.tdp_score }} pts</span>
+                        {% else %}
+                            <span class="badge bg-success">{{ session.hit_percentage|floatformat:1 }}%</span>
+                        {% endif %}
+                        <div>
+                            <a href="{% url 'practice:session_summary' session.id %}" class="small text-decoration-none">
+                                View Details <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- ===================================================
+             ACTIVE SESSION INTERFACE
+             =================================================== -->
+
+        {% if active_session.drill_type == 'tir_de_precision' %}
+        <!-- ═══════════════════════════════════════════════════
+             TIR DE PRÉCISION — Redesigned guided session
+             ═══════════════════════════════════════════════════ -->
+        <div class="tdp-session-wrapper" id="practiceInterface">
+
+            <!-- 1. Top bar -->
+            <div class="tdp-topbar">
+                <div>
+                    <div class="tdp-topbar-title"><i class="fas fa-trophy me-1"></i>Tir de Précision</div>
+                    <div class="tdp-topbar-sub">
+                        {{ player_name|default:session_codename }}
+                        {% if active_session.court_complex %}
+                            &nbsp;&bull;&nbsp;<i class="fas fa-map-marker-alt"></i>&nbsp;{{ active_session.court_complex.name }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="tdp-topbar-icon">🏆</div>
+            </div>
+
+            <!-- 2. Overall progress -->
+            <div class="tdp-overall-progress">
+                <div class="tdp-overall-label">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#1a56db;display:inline-block;"></span>
+                    Overall Progress
+                </div>
+                <div class="tdp-overall-bar-row">
+                    <div class="tdp-overall-bar-outer">
+                        <div class="tdp-overall-bar-inner" id="tdpOverallBar" style="width:0%;"></div>
+                    </div>
+                    <span class="tdp-overall-pct" id="tdpOverallPct">0%</span>
+                    <span class="tdp-overall-shots" id="tdpOverallShots">0 / 20 shots</span>
+                </div>
+            </div>
+
+            <!-- 3. Stats strip (Score / Distance / Atelier / Shot) -->
+            <div class="tdp-stats-strip">
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Score</div>
+                    <div class="tdp-stat-val score-val" id="tdpStatScore">{{ active_session.tdp_score }}</div>
+                    <div class="tdp-stat-sub">/100 pts</div>
+                </div>
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Distance</div>
+                    <div class="tdp-stat-val dist-val" id="tdpStatDist">6m</div>
+                </div>
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Atelier</div>
+                    <div class="tdp-stat-val" id="tdpStatAtelier">1 of 5</div>
+                </div>
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Shot</div>
+                    <div class="tdp-stat-val" id="tdpStatShot">1 of 4</div>
+                </div>
+            </div>
+
+            <!-- 4. Atelier stepper -->
+            <div class="tdp-stepper">
+                <div class="tdp-stepper-track" id="tdpStepperTrack">
+                            <div class="tdp-step-node" id="tdpStepNode1">
+                        <div class="tdp-step-circle" id="tdpStepCircle1"><span id="tdpStepIcon1">1</span></div>
+                        <div class="tdp-step-label">Open</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode2">
+                        <div class="tdp-step-circle" id="tdpStepCircle2"><span id="tdpStepIcon2">2</span></div>
+                        <div class="tdp-step-label">Behind Jack</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode3">
+                        <div class="tdp-step-circle" id="tdpStepCircle3"><span id="tdpStepIcon3">3</span></div>
+                        <div class="tdp-step-label">Between</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode4">
+                        <div class="tdp-step-circle" id="tdpStepCircle4"><span id="tdpStepIcon4">4</span></div>
+                        <div class="tdp-step-label">Long Obstacle</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode5">
+                        <div class="tdp-step-circle" id="tdpStepCircle5"><span id="tdpStepIcon5">5</span></div>
+                        <div class="tdp-step-label">Behind Boule</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Atelier guide card (rendered by JS) -->
+            <div id="tdpGuideCard" class="tdp-guide-card"></div>
+
+            <!-- 6. Distance chips -->
+            <div class="tdp-dist-chips" id="tdpDistChips">
+                {% for d in tdp_distances %}
+                <button class="tdp-dist-chip{% if forloop.first %} selected{% endif %}" data-dist="{{ d }}" onclick="selectDist('{{ d }}')">{{ d }}</button>
+                {% endfor %}
+            </div>
+
+            <!-- 7. Scoring legend -->
+            <div class="tdp-scoring-legend" id="tdpScoringLegend">
+                <span><span class="sc-carreau">Carreau = 5 pts</span></span>
+                <span>&bull;</span>
+                <span><span class="sc-petit-carreau">Petit Carreau = 3 pts</span></span>
+                <span>&bull;</span>
+                <span><span class="sc-hit">Hit = 1 pt</span></span>
+                <span>&bull;</span>
+                <span><span class="sc-miss">Miss = 0 pts</span></span>
+            </div>
+
+            <!-- 8. 2×2 action buttons -->
+            <div class="shot-buttons-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;">
+                <button id="carreauBtn" class="btn shot-btn shot-btn-carreau" data-outcome="carreau">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </span>
+                    <span class="shot-label">Carreau</span>
+                    <span class="shot-pts-label" id="tdpCarreauPts">5 pts</span>
+                </button>
+                <button id="petitCarreauBtn" class="btn shot-btn shot-btn-petit-carreau" data-outcome="petit_carreau">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" width="36" height="36"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77V2z" fill="currentColor"/><path d="M12 2v15.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </span>
+                    <span class="shot-label">Petit Carreau</span>
+                    <span class="shot-pts-label" id="tdpPetitPts">3 pts</span>
+                </button>
+                <button id="hitBtn" class="btn shot-btn shot-btn-hit" data-outcome="hit">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" width="36" height="36"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <span class="shot-label">Hit</span>
+                    <span class="shot-pts-label" id="tdpHitPts">1 pt</span>
+                </button>
+                <button id="missBtn" class="btn shot-btn shot-btn-miss" data-outcome="miss">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" width="36" height="36"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </span>
+                    <span class="shot-label">Miss</span>
+                    <span class="shot-pts-label">0 pts</span>
+                </button>
+            </div>
+
+            <!-- 9. Undo / End Session -->
+            <div class="control-buttons">
+                <button id="undoBtn" class="btn btn-outline-warning">
+                    <i class="fas fa-undo me-1"></i>Undo Last Shot
+                </button>
+                <button id="endSessionBtn" class="btn btn-outline-danger">
+                    <i class="fas fa-stop me-1"></i>End Session
+                </button>
+            </div>
+
+            <!-- 10. Hint bar -->
+            <div class="tdp-hint-bar" id="tdpHintBar">
+                <i class="fas fa-info-circle"></i>
+                <span id="tdpHintText">Complete 4 shots for this atelier to proceed to the next one.</span>
+            </div>
+
+        </div><!-- /.tdp-session-wrapper -->
+
+        {% else %}
+        <!-- ═══════════════════════════════════════════════════
+             OPEN SHOT — existing interface
+             ═══════════════════════════════════════════════════ -->
+        <div id="practiceInterface">
+            <!-- Session Header -->
+            <div class="session-header text-center mb-3">
+                <h1 class="h3 mb-2"><i class="fas fa-bullseye me-2"></i>Shooting Practice</h1>
+                <p class="mb-1 opacity-75">{{ player_name|default:session_codename }}</p>
+                {% if active_session %}
+                <div>
+                    {% if active_session.drill_type %}
+                        <span class="drill-badge">
+                            <i class="fas fa-crosshairs me-1"></i>
+                            {% for val, label in active_session.DRILL_TYPE_CHOICES %}
+                                {% if val == active_session.drill_type %}{{ label }}{% endif %}
+                            {% endfor %}
+                        </span>
+                    {% else %}
+                        <span class="drill-badge"><i class="fas fa-crosshairs me-1"></i>Open Shot</span>
+                    {% endif %}
+                    &nbsp;<span class="drill-badge"><i class="fas fa-ruler me-1"></i>{{ active_session.distance }}</span>
+                    {% if active_session.court_complex %}
+                        &nbsp;<span class="drill-badge"><i class="fas fa-map-marker-alt me-1"></i>{{ active_session.court_complex.name }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Open Shot buttons -->
+            <div class="shot-buttons-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;margin-bottom:0.75rem;">
+                <button id="carreauBtn" class="btn shot-btn shot-btn-carreau" data-outcome="carreau">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </span>
+                    <span class="shot-label">Carreau</span>
+                    <span class="shot-pts-label">5 pts</span>
+                </button>
+                <button id="petitCarreauBtn" class="btn shot-btn shot-btn-petit-carreau" data-outcome="petit_carreau">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" width="36" height="36"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77V2z" fill="currentColor"/><path d="M12 2v15.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </span>
+                    <span class="shot-label">Petit Carreau</span>
+                    <span class="shot-pts-label">3 pts</span>
+                </button>
+                <button id="hitBtn" class="btn shot-btn shot-btn-hit" data-outcome="hit">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" width="36" height="36"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <span class="shot-label">Hit</span>
+                    <span class="shot-pts-label">1 pt</span>
+                </button>
+                <button id="missBtn" class="btn shot-btn shot-btn-miss" data-outcome="miss">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" width="36" height="36"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </span>
+                    <span class="shot-label">Miss</span>
+                    <span class="shot-pts-label">0 pts</span>
+                </button>
+            </div>
+
+            <!-- Recent shots -->
+            <div class="card mb-3">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-play me-2"></i>Start New Session
-                    </h5>
+                    <h6 class="card-title mb-0"><i class="fas fa-list me-2"></i>Recent Shots</h6>
                 </div>
                 <div class="card-body">
-                    <p class="card-text mb-4 text-center">Configure your practice session settings before starting.</p>
-                    
-                    <!-- Session Attributes Form -->
-                    <div class="mb-4">
-                        <!-- Distance Selection -->
-                        <div class="mb-3">
-                            <label for="sessionDistance" class="form-label fw-bold">
-                                <i class="fas fa-ruler me-2"></i>Throwing Distance
-                            </label>
-                            <select id="sessionDistance" class="form-select form-select-lg">
-                                <option value="6m">6 meters</option>
-                                <option value="7m" selected>7 meters</option>
-                                <option value="8m">8 meters</option>
-                                <option value="9m">9 meters</option>
-                                <option value="10m">10 meters</option>
-                                <option value="ing">InG</option>
-                            </select>
-                            <div class="form-text">This distance will apply to all shots in this session.</div>
+                    <div id="shotHistory" class="shot-history">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-info-circle me-2"></i>No shots recorded yet
                         </div>
-                        
-                        <!-- Sequence Tracking Toggle -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="fas fa-sort-numeric-down me-2"></i>Sequence Tracking
-                            </label>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="sequenceTracking" checked>
-                                <label class="form-check-label" for="sequenceTracking">
-                                    <span id="sequenceTrackingLabel">ON - Shots must be entered in order</span>
-                                </label>
-                            </div>
-                            <div class="form-text">
-                                <strong>ON:</strong> Enforces ordered input (shot #1, #2, #3...).<br>
-                                <strong>OFF:</strong> Allows entering scores in any order.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="text-center">
-                        <button id="startSessionBtn" class="btn btn-primary btn-lg">
-                            <i class="fas fa-play me-2"></i>Start Session
-                        </button>
                     </div>
                 </div>
             </div>
 
-            {% if recent_sessions %}
-                <!-- Recent Sessions -->
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-history me-2"></i>Recent Sessions
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        {% for session in recent_sessions %}
-                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
-                                <div>
-                                    <strong>{{ session.started_at|date:"M d, Y H:i" }}</strong>
-                                    <div class="small text-muted">
-                                        {{ session.total_shots }} shots • {{ session.duration }}
-                                    </div>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-success">{{ session.hit_percentage|floatformat:1 }}%</span>
-                                    <div>
-                                        <a href="{% url 'practice:session_summary' session.id %}" class="small text-decoration-none">
-                                            View Details <i class="fas fa-external-link-alt"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
+            <!-- Statistics -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Session Statistics</h6>
                 </div>
-            {% endif %}
-        {% else %}
-            <!-- Active Session Interface -->
-            <div id="practiceInterface">
-                <!-- Shot History -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-list me-2"></i>Recent Shots
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div id="shotHistory" class="shot-history">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-info-circle me-2"></i>No shots recorded yet
-                            </div>
+                <div class="card-body">
+                    <div class="stats-list">
+                        <div class="stat-row">
+                            <span class="stat-label-clear">Total shots:</span>
+                            <span id="totalShots" class="stat-value-clear text-primary fw-bold">{{ active_session.total_shots }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label-clear">Hit rate:</span>
+                            <span id="hitPercentage" class="stat-value-clear text-success fw-bold">{{ active_session.hit_percentage|floatformat:1 }}%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label-clear">Carreaux:</span>
+                            <span id="carreauCount" class="stat-value-clear text-warning fw-bold">{{ active_session.carreaux }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label-clear">Petit Carreaux:</span>
+                            <span id="petitCarreauCount" class="stat-value-clear text-warning fw-bold">{{ active_session.petit_carreaux }}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label-clear">Streak:</span>
+                            <span id="currentStreak" class="stat-value-clear text-info fw-bold">0</span>
                         </div>
                     </div>
-                </div>
-
-                <!-- Statistics Card -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-chart-bar me-2"></i>Session Statistics
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="stats-list">
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Total shots:</span>
-                                <span id="totalShots" class="stat-value-clear text-primary fw-bold">{{ active_session.total_shots }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Hit rate:</span>
-                                <span id="hitPercentage" class="stat-value-clear text-success fw-bold">{{ active_session.hit_percentage|floatformat:1 }}%</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Carreaux:</span>
-                                <span id="carreauCount" class="stat-value-clear text-warning fw-bold">{{ active_session.carreaux }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Petit Carreaux:</span>
-                                <span id="petitCarreauCount" class="stat-value-clear text-warning fw-bold">{{ active_session.petit_carreaux }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Streak:</span>
-                                <span id="currentStreak" class="stat-value-clear text-info fw-bold">0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Shot Buttons - Full Width, Vertically Stacked -->
-                <div class="shot-buttons-mobile">
-                    <button id="carreauBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-carreau" data-outcome="carreau">
-                        <i class="fas fa-star fa-3x mb-2"></i>
-                        <div class="fs-4 fw-bold">Carreau</div>
-                        <div class="small">Perfect shot!</div>
-                    </button>
-                    <button id="petitCarreauBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-petit-carreau" data-outcome="petit_carreau">
-                        <i class="fas fa-star-half-alt fa-3x mb-2"></i>
-                        <div class="fs-4 fw-bold">Petit Carreau</div>
-                        <div class="small">Small perfect shot</div>
-                    </button>
-                    <button id="hitBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-hit" data-outcome="hit">
-                        <i class="fas fa-check fa-3x mb-2"></i>
-                        <div class="fs-4 fw-bold">Hit</div>
-                        <div class="small">Good shot</div>
-                    </button>
-                    <button id="missBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-miss" data-outcome="miss">
-                        <i class="fas fa-times fa-3x mb-2"></i>
-                        <div class="fs-4 fw-bold">Miss</div>
-                        <div class="small">Try again</div>
-                    </button>
-                </div>
-
-                <!-- Control Buttons -->
-                <div class="control-buttons">
-                    <button id="undoBtn" class="btn btn-outline-warning">
-                        <i class="fas fa-undo me-2"></i>Undo Last Shot
-                    </button>
-                    <button id="endSessionBtn" class="btn btn-outline-danger">
-                        <i class="fas fa-stop me-2"></i>End Session
-                    </button>
                 </div>
             </div>
+
+            <!-- Control Buttons -->
+            <div class="control-buttons">
+                <button id="undoBtn" class="btn btn-outline-warning">
+                    <i class="fas fa-undo me-1"></i>Undo Last Shot
+                </button>
+                <button id="endSessionBtn" class="btn btn-outline-danger">
+                    <i class="fas fa-stop me-1"></i>End Session
+                </button>
+            </div>
+        </div>
         {% endif %}
-    </div>
-</div>
 
-<!-- Loading Modal -->
+        {% endif %}
+
+    </div><!-- /.practice-container -->
+</div><!-- /.container -->
+
+<!-- Loading Modal (Open Shot only) -->
 <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
@@ -577,382 +1049,611 @@
 
 {% block extra_js %}
 <script>
-// Shooting Practice JavaScript
-class ShootingPractice {
-    constructor() {
-        this.sessionActive = {{ active_session|yesno:"true,false" }};
-        this.sessionId = {% if active_session %}"{{ active_session.id }}"{% else %}null{% endif %};
-        this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-            document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-            '{{ csrf_token }}';
-        
-        // Don't pre-initialize modal, get it fresh each time
-        
-        this.initializeEventListeners();
-        
-        if (this.sessionActive) {
-            this.loadSessionData();
-        }
+// ============================================================
+//  SHARED UTILITIES
+// ============================================================
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+    document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+
+function showLoading() {
+    const el = document.getElementById('loadingModal');
+    if (el) {
+        try { bootstrap.Modal.getOrCreateInstance(el).show(); } catch(e) {}
     }
-    
-    initializeEventListeners() {
-        // Sequence tracking toggle
-        const sequenceToggle = document.getElementById('sequenceTracking');
-        if (sequenceToggle) {
-            sequenceToggle.addEventListener('change', (e) => {
-                const label = document.getElementById('sequenceTrackingLabel');
-                if (e.target.checked) {
-                    label.textContent = 'ON - Shots must be entered in order';
-                } else {
-                    label.textContent = 'OFF - Scores can be entered in any order';
-                }
-            });
-        }
-        
-        // Start session button
-        const startBtn = document.getElementById('startSessionBtn');
-        if (startBtn) {
-            startBtn.addEventListener('click', () => this.startSession());
-        }
-        
-        // Shot buttons
-        document.querySelectorAll('.shot-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const outcome = e.currentTarget.dataset.outcome;
-                // Remove focus from the button to prevent focus outline
-                e.currentTarget.blur();
-                this.recordShot(outcome);
-            });
-        });
-        
-        // Control buttons
-        const undoBtn = document.getElementById('undoBtn');
-        if (undoBtn) {
-            undoBtn.addEventListener('click', () => this.undoLastShot());
-        }
-        
-        const endBtn = document.getElementById('endSessionBtn');
-        if (endBtn) {
-            endBtn.addEventListener('click', () => this.endSession());
-        }
-    }
-    
-    async startSession() {
-        this.showLoading();
-        
-        // Get session attributes from form
-        const distance = document.getElementById('sessionDistance').value;
-        const sequenceTracking = document.getElementById('sequenceTracking').checked;
-        
+}
+function hideLoading() {
+    const el = document.getElementById('loadingModal');
+    if (el && el.classList.contains('show')) {
         try {
-            const response = await fetch('{% url "practice:start_session" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.csrfToken
-                },
-                body: JSON.stringify({
-                    practice_type: 'shooting',
-                    distance: distance,
-                    sequence_tracking: sequenceTracking
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.sessionId = data.session_id;
-                this.sessionActive = true;
-                location.reload(); // Reload to show active session interface
-            } else {
-                this.showError(data.error || 'Failed to start session');
-            }
-        } catch (error) {
-            this.showError('Network error occurred');
-        } finally {
-            this.hideLoading();
-        }
+            const m = bootstrap.Modal.getInstance(el);
+            if (m) m.hide();
+        } catch(e) {}
     }
-    
-    async recordShot(outcome) {
-        if (!this.sessionActive) return;
-        
-        // IMMEDIATE visual feedback BEFORE the AJAX call
-        const button = document.querySelector(`[data-outcome="${outcome}"]`);
-        if (button) {
-            // Instant highlight on click
-            button.style.transform = 'scale(0.95)';
-            button.style.filter = 'brightness(1.4)';
-            button.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 25px rgba(255, 255, 255, 0.4)';
-            button.style.transition = 'all 0.1s ease';
-        }
-        
-        // Disable buttons temporarily (excluding the clicked button)
-        this.setButtonsEnabled(false, button);
-        
+}
+function showError(msg) { alert('Error: ' + msg); }
+
+async function postJSON(url, body) {
+    const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify(body)
+    });
+    return r.json();
+}
+
+// ── Colour-matched pressed feedback ──
+const BTN_PRESS_CLASS = {
+    'carreauBtn':       'btn-pressed-blue',
+    'petitCarreauBtn':  'btn-pressed-blue',
+    'hitBtn':           'btn-pressed-green',
+    'missBtn':          'btn-pressed-red',
+};
+function triggerButtonFeedback(button) {
+    if (!button) return;
+    const cls = BTN_PRESS_CLASS[button.id] || 'btn-pressed-blue';
+    Object.values(BTN_PRESS_CLASS).forEach(c => button.classList.remove(c));
+    void button.offsetWidth;
+    button.classList.add(cls);
+    setTimeout(() => button.classList.remove(cls), 700);
+}
+
+// ============================================================
+//  DRILL TYPE CHANGE — show/hide form rows
+// ============================================================
+function onDrillTypeChange(val) {
+    const isTdp = (val === 'tir_de_precision');
+    document.getElementById('distanceRow').style.display  = isTdp ? 'none' : '';
+    document.getElementById('sequenceRow').style.display  = isTdp ? 'none' : '';
+    document.getElementById('tdpInfoBox').classList.toggle('d-none', !isTdp);
+    const hint = document.getElementById('drillTypeHint');
+    if (hint) hint.textContent = isTdp
+        ? 'Guided 20-shot session across 5 official ateliers.'
+        : 'Choose the type of shooting drill for this session.';
+}
+
+// ============================================================
+//  START SESSION
+// ============================================================
+const startBtn = document.getElementById('startSessionBtn');
+if (startBtn) {
+    startBtn.addEventListener('click', async () => {
+        const drillType = document.getElementById('drillType')?.value || '';
+        const distance  = document.getElementById('sessionDistance')?.value || '7m';
+        const seq       = document.getElementById('sequenceTracking')?.checked ?? true;
+        const courtId   = document.getElementById('courtComplex')?.value || '';
+
+        startBtn.disabled = true;
+        showLoading();
         try {
-            const response = await fetch('{% url "practice:record_shot" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.csrfToken
-                },
-                body: JSON.stringify({ outcome })
+            const data = await postJSON('{% url "practice:start_session" %}', {
+                practice_type: 'shooting',
+                distance, sequence_tracking: seq,
+                drill_type: drillType,
+                court_complex_id: courtId || null,
             });
-            
-            const data = await response.json();
-            
             if (data.success) {
-                this.updateInterface(data);
-                // Keep the highlight a bit longer after success
-                setTimeout(() => {
-                    if (button) {
-                        button.style.transform = '';
-                        button.style.filter = '';
-                        button.style.boxShadow = '';
-                    }
-                }, 400);
+                window.location.reload();
             } else {
-                this.showError(data.error || 'Failed to record shot');
-                // Reset button styling on error
-                if (button) {
-                    button.style.transform = '';
-                    button.style.filter = '';
-                    button.style.boxShadow = '';
-                }
+                showError(data.error || 'Could not start session.');
+                startBtn.disabled = false;
             }
-        } catch (error) {
-            this.showError('Network error occurred');
-            // Reset button styling on error
-            if (button) {
-                button.style.transform = '';
-                button.style.filter = '';
-                button.style.boxShadow = '';
-            }
+        } catch (e) {
+            showError('Network error. Please try again.');
+            startBtn.disabled = false;
         } finally {
-            this.setButtonsEnabled(true);
+            hideLoading();
         }
-    }
-    
-    async undoLastShot() {
-        if (!this.sessionActive) return;
-        
-        this.showLoading();
-        
-        try {
-            const response = await fetch('{% url "practice:undo_shot" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.csrfToken
-                }
+    });
+}
+
+// ============================================================
+//  OPEN SHOT — record shot
+// ============================================================
+{% if active_session and active_session.drill_type != 'tir_de_precision' %}
+function setButtonsEnabled(enabled) {
+    document.querySelectorAll('.shot-btn').forEach(b => {
+        b.disabled = !enabled;
+        b.style.opacity = enabled ? '1' : '0.5';
+    });
+}
+
+function updateOpenShotUI(data) {
+    const el = id => document.getElementById(id);
+    if (el('totalShots'))        el('totalShots').textContent      = data.total_shots ?? '';
+    if (el('hitPercentage'))     el('hitPercentage').textContent   = (data.hit_percentage ?? 0).toFixed(1) + '%';
+    if (el('carreauCount'))      el('carreauCount').textContent    = data.carreaux ?? 0;
+    if (el('petitCarreauCount')) el('petitCarreauCount').textContent = data.petit_carreaux ?? 0;
+    if (el('currentStreak'))     el('currentStreak').textContent   = data.current_streak ?? 0;
+
+    const hist = el('shotHistory');
+    if (hist && data.recent_shots) {
+        if (data.recent_shots.length === 0) {
+            hist.innerHTML = '<div class="text-center text-muted"><i class="fas fa-info-circle me-2"></i>No shots recorded yet</div>';
+        } else {
+            const seq = document.createElement('div');
+            seq.className = 'shot-sequence';
+            data.recent_shots.forEach(s => {
+                const b = document.createElement('span');
+                b.className = `shot-badge shot-badge-${s.outcome}`;
+                b.title = s.outcome.replace(/_/g,' ');
+                b.textContent = s.outcome === 'carreau' ? '★' :
+                                s.outcome === 'petit_carreau' ? '☆' :
+                                s.outcome === 'hit' ? '✓' : '✗';
+                seq.appendChild(b);
             });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                try {
-                    this.updateInterface(data);
-                } catch (updateError) {
-                    console.error('Error updating interface:', updateError);
-                }
-            } else {
-                this.showError(data.error || 'Failed to undo shot');
-            }
-        } catch (error) {
-            console.error('Undo error:', error);
-            this.showError('Network error occurred');
-        } finally {
-            // Force hide modal with multiple attempts
-            setTimeout(() => this.hideLoading(), 100);
-            setTimeout(() => this.hideLoading(), 500);
-            this.hideLoading();
+            hist.innerHTML = '';
+            hist.appendChild(seq);
         }
-    }
-    
-    async endSession() {
-        if (!this.sessionActive) return;
-        
-        if (!confirm('Are you sure you want to end this practice session?')) {
-            return;
-        }
-        
-        this.showLoading();
-        
-        try {
-            const response = await fetch('{% url "practice:end_session" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': this.csrfToken
-                }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Redirect to session summary
-                window.location.href = `/practice/session/${data.session_id}/`;
-            } else {
-                this.showError(data.error || 'Failed to end session');
-            }
-        } catch (error) {
-            this.showError('Network error occurred');
-        } finally {
-            this.hideLoading();
-        }
-    }
-    
-    updateInterface(data) {
-        // Update statistics
-        if (data.session_stats) {
-            const stats = data.session_stats;
-            document.getElementById('totalShots').textContent = stats.total_shots;
-            document.getElementById('hitPercentage').textContent = stats.hit_percentage + '%';
-            document.getElementById('currentStreak').textContent = stats.current_streak;
-            document.getElementById('carreauCount').textContent = stats.carreaux;
-            document.getElementById('petitCarreauCount').textContent = stats.petit_carreaux || 0;
-        }
-        
-        // Update shot history
-        if (data.recent_shots) {
-            this.updateShotHistory(data.recent_shots);
-        }
-    }
-    
-    updateShotHistory(shots) {
-        const historyContainer = document.getElementById('shotHistory');
-        
-        if (shots.length === 0) {
-            historyContainer.innerHTML = `
-                <div class="text-center text-muted">
-                    <i class="fas fa-info-circle me-2"></i>No shots recorded yet
-                </div>
-            `;
-            return;
-        }
-        
-        // Show last 15 shots in reverse order (most recent first)
-        const shotBadges = shots.slice(0, 15).map(shot => {
-            const badgeClass = `shot-badge shot-badge-${shot.outcome}`;
-            let displayText, emoji;
-            
-            const outcome = shot.outcome.toLowerCase().replace(/\s+/g, '_');
-            switch(outcome) {
-                case 'miss':
-                    displayText = 'M';
-                    emoji = '😳';
-                    break;
-                case 'hit':
-                    displayText = 'H';
-                    emoji = '👍';
-                    break;
-                case 'petit_carreau':
-                    displayText = 'PC';
-                    emoji = '💪';
-                    break;
-                case 'carreau':
-                    displayText = 'C';
-                    emoji = '🤩';
-                    break;
-                default:
-                    displayText = '?';
-                    emoji = '❓';
-            }
-            
-            return `<span class="${badgeClass}" title="Shot #${shot.sequence_number}: ${shot.outcome}">${emoji}</span>`;
-        }).join('');
-        
-        historyContainer.innerHTML = `
-            <div class="shot-sequence">
-                <div class="small text-muted mb-2">Recent shots (newest first):</div>
-                <div class="shot-badges-container">${shotBadges}</div>
-            </div>
-        `;
-    }
-    
-    showShotFeedback(outcome) {
-        // Immediate and clear visual feedback for shot recording
-        const button = document.querySelector(`[data-outcome="${outcome}"]`);
-        if (button) {
-            // Add active state class
-            button.classList.add('btn-active-feedback');
-            
-            // Scale animation
-            button.style.transform = 'scale(0.95)';
-            button.style.filter = 'brightness(1.3)';
-            button.style.boxShadow = '0 0 20px rgba(255, 255, 255, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.3)';
-            
-            // Remove feedback after animation
-            setTimeout(() => {
-                button.style.transform = '';
-                button.style.filter = '';
-                button.style.boxShadow = '';
-                button.classList.remove('btn-active-feedback');
-            }, 300);
-        }
-    }
-    
-    setButtonsEnabled(enabled, excludeButton = null) {
-        document.querySelectorAll('.shot-btn').forEach(btn => {
-            btn.disabled = !enabled;
-            
-            // ALWAYS remove borders and outlines from ALL buttons
-            btn.style.border = 'none';
-            btn.style.outline = 'none';
-            
-            // Skip styling changes for the excluded button (the one being clicked)
-            if (excludeButton && btn === excludeButton) {
-                return; // Keep the clicked button's highlight visible
-            }
-            
-            if (!enabled) {
-                btn.style.opacity = '0.6';
-                btn.style.cursor = 'not-allowed';
-                // Extra enforcement: remove borders when disabled
-                btn.style.border = 'none';
-                btn.style.outline = 'none';
-            } else {
-                btn.style.opacity = '';
-                btn.style.cursor = '';
-                // Extra enforcement: remove borders when enabled
-                btn.style.border = 'none';
-                btn.style.outline = 'none';
-            }
-        });
-    }
-    
-    showLoading() {
-        const modalElement = document.getElementById('loadingModal');
-        if (modalElement) {
-            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-            modal.show();
-        }
-    }
-    
-    hideLoading() {
-        const modalElement = document.getElementById('loadingModal');
-        if (modalElement) {
-            const modal = bootstrap.Modal.getInstance(modalElement);
-            if (modal) {
-                modal.hide();
-            }
-        }
-    }
-    
-    showError(message) {
-        alert('Error: ' + message); // Simple error display for v0.1
-    }
-    
-    loadSessionData() {
-        // Load initial session data if needed
-        // For now, data is provided by Django template
     }
 }
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    new ShootingPractice();
+document.querySelectorAll('.shot-btn').forEach(btn => {
+    btn.addEventListener('touchstart', () => triggerButtonFeedback(btn), { passive: true });
+    btn.addEventListener('click', async () => {
+        triggerButtonFeedback(btn);
+        const outcome = btn.dataset.outcome;
+        setButtonsEnabled(false);
+        showLoading();
+        try {
+            const data = await postJSON('{% url "practice:record_shot" %}', { outcome });
+            if (data.success) {
+                updateOpenShotUI(data);
+            } else {
+                showError(data.error || 'Could not record shot.');
+            }
+        } catch (e) {
+            showError('Network error.');
+        } finally {
+            hideLoading();
+            setButtonsEnabled(true);
+        }
+    });
 });
+{% endif %}
+
+// ============================================================
+//  TIR DE PRÉCISION — guided session
+// ============================================================
+{% if active_session and active_session.drill_type == 'tir_de_precision' %}
+
+// ── Atelier definitions ──
+const TDP_ATELIERS = [
+    {
+        number: 1,
+        label: 'Target Boule — Open',
+        short: 'Open',
+        desc: 'Single target boule at the centre of the circle. No obstacles.',
+        legend: [{ color: '#ff9800', label: 'Target Boule' }],
+        svg: `<svg width="80" height="64" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="40" cy="52" rx="22" ry="5" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <circle cx="40" cy="38" r="13" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+            <circle cx="36" cy="33" r="3.5" fill="rgba(255,255,255,0.35)"/>
+            <line x1="40" y1="8" x2="40" y2="22" stroke="#1a56db" stroke-width="2" marker-end="url(#a1)"/>
+            <defs><marker id="a1" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1a56db"/></marker></defs>
+        </svg>`,
+        pts: [0, 1, 3, 5],
+    },
+    {
+        number: 2,
+        label: 'Target Boule Behind Jack',
+        short: 'Behind Jack',
+        desc: 'Target boule at centre. Jack placed in front (~10 cm gap).',
+        legend: [{ color: '#ff9800', label: 'Target Boule' }, { color: '#e53935', label: 'Jack' }],
+        svg: `<svg width="80" height="64" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="40" cy="54" rx="22" ry="5" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <circle cx="40" cy="40" r="13" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+            <circle cx="36" cy="35" r="3.5" fill="rgba(255,255,255,0.35)"/>
+            <circle cx="40" cy="24" r="6" fill="#e53935" stroke="#b71c1c" stroke-width="1.5"/>
+            <circle cx="38" cy="22" r="1.8" fill="rgba(255,255,255,0.4)"/>
+            <line x1="40" y1="5" x2="40" y2="15" stroke="#1a56db" stroke-width="2" marker-end="url(#a2)"/>
+            <defs><marker id="a2" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1a56db"/></marker></defs>
+        </svg>`,
+        pts: [0, 1, 3, 5],
+    },
+    {
+        number: 3,
+        label: 'Target Between Two Boules',
+        short: 'Between',
+        desc: 'Target boule flanked by two obstacle boules (~20 cm gap each side).',
+        legend: [{ color: '#ff9800', label: 'Target Boule' }, { color: '#90a4ae', label: 'Obstacles' }],
+        svg: `<svg width="80" height="64" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="40" cy="52" rx="28" ry="5" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <circle cx="14" cy="38" r="10" fill="#90a4ae" stroke="#546e7a" stroke-width="1.5"/>
+            <circle cx="66" cy="38" r="10" fill="#90a4ae" stroke="#546e7a" stroke-width="1.5"/>
+            <circle cx="40" cy="38" r="13" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+            <circle cx="36" cy="33" r="3.5" fill="rgba(255,255,255,0.35)"/>
+            <line x1="40" y1="6" x2="40" y2="22" stroke="#1a56db" stroke-width="2" marker-end="url(#a3)"/>
+            <defs><marker id="a3" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1a56db"/></marker></defs>
+        </svg>`,
+        pts: [0, 1, 3, 5],
+    },
+    {
+        number: 4,
+        label: 'Boule Behind Boule',
+        short: 'Behind Boule',
+        desc: 'Target boule directly behind an obstacle boule on the same axis. Only a small arc of the target is visible.',
+        legend: [{ color: '#ff9800', label: 'Target Boule' }, { color: '#90a4ae', label: 'Obstacle' }],
+        svg: `<svg width="80" height="64" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="40" cy="55" rx="22" ry="5" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <circle cx="40" cy="42" r="13" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+            <circle cx="40" cy="26" r="12" fill="#90a4ae" stroke="#546e7a" stroke-width="2"/>
+            <circle cx="37" cy="22" r="3" fill="rgba(255,255,255,0.35)"/>
+            <line x1="40" y1="5" x2="40" y2="11" stroke="#1a56db" stroke-width="2" marker-end="url(#a4)"/>
+            <defs><marker id="a4" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1a56db"/></marker></defs>
+        </svg>`,
+        pts: [0, 1, 3, 5],
+    },
+    {
+        number: 5,
+        label: 'Target: the Jack (But)',
+        short: 'Behind Boule',
+        desc: 'Shoot the jack (but) directly. Aim at the small red jack — no boule target.',
+        legend: [{ color: '#e53935', label: 'Jack (But)' }],
+        svg: `<svg width="80" height="64" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="40" cy="52" rx="22" ry="5" fill="none" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <circle cx="40" cy="36" r="16" fill="none" stroke="#fca5a5" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <circle cx="40" cy="36" r="8" fill="#e53935" stroke="#b71c1c" stroke-width="2"/>
+            <circle cx="37.5" cy="33" r="2.5" fill="rgba(255,255,255,0.4)"/>
+            <line x1="40" y1="6" x2="40" y2="25" stroke="#1a56db" stroke-width="2" marker-end="url(#a5)"/>
+            <defs><marker id="a5" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#1a56db"/></marker></defs>
+        </svg>`,
+        pts: [0, 3, 5, 5],
+    },
+];
+
+const TDP_DISTANCES = {{ tdp_distances|safe }};
+
+// ── State ──
+let allShots    = {{ initial_shots_json|safe }};
+let tdpScore    = {{ active_session.tdp_score }};
+let selectedDist = TDP_DISTANCES[0] || '6m';
+
+function getTotalShots()    { return allShots.length; }
+function currentAtelierNum() {
+    const t = getTotalShots();
+    if (t >= 20) return null;
+    return Math.floor(t / 4) + 1;
+}
+
+// ── Render: overall progress ──
+function renderOverallProgress() {
+    const t = getTotalShots();
+    const pct = Math.round((t / 20) * 100);
+    const bar = document.getElementById('tdpOverallBar');
+    const pctEl = document.getElementById('tdpOverallPct');
+    const shotsEl = document.getElementById('tdpOverallShots');
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (shotsEl) shotsEl.textContent = t + ' / 20 shots';
+}
+
+// ── Render: stats strip ──
+function renderStatsStrip() {
+    const a = currentAtelierNum();
+    const t = getTotalShots();
+    const shotsInAtelier = a ? (t - (a - 1) * 4) : 4;
+    const nextShot = a ? (shotsInAtelier + 1) : 4;
+
+    const el = id => document.getElementById(id);
+    if (el('tdpStatScore'))   el('tdpStatScore').textContent   = tdpScore;
+    if (el('tdpStatDist'))    el('tdpStatDist').textContent    = selectedDist;
+    if (el('tdpStatAtelier')) el('tdpStatAtelier').textContent = a ? `${a} of 5` : 'Done';
+    if (el('tdpStatShot'))    el('tdpStatShot').textContent    = a ? `${nextShot} of 4` : '4 of 4';
+}
+
+// ── Render: stepper ──
+function renderStepper() {
+    const t = getTotalShots();
+    for (let i = 1; i <= 5; i++) {
+        const node   = document.getElementById('tdpStepNode' + i);
+        const circle = document.getElementById('tdpStepCircle' + i);
+        const icon   = document.getElementById('tdpStepIcon' + i);
+        if (!node || !circle) continue;
+
+        node.classList.remove('complete', 'active');
+        circle.classList.remove('complete', 'active');
+
+        const atelierStart = (i - 1) * 4;
+        const atelierEnd   = i * 4;
+
+        if (t >= atelierEnd) {
+            node.classList.add('complete');
+            circle.classList.add('complete');
+            if (icon) icon.innerHTML = '✓';
+        } else if (t >= atelierStart) {
+            node.classList.add('active');
+            circle.classList.add('active');
+            if (icon) icon.textContent = i;
+        } else {
+            if (icon) icon.textContent = i;
+        }
+    }
+}
+
+// ── Render: guide card ──
+function renderGuideCard(animate) {
+    const a = currentAtelierNum();
+    const card = document.getElementById('tdpGuideCard');
+    if (!card) return;
+
+    if (animate) {
+        card.classList.remove('animate-in');
+        void card.offsetWidth;
+        card.classList.add('animate-in');
+    }
+
+    if (a === null) {
+        card.innerHTML = `
+            <div style="text-align:center;padding:1rem 0.5rem;">
+                <div style="font-size:2.5rem;">🏆</div>
+                <div style="font-size:1rem;font-weight:800;color:#1a56db;margin-top:0.5rem;">All 20 shots complete!</div>
+                <div style="font-size:0.82rem;color:#6b7280;margin-top:0.25rem;">Tap "End Session" to see your full results.</div>
+            </div>`;
+        document.querySelectorAll('.shot-btn').forEach(b => { b.disabled = true; b.style.opacity = '0.3'; });
+
+        const hint = document.getElementById('tdpHintText');
+        if (hint) hint.textContent = 'Session complete! Tap "End Session" to view your results.';
+        return;
+    }
+
+    const def = TDP_ATELIERS[a - 1];
+    const t = getTotalShots();
+    const shotsThisAtelier = t - (a - 1) * 4;
+    const nextShotNum = shotsThisAtelier + 1;
+
+    // Shot dots
+    let dotsHtml = '<div class="tdp-shot-dots">';
+    for (let i = 1; i <= 4; i++) {
+        if (i < nextShotNum)        dotsHtml += '<div class="tdp-shot-dot filled"></div>';
+        else if (i === nextShotNum) dotsHtml += '<div class="tdp-shot-dot current"></div>';
+        else                        dotsHtml += '<div class="tdp-shot-dot"></div>';
+    }
+    dotsHtml += '</div>';
+
+    // Legend
+    let legendHtml = '<div class="tdp-guide-legend">';
+    def.legend.forEach(l => {
+        legendHtml += `<div class="tdp-legend-item"><div class="tdp-legend-dot" style="background:${l.color};"></div><span>${l.label}</span></div>`;
+    });
+    legendHtml += '</div>';
+
+    // Mini shot log
+    let logHtml = '<div class="tdp-mini-log">';
+    let lastAtelier = 0;
+    allShots.forEach(s => {
+        if (s.atelier !== lastAtelier) {
+            if (lastAtelier > 0) logHtml += '<div class="tdp-mini-sep"></div>';
+            lastAtelier = s.atelier;
+        }
+        const pts = s.tdp_points ?? 0;
+        let cls = 'tdp-mini-miss';
+        if (pts === 5) cls = s.atelier === 5 ? 'tdp-mini-jack' : 'tdp-mini-carreau';
+        else if (pts === 3) cls = s.atelier === 5 ? 'tdp-mini-jack' : 'tdp-mini-reussi';
+        else if (pts === 1) cls = 'tdp-mini-hit';
+        logHtml += `<div class="tdp-mini-dot ${cls}" title="A${s.atelier} ${s.shot_distance||''}">${pts}</div>`;
+    });
+    if (allShots.length === 0) logHtml += '<span style="font-size:0.7rem;color:#9ca3af;align-self:center;">No shots yet</span>';
+    logHtml += '</div>';
+
+    card.innerHTML = `
+        <div class="tdp-guide-header">
+            <span class="tdp-guide-badge">Atelier ${a}</span>
+            <span class="tdp-guide-title">${def.label}</span>
+        </div>
+        <div class="tdp-guide-body">
+            <div class="tdp-guide-diagram">${def.svg}</div>
+            <div class="tdp-guide-right">
+                <div class="tdp-guide-desc">${def.desc}</div>
+                ${legendHtml}
+                ${dotsHtml}
+            </div>
+        </div>
+        ${logHtml}`;
+
+    renderButtonPts(a);
+
+    // Update hint
+    const hint = document.getElementById('tdpHintText');
+    if (hint) {
+        const remaining = 4 - shotsThisAtelier;
+        hint.textContent = remaining > 0
+            ? `${remaining} shot${remaining > 1 ? 's' : ''} remaining in Atelier ${a}.`
+            : 'Atelier complete — advancing to next atelier…';
+    }
+}
+
+// ── Render: pts labels on buttons ──
+function renderButtonPts(atelierNum) {
+    const isJack = (atelierNum === 5);
+    const elC  = document.getElementById('tdpCarreauPts');
+    const elP  = document.getElementById('tdpPetitPts');
+    const elH  = document.getElementById('tdpHitPts');
+    const hitBtn = document.getElementById('hitBtn');
+
+    if (elC) elC.textContent = '5 pts';
+    if (elP) elP.textContent = '3 pts';
+    if (elH) elH.textContent = isJack ? '—' : '1 pt';
+    if (hitBtn) {
+        hitBtn.style.opacity = isJack ? '0.35' : '1';
+        hitBtn.disabled = isJack;
+    }
+
+    // Update scoring legend for Atelier 5
+    const legend = document.getElementById('tdpScoringLegend');
+    if (legend && isJack) {
+        legend.innerHTML = `
+            <span><span class="sc-carreau">Carreau = 5 pts</span></span>
+            <span>&bull;</span>
+            <span><span class="sc-petit-carreau">Petit Carreau = 3 pts</span></span>
+            <span>&bull;</span>
+            <span style="color:#9ca3af;text-decoration:line-through;">Hit = 1 pt</span>
+            <span>&bull;</span>
+            <span><span class="sc-miss">Miss = 0 pts</span></span>`;
+    } else if (legend) {
+        legend.innerHTML = `
+            <span><span class="sc-carreau">Carreau = 5 pts</span></span>
+            <span>&bull;</span>
+            <span><span class="sc-petit-carreau">Petit Carreau = 3 pts</span></span>
+            <span>&bull;</span>
+            <span><span class="sc-hit">Hit = 1 pt</span></span>
+            <span>&bull;</span>
+            <span><span class="sc-miss">Miss = 0 pts</span></span>`;
+    }
+}
+
+function selectDist(d) {
+    selectedDist = d;
+    document.querySelectorAll('.tdp-dist-chip').forEach(el => {
+        el.classList.toggle('selected', el.dataset.dist === d);
+    });
+    const el = document.getElementById('tdpStatDist');
+    if (el) el.textContent = d;
+}
+
+// ── Map button outcome → TdP outcome ──
+function tdpOutcome(btnOutcome, atelierNum) {
+    const isJack = (atelierNum === 5);
+    if (isJack) {
+        if (btnOutcome === 'carreau')       return { outcome: 'tdp_jack_reussi', pts: 5 };
+        if (btnOutcome === 'petit_carreau') return { outcome: 'tdp_jack_touche', pts: 3 };
+        return { outcome: 'tdp_jack_manque', pts: 0 };
+    }
+    if (btnOutcome === 'carreau')       return { outcome: 'tdp_carreau', pts: 5 };
+    if (btnOutcome === 'petit_carreau') return { outcome: 'tdp_reussi',  pts: 3 };
+    if (btnOutcome === 'hit')           return { outcome: 'tdp_touche',  pts: 1 };
+    return { outcome: 'tdp_manque', pts: 0 };
+}
+
+// ── Enable/disable shot buttons ──
+function setButtonsEnabled(enabled) {
+    const isJack = (currentAtelierNum() === 5);
+    document.querySelectorAll('.shot-btn').forEach(b => {
+        if (enabled && isJack && b.id === 'hitBtn') return;
+        b.disabled = !enabled;
+        b.style.opacity = enabled ? '1' : '0.4';
+    });
+}
+
+// ── Wire up shot buttons ──
+document.querySelectorAll('.shot-btn').forEach(btn => {
+    btn.addEventListener('touchstart', () => triggerButtonFeedback(btn), { passive: true });
+    btn.addEventListener('click', async () => {
+        const atelierNum = currentAtelierNum();
+        if (atelierNum === null) return;
+
+        triggerButtonFeedback(btn);
+        setButtonsEnabled(false);
+
+        const btnOutcome = btn.dataset.outcome;
+        const mapped = tdpOutcome(btnOutcome, atelierNum);
+
+        try {
+            const data = await postJSON('{% url "practice:record_shot" %}', {
+                outcome: mapped.outcome,
+                atelier: atelierNum,
+                shot_distance: selectedDist,
+            });
+
+            if (!data.success) {
+                showError(data.error || 'Could not record shot.');
+                setButtonsEnabled(true);
+                return;
+            }
+
+            // Update local state
+            tdpScore = data.tdp_score ?? (tdpScore + mapped.pts);
+            allShots.push({
+                sequence_number: data.sequence_number ?? allShots.length + 1,
+                outcome: mapped.outcome,
+                atelier: atelierNum,
+                shot_distance: selectedDist,
+                tdp_points: mapped.pts,
+            });
+
+            const newAtelier = currentAtelierNum();
+            const atelierChanged = (newAtelier !== atelierNum);
+
+            renderOverallProgress();
+            renderStatsStrip();
+            renderStepper();
+
+            if (atelierChanged) {
+                renderGuideCard(true);
+                if (newAtelier !== null) {
+                    setTimeout(() => setButtonsEnabled(true), 1400);
+                }
+            } else {
+                renderGuideCard(false);
+                setButtonsEnabled(true);
+            }
+
+        } catch (e) {
+            showError('Network error. Please try again.');
+            setButtonsEnabled(true);
+        }
+    });
+});
+
+// ── Initial render on page load ──
+renderOverallProgress();
+renderStatsStrip();
+renderStepper();
+renderGuideCard(false);
+
+{% endif %}
+
+// ============================================================
+//  UNDO LAST SHOT
+// ============================================================
+const undoBtn = document.getElementById('undoBtn');
+if (undoBtn) {
+    undoBtn.addEventListener('click', async () => {
+        if (!confirm('Undo the last shot?')) return;
+        undoBtn.disabled = true;
+        showLoading();
+        try {
+            const data = await postJSON('{% url "practice:undo_shot" %}', {});
+            if (data.success) {
+                window.location.reload();
+            } else {
+                showError(data.error || 'Could not undo shot.');
+            }
+        } catch (e) {
+            showError('Network error.');
+        } finally {
+            hideLoading();
+            undoBtn.disabled = false;
+        }
+    });
+}
+
+// ============================================================
+//  END SESSION
+// ============================================================
+const endBtn = document.getElementById('endSessionBtn');
+if (endBtn) {
+    endBtn.addEventListener('click', async () => {
+        if (!confirm('End this session?')) return;
+        endBtn.disabled = true;
+        showLoading();
+        try {
+            const data = await postJSON('{% url "practice:end_session" %}', {});
+            if (data.success) {
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.location.reload();
+                }
+            } else {
+                showError(data.error || 'Could not end session.');
+            }
+        } catch (e) {
+            showError('Network error.');
+        } finally {
+            hideLoading();
+            endBtn.disabled = false;
+        }
+    });
+}
 </script>
 {% endblock %}

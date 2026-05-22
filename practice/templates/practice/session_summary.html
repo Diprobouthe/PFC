@@ -21,6 +21,11 @@
     box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
 }
 
+/* TdP sessions get a purple header */
+.summary-header.tdp-header {
+    background: linear-gradient(135deg, #6a1b9a 0%, #4a148c 100%);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -40,6 +45,11 @@
 .stat-card.highlight {
     border-color: #3f51b5;
     box-shadow: 0 0.25rem 0.5rem rgba(63, 81, 181, 0.1);
+}
+
+.stat-card.tdp-highlight {
+    border-color: #9c27b0;
+    box-shadow: 0 0.25rem 0.5rem rgba(156, 39, 176, 0.15);
 }
 
 .stat-value {
@@ -82,18 +92,19 @@
     position: relative;
 }
 
-.shot-badge-miss {
-    background-color: #dc3545;
-}
+.shot-badge-miss        { background-color: #dc3545; }
+.shot-badge-hit         { background-color: #28a745; }
+.shot-badge-carreau     { background-color: #ffc107; color: #212529; }
+.shot-badge-petit_carreau { background-color: #fd7e14; }
 
-.shot-badge-hit {
-    background-color: #28a745;
-}
-
-.shot-badge-carreau {
-    background-color: #ffc107;
-    color: #212529;
-}
+/* TdP shot badges */
+.shot-badge-tdp_manque       { background-color: #dc3545; }
+.shot-badge-tdp_touche       { background-color: #28a745; }
+.shot-badge-tdp_reussi       { background-color: #1976d2; }
+.shot-badge-tdp_carreau      { background-color: #ffc107; color: #212529; }
+.shot-badge-tdp_jack_manque  { background-color: #dc3545; }
+.shot-badge-tdp_jack_touche  { background-color: #e91e63; }
+.shot-badge-tdp_jack_reussi  { background-color: #9c27b0; }
 
 .shot-badge:hover {
     transform: scale(1.1);
@@ -116,29 +127,120 @@
     flex-wrap: wrap;
 }
 
+/* ============================================================
+   TIR DE PRÉCISION — Atelier breakdown
+   ============================================================ */
+.tdp-atelier-row {
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: #fafafa;
+}
+
+.tdp-atelier-row.complete {
+    border-color: #9c27b0;
+    background: #f9f0ff;
+}
+
+.tdp-atelier-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.tdp-atelier-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #4a148c;
+}
+
+.tdp-atelier-score-badge {
+    background: #9c27b0;
+    color: white;
+    border-radius: 1rem;
+    padding: 0.2rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.tdp-atelier-desc {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+.tdp-shot-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: white;
+    margin: 0.15rem;
+    cursor: default;
+}
+
+.tdp-mini-manque       { background: #dc3545; }
+.tdp-mini-touche       { background: #28a745; }
+.tdp-mini-reussi       { background: #1976d2; }
+.tdp-mini-carreau      { background: #ffc107; color: #212529; }
+.tdp-mini-jack-manque  { background: #dc3545; }
+.tdp-mini-jack-touche  { background: #e91e63; }
+.tdp-mini-jack-reussi  { background: #9c27b0; }
+.tdp-mini-empty        { background: #dee2e6; }
+
+.tdp-total-bar {
+    background: linear-gradient(135deg, #4a148c 0%, #6a1b9a 100%);
+    color: white;
+    border-radius: 0.5rem;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.tdp-total-score {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.tdp-total-label {
+    font-size: 0.85rem;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.25rem;
+}
+
+.tdp-score-bar-outer {
+    background: rgba(255,255,255,0.2);
+    border-radius: 1rem;
+    height: 12px;
+    margin-top: 0.75rem;
+    overflow: hidden;
+}
+
+.tdp-score-bar-inner {
+    height: 100%;
+    border-radius: 1rem;
+    background: rgba(255,255,255,0.9);
+    transition: width 0.5s ease;
+}
+
 @media (max-width: 576px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
     }
-    
-    .stat-card {
-        padding: 1rem;
-    }
-    
-    .stat-value {
-        font-size: 1.5rem;
-    }
-    
-    .session-actions {
-        flex-direction: column;
-    }
-    
-    .shot-badge {
-        width: 32px;
-        height: 32px;
-        line-height: 32px;
-    }
+    .stat-card { padding: 1rem; }
+    .stat-value { font-size: 1.5rem; }
+    .session-actions { flex-direction: column; }
+    .shot-badge { width: 32px; height: 32px; line-height: 32px; }
 }
 </style>
 {% endblock %}
@@ -154,20 +256,160 @@
         </div>
 
         <!-- Session Summary Header -->
-        <div class="summary-header">
+        <div class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% endif %}">
             <h1 class="h2 mb-3">
-                <i class="fas fa-chart-line me-2"></i>Session Complete!
+                {% if session.drill_type == 'tir_de_precision' %}
+                    <i class="fas fa-trophy me-2"></i>Tir de Précision — Session Complete!
+                {% else %}
+                    <i class="fas fa-chart-line me-2"></i>Session Complete!
+                {% endif %}
             </h1>
             <p class="mb-2 opacity-75">{{ session.started_at|date:"F d, Y" }} at {{ session.started_at|time:"H:i" }}</p>
             <p class="mb-1">
-                <strong>{{ player_name|default:session.player_codename }}</strong> • 
+                <strong>{{ player_name|default:session.player_codename }}</strong> •
                 Duration: {{ summary.duration }}
             </p>
             <p class="mb-0 opacity-75">
-                <i class="fas fa-ruler me-1"></i>Distance: <strong>{{ session.distance }}</strong> • 
-                <i class="fas fa-sort-numeric-down me-1"></i>Sequence Tracking: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong>
+                {% if session.drill_type == 'tir_de_precision' %}
+                    <i class="fas fa-trophy me-1"></i>Tir de Précision
+                {% else %}
+                    <i class="fas fa-ruler me-1"></i>Distance: <strong>{{ session.distance }}</strong> •
+                    <i class="fas fa-sort-numeric-down me-1"></i>Sequence Tracking: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong>
+                {% endif %}
+                {% if session.court_complex %}
+                    &nbsp;•&nbsp;<i class="fas fa-map-marker-alt me-1"></i><strong>{{ session.court_complex.name }}</strong>
+                {% endif %}
             </p>
         </div>
+
+        {% if session.drill_type == 'tir_de_precision' %}
+        <!-- =====================================================
+             TIR DE PRÉCISION SUMMARY
+             ===================================================== -->
+
+        <!-- Total score bar -->
+        <div class="tdp-total-bar">
+            <div class="tdp-total-score">{{ session.tdp_score }}</div>
+            <div class="tdp-total-label">Total Score / 100 pts</div>
+            <div class="tdp-score-bar-outer">
+                <div class="tdp-score-bar-inner" style="width: {{ session.tdp_score }}%;"></div>
+            </div>
+        </div>
+
+        <!-- Stats grid for TdP -->
+        <div class="stats-grid">
+            <div class="stat-card tdp-highlight">
+                <div class="stat-value" style="color:#9c27b0;">{{ session.total_shots }}</div>
+                <div class="stat-label">Total Shots</div>
+                <div class="stat-description">of 20 maximum</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:#1976d2;">{{ session.tdp_score }}</div>
+                <div class="stat-label">Score</div>
+                <div class="stat-description">out of 100 pts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value text-success">
+                    {% with total=session.total_shots %}
+                    {% if total > 0 %}{{ session.tdp_score|floatformat:0 }}{% else %}0{% endif %}
+                    {% endwith %}
+                </div>
+                <div class="stat-label">Avg pts/shot</div>
+                <div class="stat-description">
+                    {% if session.total_shots > 0 %}
+                        {% widthratio session.tdp_score session.total_shots 10 %}/10 max
+                    {% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:#ffc107;">
+                    {{ shots|length }}
+                </div>
+                <div class="stat-label">Shots Recorded</div>
+                <div class="stat-description">Session duration: {{ summary.duration }}</div>
+            </div>
+        </div>
+
+        <!-- Atelier breakdown -->
+        {% if tdp_breakdown %}
+        <div class="card mt-3 mb-4">
+            <div class="card-header" style="background:#f3e5f5;border-bottom:1px solid #ce93d8;">
+                <h5 class="card-title mb-0" style="color:#4a148c;">
+                    <i class="fas fa-list-ol me-2"></i>Atelier Breakdown
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for item in tdp_breakdown %}
+                <div class="tdp-atelier-row {% if item.shots %}complete{% endif %}">
+                    <div class="tdp-atelier-header">
+                        <div class="tdp-atelier-title">
+                            {{ item.atelier.icon }} Atelier {{ item.atelier.number }}: {{ item.atelier.label }}
+                        </div>
+                        <div class="tdp-atelier-score-badge">{{ item.score }} / {{ item.max_score }} pts</div>
+                    </div>
+                    <div class="tdp-atelier-desc">{{ item.atelier.desc }}</div>
+                    <div>
+                        {% for shot in item.shots %}
+                            {% if shot.outcome == 'tdp_manque' or shot.outcome == 'tdp_jack_manque' %}
+                                <span class="tdp-shot-mini {% if shot.outcome == 'tdp_jack_manque' %}tdp-mini-jack-manque{% else %}tdp-mini-manque{% endif %}"
+                                      title="{{ shot.shot_distance }} — {{ shot.outcome }} (0 pts)">0</span>
+                            {% elif shot.outcome == 'tdp_touche' %}
+                                <span class="tdp-shot-mini tdp-mini-touche"
+                                      title="{{ shot.shot_distance }} — Touché (1 pt)">1</span>
+                            {% elif shot.outcome == 'tdp_jack_touche' %}
+                                <span class="tdp-shot-mini tdp-mini-jack-touche"
+                                      title="{{ shot.shot_distance }} — Touché Jack (3 pts)">3</span>
+                            {% elif shot.outcome == 'tdp_reussi' %}
+                                <span class="tdp-shot-mini tdp-mini-reussi"
+                                      title="{{ shot.shot_distance }} — Réussi (3 pts)">3</span>
+                            {% elif shot.outcome == 'tdp_jack_reussi' %}
+                                <span class="tdp-shot-mini tdp-mini-jack-reussi"
+                                      title="{{ shot.shot_distance }} — Réussi Jack (5 pts)">5</span>
+                            {% elif shot.outcome == 'tdp_carreau' %}
+                                <span class="tdp-shot-mini tdp-mini-carreau"
+                                      title="{{ shot.shot_distance }} — Carreau (5 pts)">5</span>
+                            {% endif %}
+                        {% endfor %}
+                        {% for i in "1234" %}
+                            {% if forloop.counter > item.shots|length %}
+                                <span class="tdp-shot-mini tdp-mini-empty" title="Not yet taken">—</span>
+                            {% endif %}
+                        {% endfor %}
+                        {% if item.shots %}
+                            <span class="ms-2 small text-muted">
+                                {% for shot in item.shots %}{{ shot.shot_distance }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Motivational message for TdP -->
+        <div class="card mt-3 border-0" style="background:{% if session.tdp_score >= 80 %}#e8f5e9{% elif session.tdp_score >= 50 %}#e3f2fd{% else %}#fff8e1{% endif %};">
+            <div class="card-body text-center">
+                {% if session.tdp_score >= 80 %}
+                    <h5 class="mb-2" style="color:#2e7d32;"><i class="fas fa-trophy me-2"></i>Excellent Precision!</h5>
+                    <p class="text-muted mb-0">Outstanding Tir de Précision performance. You're competition-ready!</p>
+                {% elif session.tdp_score >= 60 %}
+                    <h5 class="mb-2 text-primary"><i class="fas fa-thumbs-up me-2"></i>Strong Session!</h5>
+                    <p class="text-muted mb-0">Good precision work. Focus on Carreaux to push your score higher.</p>
+                {% elif session.tdp_score >= 40 %}
+                    <h5 class="mb-2 text-info"><i class="fas fa-bullseye me-2"></i>Solid Effort!</h5>
+                    <p class="text-muted mb-0">Keep practicing the ateliers with obstacles — they're the key to improvement.</p>
+                {% else %}
+                    <h5 class="mb-2 text-warning"><i class="fas fa-dumbbell me-2"></i>Keep Training!</h5>
+                    <p class="text-muted mb-0">Every Tir de Précision session builds your precision. Aim for Réussi on each shot.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% else %}
+        <!-- =====================================================
+             OPEN SHOT (and other drills) SUMMARY
+             ===================================================== -->
 
         <!-- Main Statistics -->
         <div class="stats-grid">
@@ -176,19 +418,19 @@
                 <div class="stat-label">Total Shots</div>
                 <div class="stat-description">Shots recorded</div>
             </div>
-            
+
             <div class="stat-card">
                 <div class="stat-value text-success">{{ summary.hit_percentage }}%</div>
                 <div class="stat-label">Hit Rate</div>
                 <div class="stat-description">Successful shots</div>
             </div>
-            
+
             <div class="stat-card">
                 <div class="stat-value text-warning">{{ summary.carreau_percentage }}%</div>
                 <div class="stat-label">Carreau Rate</div>
                 <div class="stat-description">Perfect shots</div>
             </div>
-            
+
             <div class="stat-card">
                 <div class="stat-value text-info">{{ summary.longest_streak }}</div>
                 <div class="stat-label">Best Streak</div>
@@ -267,7 +509,7 @@
                                 </ul>
                             </div>
                         </div>
-                        
+
                         {% if summary.performance_note %}
                             <div class="performance-note">
                                 <h6 class="mb-2">
@@ -292,7 +534,7 @@
                 <div class="card-body">
                     <div class="shot-sequence">
                         {% for shot in shots %}
-                            <span class="shot-badge shot-badge-{{ shot.outcome }}" 
+                            <span class="shot-badge shot-badge-{{ shot.outcome }}"
                                   title="Shot #{{ shot.sequence_number }}: {{ shot.get_outcome_display }} at {{ shot.timestamp|time:'H:i:s' }}">
                                 {% if shot.outcome == 'carreau' or shot.outcome == 'perfect' %}🤩{% elif shot.outcome == 'petit_carreau' or shot.outcome == 'petit_perfect' %}💪{% elif shot.outcome == 'hit' or shot.outcome == 'good' %}👍{% elif shot.outcome == 'fair' %}😊{% elif shot.outcome == 'far' or shot.outcome == 'very_far' %}😳{% else %}😳{% endif %}
                             </span>
@@ -310,19 +552,6 @@
                 </div>
             </div>
         {% endif %}
-
-        <!-- Session Actions -->
-        <div class="session-actions">
-            <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary">
-                <i class="fas fa-play me-2"></i>Start New Session
-            </a>
-            <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-home me-2"></i>Practice Home
-            </a>
-            <button class="btn btn-outline-info" onclick="window.print()">
-                <i class="fas fa-print me-2"></i>Print Summary
-            </button>
-        </div>
 
         <!-- Motivational Message -->
         <div class="card mt-4 border-success">
@@ -345,24 +574,21 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
+
+        <!-- Session Actions -->
+        <div class="session-actions">
+            <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary">
+                <i class="fas fa-play me-2"></i>Start New Session
+            </a>
+            <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-home me-2"></i>Practice Home
+            </a>
+            <button class="btn btn-outline-info" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Summary
+            </button>
+        </div>
+
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-// Add any session summary specific JavaScript here
-document.addEventListener('DOMContentLoaded', function() {
-    // Add tooltips to shot badges
-    const shotBadges = document.querySelectorAll('.shot-badge');
-    shotBadges.forEach(badge => {
-        badge.addEventListener('mouseenter', function() {
-            this.style.zIndex = '1000';
-        });
-        badge.addEventListener('mouseleave', function() {
-            this.style.zIndex = '';
-        });
-    });
-});
-</script>
 {% endblock %}
