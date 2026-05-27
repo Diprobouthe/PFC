@@ -133,6 +133,14 @@ class PracticeSession(models.Model):
         return self.drill_type == 'tir_de_precision'
 
     @property
+    def is_tactical(self):
+        return self.drill_type == 'tactical'
+
+    @property
+    def is_sequence(self):
+        return self.drill_type == 'sequence'
+
+    @property
     def duration(self):
         if self.ended_at:
             return self.ended_at - self.started_at
@@ -187,8 +195,8 @@ class PracticeSession(models.Model):
         self.goods = shots.filter(outcome='good').count()
         self.fairs = shots.filter(outcome='fair').count()
         self.fars = shots.filter(outcome='far').count()
-        # Tir de Précision score
-        if self.drill_type == 'tir_de_precision':
+        # Tir de Précision / Tactical / Sequence score (all use tdp_score field)
+        if self.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
             score = 0
             for s in shots:
                 score += s.tdp_points
@@ -232,6 +240,7 @@ class Shot(models.Model):
     ]
 
     # Tir de Précision atelier definitions (used by UI and views)
+    # Tactical atelier definitions are in tactical_scenarios.py
     TDP_ATELIERS = [
         {
             'number': 1,

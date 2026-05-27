@@ -89,10 +89,18 @@ def shooting_practice(request):
     tdp_ateliers = Shot.TDP_ATELIERS
     tdp_distances = Shot.TDP_DISTANCES
 
-    # Pre-populate all TdP shots for the JS state machine (prevents desync on reload)
+    # Build Tactical atelier info for the template
+    from .tactical_scenarios import TACTICAL_ATELIERS
+    tactical_ateliers = TACTICAL_ATELIERS
+
+    # Build Sequence Drill atelier info for the template
+    from .sequence_scenarios import SEQUENCE_ATELIERS
+    sequence_ateliers = SEQUENCE_ATELIERS
+
+    # Pre-populate all TdP/Tactical/Sequence shots for the JS state machine (prevents desync on reload)
     import json as _json
     initial_shots_json = '[]'
-    if active_session and active_session.drill_type == 'tir_de_precision':
+    if active_session and active_session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
         shots_list = list(active_session.shots.order_by('sequence_number').values(
             'sequence_number', 'outcome', 'atelier', 'shot_distance'
         ))
@@ -112,6 +120,8 @@ def shooting_practice(request):
         'court_complexes': court_complexes,
         'tdp_ateliers': tdp_ateliers,
         'tdp_distances': tdp_distances,
+        'tactical_ateliers': tactical_ateliers,
+        'sequence_ateliers': sequence_ateliers,
         'initial_shots_json': initial_shots_json,
         'page_title': 'Shooting Practice',
     }
@@ -193,8 +203,8 @@ def start_session(request):
     if drill_type == 'precision':
         drill_type = 'tir_de_precision'
 
-    # Tir de Précision always uses sequence tracking and ignores the global distance
-    if drill_type == 'tir_de_precision':
+    # Tir de Précision, Tactical, and Sequence always use sequence tracking
+    if drill_type in ('tir_de_precision', 'tactical', 'sequence'):
         sequence_tracking = True
 
     # Resolve court complex
@@ -277,19 +287,19 @@ def record_shot(request):
         if not session:
             return JsonResponse({'error': 'No active session found'}, status=404)
 
-        # Validate TdP-specific fields
-        if session.drill_type == 'tir_de_precision':
+        # Validate TdP-specific fields (also used for Tactical and Sequence)
+        if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
             if atelier is None or int(atelier) not in range(1, 6):
-                return JsonResponse({'error': 'atelier (1-5) required for Tir de Précision'}, status=400)
+                return JsonResponse({'error': 'atelier (1-5) required for this drill type'}, status=400)
             if shot_distance not in Shot.TDP_DISTANCES:
-                return JsonResponse({'error': 'shot_distance (6m/7m/8m/9m) required for Tir de Précision'}, status=400)
+                return JsonResponse({'error': 'shot_distance (6m/7m/8m/9m) required for this drill type'}, status=400)
 
         with transaction.atomic():
             shot_kwargs = {
                 'session': session,
                 'outcome': outcome,
             }
-            if session.drill_type == 'tir_de_precision':
+            if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
                 shot_kwargs['atelier'] = int(atelier)
                 shot_kwargs['shot_distance'] = shot_distance
 
@@ -321,7 +331,7 @@ def record_shot(request):
         }
 
         if session.practice_type == 'shooting':
-            if session.drill_type == 'tir_de_precision':
+            if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
                 response_data['session_stats'].update({
                     'tdp_score': session.tdp_score,
                     'tdp_points_this_shot': shot.tdp_points,
@@ -412,7 +422,7 @@ def undo_last_shot(request):
             },
             'recent_shots': recent_shots,
         }
-        if session.drill_type == 'tir_de_precision':
+        if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
             response['session_stats']['tdp_score'] = session.tdp_score
 
         return JsonResponse(response)
@@ -469,11 +479,37 @@ def session_summary(request, session_id):
     summary = calculate_session_summary(session)
     shots = session.shots.order_by('sequence_number')
 
-    # For TdP sessions, build a structured atelier breakdown
+    # For TdP and Tactical sessions, build a structured atelier breakdown
     tdp_breakdown = None
     if session.drill_type == 'tir_de_precision':
         tdp_breakdown = []
         for atelier_info in Shot.TDP_ATELIERS:
+            a_num = atelier_info['number']
+            a_shots = [s for s in shots if s.atelier == a_num]
+            a_score = sum(s.tdp_points for s in a_shots)
+            tdp_breakdown.append({
+                'atelier': atelier_info,
+                'shots': a_shots,
+                'score': a_score,
+                'max_score': 20,  # 4 shots × 5 pts max
+            })
+    elif session.drill_type == 'tactical':
+        from .tactical_scenarios import TACTICAL_ATELIERS
+        tdp_breakdown = []
+        for atelier_info in TACTICAL_ATELIERS:
+            a_num = atelier_info['number']
+            a_shots = [s for s in shots if s.atelier == a_num]
+            a_score = sum(s.tdp_points for s in a_shots)
+            tdp_breakdown.append({
+                'atelier': atelier_info,
+                'shots': a_shots,
+                'score': a_score,
+                'max_score': 20,  # 4 shots × 5 pts max
+            })
+    elif session.drill_type == 'sequence':
+        from .sequence_scenarios import SEQUENCE_ATELIERS
+        tdp_breakdown = []
+        for atelier_info in SEQUENCE_ATELIERS:
             a_num = atelier_info['number']
             a_shots = [s for s in shots if s.atelier == a_num]
             a_score = sum(s.tdp_points for s in a_shots)

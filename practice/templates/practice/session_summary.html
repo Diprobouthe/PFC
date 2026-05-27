@@ -26,6 +26,16 @@
     background: linear-gradient(135deg, #6a1b9a 0%, #4a148c 100%);
 }
 
+/* Tactical sessions get a green header */
+.summary-header.tactical-header {
+    background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+}
+
+/* Sequence Drill sessions get an amber header */
+.summary-header.sequence-header {
+    background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -256,10 +266,14 @@
         </div>
 
         <!-- Session Summary Header -->
-        <div class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% endif %}">
+        <div class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% elif session.drill_type == 'tactical' %}tactical-header{% elif session.drill_type == 'sequence' %}sequence-header{% endif %}">
             <h1 class="h2 mb-3">
                 {% if session.drill_type == 'tir_de_precision' %}
                     <i class="fas fa-trophy me-2"></i>Tir de Précision — Session Complete!
+                {% elif session.drill_type == 'tactical' %}
+                    <i class="fas fa-chess me-2"></i>Tactical Situations — Session Complete!
+                {% elif session.drill_type == 'sequence' %}
+                    <i class="fas fa-list-ol me-2"></i>Sequence Drill — Session Complete!
                 {% else %}
                     <i class="fas fa-chart-line me-2"></i>Session Complete!
                 {% endif %}
@@ -272,6 +286,10 @@
             <p class="mb-0 opacity-75">
                 {% if session.drill_type == 'tir_de_precision' %}
                     <i class="fas fa-trophy me-1"></i>Tir de Précision
+                {% elif session.drill_type == 'tactical' %}
+                    <i class="fas fa-chess me-1"></i>Tactical Situations
+                {% elif session.drill_type == 'sequence' %}
+                    <i class="fas fa-list-ol me-1"></i>Sequence Drill
                 {% else %}
                     <i class="fas fa-ruler me-1"></i>Distance: <strong>{{ session.distance }}</strong> •
                     <i class="fas fa-sort-numeric-down me-1"></i>Sequence Tracking: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong>
@@ -282,9 +300,9 @@
             </p>
         </div>
 
-        {% if session.drill_type == 'tir_de_precision' %}
+        {% if session.drill_type == 'tir_de_precision' or session.drill_type == 'tactical' or session.drill_type == 'sequence' %}
         <!-- =====================================================
-             TIR DE PRÉCISION SUMMARY
+             TIR DE PRÉCISION / TACTICAL SUMMARY
              ===================================================== -->
 
         <!-- Total score bar -->
@@ -333,9 +351,10 @@
         <!-- Atelier breakdown -->
         {% if tdp_breakdown %}
         <div class="card mt-3 mb-4">
-            <div class="card-header" style="background:#f3e5f5;border-bottom:1px solid #ce93d8;">
-                <h5 class="card-title mb-0" style="color:#4a148c;">
-                    <i class="fas fa-list-ol me-2"></i>Atelier Breakdown
+            <div class="card-header"
+                 style="background:{% if session.drill_type == 'tactical' %}#ecfdf5{% elif session.drill_type == 'sequence' %}#fffbeb{% else %}#f3e5f5{% endif %};border-bottom:1px solid {% if session.drill_type == 'tactical' %}#a7f3d0{% elif session.drill_type == 'sequence' %}#fde68a{% else %}#ce93d8{% endif %};">
+                <h5 class="card-title mb-0" style="color:{% if session.drill_type == 'tactical' %}#065f46{% elif session.drill_type == 'sequence' %}#92400e{% else %}#4a148c{% endif %};">
+                    <i class="fas fa-list-ol me-2"></i>{% if session.drill_type == 'tactical' %}Scenario{% elif session.drill_type == 'sequence' %}Atelier{% else %}Atelier{% endif %} Breakdown
                 </h5>
             </div>
             <div class="card-body">
@@ -347,7 +366,7 @@
                         </div>
                         <div class="tdp-atelier-score-badge">{{ item.score }} / {{ item.max_score }} pts</div>
                     </div>
-                    <div class="tdp-atelier-desc">{{ item.atelier.desc }}</div>
+                    <div class="tdp-atelier-desc">{{ item.atelier.description }}</div>
                     <div>
                         {% for shot in item.shots %}
                             {% if shot.outcome == 'tdp_manque' or shot.outcome == 'tdp_jack_manque' %}
@@ -387,21 +406,51 @@
         </div>
         {% endif %}
 
-        <!-- Motivational message for TdP -->
+        <!-- Motivational message for TdP / Tactical / Sequence -->
         <div class="card mt-3 border-0" style="background:{% if session.tdp_score >= 80 %}#e8f5e9{% elif session.tdp_score >= 50 %}#e3f2fd{% else %}#fff8e1{% endif %};">
             <div class="card-body text-center">
-                {% if session.tdp_score >= 80 %}
-                    <h5 class="mb-2" style="color:#2e7d32;"><i class="fas fa-trophy me-2"></i>Excellent Precision!</h5>
-                    <p class="text-muted mb-0">Outstanding Tir de Précision performance. You're competition-ready!</p>
-                {% elif session.tdp_score >= 60 %}
-                    <h5 class="mb-2 text-primary"><i class="fas fa-thumbs-up me-2"></i>Strong Session!</h5>
-                    <p class="text-muted mb-0">Good precision work. Focus on Carreaux to push your score higher.</p>
-                {% elif session.tdp_score >= 40 %}
-                    <h5 class="mb-2 text-info"><i class="fas fa-bullseye me-2"></i>Solid Effort!</h5>
-                    <p class="text-muted mb-0">Keep practicing the ateliers with obstacles — they're the key to improvement.</p>
+                {% if session.drill_type == 'sequence' %}
+                    {% if session.tdp_score >= 80 %}
+                        <h5 class="mb-2" style="color:#78350f;"><i class="fas fa-list-ol me-2"></i>Sequence Master!</h5>
+                        <p class="text-muted mb-0">Outstanding control and precision across all 5 ateliers. Your sequencing is match-sharp.</p>
+                    {% elif session.tdp_score >= 60 %}
+                        <h5 class="mb-2" style="color:#b45309;"><i class="fas fa-thumbs-up me-2"></i>Strong Sequence Session!</h5>
+                        <p class="text-muted mb-0">Good execution. Focus on the directional and rear-row ateliers to push your score higher.</p>
+                    {% elif session.tdp_score >= 40 %}
+                        <h5 class="mb-2 text-warning"><i class="fas fa-bullseye me-2"></i>Solid Effort!</h5>
+                        <p class="text-muted mb-0">You're getting the sequences right. Work on converting Hits into Carreaux for bigger scores.</p>
+                    {% else %}
+                        <h5 class="mb-2 text-secondary"><i class="fas fa-redo me-2"></i>Keep Drilling!</h5>
+                        <p class="text-muted mb-0">Sequence shooting requires rhythm and precision. Repeat the ateliers and trust the visual guides.</p>
+                    {% endif %}
+                {% elif session.drill_type == 'tactical' %}
+                    {% if session.tdp_score >= 80 %}
+                        <h5 class="mb-2" style="color:#1b4332;"><i class="fas fa-chess me-2"></i>Tactical Master!</h5>
+                        <p class="text-muted mb-0">Exceptional tactical execution. Your shooting under pressure is match-ready.</p>
+                    {% elif session.tdp_score >= 60 %}
+                        <h5 class="mb-2" style="color:#2d6a4f;"><i class="fas fa-thumbs-up me-2"></i>Strong Tactical Session!</h5>
+                        <p class="text-muted mb-0">Good decision-making and execution. Work on the harder scenarios to push higher.</p>
+                    {% elif session.tdp_score >= 40 %}
+                        <h5 class="mb-2 text-info"><i class="fas fa-chess-knight me-2"></i>Solid Tactical Effort!</h5>
+                        <p class="text-muted mb-0">You're reading the situations well. Focus on cleaner execution for Carreaux.</p>
+                    {% else %}
+                        <h5 class="mb-2 text-warning"><i class="fas fa-dumbbell me-2"></i>Keep Practicing!</h5>
+                        <p class="text-muted mb-0">Tactical shooting requires both reading the situation and precise execution. Keep at it!</p>
+                    {% endif %}
                 {% else %}
-                    <h5 class="mb-2 text-warning"><i class="fas fa-dumbbell me-2"></i>Keep Training!</h5>
-                    <p class="text-muted mb-0">Every Tir de Précision session builds your precision. Aim for Réussi on each shot.</p>
+                    {% if session.tdp_score >= 80 %}
+                        <h5 class="mb-2" style="color:#2e7d32;"><i class="fas fa-trophy me-2"></i>Excellent Precision!</h5>
+                        <p class="text-muted mb-0">Outstanding Tir de Précision performance. You're competition-ready!</p>
+                    {% elif session.tdp_score >= 60 %}
+                        <h5 class="mb-2 text-primary"><i class="fas fa-thumbs-up me-2"></i>Strong Session!</h5>
+                        <p class="text-muted mb-0">Good precision work. Focus on Carreaux to push your score higher.</p>
+                    {% elif session.tdp_score >= 40 %}
+                        <h5 class="mb-2 text-info"><i class="fas fa-bullseye me-2"></i>Solid Effort!</h5>
+                        <p class="text-muted mb-0">Keep practicing the ateliers with obstacles — they're the key to improvement.</p>
+                    {% else %}
+                        <h5 class="mb-2 text-warning"><i class="fas fa-dumbbell me-2"></i>Keep Training!</h5>
+                        <p class="text-muted mb-0">Every Tir de Précision session builds your precision. Aim for Réussi on each shot.</p>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>

@@ -90,7 +90,7 @@ canvas.bb-chart{width:100%!important;max-height:180px}
     </button>
     <div class="bb-expand-panel" id="expand-panel">
       <div class="bb-field-label">Court</div>
-      <select class="bb-select" id="sel-court">
+      <select class="bb-select" id="sel-court" onchange="onCourtChange()">
         {% for court in courts %}<option value="{{ court.id }}">{{ court.name }}</option>{% endfor %}
       </select>
       <div class="bb-field-label">Date</div>
@@ -236,10 +236,29 @@ document.addEventListener('DOMContentLoaded',()=>{
   fetchDefaults();
   {% if courts %}loadAnalytics({{ courts.0.id }},document.querySelector('.bb-court-tab'));{% endif %}
 });
-async function fetchDefaults(){
-  try{const r=await fetch('/billboard/api/defaults/');const d=await r.json();BB.defaults=d.defaults||{};updateChip();
-  const s=document.getElementById('sel-court');if(BB.defaults.court_id&&s)s.value=BB.defaults.court_id;
+async function fetchDefaults(courtId){
+  try{
+    // Pass court_id so the server computes now_slot/plus30_slot in court-local time
+    const cid=courtId||document.getElementById('sel-court')?.value||'';
+    const url='/billboard/api/defaults/'+(cid?'?court_id='+encodeURIComponent(cid):'');
+    const r=await fetch(url);const d=await r.json();BB.defaults=d.defaults||{};updateChip();
+    const s=document.getElementById('sel-court');
+    if(s){
+      if(!courtId&&BB.defaults.court_id){
+        // Initial load: set the selector to the user's last-used court,
+        // then immediately re-fetch with that court so now/+30min slots
+        // are computed in the correct court-local timezone.
+        s.value=BB.defaults.court_id;
+        fetchDefaults(String(BB.defaults.court_id));
+      }
+    }
   }catch(e){document.getElementById('defaults-summary').textContent='Tap to customise';}
+}
+function onCourtChange(){
+  // Re-fetch defaults with the newly selected court so now/+30min slots
+  // are recalculated in that court's local timezone
+  const cid=document.getElementById('sel-court')?.value||'';
+  fetchDefaults(cid);
 }
 function updateChip(){
   const d=BB.defaults;

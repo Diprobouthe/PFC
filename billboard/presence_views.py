@@ -94,12 +94,25 @@ def _get_defaults(codename, court_complex=None):
 
 @require_GET
 def api_defaults(request):
-    """GET /billboard/api/defaults/ — smart defaults for the current player."""
+    """
+    GET /billboard/api/defaults/?court_id=<id>
+    Return smart defaults for the current player.
+    When court_id is provided, now_slot and plus30_slot are computed in
+    that court's local timezone so relative quick options are correct.
+    """
     codename = _get_codename(request)
     courts = list(
         CourtComplex.objects.order_by("name").values("id", "name")
     )
-    defaults = _get_defaults(codename)
+    # Resolve court from query param so time slots use court-local time
+    court_complex = None
+    raw_court_id = request.GET.get("court_id")
+    if raw_court_id:
+        try:
+            court_complex = CourtComplex.objects.filter(pk=int(raw_court_id)).first()
+        except (ValueError, TypeError):
+            pass
+    defaults = _get_defaults(codename, court_complex=court_complex)
     return JsonResponse({
         "ok": True,
         "codename": codename,
