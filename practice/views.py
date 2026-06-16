@@ -97,10 +97,28 @@ def shooting_practice(request):
     from .sequence_scenarios import SEQUENCE_ATELIERS
     sequence_ateliers = SEQUENCE_ATELIERS
 
-    # Pre-populate all TdP/Tactical/Sequence shots for the JS state machine (prevents desync on reload)
+    # Build Hidden Target atelier info for the template
+    from .hidden_target_scenarios import HIDDEN_TARGET_ATELIERS
+    hidden_target_ateliers = HIDDEN_TARGET_ATELIERS
+
+    # Pre-populate all TdP/Tactical/Sequence/HiddenTarget shots for the JS state machine (prevents desync on reload)
     import json as _json
     initial_shots_json = '[]'
-    if active_session and active_session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+
+    # Serialize Hidden Target ateliers to JSON for JS injection (after _json import)
+    hidden_target_ateliers_json = _json.dumps([
+        {
+            'number': a['number'],
+            'label': a['label'],
+            'short': a['short'],
+            'desc': a['description'],
+            'legend': a['legend'],
+            'svg': a['svg'],
+            'pts': a['pts'],
+        }
+        for a in HIDDEN_TARGET_ATELIERS
+    ])
+    if active_session and active_session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
         shots_list = list(active_session.shots.order_by('sequence_number').values(
             'sequence_number', 'outcome', 'atelier', 'shot_distance'
         ))
@@ -122,6 +140,8 @@ def shooting_practice(request):
         'tdp_distances': tdp_distances,
         'tactical_ateliers': tactical_ateliers,
         'sequence_ateliers': sequence_ateliers,
+        'hidden_target_ateliers': hidden_target_ateliers,
+        'hidden_target_ateliers_json': hidden_target_ateliers_json,
         'initial_shots_json': initial_shots_json,
         'page_title': 'Shooting Practice',
     }
@@ -203,8 +223,8 @@ def start_session(request):
     if drill_type == 'precision':
         drill_type = 'tir_de_precision'
 
-    # Tir de Précision, Tactical, and Sequence always use sequence tracking
-    if drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+    # Tir de Précision, Tactical, Sequence, and Hidden Target always use sequence tracking
+    if drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
         sequence_tracking = True
 
     # Resolve court complex
@@ -287,8 +307,8 @@ def record_shot(request):
         if not session:
             return JsonResponse({'error': 'No active session found'}, status=404)
 
-        # Validate TdP-specific fields (also used for Tactical and Sequence)
-        if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+        # Validate TdP-specific fields (also used for Tactical, Sequence, and Hidden Target)
+        if session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
             if atelier is None or int(atelier) not in range(1, 6):
                 return JsonResponse({'error': 'atelier (1-5) required for this drill type'}, status=400)
             if shot_distance not in Shot.TDP_DISTANCES:
@@ -299,7 +319,7 @@ def record_shot(request):
                 'session': session,
                 'outcome': outcome,
             }
-            if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+            if session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
                 shot_kwargs['atelier'] = int(atelier)
                 shot_kwargs['shot_distance'] = shot_distance
 
@@ -331,7 +351,7 @@ def record_shot(request):
         }
 
         if session.practice_type == 'shooting':
-            if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+            if session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
                 response_data['session_stats'].update({
                     'tdp_score': session.tdp_score,
                     'tdp_points_this_shot': shot.tdp_points,
@@ -422,7 +442,7 @@ def undo_last_shot(request):
             },
             'recent_shots': recent_shots,
         }
-        if session.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+        if session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
             response['session_stats']['tdp_score'] = session.tdp_score
 
         return JsonResponse(response)
@@ -510,6 +530,19 @@ def session_summary(request, session_id):
         from .sequence_scenarios import SEQUENCE_ATELIERS
         tdp_breakdown = []
         for atelier_info in SEQUENCE_ATELIERS:
+            a_num = atelier_info['number']
+            a_shots = [s for s in shots if s.atelier == a_num]
+            a_score = sum(s.tdp_points for s in a_shots)
+            tdp_breakdown.append({
+                'atelier': atelier_info,
+                'shots': a_shots,
+                'score': a_score,
+                'max_score': 20,  # 4 shots × 5 pts max
+            })
+    elif session.drill_type == 'hidden_target':
+        from .hidden_target_scenarios import HIDDEN_TARGET_ATELIERS
+        tdp_breakdown = []
+        for atelier_info in HIDDEN_TARGET_ATELIERS:
             a_num = atelier_info['number']
             a_shots = [s for s in shots if s.atelier == a_num]
             a_score = sum(s.tdp_points for s in a_shots)

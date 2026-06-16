@@ -715,6 +715,15 @@
                     </div>
                 </div>
 
+                <!-- Hidden Target info box -->
+                <div id="hiddenTargetInfoBox" class="d-none" style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:0.5rem;padding:0.75rem;">
+                    <div class="fw-bold mb-1" style="color:#5b21b6;font-size:0.9rem;"><i class="fas fa-eye-slash me-1"></i>Hidden Target &mdash; 5 ateliers &bull; 20 shots &bull; max 100 pts</div>
+                    <div style="font-size:0.8rem;color:#374151;">
+                        The <strong>orange target boule</strong> is hidden behind obstacles.
+                        Identify the angle, read the diagram, and shoot through the cluster.
+                    </div>
+                </div>
+
                 <div class="text-center mt-3">
                     <button id="startSessionBtn" class="btn btn-primary btn-lg px-5">
                         <i class="fas fa-play me-2"></i>Start Session
@@ -774,7 +783,156 @@
              ACTIVE SESSION INTERFACE
              =================================================== -->
 
-        {% if active_session.drill_type == 'sequence' %}
+        {% if active_session.drill_type == 'hidden_target' %}
+        <!-- ═══════════════════════════════════════════════════
+             HIDDEN TARGET — Obstacle-based session (reuses TdP engine)
+             ═══════════════════════════════════════════════════ -->
+        <div class="tdp-session-wrapper" id="practiceInterface">
+
+            <!-- 1. Top bar -->
+            <div class="tdp-topbar" style="background: linear-gradient(135deg, #3b0764 0%, #6d28d9 100%);">
+                <div>
+                    <div class="tdp-topbar-title"><i class="fas fa-eye-slash me-1"></i>Hidden Target</div>
+                    <div class="tdp-topbar-sub">
+                        {{ player_name|default:session_codename }}
+                        {% if active_session.court_complex %}
+                            &nbsp;&bull;&nbsp;<i class="fas fa-map-marker-alt"></i>&nbsp;{{ active_session.court_complex.name }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="tdp-topbar-icon">🎯</div>
+            </div>
+
+            <!-- 2. Overall progress -->
+            <div class="tdp-overall-progress">
+                <div class="tdp-overall-label" style="color:#5b21b6;">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#6d28d9;display:inline-block;"></span>
+                    Atelier Progress
+                </div>
+                <div class="tdp-overall-bar-row">
+                    <div class="tdp-overall-bar-outer">
+                        <div class="tdp-overall-bar-inner" id="tdpOverallBar" style="width:0%;background:linear-gradient(90deg,#6d28d9,#a78bfa);"></div>
+                    </div>
+                    <span class="tdp-overall-pct" id="tdpOverallPct" style="color:#5b21b6;">0%</span>
+                    <span class="tdp-overall-shots" id="tdpOverallShots">0 / 20 shots</span>
+                </div>
+            </div>
+
+            <!-- 3. Stats strip (Score / Distance / Atelier / Shot) -->
+            <div class="tdp-stats-strip">
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Score</div>
+                    <div class="tdp-stat-val score-val" id="tdpStatScore" style="color:#6d28d9;">{{ active_session.tdp_score }}</div>
+                    <div class="tdp-stat-sub">/100 pts</div>
+                </div>
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Distance</div>
+                    <div class="tdp-stat-val dist-val" id="tdpStatDist" style="color:#6d28d9;">6m</div>
+                </div>
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Atelier</div>
+                    <div class="tdp-stat-val" id="tdpStatAtelier">1 of 5</div>
+                </div>
+                <div class="tdp-stat-cell">
+                    <div class="tdp-stat-key">Shot</div>
+                    <div class="tdp-stat-val" id="tdpStatShot">1 of 4</div>
+                </div>
+            </div>
+
+            <!-- 4. Atelier stepper -->
+            <div class="tdp-stepper">
+                <div class="tdp-stepper-track" id="tdpStepperTrack">
+                    <div class="tdp-step-node" id="tdpStepNode1">
+                        <div class="tdp-step-circle" id="tdpStepCircle1"><span id="tdpStepIcon1">1</span></div>
+                        <div class="tdp-step-label">1 Hide</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode2">
+                        <div class="tdp-step-circle" id="tdpStepCircle2"><span id="tdpStepIcon2">2</span></div>
+                        <div class="tdp-step-label">2 Flank</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode3">
+                        <div class="tdp-step-circle" id="tdpStepCircle3"><span id="tdpStepIcon3">3</span></div>
+                        <div class="tdp-step-label">3 Cluster</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode4">
+                        <div class="tdp-step-circle" id="tdpStepCircle4"><span id="tdpStepIcon4">4</span></div>
+                        <div class="tdp-step-label">4 Angle</div>
+                    </div>
+                    <div class="tdp-step-node" id="tdpStepNode5">
+                        <div class="tdp-step-circle" id="tdpStepCircle5"><span id="tdpStepIcon5">5</span></div>
+                        <div class="tdp-step-label">5 Deep</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Atelier guide card (rendered by JS) -->
+            <div id="tdpGuideCard" class="tdp-guide-card"></div>
+
+            <!-- 6. Distance chips -->
+            <div class="tdp-dist-chips" id="tdpDistChips">
+                {% for d in tdp_distances %}
+                <button class="tdp-dist-chip{% if forloop.first %} selected{% endif %}" data-dist="{{ d }}" onclick="selectDist('{{ d }}')">{{ d }}</button>
+                {% endfor %}
+            </div>
+
+            <!-- 7. Scoring legend (generic — symbol + pts) -->
+            <div class="tdp-scoring-legend" id="tdpScoringLegend">
+                <span><span class="sc-carreau">&#9733; = 5 pts</span></span>
+                <span>&bull;</span>
+                <span><span class="sc-petit-carreau">&#9734; = 3 pts</span></span>
+                <span>&bull;</span>
+                <span><span class="sc-hit">&#10003; = 1 pt</span></span>
+                <span>&bull;</span>
+                <span><span class="sc-miss">&#10007; = 0 pts</span></span>
+            </div>
+
+            <!-- 8. 2×2 action buttons (generic: symbol + pts only, no hardcoded labels) -->
+            <div class="shot-buttons-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;">
+                <button id="carreauBtn" class="btn shot-btn shot-btn-carreau" data-outcome="carreau">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    </span>
+                    <span class="shot-pts-label">5 pts</span>
+                </button>
+                <button id="petitCarreauBtn" class="btn shot-btn shot-btn-petit-carreau" data-outcome="petit_carreau">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" width="36" height="36"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77V2z" fill="currentColor"/><path d="M12 2v15.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </span>
+                    <span class="shot-pts-label">3 pts</span>
+                </button>
+                <button id="hitBtn" class="btn shot-btn shot-btn-hit" data-outcome="hit">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" width="36" height="36"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <span class="shot-pts-label">1 pt</span>
+                </button>
+                <button id="missBtn" class="btn shot-btn shot-btn-miss" data-outcome="miss">
+                    <span class="shot-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" width="36" height="36"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </span>
+                    <span class="shot-pts-label">0 pts</span>
+                </button>
+            </div>
+
+            <!-- 9. Undo / End Session -->
+            <div class="control-buttons">
+                <button id="undoBtn" class="btn btn-outline-warning">
+                    <i class="fas fa-undo me-1"></i>Undo Last Shot
+                </button>
+                <button id="endSessionBtn" class="btn btn-outline-danger">
+                    <i class="fas fa-stop me-1"></i>End Session
+                </button>
+            </div>
+
+            <!-- 10. Hint bar -->
+            <div class="tdp-hint-bar" id="tdpHintBar" style="background:#f5f3ff;border-color:#c4b5fd;color:#5b21b6;">
+                <i class="fas fa-info-circle"></i>
+                <span id="tdpHintText">Identify the hidden target and shoot through the obstacles.</span>
+            </div>
+
+        </div><!-- /.tdp-session-wrapper (Hidden Target) -->
+
+        {% elif active_session.drill_type == 'sequence' %}
         <!-- ═══════════════════════════════════════════════════
              SEQUENCE DRILL — Atelier-based session (reuses TdP engine)
              ═══════════════════════════════════════════════════ -->
@@ -1413,10 +1571,11 @@ function triggerButtonFeedback(button) {
 //  DRILL TYPE CHANGE — show/hide form rows
 // ============================================================
 function onDrillTypeChange(val) {
-    const isTdp      = (val === 'tir_de_precision');
-    const isTactical = (val === 'tactical');
-    const isSequence = (val === 'sequence');
-    const isGuided   = isTdp || isTactical || isSequence;
+    const isTdp          = (val === 'tir_de_precision');
+    const isTactical     = (val === 'tactical');
+    const isSequence     = (val === 'sequence');
+    const isHiddenTarget = (val === 'hidden_target');
+    const isGuided       = isTdp || isTactical || isSequence || isHiddenTarget;
     document.getElementById('distanceRow').style.display  = isGuided ? 'none' : '';
     document.getElementById('sequenceRow').style.display  = isGuided ? 'none' : '';
     document.getElementById('tdpInfoBox').classList.toggle('d-none', !isTdp);
@@ -1424,12 +1583,15 @@ function onDrillTypeChange(val) {
     if (tacticalBox) tacticalBox.classList.toggle('d-none', !isTactical);
     const sequenceBox = document.getElementById('sequenceInfoBox');
     if (sequenceBox) sequenceBox.classList.toggle('d-none', !isSequence);
+    const hiddenTargetBox = document.getElementById('hiddenTargetInfoBox');
+    if (hiddenTargetBox) hiddenTargetBox.classList.toggle('d-none', !isHiddenTarget);
     const hint = document.getElementById('drillTypeHint');
     if (hint) {
-        if (isTdp)           hint.textContent = 'Guided 20-shot session across 5 official ateliers.';
-        else if (isTactical) hint.textContent = 'Scenario-based session — 5 real match situations, 4 shots each.';
-        else if (isSequence) hint.textContent = 'Sequence-based session — 5 ateliers, follow the visual guide.';
-        else                 hint.textContent = 'Choose the type of shooting drill for this session.';
+        if (isTdp)              hint.textContent = 'Guided 20-shot session across 5 official ateliers.';
+        else if (isTactical)    hint.textContent = 'Scenario-based session — 5 real match situations, 4 shots each.';
+        else if (isSequence)    hint.textContent = 'Sequence-based session — 5 ateliers, follow the visual guide.';
+        else if (isHiddenTarget) hint.textContent = 'Hidden Target — 5 ateliers, shoot through obstacles to hit the orange target.';
+        else                    hint.textContent = 'Choose the type of shooting drill for this session.';
     }
 }
 
@@ -1471,7 +1633,7 @@ if (startBtn) {
 // ============================================================
 //  OPEN SHOT — record shot
 // ============================================================
-{% if active_session and active_session.drill_type != 'tir_de_precision' and active_session.drill_type != 'tactical' and active_session.drill_type != 'sequence' %}
+{% if active_session and active_session.drill_type != 'tir_de_precision' and active_session.drill_type != 'tactical' and active_session.drill_type != 'sequence' and active_session.drill_type != 'hidden_target' %}
 function setButtonsEnabled(enabled) {
     document.querySelectorAll('.shot-btn').forEach(b => {
         b.disabled = !enabled;
@@ -2383,6 +2545,267 @@ if (seqUndoBtn) {
 }
 
 // End session is handled by the global handler below (shared with all modes)
+
+// ── Initial render on page load ──
+renderOverallProgress();
+renderStatsStrip();
+renderStepper();
+renderGuideCard(false);
+
+{% endif %}
+
+// ============================================================
+//  HIDDEN TARGET — obstacle-based session (reuses TdP engine)
+// ============================================================
+{% if active_session and active_session.drill_type == 'hidden_target' %}
+
+// ── Hidden Target Atelier definitions (data-injection only) ──
+const TDP_ATELIERS = {{ hidden_target_ateliers_json|safe }};
+
+const TDP_DISTANCES = {{ tdp_distances|safe }};
+
+// ── State ──
+let allShots    = {{ initial_shots_json|safe }};
+let tdpScore    = {{ active_session.tdp_score }};
+let selectedDist = TDP_DISTANCES[0] || '6m';
+
+function getTotalShots()    { return allShots.length; }
+function currentAtelierNum() {
+    const t = getTotalShots();
+    if (t >= 20) return null;
+    return Math.floor(t / 4) + 1;
+}
+
+// ── Render: overall progress ──
+function renderOverallProgress() {
+    const t = getTotalShots();
+    const pct = Math.round((t / 20) * 100);
+    const bar = document.getElementById('tdpOverallBar');
+    const pctEl = document.getElementById('tdpOverallPct');
+    const shotsEl = document.getElementById('tdpOverallShots');
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (shotsEl) shotsEl.textContent = t + ' / 20 shots';
+}
+
+// ── Render: stats strip ──
+function renderStatsStrip() {
+    const a = currentAtelierNum();
+    const t = getTotalShots();
+    const shotsInAtelier = a ? (t - (a - 1) * 4) : 4;
+    const nextShot = a ? (shotsInAtelier + 1) : 4;
+
+    const el = id => document.getElementById(id);
+    if (el('tdpStatScore'))   el('tdpStatScore').textContent   = tdpScore;
+    if (el('tdpStatDist'))    el('tdpStatDist').textContent    = selectedDist;
+    if (el('tdpStatAtelier')) el('tdpStatAtelier').textContent = a ? `${a} of 5` : 'Done';
+    if (el('tdpStatShot'))    el('tdpStatShot').textContent    = a ? `${nextShot} of 4` : '4 of 4';
+}
+
+// ── Render: stepper ──
+function renderStepper() {
+    const t = getTotalShots();
+    for (let i = 1; i <= 5; i++) {
+        const node   = document.getElementById('tdpStepNode' + i);
+        const circle = document.getElementById('tdpStepCircle' + i);
+        const icon   = document.getElementById('tdpStepIcon' + i);
+        if (!node || !circle) continue;
+
+        node.classList.remove('complete', 'active');
+        circle.classList.remove('complete', 'active');
+
+        const atelierStart = (i - 1) * 4;
+        const atelierEnd   = i * 4;
+
+        if (t >= atelierEnd) {
+            node.classList.add('complete');
+            circle.classList.add('complete');
+            if (icon) icon.innerHTML = '\u2713';
+        } else if (t >= atelierStart) {
+            node.classList.add('active');
+            circle.classList.add('active');
+            if (icon) icon.textContent = i;
+        } else {
+            if (icon) icon.textContent = i;
+        }
+    }
+}
+
+// ── Render: guide card ──
+function renderGuideCard(animate) {
+    const a = currentAtelierNum();
+    const card = document.getElementById('tdpGuideCard');
+    if (!card) return;
+
+    if (animate) {
+        card.classList.remove('animate-in');
+        void card.offsetWidth;
+        card.classList.add('animate-in');
+    }
+
+    if (a === null) {
+        card.innerHTML = `
+            <div style="text-align:center;padding:1rem 0.5rem;">
+                <div style="font-size:2.5rem;">\ud83c\udfaf</div>
+                <div style="font-size:1rem;font-weight:800;color:#6d28d9;margin-top:0.5rem;">All 5 ateliers complete!</div>
+                <div style="font-size:0.82rem;color:#6b7280;margin-top:0.25rem;">Tap \u201cEnd Session\u201d to see your full results.</div>
+            </div>`;
+        document.querySelectorAll('.shot-btn').forEach(b => { b.disabled = true; b.style.opacity = '0.3'; });
+        const hint = document.getElementById('tdpHintText');
+        if (hint) hint.textContent = 'Session complete! Tap \u201cEnd Session\u201d to view your results.';
+        return;
+    }
+
+    const def = TDP_ATELIERS[a - 1];
+    const t = getTotalShots();
+    const shotsThisAtelier = t - (a - 1) * 4;
+    const nextShotNum = shotsThisAtelier + 1;
+
+    // Shot dots
+    let dotsHtml = '<div class="tdp-shot-dots">';
+    for (let i = 1; i <= 4; i++) {
+        if (i < nextShotNum)        dotsHtml += '<div class="tdp-shot-dot filled" style="background:#6d28d9;border-color:#6d28d9;"></div>';
+        else if (i === nextShotNum) dotsHtml += '<div class="tdp-shot-dot current" style="border-color:#6d28d9;"></div>';
+        else                        dotsHtml += '<div class="tdp-shot-dot"></div>';
+    }
+    dotsHtml += '</div>';
+
+    // Legend
+    let legendHtml = '<div class="tdp-guide-legend">';
+    def.legend.forEach(l => {
+        legendHtml += `<div class="tdp-legend-item"><div class="tdp-legend-dot" style="background:${l.color};border:1px solid #ccc;"></div><span>${l.label}</span></div>`;
+    });
+    legendHtml += '</div>';
+
+    // Mini shot log
+    let logHtml = '<div class="tdp-mini-log">';
+    let lastAtelier = 0;
+    allShots.forEach(s => {
+        if (s.atelier !== lastAtelier) {
+            if (lastAtelier > 0) logHtml += '<div class="tdp-mini-sep"></div>';
+            lastAtelier = s.atelier;
+        }
+        const pts = s.tdp_points ?? 0;
+        let cls = 'tdp-mini-miss';
+        if (pts === 5) cls = 'tdp-mini-carreau';
+        else if (pts === 3) cls = 'tdp-mini-reussi';
+        else if (pts === 1) cls = 'tdp-mini-hit';
+        logHtml += `<div class="tdp-mini-dot ${cls}" title="A${s.atelier} ${s.shot_distance||''}">${pts}</div>`;
+    });
+    if (allShots.length === 0) logHtml += '<span style="font-size:0.7rem;color:#9ca3af;align-self:center;">No shots yet</span>';
+    logHtml += '</div>';
+
+    card.innerHTML = `
+        <div class="tdp-guide-header">
+            <span class="tdp-guide-badge" style="background:#6d28d9;">Atelier ${a}</span>
+            <span class="tdp-guide-title">${def.label}</span>
+        </div>
+        <div class="tdp-guide-body">
+            <div class="tdp-guide-diagram">${def.svg}</div>
+            <div class="tdp-guide-right">
+                <div class="tdp-guide-desc">${def.desc}</div>
+                ${legendHtml}
+                ${dotsHtml}
+            </div>
+        </div>
+        ${logHtml}`;
+
+    // Update hint
+    const hint = document.getElementById('tdpHintText');
+    if (hint) {
+        const remaining = 4 - shotsThisAtelier;
+        hint.textContent = remaining > 0
+            ? `${remaining} shot${remaining > 1 ? 's' : ''} remaining in Atelier ${a}.`
+            : 'Atelier complete \u2014 advancing to next atelier\u2026';
+    }
+}
+
+function selectDist(d) {
+    selectedDist = d;
+    document.querySelectorAll('.tdp-dist-chip').forEach(el => {
+        el.classList.toggle('selected', el.dataset.dist === d);
+    });
+    const el = document.getElementById('tdpStatDist');
+    if (el) el.textContent = d;
+}
+
+// ── Map button outcome → TdP outcome (no jack-target in Hidden Target) ──
+function tdpOutcome(btnOutcome) {
+    if (btnOutcome === 'carreau')       return { outcome: 'tdp_carreau', pts: 5 };
+    if (btnOutcome === 'petit_carreau') return { outcome: 'tdp_reussi',  pts: 3 };
+    if (btnOutcome === 'hit')           return { outcome: 'tdp_touche',  pts: 1 };
+    return { outcome: 'tdp_manque', pts: 0 };
+}
+
+// ── Enable/disable shot buttons ──
+function setButtonsEnabled(enabled) {
+    document.querySelectorAll('.shot-btn').forEach(b => {
+        b.disabled = !enabled;
+        b.style.opacity = enabled ? '1' : '0.4';
+    });
+}
+
+// ── Wire up shot buttons ──
+document.querySelectorAll('.shot-btn').forEach(btn => {
+    btn.addEventListener('touchstart', () => triggerButtonFeedback(btn), { passive: true });
+    btn.addEventListener('click', async () => {
+        const atelierNum = currentAtelierNum();
+        if (atelierNum === null) return;
+
+        triggerButtonFeedback(btn);
+        setButtonsEnabled(false);
+
+        const btnOutcome = btn.dataset.outcome;
+        const mapped = tdpOutcome(btnOutcome);
+
+        try {
+            const data = await postJSON('{% url "practice:record_shot" %}', {
+                outcome: mapped.outcome,
+                atelier: atelierNum,
+                shot_distance: selectedDist,
+            });
+
+            if (!data.success) {
+                showError(data.error || 'Could not record shot.');
+                setButtonsEnabled(true);
+                return;
+            }
+
+            // Update local state
+            tdpScore = data.session_stats?.tdp_score ?? (tdpScore + mapped.pts);
+            allShots.push({
+                sequence_number: data.shot_number ?? allShots.length + 1,
+                outcome: mapped.outcome,
+                atelier: atelierNum,
+                shot_distance: selectedDist,
+                tdp_points: mapped.pts,
+            });
+
+            const newAtelier = currentAtelierNum();
+            const atelierChanged = (newAtelier !== atelierNum);
+
+            renderOverallProgress();
+            renderStatsStrip();
+            renderStepper();
+
+            if (atelierChanged) {
+                renderGuideCard(true);
+                if (newAtelier !== null) {
+                    setTimeout(() => setButtonsEnabled(true), 1400);
+                }
+            } else {
+                renderGuideCard(false);
+                setButtonsEnabled(true);
+            }
+
+        } catch (e) {
+            showError('Network error. Please try again.');
+            setButtonsEnabled(true);
+        }
+    });
+});
+
+// End session and undo are handled by the global handlers below
 
 // ── Initial render on page load ──
 renderOverallProgress();

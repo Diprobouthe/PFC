@@ -318,6 +318,9 @@
     <div class="jg-bottom">
         <a href="{% url 'home' %}" class="jg-ghost"><i class="fas fa-home"></i> Home</a>
         <a href="{% url 'friendly_games:create_game' %}" class="jg-ghost"><i class="fas fa-plus"></i> New Game</a>
+        <button type="button" onclick="openQrScanner()" class="jg-ghost" style="border:2px solid #0f766e;color:#0f766e;background:#f0fdfa;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+            <i class="fas fa-qrcode"></i> My QR
+        </button>
     </div>
 
 </div>
@@ -559,6 +562,21 @@ document.getElementById('joinForm').addEventListener('submit', function(e) {
     }
 });
 </script>
+<!-- QR Scanner — fills fPlayerName and fCodename from scanned QR -->
+<script>window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";</script>
+{% include "partials/qr_scanner_modal.html" %}
+<script>
+document.addEventListener('qrPlayerResolved', function(e) {
+    var d = e.detail;
+    /* Fill the player name from the QR resolve response.
+       Codename is resolved server-side via session — do NOT set fCodename from JS. */
+    document.getElementById('fPlayerName').value = d.player_name;
+    /* Clear any manually-typed codename to avoid conflicts with the session-resolved one */
+    document.getElementById('fCodename').value = '';
+    // Update the OK button readiness
+    if (typeof checkReady === 'function') checkReady();
+});
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -592,4 +610,5 @@ document.getElementById('joinForm').addEventListener('submit', function(e) {
     });
 })();
 </script>
+
 {% endblock %}

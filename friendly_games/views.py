@@ -10,7 +10,7 @@ from teams.models import Player, Team
 from .models import FriendlyGame, FriendlyGamePlayer, PlayerCodename, FriendlyGameStatistics
 from pfc_core.session_utils import CodenameSessionManager
 from .court_utils import resolve_court_assignment, get_court_context_for_form, courts_for_complex_json
-from .presence_utils import register_friendly_game_players_at_court
+from .presence_utils import register_friendly_game_players_at_court, deactivate_friendly_game_presence
 from courts.timezone_utils import get_court_local_now
 from pfc_events.signals import notify_game_state_changed
 
@@ -38,6 +38,7 @@ def game_preview_api(request):
         if game.is_expired():
             game.status = 'EXPIRED'
             game.save()
+            deactivate_friendly_game_presence(game)
             return JsonResponse({
                 'error': 'expired',
                 'message': f'Match #{match_number} has expired.'
@@ -548,7 +549,12 @@ def join_game(request):
         position = request.POST.get('position', 'MILIEU')
         player_name = request.POST.get('player_name', '').strip()
         codename = request.POST.get('codename', '').strip()
-        
+        # If no codename in POST, check for QR-resolved codename in session (server-side only)
+        if not codename:
+            _qr_codename_session = request.session.pop('qr_resolved_codename', None)
+            if _qr_codename_session:
+                codename = _qr_codename_session.upper()
+
         # Validate required fields
         if not match_number or not team or not player_name:
             messages.error(request, 'Match number, team, and player name are required.')
@@ -562,6 +568,7 @@ def join_game(request):
             if game.is_expired():
                 game.status = 'EXPIRED'
                 game.save()
+                deactivate_friendly_game_presence(game)
                 messages.error(request, f'Match #{match_number} has expired.')
                 return render(request, 'friendly_games/join_game.html')
             
@@ -758,6 +765,7 @@ def start_match(request, game_id):
     if game.is_pre_start_expired():
         game.status = 'CANCELLED'
         game.save()
+        deactivate_friendly_game_presence(game)  # clear any presence if game never started
         messages.error(request, 'This game has expired (not started within 10 minutes) and has been cancelled.')
         return redirect('friendly_games:game_detail', game_id=game.id)
 
@@ -859,16 +867,32 @@ def validate_result(request, game_id):
                    session_player_team == submitting_team)
 
     if request.method == 'POST':
-        # Hard block: reject POST from submitting team without any message
-        if is_own_team:
-            return redirect('friendly_games:validate_result', game_id=game.id)
-
         validation_action = request.POST.get('validation_action')
         if validation_action not in ['agree', 'disagree']:
             return redirect('friendly_games:validate_result', game_id=game.id)
 
-        # Codename comes from session — never from form input
-        validator_codename = session_codename or ''
+        # ── Determine validator identity ───────────────────────────────────────
+        # The QR resolve endpoint stores the opponent's codename server-side in
+        # session['qr_resolved_codename'].  It is NEVER sent from the browser.
+        # The active session (Player A) is NEVER replaced or modified.
+        #
+        # Priority:
+        #   1. QR-resolved opponent codename (if present) — used as the validator
+        #      identity regardless of who is currently logged in.  This is the
+        #      "submitter scans opponent QR" path.
+        #   2. Session codename (logged-in player) — used when no QR scan occurred.
+        #      This is the normal path where the opponent opens the page themselves.
+        _qr_codename_session = request.session.pop('qr_resolved_codename', None)
+        if _qr_codename_session:
+            # QR path: use the scanned opponent's codename as the validator.
+            # Do NOT replace session_codename — Player A stays logged in as Player A.
+            validator_codename = _qr_codename_session.upper()
+        else:
+            # Normal path: the person holding the phone is the validator.
+            # Hard block: reject POST from submitting team without any message.
+            if is_own_team:
+                return redirect('friendly_games:validate_result', game_id=game.id)
+            validator_codename = session_codename or ''
 
         # Verify the session codename belongs to a player from the validating team
         valid_validator = False
@@ -893,6 +917,9 @@ def validate_result(request, game_id):
         # Notify all connected clients that game state changed
         game.refresh_from_db()
         notify_game_state_changed(game.id, game.status)
+        # Deactivate presence if game is now COMPLETED
+        if game.status == 'COMPLETED':
+            deactivate_friendly_game_presence(game)
         # Redirect silently — UI state communicates the outcome
         return redirect('friendly_games:game_detail', game_id=game.id)
 
@@ -1129,3 +1156,65 @@ def game_status_api(request, game_id):
         payload['validation_url'] = _fg_reverse('friendly_games:validate_result', args=[game.id])
 
     return _FGJsonResponse(payload)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR RESOLVE ENDPOINT — friendly games
+# Receives a raw QR token, verifies HMAC, returns player identity.
+# Used by the jsQR scanner widget on game pages.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def qr_resolve_player(request):
+    """
+    POST /friendly/api/qr-resolve/
+
+    Body (JSON): { "token": "PFC-QR:<OPAQUE_ID>:<HMAC>" }
+
+    Returns JSON (codename is NEVER returned to the browser):
+        Success: { "ok": true, "player_name": "...", "player_id": ..., "team_name": "..." }
+        Failure: { "ok": false, "error": "..." }
+
+    The token payload is fully opaque (base64url-encoded player_id + HMAC).
+    The resolved codename is stored server-side in the session as
+    'qr_resolved_codename' so that validation/join views can read it
+    without ever exposing it to the client.
+
+    Scope: game_participation only. Token is HMAC-verified.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
+
+    token = data.get('token', '').strip()
+    if not token:
+        return JsonResponse({'ok': False, 'error': 'No token provided'}, status=400)
+
+    from pfc_core.qr_utils import verify_player_token
+    # verify_player_token now returns player_id (int) or None — no codename in token
+    player_id = verify_player_token(token)
+    if not player_id:
+        return JsonResponse({'ok': False, 'error': 'Invalid or tampered QR code'}, status=400)
+
+    # Look up the player and their codename by player_id (server-side only)
+    try:
+        pc = PlayerCodename.objects.select_related('player__team').get(player_id=player_id)
+    except PlayerCodename.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Player not found'}, status=404)
+
+    # Store the resolved codename in the session (server-side only).
+    # This allows validation/join views to read it without the codename
+    # ever being sent to the browser.
+    request.session['qr_resolved_codename'] = pc.codename
+    request.session.modified = True
+
+    # Return player identity WITHOUT codename — codename is an internal identifier
+    # and must not be exposed to the browser/client
+    return JsonResponse({
+        'ok': True,
+        'player_name': pc.player.name,
+        'player_id': pc.player.id,
+        'team_name': pc.player.team.name if pc.player.team else '',
+    })

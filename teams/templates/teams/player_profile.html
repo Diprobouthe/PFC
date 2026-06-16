@@ -91,6 +91,16 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     white-space: nowrap !important; margin-top: 6px !important;
 }
 .pp-ai-report-btn:hover { background: #ede9fe !important; color: #5b21b6 !important; border-color: #5b21b6 !important; }
+.pp-qr-btn {
+    flex-shrink: 0 !important;
+    display: inline-flex !important; align-items: center !important; gap: 6px !important;
+    padding: 10px 16px !important; border-radius: 14px !important;
+    border: 2px solid #0f766e !important; color: #0f766e !important;
+    font-size: 14px !important; font-weight: 700 !important;
+    text-decoration: none !important; background: #f0fdfa !important;
+    white-space: nowrap !important; margin-top: 6px !important;
+}
+.pp-qr-btn:hover { background: #ccfbf1 !important; color: #134e4a !important; border-color: #134e4a !important; }
 
 /* ---- QUICK STATS STRIP — 4 big boxes ---- */
 .pp-stats-strip {
@@ -400,6 +410,9 @@ a.mh-card::after {
             </a>
             <a href="{% url 'ai_coach_report' player.id %}" class="pp-ai-report-btn" title="Download your full performance dossier for AI coaching analysis">
                 <i class="fas fa-robot"></i> AI Coach Report
+            </a>
+            <a href="{% url 'player_qr_card' player.id %}" class="pp-qr-btn" title="View and print your QR card for game participation">
+                <i class="fas fa-qrcode"></i> My QR Card
             </a>
         </div>
         {% endif %}

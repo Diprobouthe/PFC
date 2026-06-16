@@ -141,6 +141,10 @@ class PracticeSession(models.Model):
         return self.drill_type == 'sequence'
 
     @property
+    def is_hidden_target(self):
+        return self.drill_type == 'hidden_target'
+
+    @property
     def duration(self):
         if self.ended_at:
             return self.ended_at - self.started_at
@@ -196,7 +200,7 @@ class PracticeSession(models.Model):
         self.fairs = shots.filter(outcome='fair').count()
         self.fars = shots.filter(outcome='far').count()
         # Tir de Précision / Tactical / Sequence score (all use tdp_score field)
-        if self.drill_type in ('tir_de_precision', 'tactical', 'sequence'):
+        if self.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
             score = 0
             for s in shots:
                 score += s.tdp_points

@@ -179,6 +179,9 @@ def get_players_with_profiles(team, match=None):
     for player in participating_players:
         try:
             profile = player.profile
+            if not profile.is_active:
+                logger.debug(f"Player {player.name} has an inactive profile, skipping rating update")
+                continue
             players_with_profiles.append(profile)
         except PlayerProfile.DoesNotExist:
             logger.debug(f"Player {player.name} has no profile, skipping rating update")
@@ -442,6 +445,9 @@ def get_verified_friendly_players_with_profiles(friendly_game, team_color):
             player = game_player.player
             if hasattr(player, 'profile'):
                 profile = player.profile
+                if not profile.is_active:
+                    logger.debug(f"Player {player.name} has an inactive profile, skipping rating update")
+                    continue
                 players_with_profiles.append(profile)
         except (AttributeError, Exception) as e:
             logger.debug(f"Player {player.name if 'player' in locals() else 'unknown'} has no profile, skipping rating update: {e}")

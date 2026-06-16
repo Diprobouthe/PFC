@@ -30,6 +30,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from friendly_games.models import FriendlyGame
+from friendly_games.presence_utils import deactivate_friendly_game_presence
 
 
 # Statuses that are "terminal" — these games are already done
@@ -100,10 +101,15 @@ class Command(BaseCommand):
                 )
             return
 
-        # Mark as CANCELLED — no deletion
+        # Mark as CANCELLED — no deletion.
+        # Collect game IDs before the bulk update so we can deactivate presence.
+        stale_games = list(pre_start_stale) + list(started_stale) + list(long_stale)
         c1 = pre_start_stale.update(status='CANCELLED')
         c2 = started_stale.update(status='CANCELLED')
         c3 = long_stale.update(status='CANCELLED')
+        # Deactivate Billboard presence for every cancelled game
+        for g in stale_games:
+            deactivate_friendly_game_presence(g)
         self.stdout.write(self.style.SUCCESS(
             f'Marked {c1 + c2 + c3} stale friendly game(s) as CANCELLED '
             f'({c1} unstarted >10min, {c2} started >6h, {c3} other >24h).'

@@ -32,3 +32,4 @@ fpdf2==2.8.3
 openpyxl==3.1.5
 requests==2.32.4
 Markdown==3.8
+qrcode[pil]

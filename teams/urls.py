@@ -15,6 +15,7 @@ urlpatterns = [
     path('players/pfc-market/', views.pfc_market, name='pfc_market'),
     path('players/<int:player_id>/', views.player_profile, name='player_profile'),
     path('players/<int:player_id>/ai-coach-report/', views_ai_report.ai_coach_report, name='ai_coach_report'),
+    path('players/<int:player_id>/qr-card/', views.player_qr_card, name='player_qr_card'),
     path('players/create/', views.public_player_create, name='public_player_create'),
     path('players/edit/', views.edit_player_profile, name='edit_player_profile'),
     path('players/login/', views.player_login, name='player_login'),

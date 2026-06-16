@@ -186,10 +186,14 @@ class PFCUser(models.Model):
     # ------------------------------------------------------------------
     def create_and_link_player(self, name=None):
         """
-        Create a new Player + PlayerCodename and link to this PFCUser.
+        Create a new Player + PlayerCodename + PlayerProfile and link to this PFCUser.
         Called when a new user registers and does not link a legacy player.
+
+        PlayerProfile is created immediately with is_active=True so that rating
+        tracking, PFC Market, and ranking work from the moment the player joins.
+        Admins can deactivate the profile later via the admin panel if needed.
         """
-        from teams.models import Player, Team
+        from teams.models import Player, Team, PlayerProfile
         from friendly_games.models import PlayerCodename
 
         player_name = name or self.display_name or self.email.split('@')[0]
@@ -210,6 +214,13 @@ class PFCUser(models.Model):
         PlayerCodename.objects.create(
             player=player,
             codename=codename,
+        )
+
+        # Auto-create an active PlayerProfile so rating/market tracking starts immediately.
+        # default is_active=True — admin can disable later if needed.
+        PlayerProfile.objects.get_or_create(
+            player=player,
+            defaults={'skill_level': 1, 'is_active': True},
         )
 
         self.player = player

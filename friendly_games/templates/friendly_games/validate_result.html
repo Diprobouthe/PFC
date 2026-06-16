@@ -202,17 +202,49 @@
     {% endif %}
 
     {% if is_own_team %}
-    <!-- Own-team: cannot self-validate -->
+    <!-- Own-team: submitted this result. Offer QR validation by opponent. -->
     <div class="vr-own-team">
         You submitted this result.<br>Waiting for the other team to validate.
     </div>
 
+    <!-- QR path: submitter can scan an eligible opponent's QR Card to validate on their behalf -->
+    <form method="post" id="validateForm" style="margin-top:14px;">
+        {% csrf_token %}
+        <input type="hidden" name="validation_action" id="validation_action_input" value="">
+
+        <div style="margin-bottom:12px;">
+            <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
+                <i class="fas fa-qrcode"></i> Validate via Opponent QR Card
+            </button>
+            <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
+        </div>
+
+        <!-- Agree/Reject buttons — hidden until QR identity is confirmed -->
+        <div id="qrValidationActions" style="display:none;">
+            <button type="button" class="vr-btn-validate" onclick="submitValidation('agree')">
+                ✓ Validate
+            </button>
+            <button type="button" class="vr-btn-reject" onclick="submitValidation('disagree')">
+                ✗ Reject
+            </button>
+        </div>
+    </form>
+
     {% else %}
-    <!-- Validation form -->
+    <!-- Normal path: the person holding the phone is the validator -->
     <form method="post" id="validateForm">
         {% csrf_token %}
-        <input type="hidden" name="validator_codename" value="{{ session_codename|default:'' }}">
         <input type="hidden" name="validation_action" id="validation_action_input" value="">
+
+        {% if not session_codename %}
+        <!-- Not logged in: offer QR identification -->
+        <div style="margin-bottom:12px;">
+            <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
+                <i class="fas fa-qrcode"></i> Identify via QR Card
+            </button>
+            <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
+        </div>
+        {% endif %}
 
         <button type="button" class="vr-btn-validate" onclick="submitValidation('agree')">
             ✓ Validate
@@ -238,5 +270,28 @@ function submitValidation(action) {
     document.getElementById('validation_action_input').value = action;
     document.getElementById('validateForm').submit();
 }
+</script>
+<!-- QR Scanner — sets validator_codename from scanned QR -->
+<script>window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";</script>
+{% include "partials/qr_scanner_modal.html" %}
+<script>
+document.addEventListener('qrPlayerResolved', function(e) {
+    var d = e.detail;
+    /* QR only provides the opponent's identity — it does NOT choose the validation action.
+       The active session (Player A) is NOT replaced or modified.
+       Codename is resolved server-side in session['qr_resolved_codename'].
+       The user must still explicitly press Validate or Reject. */
+    var confirm_el = document.getElementById('qrIdentityConfirm');
+    if (confirm_el) {
+        confirm_el.textContent = '\u2713 Identified as ' + d.player_name + ' \u2014 please choose Validate or Reject below';
+        confirm_el.style.display = 'block';
+    }
+    /* If this is the submitter's QR path, reveal the Agree/Reject buttons now. */
+    var actions_el = document.getElementById('qrValidationActions');
+    if (actions_el) {
+        actions_el.style.display = 'block';
+    }
+    /* No auto-submit. No forced action. The existing Validate/Reject buttons remain active. */
+});
 </script>
 {% endblock %}

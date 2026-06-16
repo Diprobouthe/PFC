@@ -36,6 +36,11 @@
     background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
 }
 
+/* Hidden Target sessions get a violet header */
+.summary-header.hidden-target-header {
+    background: linear-gradient(135deg, #3b0764 0%, #6d28d9 100%);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -266,7 +271,7 @@
         </div>
 
         <!-- Session Summary Header -->
-        <div class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% elif session.drill_type == 'tactical' %}tactical-header{% elif session.drill_type == 'sequence' %}sequence-header{% endif %}">
+        <div class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% elif session.drill_type == 'tactical' %}tactical-header{% elif session.drill_type == 'sequence' %}sequence-header{% elif session.drill_type == 'hidden_target' %}hidden-target-header{% endif %}">
             <h1 class="h2 mb-3">
                 {% if session.drill_type == 'tir_de_precision' %}
                     <i class="fas fa-trophy me-2"></i>Tir de Précision — Session Complete!
@@ -274,6 +279,8 @@
                     <i class="fas fa-chess me-2"></i>Tactical Situations — Session Complete!
                 {% elif session.drill_type == 'sequence' %}
                     <i class="fas fa-list-ol me-2"></i>Sequence Drill — Session Complete!
+                {% elif session.drill_type == 'hidden_target' %}
+                    <i class="fas fa-eye-slash me-2"></i>Hidden Target — Session Complete!
                 {% else %}
                     <i class="fas fa-chart-line me-2"></i>Session Complete!
                 {% endif %}
@@ -290,6 +297,8 @@
                     <i class="fas fa-chess me-1"></i>Tactical Situations
                 {% elif session.drill_type == 'sequence' %}
                     <i class="fas fa-list-ol me-1"></i>Sequence Drill
+                {% elif session.drill_type == 'hidden_target' %}
+                    <i class="fas fa-eye-slash me-1"></i>Hidden Target
                 {% else %}
                     <i class="fas fa-ruler me-1"></i>Distance: <strong>{{ session.distance }}</strong> •
                     <i class="fas fa-sort-numeric-down me-1"></i>Sequence Tracking: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong>
@@ -300,7 +309,7 @@
             </p>
         </div>
 
-        {% if session.drill_type == 'tir_de_precision' or session.drill_type == 'tactical' or session.drill_type == 'sequence' %}
+        {% if session.drill_type == 'tir_de_precision' or session.drill_type == 'tactical' or session.drill_type == 'sequence' or session.drill_type == 'hidden_target' %}
         <!-- =====================================================
              TIR DE PRÉCISION / TACTICAL SUMMARY
              ===================================================== -->
@@ -352,9 +361,9 @@
         {% if tdp_breakdown %}
         <div class="card mt-3 mb-4">
             <div class="card-header"
-                 style="background:{% if session.drill_type == 'tactical' %}#ecfdf5{% elif session.drill_type == 'sequence' %}#fffbeb{% else %}#f3e5f5{% endif %};border-bottom:1px solid {% if session.drill_type == 'tactical' %}#a7f3d0{% elif session.drill_type == 'sequence' %}#fde68a{% else %}#ce93d8{% endif %};">
-                <h5 class="card-title mb-0" style="color:{% if session.drill_type == 'tactical' %}#065f46{% elif session.drill_type == 'sequence' %}#92400e{% else %}#4a148c{% endif %};">
-                    <i class="fas fa-list-ol me-2"></i>{% if session.drill_type == 'tactical' %}Scenario{% elif session.drill_type == 'sequence' %}Atelier{% else %}Atelier{% endif %} Breakdown
+                 style="background:{% if session.drill_type == 'tactical' %}#ecfdf5{% elif session.drill_type == 'sequence' %}#fffbeb{% elif session.drill_type == 'hidden_target' %}#f5f3ff{% else %}#f3e5f5{% endif %};border-bottom:1px solid {% if session.drill_type == 'tactical' %}#a7f3d0{% elif session.drill_type == 'sequence' %}#fde68a{% elif session.drill_type == 'hidden_target' %}#c4b5fd{% else %}#ce93d8{% endif %};">
+                <h5 class="card-title mb-0" style="color:{% if session.drill_type == 'tactical' %}#065f46{% elif session.drill_type == 'sequence' %}#92400e{% elif session.drill_type == 'hidden_target' %}#5b21b6{% else %}#4a148c{% endif %};">
+                    <i class="fas fa-list-ol me-2"></i>{% if session.drill_type == 'tactical' %}Scenario{% elif session.drill_type == 'sequence' %}Atelier{% elif session.drill_type == 'hidden_target' %}Atelier{% else %}Atelier{% endif %} Breakdown
                 </h5>
             </div>
             <div class="card-body">
@@ -422,6 +431,20 @@
                     {% else %}
                         <h5 class="mb-2 text-secondary"><i class="fas fa-redo me-2"></i>Keep Drilling!</h5>
                         <p class="text-muted mb-0">Sequence shooting requires rhythm and precision. Repeat the ateliers and trust the visual guides.</p>
+                    {% endif %}
+                {% elif session.drill_type == 'hidden_target' %}
+                    {% if session.tdp_score >= 80 %}
+                        <h5 class="mb-2" style="color:#3b0764;"><i class="fas fa-eye-slash me-2"></i>Hidden Target Master!</h5>
+                        <p class="text-muted mb-0">Exceptional vision and precision. You can read obstacles and shoot through them with confidence.</p>
+                    {% elif session.tdp_score >= 60 %}
+                        <h5 class="mb-2" style="color:#5b21b6;"><i class="fas fa-thumbs-up me-2"></i>Strong Hidden Target Session!</h5>
+                        <p class="text-muted mb-0">Good spatial reading. Focus on the angled and deep-cluster ateliers to push your score higher.</p>
+                    {% elif session.tdp_score >= 40 %}
+                        <h5 class="mb-2 text-info"><i class="fas fa-bullseye me-2"></i>Solid Effort!</h5>
+                        <p class="text-muted mb-0">You're identifying the target. Work on your angle estimation to convert Hits into Carreaux.</p>
+                    {% else %}
+                        <h5 class="mb-2 text-secondary"><i class="fas fa-redo me-2"></i>Keep Drilling!</h5>
+                        <p class="text-muted mb-0">Hidden Target requires spatial awareness. Study the diagrams carefully and trust your angle.</p>
                     {% endif %}
                 {% elif session.drill_type == 'tactical' %}
                     {% if session.tdp_score >= 80 %}

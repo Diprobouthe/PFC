@@ -251,8 +251,8 @@ class PlayerAdmin(admin.ModelAdmin):
 
 @admin.register(PlayerProfile)
 class PlayerProfileAdmin(admin.ModelAdmin):
-    list_display = ('player', 'email', 'skill_level', 'rating_value', 'level_display', 'matches_played', 'matches_won', 'win_rate_display', 'rating_trend_display')
-    list_filter = ('skill_level', 'preferred_position')
+    list_display = ('player', 'email', 'skill_level', 'rating_value', 'level_display', 'matches_played', 'matches_won', 'win_rate_display', 'rating_trend_display', 'is_active')
+    list_filter = ('skill_level', 'preferred_position', 'is_active')
     search_fields = ('player__name', 'email')
     readonly_fields = ('rating_history_display', 'level_display', 'rating_trend_display', 'value', 'created_at', 'updated_at')
     
@@ -269,6 +269,10 @@ class PlayerProfileAdmin(admin.ModelAdmin):
         }),
         ('Media', {
             'fields': ('profile_picture',)
+        }),
+        ('Profile Status', {
+            'fields': ('is_active',),
+            'description': 'Deactivating a profile excludes the player from ratings, PFC Market, and ranking. The player record and history are preserved.'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

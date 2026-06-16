@@ -57,9 +57,10 @@
 .bb-analytics-panel{background:var(--bb-card);border-radius:var(--bb-radius);padding:16px;margin-top:24px}
 .bb-analytics-title{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:4px}
 .bb-analytics-sub{font-size:12px;color:#94a3b8;margin-bottom:14px}
-.bb-court-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.bb-court-tab{padding:6px 14px;border-radius:20px;border:2px solid #e2e8f0;background:transparent;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
-.bb-court-tab.active{background:var(--bb-blue);border-color:var(--bb-blue);color:#fff}
+.bb-court-select-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.bb-court-select-label{font-size:12px;font-weight:600;color:#64748b;white-space:nowrap;text-transform:uppercase;letter-spacing:.05em}
+.bb-court-select{flex:1;padding:7px 12px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;color:#1e293b;font-size:13px;font-weight:600;cursor:pointer;outline:none;transition:border-color .15s;max-width:100%}
+.bb-court-select:focus{border-color:var(--bb-blue)}
 .bb-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
 .bb-stat-box{background:#f8fafc;border-radius:10px;padding:10px 8px;text-align:center}
 .bb-stat-num{font-size:22px;font-weight:800;color:var(--bb-blue);line-height:1}
@@ -207,10 +208,13 @@ canvas.bb-chart{width:100%!important;max-height:180px}
   <div class="bb-analytics-panel">
     <div class="bb-analytics-title">📊 Court Usage Analytics</div>
     <div class="bb-analytics-sub">Billboard presence data — last 30 days</div>
-    <div class="bb-court-tabs" id="court-tabs">
-      {% for court in courts %}
-      <button class="bb-court-tab{% if forloop.first %} active{% endif %}" data-id="{{ court.id }}" onclick="loadAnalytics({{ court.id }},this)">{{ court.name }}</button>
-      {% endfor %}
+    <div class="bb-court-select-row">
+      <span class="bb-court-select-label">Court Complex</span>
+      <select class="bb-court-select" id="court-tabs" onchange="loadAnalytics(parseInt(this.value))">
+        {% for court in courts %}
+        <option value="{{ court.id }}">{{ court.name }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div class="bb-stat-row">
       <div class="bb-stat-box"><div class="bb-stat-num" id="s-now">—</div><div class="bb-stat-lbl">Now</div></div>
@@ -234,7 +238,7 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 const BB={defaults:{},dateMode:'today',timeMode:'now',expandOpen:false,charts:{}};
 document.addEventListener('DOMContentLoaded',()=>{
   fetchDefaults();
-  {% if courts %}loadAnalytics({{ courts.0.id }},document.querySelector('.bb-court-tab'));{% endif %}
+  {% if courts %}loadAnalytics({{ courts.0.id }});{% endif %}
 });
 async function fetchDefaults(courtId){
   try{
@@ -313,9 +317,8 @@ async function respondMatch(id,team){
   const d=await r.json();if(d.success){toast('🤝 Match confirmed!');setTimeout(()=>location.reload(),1000);}else toast('⚠️ '+(d.message||'Error'));}
   catch(e){toast('⚠️ Network error');}
 }
-async function loadAnalytics(id,tab){
-  document.querySelectorAll('.bb-court-tab').forEach(t=>t.classList.remove('active'));
-  if(tab)tab.classList.add('active');
+async function loadAnalytics(id){
+  const sel=document.getElementById('court-tabs');if(sel&&id)sel.value=String(id);
   try{const r=await fetch('/billboard/api/analytics/court/'+id+'/');const d=await r.json();if(!d.ok)return;
   document.getElementById('s-now').textContent=d.current;
   document.getElementById('s-7d').textContent=d.total_7d;

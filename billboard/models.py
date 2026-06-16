@@ -44,6 +44,18 @@ class BillboardEntry(models.Model):
         ('22:00', '22:00'),
     ]
     
+    # Presence source — distinguishes manual check-ins from game-generated entries.
+    # Manual entries expire after 2 hours (time-window cutoff).
+    # Game entries are deactivated when the game ends/cancels/expires.
+    PRESENCE_SOURCE_MANUAL = 'manual'
+    PRESENCE_SOURCE_FRIENDLY = 'friendly_game'
+    PRESENCE_SOURCE_MATCH = 'tournament_match'
+    PRESENCE_SOURCE_CHOICES = [
+        (PRESENCE_SOURCE_MANUAL,   'Manual check-in'),
+        (PRESENCE_SOURCE_FRIENDLY, 'Friendly game'),
+        (PRESENCE_SOURCE_MATCH,    'Tournament match'),
+    ]
+
     codename = models.CharField(max_length=6, help_text="Player codename (required)")
     action_type = models.CharField(max_length=20, choices=ACTION_CHOICES)
     court_complex = models.ForeignKey(CourtComplex, on_delete=models.CASCADE, help_text="Select court complex")
@@ -55,6 +67,22 @@ class BillboardEntry(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     is_confirmed = models.BooleanField(default=False, help_text="True when opponent team has confirmed the match")
+    # Source tracking — set by the system, never by the player.
+    presence_source = models.CharField(
+        max_length=20,
+        choices=PRESENCE_SOURCE_CHOICES,
+        default=PRESENCE_SOURCE_MANUAL,
+        help_text="How this presence entry was created."
+    )
+    # Opaque game reference: 'friendly:<id>' or 'match:<id>'.
+    # Used to deactivate all entries for a specific game when it ends.
+    game_ref = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Internal game reference for lifecycle deactivation (e.g. 'friendly:42')."
+    )
     
     class Meta:
         ordering = ['-created_at']

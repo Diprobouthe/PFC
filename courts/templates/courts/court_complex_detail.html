@@ -306,13 +306,6 @@
             <div class="modal-body">
                 <form id="ratingForm">
                     <div class="mb-3">
-                        <label for="codename" class="form-label">Your Codename</label>
-                        <input type="text" class="form-control" id="codename" required 
-                               placeholder="e.g., ironbouler, LePointGod">
-                        <small class="form-text text-muted">Choose a unique codename for privacy</small>
-                    </div>
-                    
-                    <div class="mb-3">
                         <label class="form-label">Rating</label>
                         <div class="rating-stars" style="font-size: 2rem;">
                             <i class="far fa-star" data-rating="1"></i>
@@ -370,15 +363,14 @@ document.querySelectorAll('.rating-stars i').forEach(star => {
 
 // Submit rating
 function submitRating() {
-    const codename = document.getElementById('codename').value.trim();
     const rating = document.getElementById('rating').value;
     const comment = document.getElementById('comment').value.trim();
-    
-    if (!codename || !rating) {
-        alert('Please provide a codename and rating.');
+
+    if (!rating) {
+        alert('Please select a star rating.');
         return;
     }
-    
+
     fetch('{% url "submit_rating" complex.id %}', {
         method: 'POST',
         headers: {
@@ -386,7 +378,6 @@ function submitRating() {
             'X-CSRFToken': '{{ csrf_token }}'
         },
         body: JSON.stringify({
-            codename: codename,
             stars: parseFloat(rating),
             comment: comment
         })

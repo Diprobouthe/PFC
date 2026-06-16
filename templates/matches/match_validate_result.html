@@ -313,11 +313,51 @@
     </div>
     {% endif %}
 
+    {% if is_own_team %}
+    <!-- Submitting team: cannot self-validate, but can scan opponent QR -->
+    <div style="background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:14px;padding:16px;margin-bottom:12px;text-align:center;color:#6b7280;font-size:0.88rem;">
+        You submitted this result.<br>Waiting for the other team to validate.
+    </div>
+    <form method="post" id="vrForm">
+        {% csrf_token %}
+        <input type="hidden" name="pin" value="">
+        <div style="margin-bottom:14px;">
+            <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
+                <i class="fas fa-qrcode"></i> Validate via Opponent QR Card
+            </button>
+            <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
+        </div>
+        <!-- Agree/Disagree chips — hidden until QR identity is confirmed -->
+        <div id="qrValidationActions" style="display:none;">
+            <div class="vr-choice-grid">
+                <div class="vr-choice-btn agree" id="agreeBtn" onclick="selectChoice('agree')">
+                    <input type="radio" name="validation_action" value="agree" id="vrAgree" class="vr-choice-radio">
+                    <div class="vr-choice-icon"><i class="fas fa-thumbs-up"></i></div>
+                    <div>Agree</div>
+                </div>
+                <div class="vr-choice-btn disagree" id="disagreeBtn" onclick="selectChoice('disagree')">
+                    <input type="radio" name="validation_action" value="disagree" id="vrDisagree" class="vr-choice-radio">
+                    <div class="vr-choice-icon"><i class="fas fa-thumbs-down"></i></div>
+                    <div>Disagree</div>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% else %}
+    <!-- Normal path: the person holding the phone is the validator -->
     <form method="post" id="vrForm">
         {% csrf_token %}
         <!-- PIN injected server-side; never shown to user -->
         <input type="hidden" name="pin" value="">
 
+        {% if not session_codename %}
+        <div style="margin-bottom:14px;">
+            <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
+                <i class="fas fa-qrcode"></i> Identify via QR Card
+            </button>
+            <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
+        </div>
+        {% endif %}
         <div class="vr-choice-grid">
             <!-- Agree -->
             <div class="vr-choice-btn agree" id="agreeBtn" onclick="selectChoice('agree')">
@@ -332,8 +372,8 @@
                 <div>Disagree</div>
             </div>
         </div>
-
     </form>
+    {% endif %}
 
 </div>
 
@@ -377,5 +417,26 @@ function confirmChoice() {
     }
 }
 </script>
-
+<script>window.QR_RESOLVE_URL = "{% url 'qr_resolve_match' %}";</script>
+{% include "partials/qr_scanner_modal.html" %}
+<script>
+document.addEventListener('qrPlayerResolved', function(e) {
+    var d = e.detail;
+    /* QR only provides the opponent's identity — it does NOT choose the validation action.
+       The active session (Player A) is NOT replaced or modified.
+       Codename is resolved server-side in session['qr_resolved_codename'].
+       The user must still explicitly press Agree or Disagree and then Confirm. */
+    var confirm_el = document.getElementById('qrIdentityConfirm');
+    if (confirm_el) {
+        confirm_el.textContent = '\u2713 Identified as ' + d.player_name + ' \u2014 please choose Agree or Disagree below';
+        confirm_el.style.display = 'block';
+    }
+    /* If this is the submitter's QR path, reveal the Agree/Disagree chips now. */
+    var actions_el = document.getElementById('qrValidationActions');
+    if (actions_el) {
+        actions_el.style.display = 'block';
+    }
+    /* No auto-submit. No forced action. */
+});
+</script>
 {% endblock %}

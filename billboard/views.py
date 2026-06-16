@@ -151,17 +151,36 @@ class BillboardListView(ListView):
         # Group entries by action type for better display
         entries = context['entries']
         
-        # "Currently at Courts" should only show people from the last 2 hours (auto check-out)
-        # Other sections keep the 24-hour window
-        # Use court-local now per entry's court complex so Athens courts are not affected by server UTC offset
-        def _at_courts_cutoff(entry):
+        # "Currently at Courts" — lifecycle-aware presence display.
+        # Game entries (friendly_game / tournament_match): shown while is_active=True
+        #   (is_active is cleared when the game ends/cancels/expires).
+        # Manual / legacy entries: shown within a 2-hour rolling window.
+        # Entries are already filtered to is_active=True by get_queryset().
+        def _is_currently_present(entry):
+            if entry.action_type != 'AT_COURTS':
+                return False
+            src = entry.presence_source
+            if src in (BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                       BillboardEntry.PRESENCE_SOURCE_MATCH):
+                # Game-generated: is_active=True is sufficient (lifecycle-managed)
+                return True
+            # Manual / legacy: apply the 2-hour window
             court = entry.court_complex
-            return (get_court_local_now(court) if court else timezone.now()) - timedelta(hours=2)
+            cutoff = (get_court_local_now(court) if court else timezone.now()) - timedelta(hours=2)
+            return entry.created_at >= cutoff
 
-        context['at_courts'] = [
-            e for e in entries
-            if e.action_type == 'AT_COURTS' and e.created_at >= _at_courts_cutoff(e)
-        ]
+        # Deduplicate: show only the most recent active entry per codename
+        seen_codenames = set()
+        at_courts_deduped = []
+        for e in sorted(
+            [e for e in entries if _is_currently_present(e)],
+            key=lambda e: e.created_at,
+            reverse=True,
+        ):
+            if e.codename not in seen_codenames:
+                seen_codenames.add(e.codename)
+                at_courts_deduped.append(e)
+        context['at_courts'] = at_courts_deduped
         context['going_to_courts'] = [e for e in entries if e.action_type == 'GOING_TO_COURTS']
         context['looking_for_match'] = [e for e in entries if e.action_type == 'LOOKING_FOR_MATCH']
         

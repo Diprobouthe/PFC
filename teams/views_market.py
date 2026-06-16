@@ -87,8 +87,9 @@ def pfc_market(request):
     Display the PFC MARKET leaderboard - stock exchange style ranking
     of all players by rating with trend indicators.
     """
-    # Get all player profiles with ratings
-    profiles = PlayerProfile.objects.select_related('player__team').order_by('-value')
+    # Get all active player profiles with ratings
+    # Inactive profiles are excluded (admin can deactivate a profile without deleting it)
+    profiles = PlayerProfile.objects.filter(is_active=True).select_related('player__team').order_by('-value')
     
     # Calculate trend for each player
     market_data = []

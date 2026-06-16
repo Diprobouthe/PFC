@@ -199,6 +199,13 @@ class PlayerProfile(models.Model):
         null=True
     )
     
+    # Profile status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Active profiles are included in ratings, PFC Market, and ranking. "
+                  "Admins can deactivate a profile without deleting it."
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

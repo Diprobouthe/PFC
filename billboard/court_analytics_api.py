@@ -7,10 +7,23 @@ No pre-aggregation needed — queries are fast enough for the volumes involved.
 Endpoints:
   GET /billboard/api/analytics/summary/          — all-courts overview
   GET /billboard/api/analytics/court/<id>/       — per-court detail (JSON for charts)
+
+Presence counting rules
+-----------------------
+Game-generated entries (presence_source = 'friendly_game' or 'tournament_match'):
+  Lifecycle-managed: is_active is cleared when the game ends/cancels/expires.
+  A player is "currently present" as long as is_active=True, regardless of age.
+
+Manual check-ins (presence_source = 'manual', or legacy entries with no source):
+  Time-window managed: counted as present only within a 2-hour rolling window.
+
+In both cases, distinct codenames are counted so one player with multiple
+active entries (e.g. a manual check-in AND a game entry) counts as 1 person.
 """
 from collections import defaultdict
-from datetime import timedelta, date
+from datetime import timedelta
 
+from django.db.models import Q
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
@@ -25,7 +38,7 @@ PRESENCE_TYPES = ("AT_COURTS", "GOING_TO_COURTS")
 
 
 def _entry_qs(days=30, court=None):
-    """Base queryset: active entries in the last N days."""
+    """Base queryset: presence entries in the last N days."""
     cutoff = timezone.now() - timedelta(days=days)
     qs = BillboardEntry.objects.filter(
         action_type__in=PRESENCE_TYPES,
@@ -34,6 +47,44 @@ def _entry_qs(days=30, court=None):
     if court:
         qs = qs.filter(court_complex=court)
     return qs
+
+
+def _current_occupancy(qs, two_hours_ago):
+    """
+    Count distinct players currently at court from *qs* (already filtered to AT_COURTS).
+
+    - Game entries (friendly_game / tournament_match): is_active=True is sufficient
+      (cleared on game end regardless of age).
+    - Manual / legacy entries: is_active=True AND within the 2-hour window.
+    - Returns a distinct codename count so one player with multiple entries = 1 person.
+    """
+    return (
+        qs.filter(
+            action_type="AT_COURTS",
+            is_active=True,
+        )
+        .filter(
+            Q(presence_source__in=[
+                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                BillboardEntry.PRESENCE_SOURCE_MATCH,
+            ]) |
+            Q(
+                presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+                created_at__gte=two_hours_ago,
+            ) |
+            # Legacy entries created before the presence_source field existed
+            # have presence_source='manual' (the default), so the manual branch
+            # above already covers them.  This branch is a safety net for any
+            # NULL values that might exist in older rows.
+            Q(
+                presence_source__isnull=True,
+                created_at__gte=two_hours_ago,
+            )
+        )
+        .values("codename")
+        .distinct()
+        .count()
+    )
 
 
 @require_GET
@@ -52,11 +103,7 @@ def api_analytics_summary(request):
 
         qs = _entry_qs(days=30, court=court)
         total = qs.count()
-        current = qs.filter(
-            action_type="AT_COURTS",
-            created_at__gte=two_hours_ago,
-            is_active=True,
-        ).count()
+        current = _current_occupancy(qs, two_hours_ago)
 
         # Peak hour — bucket by court-local hour
         import pytz
@@ -147,12 +194,8 @@ def api_analytics_court(request, court_id):
         key=lambda x: x["date"],
     )
 
-    # ── Current occupancy ─────────────────────────────────────────────────────
-    current = qs_30.filter(
-        action_type="AT_COURTS",
-        created_at__gte=two_hours_ago,
-        is_active=True,
-    ).count()
+    # ── Current occupancy (distinct players) ─────────────────────────────────
+    current = _current_occupancy(qs_30, two_hours_ago)
 
     return JsonResponse({
         "ok":       True,

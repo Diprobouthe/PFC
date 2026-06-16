@@ -39,6 +39,8 @@ def auto_register_players_to_billboard(match):
         # Get all players from both teams in the match
         match_players = MatchPlayer.objects.filter(match=match).select_related('player')
         
+        game_ref = f"match:{match.id}"
+
         for match_player in match_players:
             player = match_player.player
             
@@ -47,28 +49,29 @@ def auto_register_players_to_billboard(match):
                 player_codename = PlayerCodename.objects.get(player=player)
                 codename = player_codename.codename
                 
-                # Check if player already has an active "AT_COURTS" entry for this court complex today
-                # Use court-local date so Athens courts are not affected by server UTC offset
-                existing_entry = BillboardEntry.objects.filter(
+                # Idempotent: skip if this match already has an active entry for this player
+                already_registered = BillboardEntry.objects.filter(
                     codename=codename,
                     action_type='AT_COURTS',
                     court_complex=court_complex,
-                    created_at__date=get_court_local_date(court_complex),
-                    is_active=True
-                ).first()
+                    game_ref=game_ref,
+                    is_active=True,
+                ).exists()
                 
-                if not existing_entry:
-                    # Create Billboard entry
+                if not already_registered:
+                    # Create Billboard entry tagged with source and game_ref
                     BillboardEntry.objects.create(
                         codename=codename,
                         action_type='AT_COURTS',
                         court_complex=court_complex,
                         message=f"Auto-registered via match activation",
-                        is_active=True
+                        is_active=True,
+                        presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
+                        game_ref=game_ref,
                     )
                     logger.info(f"Auto-registered player {player.name} (codename: {codename}) to Billboard at {court_complex.name}")
                 else:
-                    logger.debug(f"Player {player.name} already registered at {court_complex.name} today")
+                    logger.debug(f"Player {player.name} already registered for match {match.id} — skipped")
                     
             except PlayerCodename.DoesNotExist:
                 logger.warning(f"Player {player.name} (ID: {player.id}) has no codename for Billboard registration")
@@ -76,6 +79,32 @@ def auto_register_players_to_billboard(match):
                 
     except Exception as e:
         logger.error(f"Error auto-registering players to Billboard for match {match.id}: {e}")
+
+def _deactivate_match_presence(match):
+    """
+    Deactivate all AT_COURTS BillboardEntry records that were auto-created
+    for *match* when it was activated.
+
+    Only touches entries tagged with game_ref='match:<match.id>'.
+    Manual check-ins and other games' entries are never affected.
+    Historical records are preserved (is_active=False, not deleted).
+    Safe to call multiple times — idempotent.  Never raises.
+    """
+    try:
+        game_ref = f"match:{match.id}"
+        count = BillboardEntry.objects.filter(
+            action_type='AT_COURTS',
+            game_ref=game_ref,
+            is_active=True,
+        ).update(is_active=False)
+        if count:
+            logger.info(
+                f"Match {match.id}: deactivated {count} presence "
+                f"entry/entries at match completion."
+            )
+    except Exception as exc:
+        logger.error(f"Error deactivating presence for match {match.id}: {exc}")
+
 
 def match_list(request, tournament_id=None):
     # Tournament matches (existing functionality)
@@ -702,11 +731,24 @@ def match_validate_result(request, match_id, team_id):
     except MatchResult.DoesNotExist:
         return redirect("match_detail", match_id=match.id)
 
-    if result.submitted_by == team:
-        # Self-validation silently blocked — match_detail shows waiting state
-        return redirect("match_detail", match_id=match.id)
+    # is_own_team: the person holding the phone submitted this result.
+    # We do NOT redirect them away — they can still validate via QR on behalf
+    # of an eligible opponent player.  The redirect is deferred to POST.
+    is_own_team = (result.submitted_by == team)
 
     if request.method == "POST":
+        # ── Determine validator identity ───────────────────────────────────────
+        # The QR resolve endpoint stores the opponent's codename server-side in
+        # session['qr_resolved_codename'].  It is NEVER sent from the browser.
+        # The active session (Player A) is NEVER replaced or modified.
+        _qr_codename_session = request.session.pop('qr_resolved_codename', None)
+        if _qr_codename_session:
+            # QR path: inject the scanned opponent's codename for this validation only.
+            # Do NOT replace the active session_codename — Player A stays logged in.
+            request.session['_qr_validator_codename'] = _qr_codename_session.upper()
+        elif is_own_team:
+            # Normal path: submitting team cannot self-validate — block silently.
+            return redirect("match_detail", match_id=match.id)
         # Inject team PIN silently so user never needs to type it
         post_data = request.POST.copy()
         post_data["pin"] = team.pin
@@ -738,6 +780,8 @@ def match_validate_result(request, match_id, team_id):
                     match.loser = None
                 match.save()
                 notify_match_state_changed(match.id, match.status)  # completed
+                # Deactivate game-generated presence entries for this match
+                _deactivate_match_presence(match)
                 
                 # ===== AUTO-SHUFFLE CHECK =====
                 # Check if we should automatically shuffle players after round completion
@@ -876,6 +920,8 @@ def match_validate_result(request, match_id, team_id):
         "team": team,
         "result": result,
         "form": form,
+        "session_codename": request.session.get('player_codename', ''),
+        "is_own_team": is_own_team,
     }
     return render(request, "matches/match_validate_result.html", context)
 
@@ -942,3 +988,67 @@ def match_status_api(request, match_id):
             payload['validation_url'] = reverse('match_validate_result', args=[match.id, my_team.id])
 
     return _JsonResponse(payload)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR RESOLVE ENDPOINT — tournament matches
+# Receives a raw QR token, verifies HMAC, returns player identity.
+# Used by the jsQR scanner widget on match validation pages.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def qr_resolve_player(request):
+    """
+    POST /matches/api/qr-resolve/
+
+    Body (JSON): { "token": "PFC-QR:<OPAQUE_ID>:<HMAC>" }
+
+    Returns JSON (codename is NEVER returned to the browser):
+        Success: { "ok": true, "player_name": "...", "player_id": ..., "team_name": "..." }
+        Failure: { "ok": false, "error": "..." }
+
+    The token payload is fully opaque (base64url-encoded player_id + HMAC).
+    The resolved codename is stored server-side in the session as
+    'qr_resolved_codename' so that validation views can read it
+    without ever exposing it to the client.
+
+    Scope: game_participation only. Token is HMAC-verified.
+    """
+    import json as _json
+    from django.http import JsonResponse as _JsonResponse2
+    if request.method != 'POST':
+        return _JsonResponse2({'ok': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = _json.loads(request.body)
+    except (_json.JSONDecodeError, ValueError):
+        return _JsonResponse2({'ok': False, 'error': 'Invalid JSON'}, status=400)
+
+    token = data.get('token', '').strip()
+    if not token:
+        return _JsonResponse2({'ok': False, 'error': 'No token provided'}, status=400)
+
+    from pfc_core.qr_utils import verify_player_token
+    # verify_player_token now returns player_id (int) or None — no codename in token
+    player_id = verify_player_token(token)
+    if not player_id:
+        return _JsonResponse2({'ok': False, 'error': 'Invalid or tampered QR code'}, status=400)
+
+    # Look up the player and their codename by player_id (server-side only)
+    try:
+        pc = PlayerCodename.objects.select_related('player__team').get(player_id=player_id)
+    except PlayerCodename.DoesNotExist:
+        return _JsonResponse2({'ok': False, 'error': 'Player not found'}, status=404)
+
+    # Store the resolved codename in the session (server-side only).
+    # This allows validation views to read it without the codename
+    # ever being sent to the browser.
+    request.session['qr_resolved_codename'] = pc.codename
+    request.session.modified = True
+
+    # Return player identity WITHOUT codename — codename is an internal identifier
+    # and must not be exposed to the browser/client
+    return _JsonResponse2({
+        'ok': True,
+        'player_name': pc.player.name,
+        'player_id': pc.player.id,
+        'team_name': pc.player.team.name if pc.player.team else '',
+    })

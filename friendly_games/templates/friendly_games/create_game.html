@@ -186,8 +186,10 @@
     padding: 8px;
     min-height: 60px;
 }
-.cg-team-black { background: #212529; color: #fff; }
-.cg-team-white { background: #f8f9fa; border: 1px solid #dee2e6; color: #212529; }
+.cg-team-black { background: #212529; color: #fff; cursor: pointer; }
+.cg-team-white { background: #f8f9fa; border: 1px solid #dee2e6; color: #212529; cursor: pointer; }
+/* QR target-team highlight: ring around the selected panel */
+.cg-team-col.qr-target-selected { box-shadow: 0 0 0 3px #0f766e; outline: 2px solid #0f766e; }
 .cg-team-col-label {
     font-size: 0.65rem;
     font-weight: 700;
@@ -409,11 +411,11 @@
                         <span id="teamTypeBadge" class="ms-2" style="font-size:0.7rem;color:#198754;font-weight:700;"></span>
                     </div>
                     <div class="cg-teams-grid">
-                        <div class="cg-team-col cg-team-black">
+                        <div class="cg-team-col cg-team-black qr-target-selected" id="teamPanelBlack" onclick="setQrTarget('black')" title="Tap to set as QR scan target">
                             <div class="cg-team-col-label">⚫ Black</div>
                             <div id="blackSlots"><div class="cg-team-slot-empty">Empty</div></div>
                         </div>
-                        <div class="cg-team-col cg-team-white">
+                        <div class="cg-team-col cg-team-white" id="teamPanelWhite" onclick="setQrTarget('white')" title="Tap to set as QR scan target">
                             <div class="cg-team-col-label">⚪ White</div>
                             <div id="whiteSlots"><div class="cg-team-slot-empty">Empty</div></div>
                         </div>
@@ -423,7 +425,13 @@
                 <!-- Player search + list -->
                 <div>
                     <div class="cg-label">Add Players <span style="font-weight:400;text-transform:none;font-size:0.7rem;color:#adb5bd;">— tap to assign Black → White → remove</span></div>
-                    <input type="text" class="cg-player-search mb-2" id="playerSearch" placeholder="Search player…" oninput="filterPlayers()">
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                        <input type="text" class="cg-player-search" id="playerSearch" placeholder="Search player…" oninput="filterPlayers()" style="flex:1;margin-bottom:0;">
+                        <button type="button" onclick="openQrScanner()" title="Scan QR Card" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:10px;border:2px solid #0f766e;color:#0f766e;font-size:14px;font-weight:700;background:#f0fdfa;cursor:pointer;white-space:nowrap;">
+                            <i class="fas fa-qrcode"></i> Scan QR
+                        </button>
+                    </div>
+
                     <div class="cg-player-list" id="playerList">
                         {% for team in teams %}
                             {% for player in team.players.all %}
@@ -653,6 +661,70 @@ document.getElementById('court_complex_id').addEventListener('change', function(
     if (selected && selected.value && selected.dataset.complex !== cxId) {
         courtSel.value = '';
     }
+});
+</script>
+<!-- QR Scanner -->
+<script>window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";</script>
+{% include "partials/qr_scanner_modal.html" %}
+<script>
+// QR target team: 'black' by default
+let qrTargetTeam = 'black';
+
+function setQrTarget(team) {
+    qrTargetTeam = team;
+    // Highlight the selected large team panel with a teal ring; remove from the other.
+    const panelBlack = document.getElementById('teamPanelBlack');
+    const panelWhite = document.getElementById('teamPanelWhite');
+    if (team === 'black') {
+        panelBlack.classList.add('qr-target-selected');
+        panelWhite.classList.remove('qr-target-selected');
+    } else {
+        panelWhite.classList.add('qr-target-selected');
+        panelBlack.classList.remove('qr-target-selected');
+    }
+}
+
+document.addEventListener('qrPlayerResolved', function(e) {
+    const d = e.detail;
+    const el = document.querySelector('[data-id="' + d.player_id + '"]');
+    if (!el) {
+        alert('Player "' + d.player_name + '" verified via QR. If they are not in the list, ask them to join via the Join Game page.');
+        return;
+    }
+    const inBlack = el.classList.contains('in-black');
+    const inWhite = el.classList.contains('in-white');
+    const id = el.dataset.id;
+    const name = el.dataset.name;
+    const pos = el.dataset.pos;
+
+    if (qrTargetTeam === 'black') {
+        if (inBlack) return; // already on black — nothing to do
+        // Remove from white if there
+        if (inWhite) {
+            const wi = selected.white.findIndex(p => p.id === id);
+            if (wi >= 0) selected.white.splice(wi, 1);
+            el.classList.remove('in-white');
+        }
+        if (selected.black.length < 3) {
+            selected.black.push({ id, name, pos });
+            el.classList.add('in-black');
+        }
+    } else {
+        if (inWhite) return; // already on white — nothing to do
+        // Remove from black if there
+        if (inBlack) {
+            const bi = selected.black.findIndex(p => p.id === id);
+            if (bi >= 0) selected.black.splice(bi, 1);
+            el.classList.remove('in-black');
+        }
+        if (selected.white.length < 3) {
+            selected.white.push({ id, name, pos });
+            el.classList.add('in-white');
+        }
+    }
+    updateBadge(el, id);
+    updateTeamSlots();
+    updateHiddenInputs();
 });
 </script>
 {% endblock %}

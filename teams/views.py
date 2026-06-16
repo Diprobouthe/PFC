@@ -2202,3 +2202,37 @@ def player_search_api(request):
     
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
+
+def player_qr_card(request, player_id):
+    """
+    Display the QR card for a player. Only accessible to the player themselves.
+    The QR encodes a scoped HMAC token for game participation only.
+    """
+    from pfc_core.qr_utils import generate_qr_image_data_uri
+
+    player = get_object_or_404(Player.objects.select_related('team'), id=player_id)
+
+    # Only the player themselves can view their QR card
+    session_codename = request.session.get('player_codename')
+    if not session_codename or not request.session.get('session_active'):
+        messages.error(request, "You must be logged in as this player to view your QR card.")
+        return redirect('player_profile', player_id=player_id)
+
+    try:
+        _pc = PlayerCodename.objects.get(codename=session_codename.upper())
+        if _pc.player_id != player.id:
+            messages.error(request, "You can only view your own QR card.")
+            return redirect('player_profile', player_id=player_id)
+        codename = _pc.codename
+    except PlayerCodename.DoesNotExist:
+        messages.error(request, "Player identity not found.")
+        return redirect('player_profile', player_id=player_id)
+
+    # Generate QR using player.id (opaque token) — codename is NOT in the payload
+    qr_data_uri = generate_qr_image_data_uri(player.id)
+
+    # Do NOT pass codename to the template — it must not be displayed or exposed
+    return render(request, 'teams/player_qr_card.html', {
+        'player': player,
+        'qr_data_uri': qr_data_uri,
+    })

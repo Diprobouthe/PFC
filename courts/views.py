@@ -124,6 +124,7 @@ from .models import CourtComplex, CourtComplexRating, CourtComplexPhoto
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
 import json
 
 def court_complex_list(request):
@@ -151,22 +152,26 @@ def court_complex_detail(request, complex_id):
 
 @require_POST
 def submit_rating(request, complex_id):
-    """Submit a rating for a court complex"""
+    """Submit a rating for a court complex — player identity resolved from logged-in user"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'You must be logged in to submit a rating.'}, status=401)
+
     complex_obj = get_object_or_404(CourtComplex, id=complex_id)
-    
+
+    # Resolve codename from the session — never accept it from the client
+    codename = request.session.get('player_codename', '').strip().upper()
+    if not codename:
+        return JsonResponse({'error': 'Your player session could not be identified. Please log in again or set your player profile.'}, status=400)
+
     try:
         data = json.loads(request.body)
-        codename = data.get('codename', '').strip()
         stars = float(data.get('stars', 0))
         comment = data.get('comment', '').strip()
-        
-        if not codename:
-            return JsonResponse({'error': 'Codename is required'}, status=400)
-        
+
         if not (0.5 <= stars <= 5.0):
             return JsonResponse({'error': 'Rating must be between 0.5 and 5.0'}, status=400)
-        
-        # Update or create rating
+
+        # Update or create rating (one per player per complex)
         rating, created = CourtComplexRating.objects.update_or_create(
             court_complex=complex_obj,
             codename=codename,
@@ -175,16 +180,16 @@ def submit_rating(request, complex_id):
                 'comment': comment
             }
         )
-        
+
         return JsonResponse({
             'success': True,
             'message': 'Rating submitted successfully',
             'average_rating': complex_obj.average_rating(),
             'rating_count': complex_obj.rating_count(),
         })
-        
-    except (json.JSONDecodeError, ValueError) as e:
+
+    except (json.JSONDecodeError, ValueError):
         return JsonResponse({'error': 'Invalid data'}, status=400)
-    except Exception as e:
+    except Exception:
         return JsonResponse({'error': 'An error occurred'}, status=500)
 
