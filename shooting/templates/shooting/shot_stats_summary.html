@@ -26,57 +26,64 @@
         <!-- Accuracy Metrics -->
         <div class="mb-3">
             <h6 class="text-muted mb-2" style="font-size: 0.9rem;">Accuracy</h6>
-            
-            <!-- Hit Rate -->
+
+            <!-- Hit Rate: hits + petit_carreaux + carreaux / total_shots -->
             <div class="mb-2">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="small">Hit Rate</span>
                     <span class="badge bg-success">{{ stats.overall_hit_percentage|floatformat:1 }}%</span>
                 </div>
                 <div class="progress" style="height: 8px;">
-                    <div class="progress-bar bg-success" role="progressbar" 
-                         style="width: {{ stats.overall_hit_percentage }}%;" 
-                         aria-valuenow="{{ stats.overall_hit_percentage }}" 
+                    <div class="progress-bar bg-success" role="progressbar"
+                         style="width: {{ stats.overall_hit_percentage }}%;"
+                         aria-valuenow="{{ stats.overall_hit_percentage }}"
                          aria-valuemin="0" aria-valuemax="100">
                     </div>
                 </div>
             </div>
 
-            <!-- Carreau Rate -->
+            <!-- Carreau Rate: full carreau only / total_shots -->
             <div class="mb-2">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="small">Carreau Rate</span>
                     <span class="badge bg-warning text-dark">{{ stats.overall_carreau_percentage|floatformat:1 }}%</span>
                 </div>
                 <div class="progress" style="height: 8px;">
-                    <div class="progress-bar bg-warning" role="progressbar" 
-                         style="width: {{ stats.overall_carreau_percentage }}%;" 
-                         aria-valuenow="{{ stats.overall_carreau_percentage }}" 
+                    <div class="progress-bar bg-warning" role="progressbar"
+                         style="width: {{ stats.overall_carreau_percentage }}%;"
+                         aria-valuenow="{{ stats.overall_carreau_percentage }}"
                          aria-valuemin="0" aria-valuemax="100">
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Shot Breakdown -->
+        <!-- Shot Breakdown: 4 outcome types -->
         <div class="mb-3">
             <h6 class="text-muted mb-2" style="font-size: 0.9rem;">Shot Breakdown</h6>
             <div class="row g-2 text-center">
-                <div class="col-4">
+                <div class="col-3">
                     <div class="p-2 border rounded">
                         <div class="h5 mb-0">⭐</div>
                         <div class="small fw-bold">{{ stats.total_carreaux }}</div>
                         <div class="x-small text-muted">Carreau</div>
                     </div>
                 </div>
-                <div class="col-4">
+                <div class="col-3">
+                    <div class="p-2 border rounded">
+                        <div class="h5 mb-0">🌟</div>
+                        <div class="small fw-bold">{{ stats.total_petit_carreaux }}</div>
+                        <div class="x-small text-muted">Petit Carr.</div>
+                    </div>
+                </div>
+                <div class="col-3">
                     <div class="p-2 border rounded">
                         <div class="h5 mb-0">✅</div>
                         <div class="small fw-bold">{{ stats.total_hits }}</div>
                         <div class="x-small text-muted">Hits</div>
                     </div>
                 </div>
-                <div class="col-4">
+                <div class="col-3">
                     <div class="p-2 border rounded">
                         <div class="h5 mb-0">❌</div>
                         <div class="small fw-bold">{{ stats.total_misses }}</div>
@@ -86,7 +93,7 @@
             </div>
         </div>
 
-        <!-- Best Streak -->
+        <!-- Best Streak (now counts hit/petit_carreau/carreau) -->
         <div class="mb-3">
             <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
                 <span class="small">
@@ -102,7 +109,7 @@
             <h6 class="text-muted mb-2" style="font-size: 0.9rem;">Recent Sessions</h6>
             <div class="list-group list-group-flush">
                 {% for session in recent_sessions %}
-                <a href="{% url 'practice:session_summary' session.id %}" 
+                <a href="{% url 'practice:session_summary' session.id %}"
                    class="list-group-item list-group-item-action px-0 py-2 border-0 small">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>

@@ -399,6 +399,7 @@ class PracticeStatistics(models.Model):
     total_sessions = models.PositiveIntegerField(default=0)
     total_shots = models.PositiveIntegerField(default=0)
     total_hits = models.PositiveIntegerField(default=0)
+    total_petit_carreaux = models.PositiveIntegerField(default=0)
     total_carreaux = models.PositiveIntegerField(default=0)
     total_misses = models.PositiveIntegerField(default=0)
 
@@ -422,12 +423,17 @@ class PracticeStatistics(models.Model):
 
     @property
     def overall_hit_percentage(self):
+        """Hit Rate = (hits + petit_carreaux + carreaux) / total_shots * 100.
+        Consistent with PracticeSession.hit_percentage which uses the same definition.
+        """
         if self.total_shots == 0:
             return 0.0
-        return (self.total_hits / self.total_shots) * 100
+        successful = self.total_hits + self.total_petit_carreaux + self.total_carreaux
+        return (successful / self.total_shots) * 100
 
     @property
     def overall_carreau_percentage(self):
+        """Strict full-carreau rate only (petit carreau excluded)."""
         if self.total_shots == 0:
             return 0.0
         return (self.total_carreaux / self.total_shots) * 100
@@ -445,6 +451,7 @@ class PracticeStatistics(models.Model):
         total_sessions = sessions.count()
         total_shots = sum(s.total_shots for s in sessions)
         total_hits = sum(s.hits for s in sessions)
+        total_petit_carreaux = sum(s.petit_carreaux for s in sessions)
         total_carreaux = sum(s.carreaux for s in sessions)
         total_misses = sum(s.misses for s in sessions)
 
@@ -453,7 +460,7 @@ class PracticeStatistics(models.Model):
             current_streak = 0
             max_session_streak = 0
             for shot in session.shots.all():
-                if shot.outcome in ['hit', 'carreau']:
+                if shot.outcome in ['hit', 'petit_carreau', 'carreau']:
                     current_streak += 1
                     max_session_streak = max(max_session_streak, current_streak)
                 else:
@@ -466,6 +473,7 @@ class PracticeStatistics(models.Model):
                 'total_sessions': total_sessions,
                 'total_shots': total_shots,
                 'total_hits': total_hits,
+                'total_petit_carreaux': total_petit_carreaux,
                 'total_carreaux': total_carreaux,
                 'total_misses': total_misses,
                 'best_hit_streak': best_streak,
@@ -476,6 +484,7 @@ class PracticeStatistics(models.Model):
             stats.total_sessions = total_sessions
             stats.total_shots = total_shots
             stats.total_hits = total_hits
+            stats.total_petit_carreaux = total_petit_carreaux
             stats.total_carreaux = total_carreaux
             stats.total_misses = total_misses
             stats.best_hit_streak = best_streak

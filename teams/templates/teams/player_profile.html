@@ -778,11 +778,13 @@ a.mh-card::after {
             {% if tracker_enabled %}
             <div class="tab-pane fade" id="pp-shooting">
                 <div class="pp-section" style="margin-top:8px !important;">
-                    <div class="pp-section-hdr"><i class="fas fa-crosshairs"></i> Practice Shot Tracker</div>
+                    <div class="pp-section-hdr"><i class="fas fa-crosshairs"></i> Shooting Practice</div>
                     <div class="pp-section-body">
-                        {% shot_tracker_widget mode="practice" %}
-                        <div style="background:#e3f2fd !important; border-radius:12px !important; padding:14px !important; margin-top:14px !important; font-size:16px !important; color:#1565c0 !important;">
-                            <i class="fas fa-info-circle"></i> Practice your shooting accuracy and track your improvement over time.
+                        <div style="background:#e3f2fd !important; border-radius:12px !important; padding:14px !important; margin-bottom:14px !important; font-size:15px !important; color:#1565c0 !important; display:flex !important; align-items:center !important; justify-content:space-between !important; flex-wrap:wrap !important; gap:10px !important;">
+                            <span><i class="fas fa-info-circle"></i> Practice your shooting accuracy and track your improvement over time.</span>
+                            <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary btn-sm" style="white-space:nowrap !important;">
+                                <i class="fas fa-bullseye me-1"></i> Open Practice
+                            </a>
                         </div>
                     </div>
                 </div>
