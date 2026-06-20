@@ -439,20 +439,13 @@ a.mh-card::after {
     </div>
 
     <!-- ===== TABS ===== -->
-    {% if enhanced_stats.has_data or friendly_stats.total_games > 0 or tracker_enabled %}
     <div class="pp-section" style="padding-bottom:0 !important;">
         <div class="pp-tabs">
-            <a class="pp-tab active" data-bs-toggle="tab" href="#pp-overall">Overall</a>
-            {% if enhanced_stats.has_data %}
-            <a class="pp-tab" data-bs-toggle="tab" href="#pp-tournament">Tournament</a>
-            {% endif %}
-            {% if friendly_stats.total_games > 0 %}
-            <a class="pp-tab" data-bs-toggle="tab" href="#pp-friendly">Friendly</a>
-            {% endif %}
+            <a class="pp-tab active" data-pp-tab="pp-overall" href="#">Overall</a>
+            <a class="pp-tab" data-pp-tab="pp-tournament" href="#">Tournament</a>
+            <a class="pp-tab" data-pp-tab="pp-friendly" href="#">Friendly</a>
             {% load shot_tracker_tags %}
-            {% if tracker_enabled %}
-            <a class="pp-tab" data-bs-toggle="tab" href="#pp-shooting">Shot Tracker</a>
-            {% endif %}
+            <a class="pp-tab" data-pp-tab="pp-shooting" href="#">Shot Tracker</a>
         </div>
 
         <div class="tab-content" style="padding: 14px !important;">
@@ -664,28 +657,13 @@ a.mh-card::after {
             </div><!-- /pp-overall -->
 
             <!-- ===== TOURNAMENT TAB ===== -->
-            {% if enhanced_stats.has_data %}
             <div class="tab-pane fade" id="pp-tournament">
                 <div class="pp-stats-grid" style="margin-top:8px !important;">
-                    <div class="pp-stats-item"><strong>{{ enhanced_stats.total_games }}</strong><small>Games</small></div>
-                    <div class="pp-stats-item"><strong>{{ enhanced_stats.win_percentage|floatformat:1 }}%</strong><small>Win Rate</small></div>
-                    <div class="pp-stats-item"><strong>{{ enhanced_stats.total_points_scored }}</strong><small>Points scored</small></div>
-                    <div class="pp-stats-item"><strong>{{ enhanced_stats.avg_points_per_game|floatformat:1 }}</strong><small>Avg pts/game</small></div>
+                    <div class="pp-stats-item"><strong>{{ accurate_stats.matches_played|default:0 }}</strong><small>Games</small></div>
+                    <div class="pp-stats-item"><strong>{{ accurate_stats.win_rate|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
+                    <div class="pp-stats-item"><strong>{{ accurate_stats.matches_won|default:0 }}</strong><small>Wins</small></div>
+                    <div class="pp-stats-item"><strong>{{ accurate_stats.matches_played|default:0|add:"-"|add:accurate_stats.matches_won|default:0 }}</strong><small>Losses</small></div>
                 </div>
-
-                {% if enhanced_stats.shooter_stats or enhanced_stats.pointer_stats %}
-                <div class="pp-section" style="margin-bottom:12px !important;">
-                    <div class="pp-section-hdr">Position Performance</div>
-                    <div class="pp-section-body">
-                        {% if enhanced_stats.shooter_stats %}
-                        <div class="pp-pos-row"><strong>Shooter:</strong> {{ enhanced_stats.shooter_stats.games }} games &middot; {{ enhanced_stats.shooter_stats.wins }} wins &middot; {{ enhanced_stats.shooter_stats.win_rate|floatformat:1 }}%</div>
-                        {% endif %}
-                        {% if enhanced_stats.pointer_stats %}
-                        <div class="pp-pos-row"><strong>Pointer:</strong> {{ enhanced_stats.pointer_stats.games }} games &middot; {{ enhanced_stats.pointer_stats.wins }} wins &middot; {{ enhanced_stats.pointer_stats.win_rate|floatformat:1 }}%</div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
 
                 {% if enhanced_stats.recent_matches %}
                 <div class="pp-section">
@@ -737,40 +715,26 @@ a.mh-card::after {
                         </div>
                     </div>
                 </div>
+                {% else %}
+                <div class="mh-empty"><i class="fas fa-trophy"></i> No tournament matches yet</div>
                 {% endif %}
             </div>
-            {% endif %}
 
             <!-- ===== FRIENDLY TAB ===== -->
-            {% if friendly_stats.total_games > 0 %}
             <div class="tab-pane fade" id="pp-friendly">
                 <div class="pp-stats-grid" style="margin-top:8px !important;">
-                    <div class="pp-stats-item"><strong>{{ friendly_stats.total_games }}</strong><small>Games</small></div>
-                    <div class="pp-stats-item"><strong>{{ friendly_stats.win_percentage|floatformat:1 }}%</strong><small>Win Rate</small></div>
-                    <div class="pp-stats-item"><strong>{{ friendly_stats.total_points_scored }}</strong><small>Points scored</small></div>
-                    <div class="pp-stats-item"><strong>{{ friendly_stats.avg_points_per_game|floatformat:1 }}</strong><small>Avg pts/game</small></div>
+                    <div class="pp-stats-item"><strong>{{ friendly_stats.total_games|default:0 }}</strong><small>Games</small></div>
+                    <div class="pp-stats-item"><strong>{{ friendly_stats.win_percentage|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
+                    <div class="pp-stats-item"><strong>{{ friendly_stats.total_wins|default:0 }}</strong><small>Wins</small></div>
+                    <div class="pp-stats-item"><strong>{{ friendly_stats.total_losses|default:0 }}</strong><small>Losses</small></div>
                 </div>
 
-                {% if friendly_stats.shooter_stats or friendly_stats.pointer_stats %}
-                <div class="pp-section" style="margin-bottom:12px !important;">
-                    <div class="pp-section-hdr">Position Performance</div>
-                    <div class="pp-section-body">
-                        {% if friendly_stats.shooter_stats %}
-                        <div class="pp-pos-row"><strong>Shooter:</strong> {{ friendly_stats.shooter_stats.games }} games &middot; {{ friendly_stats.shooter_stats.wins }} wins &middot; {{ friendly_stats.shooter_stats.win_rate|floatformat:1 }}%</div>
-                        {% endif %}
-                        {% if friendly_stats.pointer_stats %}
-                        <div class="pp-pos-row"><strong>Pointer:</strong> {{ friendly_stats.pointer_stats.games }} games &middot; {{ friendly_stats.pointer_stats.wins }} wins &middot; {{ friendly_stats.pointer_stats.win_rate|floatformat:1 }}%</div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if friendly_stats.recent_matches %}
+                {% if friendly_matches %}
                 <div class="pp-section">
                     <div class="pp-section-hdr">Recent Friendly Matches</div>
                     <div class="pp-section-body">
                         <div class="mh-list">
-                            {% for match in friendly_stats.recent_matches %}
+                            {% for match in friendly_matches %}
                             {% if match.won %}
                             {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card win">{% else %}<div class="mh-card win">{% endif %}
                                 <div class="mh-result win">W</div>
@@ -805,9 +769,10 @@ a.mh-card::after {
                         </div>
                     </div>
                 </div>
+                {% else %}
+                <div class="mh-empty"><i class="fas fa-futbol"></i> No friendly games yet</div>
                 {% endif %}
             </div>
-            {% endif %}
 
             <!-- ===== SHOT TRACKER TAB ===== -->
             {% if tracker_enabled %}
@@ -827,7 +792,6 @@ a.mh-card::after {
 
         </div><!-- /tab-content -->
     </div><!-- /pp-section tabs -->
-    {% endif %}
 
 </div><!-- /pp-wrap -->
 
@@ -914,6 +878,48 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 {% endif %}
+
+// ── Profile tab switcher ────────────────────────────────────────────────────
+// Uses data-pp-tab attribute instead of Bootstrap's data-bs-toggle="tab"
+// so it works regardless of Bootstrap JS tab initialisation order.
+(function () {
+    function showTab(targetId) {
+        // Hide all panes
+        document.querySelectorAll('.tab-content > .tab-pane').forEach(function (pane) {
+            pane.classList.remove('show', 'active');
+            pane.style.display = 'none';
+        });
+        // Show the target pane
+        var target = document.getElementById(targetId);
+        if (target) {
+            target.style.display = '';
+            target.classList.add('show', 'active');
+        }
+        // Update button active state
+        document.querySelectorAll('.pp-tab').forEach(function (btn) {
+            btn.classList.remove('active');
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialise: hide all non-active panes
+        document.querySelectorAll('.tab-content > .tab-pane').forEach(function (pane) {
+            if (!pane.classList.contains('active')) {
+                pane.style.display = 'none';
+            }
+        });
+
+        // Attach click handlers
+        document.querySelectorAll('[data-pp-tab]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                var targetId = btn.getAttribute('data-pp-tab');
+                showTab(targetId);
+                btn.classList.add('active');
+            });
+        });
+    });
+}());
 </script>
 
 {% endblock %}

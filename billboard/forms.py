@@ -135,14 +135,7 @@ class BillboardEntryForm(CodenameValidationMixin, forms.ModelForm):
             except Team.DoesNotExist:
                 raise ValidationError("Selected team is invalid.")
         
-        # Check daily limits
-        if codename and action_type:
-            if not BillboardEntry.can_create_entry(codename, action_type):
-                settings = BillboardSettings.get_settings()
-                raise ValidationError(
-                    f"You can only create {settings.max_entries_per_day} entries of this type per day."
-                )
-        
+        # No per-player daily limit — unlimited entries allowed.
         return cleaned_data
 
 

@@ -880,6 +880,7 @@ def ai_coach_report(request, player_id):
         m.player_won    = p_score > o_score
 
     # Friendly matches
+    # codename_verified=True covers both typed-codename and QR-verified players
     friendly_matches = []
     try:
         from friendly_games.models import FriendlyGamePlayer

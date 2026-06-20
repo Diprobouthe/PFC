@@ -156,14 +156,7 @@ def api_im_here(request):
     if not court:
         return JsonResponse({"ok": False, "error": "No court complex available"}, status=400)
 
-    # Check daily limit — pass court so the limit uses court-local date
-    settings = BillboardSettings.get_settings()
-    if not BillboardEntry.can_create_entry(codename, "AT_COURTS", court=court):
-        return JsonResponse({
-            "ok": False,
-            "error": f"You can only post {settings.max_entries_per_day} 'I'm here' entries per day.",
-        }, status=400)
-
+    # No per-player daily limit — unlimited check-ins allowed.
     # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
     raw_date = data.get("scheduled_date")
     court_local_now = get_court_local_now(court)
@@ -250,14 +243,7 @@ def api_going(request):
     if not court:
         return JsonResponse({"ok": False, "error": "No court complex available"}, status=400)
 
-    # Check daily limit — pass court so the limit uses court-local date
-    settings = BillboardSettings.get_settings()
-    if not BillboardEntry.can_create_entry(codename, "GOING_TO_COURTS", court=court):
-        return JsonResponse({
-            "ok": False,
-            "error": f"You can only post {settings.max_entries_per_day} 'Going' entries per day.",
-        }, status=400)
-
+    # No per-player daily limit — unlimited check-ins allowed.
     # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
     court_local_now = get_court_local_now(court)
     raw_date = data.get("scheduled_date")

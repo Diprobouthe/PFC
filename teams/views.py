@@ -890,31 +890,42 @@ def player_profile(request, player_id):
         match.player_skull = (p_score == 0 and o_score > 0)
 
     # Get friendly game matches (for Friendly Games tab)
+    # NOTE: This early block is overwritten below by the more complete block inside the
+    # FriendlyGameStatistics section. Keeping it here as a fallback in case of ImportError.
     friendly_matches = []
     try:
         from friendly_games.models import FriendlyGame, FriendlyGamePlayer
-        
-        # Get friendly games where this player participated
-        friendly_game_players = FriendlyGamePlayer.objects.filter(
+
+        # Include ALL participation (not just codename_verified) so QR-added players see their games
+        for fgp in FriendlyGamePlayer.objects.filter(
             player=player,
-            codename_verified=True,
             game__status='COMPLETED'
-        ).select_related('game').order_by('-game__created_at')
-        
-        # Use the working version's data structure
-        for fgp in friendly_game_players:
+        ).select_related('game').order_by('-game__created_at'):
             game = fgp.game
+            player_team = fgp.team
+            if player_team == 'BLACK':
+                t_score = game.black_team_score or 0
+                o_score = game.white_team_score or 0
+                opp_team = 'White Team'
+            else:
+                t_score = game.white_team_score or 0
+                o_score = game.black_team_score or 0
+                opp_team = 'Black Team'
             friendly_matches.append({
                 'match_number': game.match_number,
                 'date': game.created_at,
-                'team': fgp.team,
+                'team': player_team,
                 'position': fgp.position,
                 'black_score': game.black_team_score,
                 'white_score': game.white_team_score,
-                'won': fgp.games_won > 0,
+                'team_score': t_score,
+                'opponent_score': o_score,
+                'opponent_team': opp_team,
+                'won': t_score > o_score,
                 'validation_status': game.validation_status,
                 'game_name': game.name,
-                'game_id': game.id
+                'game_id': game.id,
+                'codename_verified': fgp.codename_verified,
             })
     except ImportError:
         # If friendly games app is not available, use empty list
@@ -974,10 +985,11 @@ def player_profile(request, player_id):
         }
         
         # Get friendly game position statistics
+        # Include all verified participation (codename OR QR) for position stats
         friendly_position_stats = {}
         friendly_game_players = FriendlyGamePlayer.objects.filter(
             player=player,
-            codename_verified=True,
+            codename_verified=True,  # True for both codename-verified AND QR-added players
             game__status='COMPLETED'
         ).select_related('game')
         
@@ -1012,20 +1024,38 @@ def player_profile(request, player_id):
                 }
         
         # Get friendly match history for this player
+        # Include ALL participation (not just codename_verified) so QR-added players see their games
+        all_friendly_game_players = FriendlyGamePlayer.objects.filter(
+            player=player,
+            game__status='COMPLETED'
+        ).select_related('game').order_by('-game__created_at')
         friendly_matches = []
-        for fgp in friendly_game_players.order_by('-game__created_at'):
+        for fgp in all_friendly_game_players:
             game = fgp.game
+            player_team = fgp.team  # 'BLACK' or 'WHITE'
+            if player_team == 'BLACK':
+                team_score = game.black_team_score or 0
+                opponent_score = game.white_team_score or 0
+                opponent_team = 'White Team'
+            else:
+                team_score = game.white_team_score or 0
+                opponent_score = game.black_team_score or 0
+                opponent_team = 'Black Team'
             friendly_matches.append({
                 'match_number': game.match_number,
                 'date': game.created_at,
-                'team': fgp.team,
+                'team': player_team,
                 'position': fgp.position,
                 'black_score': game.black_team_score,
                 'white_score': game.white_team_score,
-                'won': fgp.games_won > 0,
+                'team_score': team_score,
+                'opponent_score': opponent_score,
+                'opponent_team': opponent_team,
+                'won': team_score > opponent_score,
                 'validation_status': game.validation_status,
                 'game_name': game.name,
-                'game_id': game.id
+                'game_id': game.id,
+                'codename_verified': fgp.codename_verified,
             })
     except Exception as e:
         # If friendly games app is not available or there's an error, use empty stats

@@ -479,10 +479,15 @@ class FriendlyGameStatistics(models.Model):
         return round((self.total_wins / self.total_games) * 100, 1)
     
     def update_statistics(self):
-        """Recalculate statistics from all verified game participations"""
+        """Recalculate statistics from all verified game participations.
+
+        codename_verified=True covers both:
+        - Players who typed their own codename during game creation/join
+        - Players added via QR scan (HMAC-verified identity, set at creation time)
+        """
         verified_participations = FriendlyGamePlayer.objects.filter(
             player=self.player,
-            codename_verified=True,
+            codename_verified=True,  # True for both codename-typed AND QR-verified players
             game__status='COMPLETED'
         )
         

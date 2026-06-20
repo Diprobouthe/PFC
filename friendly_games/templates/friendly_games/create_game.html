@@ -539,7 +539,8 @@ function cyclePlayer(el) {
         // black → white (if space)
         selected.black.splice(inBlack, 1);
         if (selected.white.length < 3) {
-            selected.white.push({ id, name, pos });
+            // Manual cycle clears qr_verified
+            selected.white.push({ id, name, pos, qr_verified: false });
             el.classList.remove('in-black'); el.classList.add('in-white');
         } else {
             el.classList.remove('in-black', 'in-white');
@@ -551,10 +552,11 @@ function cyclePlayer(el) {
     } else {
         // unassigned → black (if space)
         if (selected.black.length < 3) {
-            selected.black.push({ id, name, pos });
+            // Manual add: qr_verified=false
+            selected.black.push({ id, name, pos, qr_verified: false });
             el.classList.add('in-black');
         } else if (selected.white.length < 3) {
-            selected.white.push({ id, name, pos });
+            selected.white.push({ id, name, pos, qr_verified: false });
             el.classList.add('in-white');
         }
     }
@@ -589,7 +591,7 @@ function renderSlots(containerId, players, team) {
     }
     el.innerHTML = players.map(p => `
         <div class="cg-team-slot">
-            <span>${p.name}</span>
+            <span>${p.name}${p.qr_verified ? ' <span title="QR verified" style="color:#0f766e;font-size:0.7rem;">&#x2713;QR</span>' : ''}</span>
             <button type="button" class="cg-remove-btn" onclick="removePlayer('${p.id}','${team}')">✕</button>
         </div>`).join('');
 }
@@ -603,8 +605,13 @@ function removePlayer(id, team) {
 }
 
 function updateHiddenInputs() {
-    document.getElementById('blackTeamPlayers').value = JSON.stringify(selected.black.map(p => p.id));
-    document.getElementById('whiteTeamPlayers').value = JSON.stringify(selected.white.map(p => p.id));
+    // Send {id, qr_verified} objects so the server can distinguish QR-confirmed from manual adds
+    document.getElementById('blackTeamPlayers').value = JSON.stringify(
+        selected.black.map(p => ({ id: p.id, qr_verified: p.qr_verified || false }))
+    );
+    document.getElementById('whiteTeamPlayers').value = JSON.stringify(
+        selected.white.map(p => ({ id: p.id, qr_verified: p.qr_verified || false }))
+    );
 }
 
 // ── Player search ──
@@ -623,7 +630,8 @@ function filterPlayers() {
     const autoPos = '{{ auto_selected_player.position|default:"MILIEU"|escapejs }}';
     const el = document.querySelector(`[data-id="${autoId}"]`);
     if (el && selected.black.length < 3) {
-        selected.black.push({ id: autoId, name: autoName, pos: autoPos });
+        // Creator is verified via session codename (not QR), qr_verified=false is correct here
+        selected.black.push({ id: autoId, name: autoName, pos: autoPos, qr_verified: false });
         el.classList.add('in-black');
         updateBadge(el, autoId);
         updateTeamSlots();
@@ -698,7 +706,14 @@ document.addEventListener('qrPlayerResolved', function(e) {
     const pos = el.dataset.pos;
 
     if (qrTargetTeam === 'black') {
-        if (inBlack) return; // already on black — nothing to do
+        if (inBlack) {
+            // Already on black — upgrade to qr_verified if not already
+            const existing = selected.black.find(p => p.id === id);
+            if (existing) existing.qr_verified = true;
+            updateTeamSlots();
+            updateHiddenInputs();
+            return;
+        }
         // Remove from white if there
         if (inWhite) {
             const wi = selected.white.findIndex(p => p.id === id);
@@ -706,11 +721,19 @@ document.addEventListener('qrPlayerResolved', function(e) {
             el.classList.remove('in-white');
         }
         if (selected.black.length < 3) {
-            selected.black.push({ id, name, pos });
+            // QR add: qr_verified=true
+            selected.black.push({ id, name, pos, qr_verified: true });
             el.classList.add('in-black');
         }
     } else {
-        if (inWhite) return; // already on white — nothing to do
+        if (inWhite) {
+            // Already on white — upgrade to qr_verified if not already
+            const existing = selected.white.find(p => p.id === id);
+            if (existing) existing.qr_verified = true;
+            updateTeamSlots();
+            updateHiddenInputs();
+            return;
+        }
         // Remove from black if there
         if (inBlack) {
             const bi = selected.black.findIndex(p => p.id === id);
@@ -718,7 +741,8 @@ document.addEventListener('qrPlayerResolved', function(e) {
             el.classList.remove('in-black');
         }
         if (selected.white.length < 3) {
-            selected.white.push({ id, name, pos });
+            // QR add: qr_verified=true
+            selected.white.push({ id, name, pos, qr_verified: true });
             el.classList.add('in-white');
         }
     }

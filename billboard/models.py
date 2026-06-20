@@ -142,8 +142,8 @@ class BillboardEntry(models.Model):
 
     @classmethod
     def can_create_entry(cls, codename, action_type, court=None):
-        """Check if user can create another entry of this type today."""
-        return cls.get_daily_count(codename, action_type, court=court) < 2
+        """No per-player limit — always allowed. Kept for API compatibility."""
+        return True
 
 
 class BillboardResponse(models.Model):
