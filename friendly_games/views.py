@@ -190,25 +190,34 @@ def create_game(request):
                 creator_player=creator_player,  # track who created the game
             )
             
+            def _parse_player_entry(entry):
+                """Parse a player entry which may be a plain ID (legacy) or {id, qr_verified} dict."""
+                if isinstance(entry, dict):
+                    return str(entry.get('id', '')), bool(entry.get('qr_verified', False))
+                return str(entry), False
+
             # Add black team players
-            for player_id in black_player_ids:
+            for entry in black_player_ids:
+                raw_id, is_qr_verified = _parse_player_entry(entry)
+                if not raw_id:
+                    continue
                 try:
-                    player = Player.objects.get(id=player_id)
-                    # Check if this player is the creator and validate them
+                    player = Player.objects.get(id=int(raw_id))
                     codename_verified = False
                     provided_codename = ''
                     position = 'MILIEU'  # Default position
-                    
-                    # Check if this is the creator player
+
                     if player.id == creator_player.id:
-                        # Use creator's specified position if provided
+                        # Creator verified via their own codename
                         if creator_position:
                             position = creator_position.upper()
-                        
-                        # Creator is automatically verified
                         codename_verified = True
                         provided_codename = creator_codename.upper()
-                    
+                    elif is_qr_verified:
+                        # Player was added via QR scan — identity confirmed by HMAC token
+                        codename_verified = True
+                        provided_codename = 'QR'
+
                     FriendlyGamePlayer.objects.create(
                         game=game,
                         player=player,
@@ -218,27 +227,30 @@ def create_game(request):
                         codename_verified=codename_verified
                     )
                 except Player.DoesNotExist:
-                    messages.warning(request, f'Player with ID {player_id} not found')
-            
+                    messages.warning(request, f'Player with ID {raw_id} not found')
+
             # Add white team players
-            for player_id in white_player_ids:
+            for entry in white_player_ids:
+                raw_id, is_qr_verified = _parse_player_entry(entry)
+                if not raw_id:
+                    continue
                 try:
-                    player = Player.objects.get(id=player_id)
-                    # Check if this player is the creator and validate them
+                    player = Player.objects.get(id=int(raw_id))
                     codename_verified = False
                     provided_codename = ''
                     position = 'MILIEU'  # Default position
-                    
-                    # Check if this is the creator player
+
                     if player.id == creator_player.id:
-                        # Use creator's specified position if provided
+                        # Creator verified via their own codename
                         if creator_position:
                             position = creator_position.upper()
-                        
-                        # Creator is automatically verified
                         codename_verified = True
                         provided_codename = creator_codename.upper()
-                    
+                    elif is_qr_verified:
+                        # Player was added via QR scan — identity confirmed by HMAC token
+                        codename_verified = True
+                        provided_codename = 'QR'
+
                     FriendlyGamePlayer.objects.create(
                         game=game,
                         player=player,
@@ -248,7 +260,7 @@ def create_game(request):
                         codename_verified=codename_verified
                     )
                 except Player.DoesNotExist:
-                    messages.warning(request, f'Player with ID {player_id} not found')
+                    messages.warning(request, f'Player with ID {raw_id} not found')
             
             # Update game validation status
             game.update_validation_status()
@@ -1211,10 +1223,19 @@ def qr_resolve_player(request):
     request.session.modified = True
 
     # Return player identity WITHOUT codename — codename is an internal identifier
-    # and must not be exposed to the browser/client
+    # and must not be exposed to the browser/client.
+    # Include profile_picture_url so the confirmation modal can show the avatar.
+    avatar_url = ''
+    try:
+        profile = pc.player.profile
+        if profile.profile_picture:
+            avatar_url = profile.profile_picture.url
+    except Exception:
+        pass
     return JsonResponse({
         'ok': True,
         'player_name': pc.player.name,
         'player_id': pc.player.id,
         'team_name': pc.player.team.name if pc.player.team else '',
+        'profile_picture_url': avatar_url,
     })

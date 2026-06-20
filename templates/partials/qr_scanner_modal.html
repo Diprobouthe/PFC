@@ -1,7 +1,11 @@
 <!-- QR Scanner Modal — reusable partial for all PFC game pages
      Usage: include this file after setting window.QR_RESOLVE_URL
-     After scanning, dispatches CustomEvent "qrPlayerResolved" on document with:
-       detail: { player_name, player_id, team_name }
+     Flow:
+       1. Scan QR → server resolves identity (HMAC-verified)
+       2. Confirmation panel shown: avatar + name + "Confirm / Add Player" button
+       3. Only after organizer taps Confirm does the modal dispatch:
+            CustomEvent "qrPlayerResolved" on document with:
+              detail: { player_name, player_id, team_name, profile_picture_url }
      Requires: window.QR_RESOLVE_URL set by the including template before this partial
 -->
 <style>
@@ -65,7 +69,7 @@
     min-height: 20px;
 }
 .qr-modal-status.success { color: #059669; font-weight: 700; }
-.qr-modal-status.error { color: #dc2626; font-weight: 700; }
+.qr-modal-status.error   { color: #dc2626; font-weight: 700; }
 .qr-modal-close {
     display: inline-flex;
     align-items: center;
@@ -79,22 +83,124 @@
     background: #fff;
     cursor: pointer;
 }
+
+/* ── Confirmation panel (shown after successful scan, before dispatch) ── */
+#qrConfirmPanel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+#qrConfirmPanel.active { display: flex; }
+.qr-confirm-avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #0ea5e9;
+    margin-bottom: 12px;
+    background: #e2e8f0;
+}
+.qr-confirm-avatar-default {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    border: 3px solid #0ea5e9;
+    flex-shrink: 0;
+}
+.qr-confirm-avatar-default span {
+    font-size: 36px;
+    color: #fff;
+    font-weight: 700;
+    line-height: 1;
+}
+.qr-confirm-name {
+    font-size: 20px;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin-bottom: 2px;
+}
+.qr-confirm-team {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 16px;
+}
+.qr-confirm-question {
+    font-size: 13px;
+    color: #475569;
+    margin-bottom: 18px;
+    font-style: italic;
+}
+.qr-confirm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 28px;
+    border-radius: 14px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+.qr-confirm-btn.confirm {
+    background: #059669;
+    color: #fff;
+}
+.qr-confirm-btn.confirm:hover { background: #047857; }
+.qr-confirm-btn.cancel {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 2px solid #cbd5e1;
+}
+.qr-confirm-btn.cancel:hover { background: #e2e8f0; }
 </style>
 
 <!-- QR Scanner Modal -->
 <div id="qrScanModal">
     <div class="qr-modal-box">
-        <div class="qr-modal-title"><i class="fas fa-qrcode"></i> Scan Player QR Card</div>
-        <div class="qr-modal-video-wrap">
-            <video id="qrVideo" autoplay playsinline muted></video>
-            <div class="qr-scan-overlay">
-                <div class="qr-scan-frame"></div>
+
+        <!-- ── Scan panel ── -->
+        <div id="qrScanPanel">
+            <div class="qr-modal-title"><i class="fas fa-qrcode"></i> Scan Player QR Card</div>
+            <div class="qr-modal-video-wrap">
+                <video id="qrVideo" autoplay playsinline muted></video>
+                <div class="qr-scan-overlay">
+                    <div class="qr-scan-frame"></div>
+                </div>
             </div>
+            <div class="qr-modal-status" id="qrStatus">Point camera at a PFC Player QR Card…</div>
+            <button type="button" class="qr-modal-close" onclick="closeQrScanner()">
+                <i class="fas fa-times"></i> Cancel
+            </button>
         </div>
-        <div class="qr-modal-status" id="qrStatus">Point camera at a PFC Player QR Card…</div>
-        <button type="button" class="qr-modal-close" onclick="closeQrScanner()">
-            <i class="fas fa-times"></i> Cancel
-        </button>
+
+        <!-- ── Confirmation panel (hidden until scan succeeds) ── -->
+        <div id="qrConfirmPanel">
+            <div class="qr-modal-title"><i class="fas fa-user-check"></i> Confirm Player</div>
+            <!-- Avatar: real photo or default initial -->
+            <img id="qrConfirmPhoto" class="qr-confirm-avatar" src="" alt="" style="display:none;">
+            <div id="qrConfirmAvatarDefault" class="qr-confirm-avatar-default" style="display:none;">
+                <span id="qrConfirmInitial">?</span>
+            </div>
+            <div class="qr-confirm-name" id="qrConfirmName">—</div>
+            <div class="qr-confirm-team" id="qrConfirmTeamName"></div>
+            <div class="qr-confirm-question">Is this the correct player?</div>
+            <button type="button" class="qr-confirm-btn confirm" id="qrConfirmYes">
+                <i class="fas fa-check-circle"></i> Confirm / Add Player
+            </button>
+            <button type="button" class="qr-confirm-btn cancel" onclick="closeQrScanner()">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+        </div>
+
     </div>
 </div>
 
@@ -107,9 +213,12 @@
     var _animFrame = null;
     var _scanning = false;
     var _resolved = false;
+    var _pendingData = null;   // holds server response while confirmation is shown
 
     window.openQrScanner = function() {
         _resolved = false;
+        _pendingData = null;
+        _showScanPanel();
         document.getElementById('qrStatus').textContent = 'Point camera at a PFC Player QR Card\u2026';
         document.getElementById('qrStatus').className = 'qr-modal-status';
         document.getElementById('qrScanModal').classList.add('active');
@@ -118,8 +227,51 @@
 
     window.closeQrScanner = function() {
         _stopCamera();
+        _pendingData = null;
         document.getElementById('qrScanModal').classList.remove('active');
+        // Reset to scan panel for next open
+        _showScanPanel();
     };
+
+    function _showScanPanel() {
+        document.getElementById('qrScanPanel').style.display = '';
+        document.getElementById('qrConfirmPanel').classList.remove('active');
+    }
+
+    function _showConfirmPanel(data) {
+        // Hide scan panel
+        document.getElementById('qrScanPanel').style.display = 'none';
+
+        // Populate avatar
+        var photo = document.getElementById('qrConfirmPhoto');
+        var avatarDefault = document.getElementById('qrConfirmAvatarDefault');
+        var initial = document.getElementById('qrConfirmInitial');
+        if (data.profile_picture_url) {
+            photo.src = data.profile_picture_url;
+            photo.style.display = '';
+            avatarDefault.style.display = 'none';
+        } else {
+            photo.style.display = 'none';
+            avatarDefault.style.display = 'flex';
+            initial.textContent = (data.player_name || '?').charAt(0).toUpperCase();
+        }
+
+        // Populate name and team
+        document.getElementById('qrConfirmName').textContent = data.player_name || '—';
+        var teamEl = document.getElementById('qrConfirmTeamName');
+        teamEl.textContent = data.team_name ? data.team_name : '';
+
+        // Wire up the Confirm button (replace any previous listener)
+        var btn = document.getElementById('qrConfirmYes');
+        var newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', function() {
+            closeQrScanner();
+            document.dispatchEvent(new CustomEvent('qrPlayerResolved', { detail: data }));
+        });
+
+        document.getElementById('qrConfirmPanel').classList.add('active');
+    }
 
     function _startCamera() {
         if (!_canvas) {
@@ -194,14 +346,11 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) {
-                /* Show player name only — never expose codename in UI */
-                document.getElementById('qrStatus').textContent = '\u2713 ' + data.player_name;
-                document.getElementById('qrStatus').className = 'qr-modal-status success';
+                /* Stop camera, then show confirmation panel.
+                   qrPlayerResolved is NOT dispatched yet — only after organizer taps Confirm. */
                 _stopCamera();
-                setTimeout(function() {
-                    closeQrScanner();
-                    document.dispatchEvent(new CustomEvent('qrPlayerResolved', { detail: data }));
-                }, 900);
+                _pendingData = data;
+                _showConfirmPanel(data);
             } else {
                 document.getElementById('qrStatus').textContent = '\u2717 ' + (data.error || 'Invalid QR code');
                 document.getElementById('qrStatus').className = 'qr-modal-status error';

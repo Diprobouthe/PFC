@@ -1045,10 +1045,19 @@ def qr_resolve_player(request):
     request.session.modified = True
 
     # Return player identity WITHOUT codename — codename is an internal identifier
-    # and must not be exposed to the browser/client
+    # and must not be exposed to the browser/client.
+    # Include profile_picture_url so the confirmation modal can show the avatar.
+    _avatar_url = ''
+    try:
+        _profile = pc.player.profile
+        if _profile.profile_picture:
+            _avatar_url = _profile.profile_picture.url
+    except Exception:
+        pass
     return _JsonResponse2({
         'ok': True,
         'player_name': pc.player.name,
         'player_id': pc.player.id,
         'team_name': pc.player.team.name if pc.player.team else '',
+        'profile_picture_url': _avatar_url,
     })

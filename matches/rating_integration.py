@@ -179,13 +179,31 @@ def get_players_with_profiles(team, match=None):
     for player in participating_players:
         try:
             profile = player.profile
-            if not profile.is_active:
-                logger.debug(f"Player {player.name} has an inactive profile, skipping rating update")
-                continue
-            players_with_profiles.append(profile)
         except PlayerProfile.DoesNotExist:
-            logger.debug(f"Player {player.name} has no profile, skipping rating update")
+            # Auto-create a PlayerProfile for players who participated in a match
+            # but whose profile was not yet created (e.g. player added before the
+            # profile system existed, or profile creation was skipped at player creation).
+            # Starting value is 100.0 (the system default).
+            try:
+                profile = PlayerProfile.objects.create(
+                    player=player,
+                    value=100.0,
+                    is_active=True,
+                    rating_history=[]
+                )
+                logger.info(
+                    f"Auto-created PlayerProfile for {player.name} "
+                    f"(first match participation, match {match.id if match else 'N/A'})"
+                )
+            except Exception as create_err:
+                logger.warning(
+                    f"Could not auto-create profile for {player.name}: {create_err}"
+                )
+                continue
+        if not profile.is_active:
+            logger.debug(f"Player {player.name} has an inactive profile, skipping rating update")
             continue
+        players_with_profiles.append(profile)
     
     return players_with_profiles
 
@@ -434,24 +452,47 @@ def update_friendly_game_ratings(friendly_game):
 
 
 def get_verified_friendly_players_with_profiles(friendly_game, team_color):
-    """Get verified players with profiles from a specific team in a friendly game."""
+    """Get verified players with profiles from a specific team in a friendly game.
+    
+    codename_verified=True covers both:
+    - Players who typed their own codename during game creation/join
+    - Players added via QR scan (HMAC-verified identity, set at creation time in create_game view)
+    """
     players_with_profiles = []
     
     game_players = friendly_game.players.filter(team=team_color, codename_verified=True)
     
     for game_player in game_players:
         try:
-            # Get the actual Player object directly (FriendlyGamePlayer has direct player relationship)
             player = game_player.player
-            if hasattr(player, 'profile'):
-                profile = player.profile
-                if not profile.is_active:
-                    logger.debug(f"Player {player.name} has an inactive profile, skipping rating update")
-                    continue
-                players_with_profiles.append(profile)
         except (AttributeError, Exception) as e:
-            logger.debug(f"Player {player.name if 'player' in locals() else 'unknown'} has no profile, skipping rating update: {e}")
+            logger.debug(f"Could not resolve player for FriendlyGamePlayer {game_player.id}: {e}")
             continue
+        try:
+            profile = player.profile
+        except PlayerProfile.DoesNotExist:
+            # Auto-create a PlayerProfile for verified friendly-game participants
+            # who don't have one yet (same logic as tournament path).
+            try:
+                profile = PlayerProfile.objects.create(
+                    player=player,
+                    value=100.0,
+                    is_active=True,
+                    rating_history=[]
+                )
+                logger.info(
+                    f"Auto-created PlayerProfile for {player.name} "
+                    f"(first friendly game participation, game {friendly_game.id})"
+                )
+            except Exception as create_err:
+                logger.warning(
+                    f"Could not auto-create profile for {player.name}: {create_err}"
+                )
+                continue
+        if not profile.is_active:
+            logger.debug(f"Player {player.name} has an inactive profile, skipping rating update")
+            continue
+        players_with_profiles.append(profile)
     
     return players_with_profiles
 
