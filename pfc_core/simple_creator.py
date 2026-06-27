@@ -504,20 +504,44 @@ def cleanup_empty_mele_teams(request, tournament_id):
         messages.error(request, 'Admin access required')
         return redirect('simple_creator_home')
     
+    import logging as _logging
+    _cc_logger = _logging.getLogger('pfc_core')
     try:
         tournament = Tournament.objects.get(id=tournament_id)
         
-        # Only delete MELE teams that are empty
-        mele_teams = tournament.teams.filter(name__startswith='Mêlée Team')
+        # Step 1: Restore players to their original teams first.
+        # This must happen before any team deletion attempt.
+        if tournament.is_melee:
+            tournament.restore_melee_players_to_original_teams()
+        
+        # Step 2: Delete only temp teams that are now empty.
+        mele_teams = tournament.teams.filter(is_tournament_temp=True)
         deleted_count = 0
+        skipped_count = 0
         
         for team in mele_teams:
-            if team.players.count() == 0:  # Only delete if completely empty
+            remaining = team.players.count()
+            if remaining == 0:
                 team_name = team.name
                 team.delete()
                 deleted_count += 1
+            else:
+                # Safety guard: players not fully restored — do NOT delete.
+                _cc_logger.error(
+                    f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
+                    f"(id={team.id}) — {remaining} player(s) still belong to it."
+                )
+                skipped_count += 1
         
-        messages.success(request, f'Deleted {deleted_count} empty MELE teams from tournament "{tournament.name}"')
+        if skipped_count:
+            messages.warning(
+                request,
+                f'Deleted {deleted_count} empty temp teams from "{tournament.name}". '
+                f'WARNING: {skipped_count} team(s) skipped — they still had players attached. '
+                'Check server logs for details.'
+            )
+        else:
+            messages.success(request, f'Deleted {deleted_count} empty temp teams from tournament "{tournament.name}"')
         
     except Tournament.DoesNotExist:
         messages.error(request, 'Tournament not found')

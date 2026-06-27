@@ -128,19 +128,30 @@ class Command(BaseCommand):
             simple_tournament.players_restored = True
             self.stdout.write(f'  👥 Restored {restored_count} players to original teams')
         
-        # Delete empty mêlée teams
+        # Delete empty temporary tournament teams (Mêlée / Tête-à-tête)
         if not simple_tournament.mele_teams_deleted:
-            mele_teams = tournament.teams.filter(name__startswith='Mêlée Team')
+            mele_teams = tournament.teams.filter(is_tournament_temp=True)
             deleted_count = 0
+            skipped_count = 0
             for team in mele_teams:
-                if team.players.count() == 0:  # Only delete if empty
+                remaining = team.players.count()
+                if remaining == 0:
                     team_name = team.name
                     team.delete()
                     deleted_count += 1
                     self.stdout.write(f'    🗑️  Deleted empty team: {team_name}')
+                else:
+                    # Safety guard: players not fully restored — do NOT delete.
+                    self.stdout.write(
+                        self.style.ERROR(
+                            f'    SAFETY ABORT: Cannot delete temp team "{team.name}" '
+                            f'(id={team.id}) — {remaining} player(s) still belong to it.'
+                        )
+                    )
+                    skipped_count += 1
             
             simple_tournament.mele_teams_deleted = True
-            self.stdout.write(f'  🗑️  Deleted {deleted_count} empty mêlée teams')
+            self.stdout.write(f'  🗑️  Deleted {deleted_count} empty temp teams ({skipped_count} skipped — still had players)')
         
         # Save the updated status
         simple_tournament.save()

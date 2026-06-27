@@ -69,6 +69,7 @@ class Tournament(models.Model):
     melee_format = models.CharField(
         max_length=20,
         choices=[
+            ("tete_a_tete", "Tête-à-tête (1 player — individual)"),
             ("doublets", "Doublettes (2 players)"),
             ("triplets", "Triplettes (3 players)"),
         ],
@@ -389,11 +390,11 @@ class Tournament(models.Model):
 
     def _clear_existing_melee_teams(self):
         """Clear any existing mêlée teams for this tournament"""
-        # Get all TournamentTeam objects for this tournament where the team name starts with "Mêlée Team"
+        # Get all TournamentTeam objects for this tournament where the team is a tournament temp team
         from .models import TournamentTeam
         tournament_teams = TournamentTeam.objects.filter(
             tournament=self,
-            team__name__startswith="Mêlée Team"
+            team__is_tournament_temp=True
         )
         
         for tournament_team in tournament_teams:
@@ -410,18 +411,29 @@ class Tournament(models.Model):
                         player.save()
                         logger.info(f"Restored player {player.name} to original team {melee_player.original_team.name}")
                         
-                        # Refresh the player's session
-                        from pfc_core.session_refresh import refresh_player_team_session
-                        refresh_player_team_session(player)
+                        # Refresh the player's session (restore → stop fast polling)
+                        from pfc_core.session_refresh import restore_player_team_session
+                        restore_player_team_session(player)
                 except:
                     logger.warning(f"Could not restore player {player.name} to original team")
             
             # Delete the tournament team association
             tournament_team.delete()
             
-            # Delete the mêlée team itself
-            team.delete()
-            logger.info(f"Deleted mêlée team: {team.name}")
+            # Safety guard: NEVER delete a team that still has players.
+            # If restoration above failed for any player, the team will still
+            # have players attached and must NOT be deleted.
+            remaining_players = team.players.count()
+            if remaining_players > 0:
+                logger.error(
+                    f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
+                    f"(id={team.id}) — {remaining_players} player(s) still belong to it. "
+                    "Restoration must have failed. Team is left intact."
+                )
+                # Do not delete; leave the team in place so no player is orphaned.
+            else:
+                team.delete()
+                logger.info(f"Deleted mêlée team: {team.name}")
 
     def _generate_random_teams(self, melee_players, team_size):
         """Generate teams using random assignment"""
@@ -558,8 +570,12 @@ class Tournament(models.Model):
         """Helper method to create a team from a list of MeleePlayer objects"""
         from teams.models import Team, Player
         
-        # Create the mêlée team for tournament purposes
-        team = Team.objects.create(name=team_name)
+        # For tete_a_tete (single-player teams), use the player's name as the team name
+        if len(melee_players) == 1:
+            team_name = melee_players[0].player.name
+        
+        # Create the mêlée team for tournament purposes, flagged as temporary
+        team = Team.objects.create(name=team_name, is_tournament_temp=True)
         
         # Transfer players to the mêlée team temporarily, storing original team for restoration
         for mp in melee_players:
@@ -580,8 +596,9 @@ class Tournament(models.Model):
             logger.info(f"Transferred player {original_player.name} from {mp.original_team.name if mp.original_team else 'No Team'} to mêlée team {team_name}")
             
             # Refresh the player's session so they don't need to logout/login
+            # in_melee_assignment=True → client activates fast 10-second polling
             from pfc_core.session_refresh import refresh_player_team_session
-            refresh_player_team_session(original_player)
+            refresh_player_team_session(original_player, in_melee_assignment=True)
         
         # Add team to tournament
         TournamentTeam.objects.create(tournament=self, team=team)
@@ -603,9 +620,9 @@ class Tournament(models.Model):
                 
                 logger.info(f"Restored player {mp.player.name} from {old_melee_team.name} back to {mp.original_team.name}")
                 
-                # Refresh the player's session so they don't need to logout/login
-                from pfc_core.session_refresh import refresh_player_team_session
-                refresh_player_team_session(mp.player)
+                # Refresh the player's session (restore → stop fast polling)
+                from pfc_core.session_refresh import restore_player_team_session
+                restore_player_team_session(mp.player)
                 
                 restored_count += 1
         

@@ -150,17 +150,33 @@ def cleanup_tournament_data(simple_tournament):
             simple_tournament.players_restored = True
             cleanup_summary['players_restored'] = restored_count
         
-        # Delete empty mêlée teams
+        # Delete empty temporary tournament teams (Mêlée / Tête-à-tête)
         if not simple_tournament.mele_teams_deleted:
-            mele_teams = tournament.teams.filter(name__startswith='Mêlée Team')
+            import logging as _logging
+            _cleanup_logger = _logging.getLogger('simple_creator')
+            mele_teams = tournament.teams.filter(is_tournament_temp=True)
             deleted_count = 0
+            skipped_count = 0
             for team in mele_teams:
-                if team.players.count() == 0:  # Only delete if empty
+                remaining = team.players.count()
+                if remaining == 0:
                     team.delete()
                     deleted_count += 1
+                else:
+                    # Safety guard: players not fully restored — do NOT delete.
+                    _cleanup_logger.error(
+                        f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
+                        f"(id={team.id}) — {remaining} player(s) still belong to it. "
+                        "Players must be restored before the team can be removed."
+                    )
+                    skipped_count += 1
             
             simple_tournament.mele_teams_deleted = True
             cleanup_summary['teams_deleted'] = deleted_count
+            if skipped_count:
+                cleanup_summary['errors'].append(
+                    f"{skipped_count} temp team(s) skipped — still had players attached."
+                )
         
         # Save the updated status
         simple_tournament.save()

@@ -12,6 +12,7 @@ class TournamentScenario(models.Model):
     description = models.TextField()
     is_free = models.BooleanField(default=False)
     requires_voucher = models.BooleanField(default=True)
+    max_singles_players = models.IntegerField(default=24)
     max_doubles_players = models.IntegerField(default=12)
     max_triples_players = models.IntegerField(default=18)
     
@@ -141,6 +142,7 @@ class SimpleTournament(models.Model):
     tournament = models.OneToOneField(Tournament, on_delete=models.CASCADE)
     scenario = models.ForeignKey(TournamentScenario, on_delete=models.CASCADE)
     format_type = models.CharField(max_length=10, choices=[
+        ('singles', 'Singles / Tête-à-tête'),
         ('doubles', 'Doubles'),
         ('triples', 'Triples'),
     ])
@@ -180,7 +182,9 @@ class SimpleTournament(models.Model):
     
     def get_max_players(self):
         """Get maximum players based on format"""
-        if self.format_type == 'doubles':
+        if self.format_type == 'singles':
+            return getattr(self.scenario, 'max_singles_players', 24)
+        elif self.format_type == 'doubles':
             return self.scenario.max_doubles_players
         else:
             return self.scenario.max_triples_players
@@ -208,13 +212,22 @@ class SimpleTournament(models.Model):
                 self.tournament.restore_melee_players_to_original_teams()
                 self.players_restored = True
             
-            # Delete empty MELE teams
+            # Delete empty temporary tournament teams (Mêlée / Tête-à-tête)
             if not self.mele_teams_deleted:
-                # Delete only the mele teams created for this tournament
-                mele_teams = self.tournament.teams.filter(name__startswith='Mêlée Team')
+                # Delete only the temp teams created for this tournament
+                mele_teams = self.tournament.teams.filter(is_tournament_temp=True)
                 for team in mele_teams:
-                    if team.players.count() == 0:  # Only delete if empty
+                    remaining = team.players.count()
+                    if remaining == 0:
                         team.delete()
+                    else:
+                        # Safety guard: players were not fully restored — do NOT delete.
+                        import logging as _logging
+                        _logging.getLogger('simple_creator').error(
+                            f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
+                            f"(id={team.id}) — {remaining} player(s) still belong to it. "
+                            "Players must be restored before the team can be removed."
+                        )
                 self.mele_teams_deleted = True
             
             self.save()

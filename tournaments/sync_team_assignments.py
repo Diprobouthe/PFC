@@ -106,8 +106,8 @@ def sync_team_assignments_with_partnerships(tournament, round_number):
                             
                             logger.info(f"  ✓ Moved {player.name} from {old_team.name if old_team else 'No Team'} to {team_name}")
                             
-                            # Refresh player's session
-                            refresh_player_team_session(player)
+                            # Refresh player's session (sync = still in Mêlée assignment)
+                            refresh_player_team_session(player, in_melee_assignment=True)
             
             message = f"Synced {players_moved} players across {teams_fixed} teams for round {round_number}"
             logger.info(f"✅ {message}")

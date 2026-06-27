@@ -13,6 +13,14 @@ Game-generated presence entries are tagged with:
 This allows them to be deactivated precisely when the game ends,
 without touching manual check-ins or other games' entries.
 
+Post-game grace entries:
+  When a game ends, a short-lived 'post_game' entry (30 minutes) is created
+  for each player so they remain visible/available at the Court Complex for
+  quick rematch or new-game creation.  These entries carry:
+    presence_source = 'post_game'
+    game_ref        = 'friendly:<game.id>'
+    expires_at      = now + 30 minutes
+
 Called from:
   - start_game()        → register all players when game goes ACTIVE
   - game ends/validates → deactivate_friendly_game_presence(game)
@@ -21,12 +29,18 @@ Called from:
 """
 
 import logging
+from datetime import timedelta
+
 from django.utils import timezone
+
 from billboard.models import BillboardEntry
 from friendly_games.models import PlayerCodename
 from courts.timezone_utils import get_court_local_date
 
 logger = logging.getLogger(__name__)
+
+# How long players remain visible at the court after a game ends.
+POST_GAME_GRACE_MINUTES = 30
 
 
 # ── Registration ──────────────────────────────────────────────────────────────
@@ -105,21 +119,40 @@ def register_friendly_game_players_at_court(game):
         )
 
 
-# ── Deactivation ──────────────────────────────────────────────────────────────
+# ── Deactivation + post-game grace ────────────────────────────────────────────
 
 def deactivate_friendly_game_presence(game):
     """
-    Deactivate all AT_COURTS entries that were created for *game*.
+    Deactivate all AT_COURTS entries that were created for *game* and replace
+    them with short-lived 'post_game' grace entries (30 minutes).
 
-    Only touches entries tagged with game_ref='friendly:<game.id>'.
-    Manual check-ins and other games' entries are never affected.
-    Historical records are preserved (is_active=False, not deleted).
+    Behaviour:
+    - Deactivates the game-specific 'friendly_game' entries immediately.
+    - For each player, creates a new 'post_game' entry that expires in
+      POST_GAME_GRACE_MINUTES minutes, so the player remains visible at the
+      Court Complex for quick rematch / new game creation.
+    - Skips creating a grace entry if the player already has an active
+      'post_game' entry at the same court (idempotent).
+    - Only touches entries tagged with game_ref='friendly:<game.id>'.
+    - Manual check-ins and other games' entries are never affected.
+    - Historical records are preserved (is_active=False, not deleted).
 
     Safe to call multiple times — idempotent.
     Never raises.
     """
     try:
         game_ref = f"friendly:{game.id}"
+
+        # Collect the active entries before deactivating so we know who to grace.
+        active_entries = list(
+            BillboardEntry.objects.filter(
+                action_type='AT_COURTS',
+                game_ref=game_ref,
+                is_active=True,
+            ).select_related('court_complex')
+        )
+
+        # Deactivate game-specific entries.
         count = BillboardEntry.objects.filter(
             action_type='AT_COURTS',
             game_ref=game_ref,
@@ -136,7 +169,71 @@ def deactivate_friendly_game_presence(game):
                 f"Friendly game {game.id}: no active presence entries to deactivate"
             )
 
+        # Create post-game grace entries for each player.
+        _create_post_game_grace_entries(active_entries, game_ref)
+
     except Exception as exc:
         logger.error(
             f"Error deactivating presence for friendly game {game.id}: {exc}"
         )
+
+
+# ── Internal helper ───────────────────────────────────────────────────────────
+
+def _create_post_game_grace_entries(active_entries, game_ref):
+    """
+    Given a list of just-deactivated BillboardEntry rows, create a 30-minute
+    'post_game' grace entry for each unique (codename, court_complex) pair.
+
+    Idempotent: skips if an active post_game entry already exists for that
+    player at that court (e.g. from a previous game that ended moments ago).
+    """
+    if not active_entries:
+        return
+
+    grace_expiry = timezone.now() + timedelta(minutes=POST_GAME_GRACE_MINUTES)
+    seen = set()
+
+    for entry in active_entries:
+        key = (entry.codename, entry.court_complex_id)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        # Skip if an active post_game entry already exists at this court.
+        already_has_grace = BillboardEntry.objects.filter(
+            codename=entry.codename,
+            action_type='AT_COURTS',
+            court_complex=entry.court_complex,
+            presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+            is_active=True,
+        ).exists()
+
+        if already_has_grace:
+            # Refresh the expiry instead of creating a duplicate.
+            BillboardEntry.objects.filter(
+                codename=entry.codename,
+                action_type='AT_COURTS',
+                court_complex=entry.court_complex,
+                presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                is_active=True,
+            ).update(expires_at=grace_expiry)
+            logger.debug(
+                f"Post-game grace: refreshed expiry for {entry.codename} "
+                f"at {entry.court_complex.name} (game_ref={game_ref})"
+            )
+        else:
+            BillboardEntry.objects.create(
+                codename=entry.codename,
+                action_type='AT_COURTS',
+                court_complex=entry.court_complex,
+                message='Post-game availability (30 min)',
+                is_active=True,
+                presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                game_ref=game_ref,
+                expires_at=grace_expiry,
+            )
+            logger.info(
+                f"Post-game grace: created 30-min entry for {entry.codename} "
+                f"at {entry.court_complex.name} (game_ref={game_ref})"
+            )

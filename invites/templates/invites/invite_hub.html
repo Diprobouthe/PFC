@@ -631,14 +631,26 @@
     sessionInfo.innerHTML = html;
   }
 
-  // ── WebSocket for realtime push ────────────────────────────────────
+  // ── Realtime push via global per-player WebSocket ────────────────
+  // The global notification listener in base.html opens
+  // ws/invites/<player_id>/ and dispatches a custom DOM event
+  // 'pfc:invite.received' when an invite arrives.  We listen for
+  // that event here to refresh the inbox UI without opening a
+  // second WebSocket connection on this page.
+  //
+  // For session events (accepted / rejected / ready / update) the
+  // hub still needs its own WS connection because those events are
+  // only relevant while the user is on this page and the global
+  // listener deliberately ignores them.
   {% if player %}
-  (function connectWS() {
+  (function connectHubWS() {
     const playerId = {{ player.pk }};
     const proto    = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws/invites/${playerId}/`);
     ws.onmessage = function (e) {
       const msg = JSON.parse(e.data);
+      // invite.received is handled by the global listener (badge + toast);
+      // the hub only needs to refresh its inbox list.
       if (msg.type === "invite.received") {
         loadInbox();
       } else if (msg.type === "invite.accepted" || msg.type === "invite.rejected") {
@@ -650,8 +662,13 @@
         if (activeSessionToken) pollSession();
       }
     };
-    ws.onclose = function () { setTimeout(connectWS, 3000); };
+    // 4003 = auth rejected — do not reconnect.
+    ws.onclose = function (ev) { if (ev.code !== 4003) setTimeout(connectHubWS, 3000); };
   })();
+
+  // Also refresh the inbox when the global listener fires its DOM event
+  // (covers the case where this page's own WS is still reconnecting).
+  document.addEventListener('pfc:invite.received', function () { loadInbox(); });
   {% endif %}
 
   // ── Helpers ────────────────────────────────────────────────────────
@@ -667,9 +684,13 @@
     catch { return iso; }
   }
 
-  // ── Init ───────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────
+  // Load inbox once on page load.  Subsequent refreshes come from
+  // the hub WS onmessage handler and the pfc:invite.received DOM event.
+  // The slow fallback poll in base.html (3 min) covers the badge only;
+  // the hub does not need its own poll since it is only open when the
+  // user is actively managing invites.
   loadInbox();
-  setInterval(loadInbox, 30000);  // Refresh inbox every 30s as fallback
 })();
 </script>
 {% endblock %}

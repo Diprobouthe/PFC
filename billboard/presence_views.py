@@ -318,12 +318,12 @@ def api_leave(request):
     if not codename or len(codename) != 6:
         return JsonResponse({"ok": False, "error": "Codename required"}, status=400)
 
-    cutoff = timezone.now() - timedelta(hours=24)
+    # Deactivate ALL active AT_COURTS entries for this player, regardless of age or source.
+    # This includes manual check-ins, game-generated entries, and post-game grace entries.
     count = BillboardEntry.objects.filter(
         codename=codename,
         action_type="AT_COURTS",
         is_active=True,
-        created_at__gte=cutoff,
     ).update(is_active=False)
 
     return JsonResponse({"ok": True, "deactivated": count})

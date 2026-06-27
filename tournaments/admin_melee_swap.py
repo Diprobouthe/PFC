@@ -169,7 +169,8 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
                 if original_team:
                     outgoing_player.team = original_team
                     outgoing_player.save()
-                    refresh_player_team_session(outgoing_player)
+                    # Outgoing player is restored → stop fast polling
+                    refresh_player_team_session(outgoing_player, in_melee_assignment=False)
                     logger.info(
                         f"Restored {outgoing_player.name} → {original_team.name}"
                     )
@@ -181,7 +182,8 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
 
                 incoming_player.team = assigned_team
                 incoming_player.save()
-                refresh_player_team_session(incoming_player)
+                # Incoming player is now in Mêlée → activate fast polling
+                refresh_player_team_session(incoming_player, in_melee_assignment=True)
                 logger.info(
                     f"Assigned {incoming_player.name} → {assigned_team.name}"
                 )

@@ -96,18 +96,26 @@ def check_team_session(request):
     """
     API endpoint to check the current team session data.
     Used by the frontend to detect team changes and update autofill.
+
+    The ``in_melee_assignment`` flag tells the client whether it should run
+    fast 10-second polling (True = player is inside an active Mêlée/Super
+    Mêlée dynamic assignment window) or stop recurring polling (False).
     """
     team_pin = request.session.get('team_pin')
     team_name = request.session.get('team_name')
     team_id = request.session.get('team_id')
     is_active = request.session.get('team_session_active', False)
-    
+    in_melee_assignment = request.session.get('in_melee_assignment', False)
+
     return JsonResponse({
         'success': True,
         'data': {
             'is_logged_in': is_active and team_pin is not None,
             'team_pin': team_pin,
             'team_name': team_name,
-            'team_id': team_id
+            'team_id': team_id,
+            # True  → client keeps fast 10-second polling active.
+            # False → client stops recurring polling (no loop for ordinary users).
+            'in_melee_assignment': in_melee_assignment,
         }
     })

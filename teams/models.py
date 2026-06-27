@@ -48,6 +48,10 @@ class Team(models.Model):
         default=False,
         help_text="Archived teams are hidden from all dropdowns and selection fields. History is preserved."
     )
+    is_tournament_temp = models.BooleanField(
+        default=False,
+        help_text="True for auto-generated tournament-scoped temporary teams (Mêlée, Tête-à-tête). Hidden from public team list."
+    )
     subteam_type = models.CharField(
         max_length=20,
         blank=True,

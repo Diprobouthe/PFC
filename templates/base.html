@@ -146,6 +146,30 @@
     }
     /* Spacer so floating ball doesn't cover page content */
     .pfc-ball-spacer { height: 24px; }
+    /* Global invite notification toast */
+    #pfc-notify-toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 260px;
+        max-width: 340px;
+        background: #0d47a1;
+        color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 18px rgba(0,0,0,.35);
+        padding: 12px 16px;
+        display: none;
+        font-size: .9rem;
+        line-height: 1.4;
+        cursor: pointer;
+    }
+    #pfc-notify-toast.pfc-toast-show { display: block; }
+    #pfc-notify-toast .pfc-toast-title {
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+    #pfc-notify-toast .pfc-toast-body { opacity: .9; }
     </style>
 
     <nav class="pfc-navbar navbar navbar-expand-lg navbar-dark">
@@ -312,26 +336,139 @@
     <!-- Extra JavaScript Block -->
     {% block extra_js %}{% endblock %}
 
-    <!-- Invite badge: poll /invites/inbox/ for pending count -->
+    <!-- Global per-player invite notification listener.
+         Opens ws/invites/<player_id>/ when a player is logged in.
+         Primary path: WebSocket push updates the badge and shows a toast.
+         Fallback path: slow HTTP poll every 3 minutes, paused when tab is hidden.
+         The hub page's own loadInbox() is triggered via a custom DOM event
+         so the two scripts stay decoupled.
+    -->
+    {% if notify_player_id %}
+    <!-- Toast container (hidden until an invite arrives) -->
+    <div id="pfc-notify-toast" role="alert" aria-live="polite"></div>
     <script>
     (function () {
-        var badge = document.getElementById('pfc-invite-badge');
-        if (!badge) return;
-        function checkInvites() {
+        'use strict';
+
+        var PLAYER_ID   = {{ notify_player_id }};
+        var FALLBACK_MS = 180000;   // 3-minute slow fallback poll
+        var badge       = document.getElementById('pfc-invite-badge');
+        var toast       = document.getElementById('pfc-notify-toast');
+        var toastTimer  = null;
+        var retryDelay  = 2000;     // WS reconnect — starts at 2 s, caps at 30 s
+        var retryTimer  = null;
+        var fallbackTimer = null;
+
+        // ── Badge helper ─────────────────────────────────────────────
+        function setBadge(hasInvites) {
+            if (!badge) return;
+            if (hasInvites) {
+                badge.classList.add('has-invites');
+            } else {
+                badge.classList.remove('has-invites');
+            }
+        }
+
+        // ── Toast helper ─────────────────────────────────────────────
+        function showToast(title, body) {
+            if (!toast) return;
+            toast.innerHTML =
+                '<div class="pfc-toast-title"><i class="fas fa-envelope me-1"></i>' +
+                escHtml(title) + '</div>' +
+                '<div class="pfc-toast-body">' + escHtml(body) + '</div>';
+            toast.classList.add('pfc-toast-show');
+            clearTimeout(toastTimer);
+            // Navigate to invite hub on click
+            toast.onclick = function () {
+                window.location.href = '/invites/';
+            };
+            // Auto-dismiss after 6 seconds
+            toastTimer = setTimeout(function () {
+                toast.classList.remove('pfc-toast-show');
+            }, 6000);
+        }
+
+        function escHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // ── Fallback HTTP poll ───────────────────────────────────────
+        // Only runs when the tab is visible and only as a safety net.
+        function pollInbox() {
+            if (document.visibilityState === 'hidden') return;
             fetch('/invites/inbox/')
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (data) {
-                    if (data && data.invites && data.invites.length > 0) {
-                        badge.classList.add('has-invites');
-                    } else {
-                        badge.classList.remove('has-invites');
-                    }
+                    if (!data) return;
+                    setBadge(data.invites && data.invites.length > 0);
                 })
                 .catch(function () {});
         }
-        checkInvites();
-        setInterval(checkInvites, 30000);
+
+        function startFallback() {
+            clearInterval(fallbackTimer);
+            fallbackTimer = setInterval(pollInbox, FALLBACK_MS);
+        }
+
+        // Pause fallback when tab is hidden, resume on visibility
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                pollInbox();        // immediate check on tab focus
+                startFallback();
+            } else {
+                clearInterval(fallbackTimer);
+            }
+        });
+
+        // ── WebSocket ────────────────────────────────────────────────
+        function connectWS() {
+            clearTimeout(retryTimer);
+            var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            var ws = new WebSocket(proto + '://' + location.host + '/ws/invites/' + PLAYER_ID + '/');
+
+            ws.onopen = function () {
+                retryDelay = 2000;  // reset backoff on successful connect
+            };
+
+            ws.onmessage = function (e) {
+                var msg;
+                try { msg = JSON.parse(e.data); } catch (ex) { return; }
+
+                if (msg.type === 'invite.received') {
+                    setBadge(true);
+                    showToast(
+                        'New invite from ' + (msg.sender_name || 'someone'),
+                        msg.message || 'Tap to view'
+                    );
+                    // If the invite hub is open on this page, tell it to
+                    // refresh its inbox without coupling to its internals.
+                    document.dispatchEvent(new CustomEvent('pfc:invite.received', { detail: msg }));
+                }
+                // invite.accepted / invite.rejected / session.ready / session.update
+                // are handled by the hub page's own WS block (see invite_hub.html).
+                // The global listener does not need to act on them.
+            };
+
+            ws.onclose = function (ev) {
+                // 4003 = auth rejected — do not reconnect.
+                if (ev.code === 4003) return;
+                retryTimer = setTimeout(connectWS, retryDelay);
+                retryDelay = Math.min(retryDelay * 2, 30000);
+            };
+
+            ws.onerror = function () { ws.close(); };
+        }
+
+        // ── Boot ─────────────────────────────────────────────────────
+        connectWS();
+        pollInbox();        // immediate badge state on page load
+        startFallback();    // slow safety-net poll
     })();
     </script>
+    {% endif %}
 </body>
 </html>

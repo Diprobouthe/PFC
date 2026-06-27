@@ -1074,6 +1074,7 @@ def rematch(request, game_id):
 
     # Create new game with same configuration; assign ownership to the rematch initiator.
     # Copy time settings (is_timed, time_limit_minutes) from the original game.
+    # Copy court_complex and court so presence registration fires correctly on start.
     # Do NOT copy timer_started_at or timer_expired — those are runtime state, not settings.
     new_game = FriendlyGame.objects.create(
         name=f"{original_game.name} - Rematch",
@@ -1082,6 +1083,8 @@ def rematch(request, game_id):
         creator_player=rematch_initiator,  # rematch initiator is the new host
         is_timed=original_game.is_timed,
         time_limit_minutes=original_game.time_limit_minutes,
+        court_complex=original_game.court_complex,  # inherit venue — required for presence registration
+        court=original_game.court,                  # inherit specific court if set
     )
     
     # Copy all players with same teams and positions

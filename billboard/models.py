@@ -50,10 +50,12 @@ class BillboardEntry(models.Model):
     PRESENCE_SOURCE_MANUAL = 'manual'
     PRESENCE_SOURCE_FRIENDLY = 'friendly_game'
     PRESENCE_SOURCE_MATCH = 'tournament_match'
+    PRESENCE_SOURCE_POST_GAME = 'post_game'   # 30-min grace window after a game ends
     PRESENCE_SOURCE_CHOICES = [
-        (PRESENCE_SOURCE_MANUAL,   'Manual check-in'),
-        (PRESENCE_SOURCE_FRIENDLY, 'Friendly game'),
-        (PRESENCE_SOURCE_MATCH,    'Tournament match'),
+        (PRESENCE_SOURCE_MANUAL,    'Manual check-in'),
+        (PRESENCE_SOURCE_FRIENDLY,  'Friendly game'),
+        (PRESENCE_SOURCE_MATCH,     'Tournament match'),
+        (PRESENCE_SOURCE_POST_GAME, 'Post-game (30 min grace)'),
     ]
 
     codename = models.CharField(max_length=6, help_text="Player codename (required)")
@@ -82,6 +84,13 @@ class BillboardEntry(models.Model):
         null=True,
         db_index=True,
         help_text="Internal game reference for lifecycle deactivation (e.g. 'friendly:42')."
+    )
+    # Soft expiry timestamp — used by post_game grace entries.
+    # NULL means no expiry (manual / game-active entries are controlled by is_active instead).
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When set, the entry is considered expired after this time (used for post-game grace window)."
     )
     
     class Meta:

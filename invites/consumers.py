@@ -17,9 +17,22 @@ Design rules:
     - Consumer is read-only from the client side (no client → server messages).
     - All state changes go through HTTP views (accept/reject endpoints).
     - This consumer never touches match/tournament/team logic directly.
+
+Auth guard (connect):
+    The URL carries the player's integer PK (ws/invites/<player_id>/).
+    On connect, the consumer resolves the session's player_codename to a
+    Player PK and compares it to the URL parameter.  If they do not match,
+    or if no valid session is present, the connection is closed with code
+    4003 (Forbidden) before joining any channel group.
+    This requires SessionMiddlewareStack to be applied in asgi.py so that
+    self.scope["session"] is populated from the browser session cookie.
 """
+import logging
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+
+logger = logging.getLogger(__name__)
 
 
 class InviteConsumer(AsyncWebsocketConsumer):
@@ -33,15 +46,72 @@ class InviteConsumer(AsyncWebsocketConsumer):
     invite events as they occur.
     """
 
+    # ── Auth helper ──────────────────────────────────────────────────────────
+
+    @database_sync_to_async
+    def _resolve_session_player_id(self, codename):
+        """
+        Look up the Player PK for the given codename string.
+        Returns the integer PK, or None if not found.
+        """
+        try:
+            from friendly_games.models import PlayerCodename
+            pc = PlayerCodename.objects.select_related("player").get(
+                codename=codename.upper()
+            )
+            return pc.player_id
+        except Exception:
+            return None
+
+    # ── Lifecycle ────────────────────────────────────────────────────────────
+
     async def connect(self):
-        self.player_id  = self.scope["url_route"]["kwargs"]["player_id"]
+        url_player_id = int(self.scope["url_route"]["kwargs"]["player_id"])
+
+        # ── Session auth guard ───────────────────────────────────────────────
+        # Resolve the session's player_codename to a Player PK and compare
+        # it to the player_id in the URL.  Reject mismatches and anonymous
+        # connections to prevent one player from subscribing to another's
+        # notification stream.
+        session = self.scope.get("session", {})
+        codename = session.get("player_codename")
+
+        if not codename:
+            # No active player session — reject silently.
+            logger.warning(
+                "InviteConsumer: rejected unauthenticated connection "
+                "for player_id=%s (no session codename)",
+                url_player_id,
+            )
+            await self.close(code=4003)
+            return
+
+        session_player_id = await self._resolve_session_player_id(codename)
+
+        if session_player_id is None or session_player_id != url_player_id:
+            # Session player does not match the requested channel — reject.
+            logger.warning(
+                "InviteConsumer: rejected connection for player_id=%s "
+                "(session resolves to player_id=%s, codename=%s)",
+                url_player_id,
+                session_player_id,
+                codename,
+            )
+            await self.close(code=4003)
+            return
+
+        # Auth passed — join the group and accept.
+        self.player_id  = url_player_id
         self.group_name = f"player_{self.player_id}"
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        # group_name may not be set if connect() rejected before setting it.
+        group = getattr(self, "group_name", None)
+        if group:
+            await self.channel_layer.group_discard(group, self.channel_name)
 
     # ── Client → Server (ignored; all changes go through HTTP) ───────────────
     async def receive(self, text_data=None, bytes_data=None):

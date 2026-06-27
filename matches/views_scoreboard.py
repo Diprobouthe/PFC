@@ -14,12 +14,51 @@ from django.urls import reverse
 import json
 import logging
 
-from .models import LiveScoreboard, ScoreUpdate, ScorekeeperRating
-from friendly_games.models import PlayerCodename
+from .models import LiveScoreboard, ScoreUpdate, ScorekeeperRating, MatchPlayer
+from friendly_games.models import PlayerCodename, FriendlyGamePlayer
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-
 logger = logging.getLogger(__name__)
+
+
+def _is_participant(scoreboard, codename):
+    """
+    Return True if *codename* belongs to an actual participant of the game
+    linked to *scoreboard*.
+
+    Friendly game:   any FriendlyGamePlayer row for that game whose player
+                     has the given codename.
+    Tournament match: any MatchPlayer row for that match whose player has
+                     the given codename.
+
+    Returns False if the codename is unknown, or if the player is not in
+    the game roster.  Never raises.
+    """
+    try:
+        pc = PlayerCodename.objects.select_related('player').get(codename=codename)
+        player = pc.player
+    except PlayerCodename.DoesNotExist:
+        return False
+    except Exception:
+        return False
+
+    try:
+        if scoreboard.friendly_game_id:
+            return FriendlyGamePlayer.objects.filter(
+                game=scoreboard.friendly_game,
+                player=player,
+            ).exists()
+        elif scoreboard.tournament_match_id:
+            return MatchPlayer.objects.filter(
+                match=scoreboard.tournament_match,
+                player=player,
+            ).exists()
+    except Exception as exc:
+        logger.warning(
+            "_is_participant check failed for scoreboard %s codename %s: %s",
+            scoreboard.id, codename, exc
+        )
+    return False
 
 
 def _resolve_scorekeeper_names(score_history_qs):
@@ -230,7 +269,24 @@ def update_scoreboard(request, scoreboard_id):
         
         # Optional: Validate codename exists (for better UX, but not required)
         codename_exists = PlayerCodename.objects.filter(codename=scorekeeper_codename).exists()
-        
+
+        # ── Participant-only permission check ──────────────────────────────────
+        # Only players who are actually in this game/match may update the score.
+        # Visitors, unrelated players, and public viewers are rejected here.
+        if not _is_participant(scoreboard, scorekeeper_codename):
+            logger.warning(
+                "Scoreboard %s: update rejected — codename %s is not a participant",
+                scoreboard_id, scorekeeper_codename,
+            )
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': 'Only participants of this game may update the score.',
+                },
+                status=403,
+            )
+        # ──────────────────────────────────────────────────────────────────────
+
         # Determine update_type for pétanque scoring.
         # In pétanque, a single end can award multiple points (1–6) to ONE team.
         # increment: exactly one team's score increased (by any amount), the other stayed the same.
@@ -307,7 +363,23 @@ def reset_scoreboard(request, scoreboard_id):
                 'success': False,
                 'error': 'Codename is required'
             })
-        
+
+        # ── Participant-only permission check ──────────────────────────────────
+        # Only players who are actually in this game/match may reset the score.
+        if not _is_participant(scoreboard, scorekeeper_codename):
+            logger.warning(
+                "Scoreboard %s: reset rejected — codename %s is not a participant",
+                scoreboard_id, scorekeeper_codename,
+            )
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': 'Only participants of this game may reset the score.',
+                },
+                status=403,
+            )
+        # ──────────────────────────────────────────────────────────────────────
+
         # Reset the scoreboard
         scoreboard.reset_scores(scorekeeper_codename)
         

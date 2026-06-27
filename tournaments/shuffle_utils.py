@@ -127,8 +127,8 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None, r
                         
                         team_players.append(player.name)
                         
-                        # Refresh player's session so they don't need to logout/login
-                        refresh_player_team_session(player)
+                        # Refresh player's session (shuffle = still in Mêlée assignment)
+                        refresh_player_team_session(player, in_melee_assignment=True)
                         
                         player_index += 1
                 
@@ -152,7 +152,7 @@ def shuffle_melee_players(tournament, shuffle_type='manual', shuffled_by=None, r
                         except MeleePlayer.DoesNotExist:
                             pass
                         
-                        refresh_player_team_session(player)
+                        refresh_player_team_session(player, in_melee_assignment=True)
                         player_index += 1
             
             # Record NEW partnerships for the NEXT round (after shuffle)

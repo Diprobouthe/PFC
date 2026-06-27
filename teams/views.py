@@ -17,9 +17,9 @@ def team_list(request):
     Only Full Profile teams are shown publicly. Minimal, sub-team, and friendly
     profile teams are functional entities but are hidden from public discovery.
     """
-    # Filter out Mêlée teams, child teams, and non-full-profile teams from public view
+    # Filter out tournament temp teams (Mêlée / Tête-à-tête), child teams, and non-full-profile teams from public view
     teams = Team.objects.filter(
-        ~Q(name__icontains='Mêlée Team'),  # Hide Mêlée teams
+        is_tournament_temp=False,  # Hide auto-generated tournament temp teams
         parent_team__isnull=True  # Hide child teams (subteams)
     ).order_by('name')
     

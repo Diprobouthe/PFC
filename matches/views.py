@@ -83,25 +83,42 @@ def auto_register_players_to_billboard(match):
 def _deactivate_match_presence(match):
     """
     Deactivate all AT_COURTS BillboardEntry records that were auto-created
-    for *match* when it was activated.
+    for *match* when it was activated, then create 30-minute post-game grace
+    entries so players remain visible at the Court Complex after the match ends.
 
     Only touches entries tagged with game_ref='match:<match.id>'.
     Manual check-ins and other games' entries are never affected.
     Historical records are preserved (is_active=False, not deleted).
     Safe to call multiple times — idempotent.  Never raises.
     """
+    from friendly_games.presence_utils import _create_post_game_grace_entries
     try:
         game_ref = f"match:{match.id}"
+
+        # Collect active entries before deactivating so we can create grace entries.
+        active_entries = list(
+            BillboardEntry.objects.filter(
+                action_type='AT_COURTS',
+                game_ref=game_ref,
+                is_active=True,
+            ).select_related('court_complex')
+        )
+
         count = BillboardEntry.objects.filter(
             action_type='AT_COURTS',
             game_ref=game_ref,
             is_active=True,
         ).update(is_active=False)
+
         if count:
             logger.info(
                 f"Match {match.id}: deactivated {count} presence "
                 f"entry/entries at match completion."
             )
+
+        # Create 30-min post-game grace entries for each player.
+        _create_post_game_grace_entries(active_entries, game_ref)
+
     except Exception as exc:
         logger.error(f"Error deactivating presence for match {match.id}: {exc}")
 

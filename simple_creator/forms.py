@@ -16,6 +16,7 @@ class SimpleTournamentCreationForm(forms.Form):
     
     format_type = forms.ChoiceField(
         choices=[
+            ('singles', 'Singles / Tête-à-tête (≤24 players)'),
             ('doubles', 'Doubles (≤12 players)'),
             ('triples', 'Triples (≤18 players)')
         ],

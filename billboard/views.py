@@ -137,11 +137,14 @@ class BillboardListView(ListView):
     paginate_by = 20
     
     def get_queryset(self):
-        # Get active entries from the last 24 hours
-        cutoff_time = timezone.now() - timedelta(hours=24)
+        # Return all active entries.
+        # Game-generated presence (friendly_game / tournament_match) is lifecycle-managed:
+        # is_active is set to False when the game ends/cancels/expires, so no time cutoff
+        # is needed for those entries.
+        # The 2-hour time window for manual check-ins is applied in _is_currently_present()
+        # inside get_context_data(), not here, so game entries are never hidden by age.
         return BillboardEntry.objects.filter(
             is_active=True,
-            created_at__gte=cutoff_time
         ).select_related('court_complex').prefetch_related('responses')
     
     def get_context_data(self, **kwargs):
@@ -162,8 +165,13 @@ class BillboardListView(ListView):
             src = entry.presence_source
             if src in (BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
                        BillboardEntry.PRESENCE_SOURCE_MATCH):
-                # Game-generated: is_active=True is sufficient (lifecycle-managed)
+                # Active game: is_active=True is sufficient (lifecycle-managed)
                 return True
+            if src == BillboardEntry.PRESENCE_SOURCE_POST_GAME:
+                # 30-min grace window after game end — check expires_at
+                if entry.expires_at is None:
+                    return True
+                return timezone.now() < entry.expires_at
             # Manual / legacy: apply the 2-hour window
             court = entry.court_complex
             cutoff = (get_court_local_now(court) if court else timezone.now()) - timedelta(hours=2)

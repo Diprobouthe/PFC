@@ -191,17 +191,36 @@ def _create_simple_tournament(form_data):
     logger = logging.getLogger(__name__)
     logger.error(f"DEBUG: Scenario #{scenario.id} timer = {scenario.default_time_limit_minutes}")
     
+    # Determine play_format and melee_format from format_type
+    if format_type == 'singles':
+        play_format_val = 'tete_a_tete'
+        melee_format_val = 'tete_a_tete'
+        max_participants_val = getattr(scenario, 'max_singles_players', 24)
+        shuffle_players = False  # No shuffle for tete_a_tete
+    elif format_type == 'triples':
+        play_format_val = 'triplets'
+        melee_format_val = 'triplets'
+        max_participants_val = scenario.max_triples_players
+        shuffle_players = getattr(scenario, 'shuffle_players_after_round', False)
+    else:  # doubles
+        play_format_val = 'doublets'
+        melee_format_val = 'doublets'
+        max_participants_val = scenario.max_doubles_players
+        shuffle_players = getattr(scenario, 'shuffle_players_after_round', False)
+
     tournament = Tournament.objects.create(
         name=tournament_name,
         description=f"Auto-generated {scenario.display_name} tournament",
         start_date=start_date,
         end_date=end_date,
         format="multi_stage",
-        play_format="triplets" if format_type == "triples" else "doublets",
+        play_format=play_format_val,
         is_active=True,
-        max_participants=scenario.max_triples_players if format_type == "triples" else scenario.max_doubles_players,
+        max_participants=max_participants_val,
         is_melee=True,
+        melee_format=melee_format_val,
         melee_teams_generated=False,
+        shuffle_players_after_round=shuffle_players,
         automation_status="idle",
         default_time_limit_minutes=scenario.default_time_limit_minutes  # Apply scenario timer
     )
