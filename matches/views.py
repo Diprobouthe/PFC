@@ -393,6 +393,116 @@ def match_activate(request, match_id, team_id):
          return redirect("match_detail", match_id=match.id)
 
     if request.method == "POST":
+        # ── QR activation branch (initiating team scans opponent's card) ────────────────
+        # The acting team (Team A, on their own phone) scans a QR card from a
+        # player of the opposing team (Team B).  The system then:
+        #   1. Verifies the scanned player belongs to the opposing team.
+        #   2. Auto-creates Team A's activation (from the normal form POST data).
+        #   3. Auto-creates Team B's activation + MatchPlayer records.
+        #   4. Completes court assignment and activates the match.
+        # The non-QR path below is completely unchanged.
+        _qr_codename_activation = request.session.pop('qr_resolved_codename', None)
+        if _qr_codename_activation and is_initiating:
+            _qr_codename_upper = _qr_codename_activation.upper()
+            # Identify the opposing team
+            _opponent_team = match.team2 if team == match.team1 else match.team1
+            _qr_auth_ok = False
+            _qr_pc = None
+            try:
+                _qr_pc = PlayerCodename.objects.get(codename=_qr_codename_upper)
+                # Accept only if the scanned player belongs to the OPPOSING team
+                _qr_auth_ok = (_qr_pc.player.team == _opponent_team)
+            except PlayerCodename.DoesNotExist:
+                pass
+
+            if not _qr_auth_ok:
+                messages.error(
+                    request,
+                    "The scanned QR card does not belong to a player on the opposing team. "
+                    "Please scan a QR card from a player on the other team."
+                )
+                return redirect("match_activate", match_id=match.id, team_id=team.id)
+
+            # Get Team A's players from the submitted form (normal selection)
+            from .forms import _get_team_players_for_match
+            _form_a = MatchActivationForm(match, team, request.POST)
+            if not _form_a.is_valid():
+                # Fall through to normal form rendering with errors
+                form = _form_a
+            else:
+                _team_a_players = list(_form_a.cleaned_data["players"])
+                # Get Team B's players
+                _team_b_players = list(_get_team_players_for_match(match, _opponent_team))
+                if not _team_b_players:
+                    messages.error(request, "No players found for the opposing team.")
+                    return redirect("match_activate", match_id=match.id, team_id=team.id)
+
+                # Determine team1/team2 ordering for match-type detection
+                if team == match.team1:
+                    _t1p, _t2p = _team_a_players, _team_b_players
+                else:
+                    _t1p, _t2p = _team_b_players, _team_a_players
+                _detected_type, _c1, _c2 = detect_match_type(_t1p, _t2p)
+                _is_valid, _err_msg = validate_match_type(_detected_type, _c1, _c2, tournament)
+                if not _is_valid:
+                    messages.error(request, _err_msg)
+                    return redirect("match_activate", match_id=match.id, team_id=team.id)
+                match.match_type = _detected_type
+                match.team1_player_count = _c1
+                match.team2_player_count = _c2
+                match.save()
+
+                # Create Team A activation (initiator)
+                MatchActivation.objects.create(
+                    match=match, team=team,
+                    pin_used=_form_a.cleaned_data["pin"],
+                    is_initiator=True
+                )
+                for _p in _team_a_players:
+                    _role = _form_a.cleaned_data.get(f"role_{_p.id}", "flex") or "flex"
+                    MatchPlayer.objects.create(
+                        match=match, player=_p, team=team, role=_role,
+                        match_format=_detected_type
+                    )
+
+                # Create Team B activation (QR-confirmed, not initiator)
+                MatchActivation.objects.create(
+                    match=match, team=_opponent_team,
+                    pin_used=_opponent_team.pin,
+                    is_initiator=False
+                )
+                for _p in _team_b_players:
+                    MatchPlayer.objects.create(
+                        match=match, player=_p, team=_opponent_team, role='flex',
+                        match_format=_detected_type
+                    )
+
+                MatchPlayer.objects.filter(match=match).update(match_format=_detected_type)
+
+                # Court assignment
+                _court = auto_assign_court(match)
+                if _court:
+                    match.status = "active"
+                    _cc = _court.courtcomplex_set.first()
+                    match.start_time = get_court_local_now(_cc) if _cc else timezone.now()
+                    match.waiting_for_court = False
+                    match.save()
+                    notify_match_state_changed(match.id, match.status)
+                    auto_register_players_to_billboard(match)
+                    messages.success(request, f"Match activated via QR! {get_court_assignment_status(match)}")
+                else:
+                    match.status = "pending_verification"
+                    match.waiting_for_court = True
+                    match.save()
+                    notify_match_state_changed(match.id, match.status)
+                    messages.warning(
+                        request,
+                        "Match activated via QR. No court available yet — "
+                        "the match will start automatically when a court becomes free."
+                    )
+                return redirect("match_detail", match_id=match.id)
+
+        # ── Normal POST branch ────────────────────────────────────────────────────────
         form = MatchActivationForm(match, team, request.POST)
         if form.is_valid():
             selected_players_current_team = list(form.cleaned_data["players"])
@@ -736,9 +846,18 @@ def match_validate_result(request, match_id, team_id):
                 _session_team_v = Team.objects.get(pin=_session_pin_v)
             except Team.DoesNotExist:
                 pass
+    # ── Relaxed guard: allow the submitting team to reach the opponent's validation URL ──
+    # Normal case: session team == URL team (validator on their own page).
+    # QR case:     session team == submitting team, URL team == opposing team.
+    #              We allow this so the submitter can scan the opponent's QR card.
+    # Block:       session team is a third party unrelated to this match.
     if _session_team_v is not None and _session_team_v != team:
-        messages.error(request, "You are not authorised to validate results for this team.")
-        return redirect("match_detail", match_id=match.id)
+        # Allow if the session team is the other participant in this match
+        # (submitter navigating to opponent's URL for QR validation).
+        _other_team = match.team2 if team == match.team1 else match.team1
+        if _session_team_v != _other_team:
+            messages.error(request, "You are not authorised to validate results for this team.")
+            return redirect("match_detail", match_id=match.id)
     # ───────────────────────────────────────────────────────────────
     if match.status != "waiting_validation":
         return redirect("match_detail", match_id=match.id)
@@ -748,21 +867,67 @@ def match_validate_result(request, match_id, team_id):
     except MatchResult.DoesNotExist:
         return redirect("match_detail", match_id=match.id)
 
-    # is_own_team: the person holding the phone submitted this result.
-    # We do NOT redirect them away — they can still validate via QR on behalf
-    # of an eligible opponent player.  The redirect is deferred to POST.
-    is_own_team = (result.submitted_by == team)
+    # is_own_team: the SESSION user (or their team) submitted this result.
+    # True  → submitter holding the phone (QR path: scan opponent card to validate).
+    # False → validator on their own page (normal Agree/Disagree or QR identity).
+    # We use _session_team_v when available (more precise); fall back to URL team.
+    _effective_team = _session_team_v if _session_team_v is not None else team
+    is_own_team = (result.submitted_by == _effective_team)
 
     if request.method == "POST":
         # ── Determine validator identity ───────────────────────────────────────
-        # The QR resolve endpoint stores the opponent's codename server-side in
+            # The QR resolve endpoint stores the resolved codename server-side in
         # session['qr_resolved_codename'].  It is NEVER sent from the browser.
         # The active session (Player A) is NEVER replaced or modified.
         _qr_codename_session = request.session.pop('qr_resolved_codename', None)
         if _qr_codename_session:
-            # QR path: inject the scanned opponent's codename for this validation only.
-            # Do NOT replace the active session_codename — Player A stays logged in.
-            request.session['_qr_validator_codename'] = _qr_codename_session.upper()
+            # QR path: two sub-cases depending on which team's URL is being used.
+            # is_own_team=True  (submitting team URL): scan a card from the OPPOSING team.
+            # is_own_team=False (validating team URL): scan a card from THIS team to prove identity.
+            # Three checks must all pass:
+            #   1. The codename resolves to a known player.
+            #   2. The scanned player is on the required team.
+            #   3. The scanned player is registered in MatchPlayer for this match.
+            _qr_codename_upper = _qr_codename_session.upper()
+            # Determine which team the scanned card must belong to:
+            #   is_own_team=True  → submitting team's URL: scan a card from the OPPOSING team
+            #                       (one phone confirms the opponent on their behalf)
+            #   is_own_team=False → validating team's URL: scan a card from THIS team
+            #                       (proves identity of a player on the validating team)
+            # The scanned card must ALWAYS belong to the non-submitting team.
+            # Compute relative to result.submitted_by (the submitter), NOT the URL team.
+            # is_own_team=True  (submitter holding phone): scan the OPPOSING team's card.
+            # is_own_team=False (validator on their own page): scan THIS team's card for identity.
+            _submitting_team = result.submitted_by
+            _validating_team = match.team2 if _submitting_team == match.team1 else match.team1
+            _required_team = _validating_team if is_own_team else team
+            _required_team_label = _validating_team.name if is_own_team else team.name
+            try:
+                _qr_pc = PlayerCodename.objects.get(codename=_qr_codename_upper)
+                # Check 2: scanned player must belong to the required team
+                if _qr_pc.player.team != _required_team:
+                    messages.error(
+                        request,
+                        f"The scanned QR card does not belong to a player on {_required_team_label}. "
+                        f"Please scan a QR card from a player on {_required_team_label}."
+                    )
+                    return redirect("match_validate_result", match_id=match.id, team_id=team.id)
+                # Check 3: scanned player must be on the required team's match roster
+                _qr_on_roster = MatchPlayer.objects.filter(
+                    match=match, player=_qr_pc.player, team=_required_team
+                ).exists()
+                if not _qr_on_roster:
+                    messages.error(
+                        request,
+                        f"The scanned player is not registered in this match for {_required_team_label}."
+                    )
+                    return redirect("match_validate_result", match_id=match.id, team_id=team.id)
+            except PlayerCodename.DoesNotExist:
+                messages.error(request, "Player QR code could not be resolved.")
+                return redirect("match_validate_result", match_id=match.id, team_id=team.id)
+            # All checks passed — inject the codename for this validation only.
+            # Do NOT replace the active session_codename — the phone holder stays logged in.
+            request.session['_qr_validator_codename'] = _qr_codename_upper
         elif is_own_team:
             # Normal path: submitting team cannot self-validate — block silently.
             return redirect("match_detail", match_id=match.id)
@@ -1078,3 +1243,158 @@ def qr_resolve_player(request):
         'team_name': pc.player.team.name if pc.player.team else '',
         'profile_picture_url': _avatar_url,
     })
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR CONFIRM OPPONENT — intermediate activation state
+#
+# When Team A has already activated (match is pending_verification) and Team B
+# has no phone, Team A can scan a Team B player's QR card from their own phone
+# to confirm Team B's side and complete the match activation.
+#
+# This is a POST-only view reached from match_detail.
+# It does NOT require team_id in the URL — the acting team is resolved from
+# the session, and the pending team is derived from the match state.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def match_qr_confirm_opponent(request, match_id):
+    """
+    POST /matches/detail/<match_id>/qr-confirm-opponent/
+
+    Called when the already-activated team scans the pending opponent's QR card.
+    Verifies the scanned player belongs to the pending (not-yet-activated) team,
+    then auto-creates the opponent's activation + MatchPlayer records and
+    attempts court assignment.
+
+    The normal non-QR activation flow is completely unchanged.
+    """
+    from django.http import JsonResponse as _JR
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request.')
+        return redirect('match_detail', match_id=match_id)
+
+    match = get_object_or_404(Match, id=match_id)
+
+    # ── Resolve the acting team from session ──────────────────────────────────
+    acting_team = None
+    _codename = request.session.get('player_codename')
+    if _codename:
+        try:
+            _pc = PlayerCodename.objects.get(codename=_codename.upper())
+            _mp = MatchPlayer.objects.filter(match=match, player=_pc.player).select_related('team').first()
+            if _mp:
+                acting_team = _mp.team
+        except Exception:
+            pass
+    if acting_team is None:
+        _pin = request.session.get('team_pin')
+        if _pin:
+            try:
+                _t = Team.objects.get(pin=_pin)
+                if _t in (match.team1, match.team2):
+                    acting_team = _t
+            except Team.DoesNotExist:
+                pass
+
+    if acting_team is None:
+        messages.error(request, 'You must be logged in as a team to use QR activation.')
+        return redirect('match_detail', match_id=match_id)
+
+    # ── State guard: match must be pending_verification ───────────────────────
+    if match.status != 'pending_verification':
+        messages.error(request, 'This match is not in the correct state for QR confirmation.')
+        return redirect('match_detail', match_id=match_id)
+
+    # ── Acting team must already be activated ─────────────────────────────────
+    acting_activation = match.activations.filter(team=acting_team).first()
+    if not acting_activation:
+        messages.error(request, 'Your team has not yet activated this match.')
+        return redirect('match_detail', match_id=match_id)
+
+    # ── Determine the pending (not-yet-activated) team ────────────────────────
+    pending_team = match.team2 if acting_team == match.team1 else match.team1
+    if match.activations.filter(team=pending_team).exists():
+        messages.info(request, 'The opponent has already activated this match.')
+        return redirect('match_detail', match_id=match_id)
+
+    # ── Read and validate the QR-resolved codename from session ──────────────
+    _qr_codename = request.session.pop('qr_resolved_codename', None)
+    if not _qr_codename:
+        messages.error(request, 'No QR code was scanned. Please scan the opponent\'s QR card first.')
+        return redirect('match_detail', match_id=match_id)
+
+    _qr_codename_upper = _qr_codename.upper()
+    try:
+        _qr_pc = PlayerCodename.objects.get(codename=_qr_codename_upper)
+    except PlayerCodename.DoesNotExist:
+        messages.error(request, 'The scanned QR code could not be resolved.')
+        return redirect('match_detail', match_id=match_id)
+
+    # Check 1: scanned player must belong to the PENDING team
+    if _qr_pc.player.team != pending_team:
+        messages.error(
+            request,
+            'The scanned QR card does not belong to a player on the opposing team. '
+            'Please scan a QR card from a player on the other team.'
+        )
+        return redirect('match_detail', match_id=match_id)
+
+    # ── Get pending team's players ────────────────────────────────────────────
+    from .forms import _get_team_players_for_match
+    _pending_players = list(_get_team_players_for_match(match, pending_team))
+    if not _pending_players:
+        messages.error(request, 'No players found for the opposing team.')
+        return redirect('match_detail', match_id=match_id)
+
+    # ── Run match-type validation ─────────────────────────────────────────────
+    tournament = match.tournament
+    _acting_players = [mp.player for mp in MatchPlayer.objects.filter(match=match, team=acting_team)]
+    if acting_team == match.team1:
+        _t1p, _t2p = _acting_players, _pending_players
+    else:
+        _t1p, _t2p = _pending_players, _acting_players
+    _detected_type, _c1, _c2 = detect_match_type(_t1p, _t2p)
+    _is_valid, _err_msg = validate_match_type(_detected_type, _c1, _c2, tournament)
+    if not _is_valid:
+        messages.error(request, _err_msg)
+        return redirect('match_detail', match_id=match_id)
+
+    match.match_type = _detected_type
+    match.team1_player_count = _c1
+    match.team2_player_count = _c2
+    match.save()
+
+    # ── Create pending team's activation + MatchPlayer records ───────────────
+    MatchActivation.objects.create(
+        match=match, team=pending_team,
+        pin_used=pending_team.pin,
+        is_initiator=False
+    )
+    for _p in _pending_players:
+        MatchPlayer.objects.create(
+            match=match, player=_p, team=pending_team, role='flex',
+            match_format=_detected_type
+        )
+    MatchPlayer.objects.filter(match=match).update(match_format=_detected_type)
+
+    # ── Court assignment ──────────────────────────────────────────────────────
+    _court = auto_assign_court(match)
+    if _court:
+        match.status = 'active'
+        _cc = _court.courtcomplex_set.first()
+        match.start_time = get_court_local_now(_cc) if _cc else timezone.now()
+        match.waiting_for_court = False
+        match.save()
+        notify_match_state_changed(match.id, match.status)
+        auto_register_players_to_billboard(match)
+        messages.success(request, f'Match activated via QR! {get_court_assignment_status(match)}')
+    else:
+        match.status = 'pending_verification'
+        match.waiting_for_court = True
+        match.save()
+        notify_match_state_changed(match.id, match.status)
+        messages.warning(
+            request,
+            'Opponent confirmed via QR. No court available yet — '
+            'the match will start automatically when a court becomes free.'
+        )
+    return redirect('match_detail', match_id=match_id)

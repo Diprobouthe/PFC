@@ -212,6 +212,20 @@
   .mr-btn-register.disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
   .mr-btn-register.full     { background: #7f1d1d; color: #fca5a5; cursor: not-allowed; }
   .mr-btn-register.done     { background: #1e3a5f; color: #93c5fd; cursor: not-allowed; }
+  /* QR registration button — shown alongside the normal register button */
+  .mr-btn-qr {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    background: #1e3a5f;
+    border: none;
+    color: #60a5fa;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  .mr-btn-qr:hover { background: #1d4ed8; color: #fff; }
 </style>
 
 <div class="mr-shell">
@@ -316,7 +330,14 @@
 
 </div>{# end shell #}
 
-{# ── Sticky bottom bar ────────────────────────────────────────────── #}
+{# ── Hidden form for QR registration ─────────────────────────────────────── #}
+{% if not is_full %}
+<form id="qrRegisterForm" method="post" style="display:none;">
+  {% csrf_token %}
+</form>
+{% endif %}
+
+{# ── Sticky bottom bar ─────────────────────────────────────────────────── #}
 <div class="mr-bottom">
   <a href="{% url 'tournament_detail' tournament.id %}" class="mr-btn-back">&#8592;</a>
 
@@ -327,16 +348,43 @@
     <button class="mr-btn-register full" disabled>Tournament Full</button>
 
   {% elif session_player %}
+    {# Normal self-registration button #}
     <form method="post" style="flex:1;display:flex;">
       {% csrf_token %}
       <button type="submit" class="mr-btn-register active" style="width:100%;">
         &#43; Register for Mêlée
       </button>
     </form>
+    {# QR button — register another player by scanning their QR card #}
+    <button type="button" class="mr-btn-qr" id="mrQrBtn" title="Register another player via QR">&#x1F4F7;</button>
 
   {% else %}
+    {# Not logged in: can still register others via QR #}
     <button class="mr-btn-register disabled" disabled>Log in to Register</button>
+    <button type="button" class="mr-btn-qr" id="mrQrBtn" title="Register another player via QR">&#x1F4F7;</button>
   {% endif %}
 </div>
+
+{# ── QR scanner modal ───────────────────────────────────────────────────────────── #}
+{% if not is_full %}
+<script>
+  window.QR_RESOLVE_URL = "{% url 'tournament_melee_qr_resolve' tournament.id %}";
+</script>
+{% include 'partials/qr_scanner_modal.html' %}
+<script>
+  // Open scanner when QR button is tapped
+  document.getElementById('mrQrBtn').addEventListener('click', function() {
+    openQrScanner();
+  });
+
+  // After the user confirms the scanned player in the modal, submit the hidden form
+  document.addEventListener('qrPlayerResolved', function(e) {
+    var form = document.getElementById('qrRegisterForm');
+    if (form) {
+      form.submit();
+    }
+  });
+</script>
+{% endif %}
 
 {% endblock %}

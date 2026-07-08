@@ -345,19 +345,19 @@
     </form>
     {% else %}
     <!-- Normal path: the person holding the phone is the validator -->
+    <!-- QR identity: always visible so anyone holding the phone can scan a player card from this team -->
+    <div style="margin-bottom:14px;">
+        <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
+            <i class="fas fa-qrcode"></i> Validate via QR Card
+        </button>
+        <p style="font-size:0.78rem;color:#6b7280;margin:4px 0 0;text-align:center;">Scan a QR card from a player of <strong>{{ team.name }}</strong> to confirm their identity, then choose Agree or Disagree.</p>
+        <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
+    </div>
     <form method="post" id="vrForm">
         {% csrf_token %}
         <!-- PIN injected server-side; never shown to user -->
         <input type="hidden" name="pin" value="">
 
-        {% if not session_codename %}
-        <div style="margin-bottom:14px;">
-            <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
-                <i class="fas fa-qrcode"></i> Identify via QR Card
-            </button>
-            <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
-        </div>
-        {% endif %}
         <div class="vr-choice-grid">
             <!-- Agree -->
             <div class="vr-choice-btn agree" id="agreeBtn" onclick="selectChoice('agree')">

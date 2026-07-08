@@ -226,6 +226,23 @@
     gap: 4px;
     margin-top: 2px;
 }
+/* ── QR activation button (validating team only) ── */
+.ma-qr-btn {
+    width: 52px;
+    background: #e8f4fd;
+    color: #0d6efd;
+    border: 1.5px solid #b6d4fe;
+    border-radius: 12px;
+    padding: 14px 0;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.ma-qr-btn:hover { background: #cfe2ff; }
 </style>
 
 <div class="ma-shell">
@@ -333,8 +350,12 @@
     </a>
     <button type="submit" form="maForm" class="ma-confirm-btn" id="confirmBtn">
         <i class="fas fa-play me-2"></i>
-        {% if is_validating %}Validate & Activate{% else %}Activate Match{% endif %}
+        {% if is_validating %}Validate &amp; Activate{% else %}Activate Match{% endif %}
     </button>
+    {# QR button: shown to the initiating team so they can scan the opponent's card on their own phone #}
+    {% if is_initiating %}
+    <button type="button" class="ma-qr-btn" id="maQrBtn" title="Activate opponent via QR scan">&#x1F4F7;</button>
+    {% endif %}
 </div>
 
 <script>
@@ -379,7 +400,7 @@ function selectPos(pid, val, chipEl) {
     event.stopPropagation();
 }
 
-// Sync initial state on load (in case of form re-render after error)
+/// Sync initial state on load (in case of form re-render after error)
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.ma-player-card').forEach(function(card) {
         const pid = card.id.replace('card-', '');
@@ -393,4 +414,38 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+{# ── QR activation: initiating team scans opponent's card on their own phone ─────────── #}
+{% if is_initiating %}
+{# Reuses the existing /matches/api/qr-resolve/ endpoint — no new endpoint needed. #}
+<script>
+  window.QR_RESOLVE_URL = "{% url 'qr_resolve_match' %}";
+</script>
+{% include 'partials/qr_scanner_modal.html' %}
+<script>
+  // Open scanner when QR button is tapped
+  var maQrBtn = document.getElementById('maQrBtn');
+  if (maQrBtn) {
+    maQrBtn.addEventListener('click', function() {
+      openQrScanner();
+    });
+  }
+
+  // After the user confirms the scanned opponent player in the modal:
+  // The server has stored qr_resolved_codename in the session (opponent's codename).
+  // We select Team A's players normally and submit the form.
+  // The view verifies the scanned player belongs to the opposing team,
+  // then auto-creates both activations and activates the match.
+  document.addEventListener('qrPlayerResolved', function(e) {
+    var d = e.detail;
+    // Show a brief confirmation label before submitting
+    var label = document.createElement('div');
+    label.style.cssText = 'text-align:center;font-size:0.82rem;color:#0d6efd;margin:6px 0;';
+    label.textContent = '\u2713 Opponent identified: ' + d.player_name + ' \u2014 submitting…';
+    var bar = document.querySelector('.ma-sticky-bar');
+    if (bar) bar.insertAdjacentElement('beforebegin', label);
+    // Submit the form (Team A's player selection is already in the form)
+    document.getElementById('maForm').submit();
+  });
+</script>
+{% endif %}
 {% endblock %}

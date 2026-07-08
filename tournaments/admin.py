@@ -402,6 +402,20 @@ class StageAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_search_results(self, request, queryset, search_term):
+        """
+        Called by autocomplete_fields widgets that point at Stage.
+        - Always exclude stages from archived tournaments.
+        - When called from the Poule admin change form, restrict to poule-format stages.
+        """
+        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
+        if request.path.endswith('/autocomplete/'):
+            queryset = queryset.filter(tournament__is_archived=False)
+            referer = request.META.get('HTTP_REFERER', '')
+            if 'tournaments/poule/' in referer:
+                queryset = queryset.filter(format='poule')
+        return queryset, use_distinct
+
 @admin.register(Round)
 class RoundAdmin(admin.ModelAdmin):
     list_display = ("__str__", "tournament", "stage", "number", "number_in_stage", "match_count", "is_complete")

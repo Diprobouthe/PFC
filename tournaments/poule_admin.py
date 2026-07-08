@@ -8,6 +8,13 @@ Admin workflow:
   2. Create a Stage with format="poule"
   3. In Poule admin: create poules for that stage, assign courts and teams
   4. Use the "Generate Poule Matches" action to create all round-robin matches
+
+Admin UX improvements (admin-only, no public views changed):
+  - Archived tournaments are excluded from the stage selector and list filters.
+  - The stage selector is a searchable autocomplete widget.
+  - The stage queryset is restricted to poule-format stages from non-archived tournaments.
+  - PouleTeamInline team choices are scoped to teams registered in the poule's tournament.
+  - The changelist tournament filter only shows non-archived tournaments.
 """
 import logging
 from django.contrib import admin
@@ -15,8 +22,57 @@ from django.utils.html import format_html
 from django.contrib import messages
 
 from .poule_models import Poule, PouleTeam
+from pfc_core.admin_filters import ActiveTournamentMixin
 
 logger = logging.getLogger('tournaments')
+
+
+# ── Custom list filter: only non-archived tournaments ────────────────────────
+
+class ActiveTournamentListFilter(admin.SimpleListFilter):
+    """
+    Replaces the default tournament list filter in the Poule changelist.
+    Only shows tournaments that are not archived, keeping the filter panel clean.
+    """
+    title = 'Tournament'
+    parameter_name = 'tournament'
+
+    def lookups(self, request, model_admin):
+        from tournaments.models import Tournament
+        qs = Tournament.objects.filter(
+            is_archived=False,
+            stages__poules__isnull=False,
+        ).distinct().order_by('-start_date', 'name')
+        return [(t.pk, t.name) for t in qs]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(stage__tournament_id=self.value())
+        return queryset
+
+
+class ActiveStageListFilter(admin.SimpleListFilter):
+    """
+    Stage list filter scoped to non-archived tournaments.
+    """
+    title = 'Stage'
+    parameter_name = 'stage'
+
+    def lookups(self, request, model_admin):
+        from tournaments.models import Stage
+        qs = Stage.objects.filter(
+            tournament__is_archived=False,
+            format='poule',
+            poules__isnull=False,
+        ).select_related('tournament').distinct().order_by(
+            '-tournament__start_date', 'tournament__name', 'stage_number'
+        )
+        return [(s.pk, str(s)) for s in qs]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(stage_id=self.value())
+        return queryset
 
 
 # ── Inline: team assignments inside a Poule ──────────────────────────────────
@@ -30,11 +86,41 @@ class PouleTeamInline(admin.TabularInline):
     verbose_name = "Team in this Poule"
     verbose_name_plural = "Teams in this Poule"
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Scope the team dropdown to teams registered in the poule's tournament.
+        Falls back to all non-archived teams if the poule is new (no pk yet).
+        """
+        if db_field.name == 'team':
+            from teams.models import Team
+            from tournaments.models import TournamentTeam
+
+            # Try to resolve the parent poule from the URL
+            poule_id = request.resolver_match.kwargs.get('object_id')
+            if poule_id:
+                try:
+                    poule = Poule.objects.select_related('stage__tournament').get(pk=poule_id)
+                    tournament = poule.stage.tournament
+                    registered_team_ids = TournamentTeam.objects.filter(
+                        tournament=tournament,
+                    ).values_list('team_id', flat=True)
+                    kwargs['queryset'] = Team.objects.filter(
+                        pk__in=registered_team_ids,
+                        is_archived=False,
+                    ).order_by('name')
+                except Poule.DoesNotExist:
+                    kwargs['queryset'] = Team.objects.filter(is_archived=False).order_by('name')
+            else:
+                # New poule — show all non-archived teams
+                kwargs['queryset'] = Team.objects.filter(is_archived=False).order_by('name')
+
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 # ── Main Poule admin ─────────────────────────────────────────────────────────
 
 @admin.register(Poule)
-class PouleAdmin(admin.ModelAdmin):
+class PouleAdmin(ActiveTournamentMixin, admin.ModelAdmin):
     list_display = (
         'name',
         'stage_link',
@@ -44,17 +130,23 @@ class PouleAdmin(admin.ModelAdmin):
         'match_count',
         'generate_button',
     )
-    list_filter = ('stage__tournament', 'stage')
+    # Use custom filters that exclude archived tournaments
+    list_filter = (ActiveTournamentListFilter, ActiveStageListFilter)
     search_fields = ('name', 'stage__tournament__name', 'stage__name')
     ordering = ('stage__tournament', 'stage__stage_number', 'name')
     filter_horizontal = ('courts',)
     inlines = [PouleTeamInline]
 
+    # Use autocomplete for stage — makes it a searchable widget
+    autocomplete_fields = ['stage']
+
     fieldsets = (
         (None, {
             'fields': ('stage', 'name'),
             'description': (
-                '<strong>Step 1:</strong> Select the Stage (must have format = "Poules/Groups"). '
+                '<strong>Step 1:</strong> Search and select the Stage '
+                '(must have format = "Poules/Groups"). '
+                'Only active (non-archived) tournaments are shown. '
                 'Give the poule a name, e.g. "Group A".'
             ),
         }),
@@ -66,6 +158,22 @@ class PouleAdmin(admin.ModelAdmin):
             ),
         }),
     )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Restrict the stage FK to poule-format stages from non-archived tournaments.
+        This applies to the standard <select> fallback; autocomplete_fields uses
+        StageAdmin.get_search_results instead.
+        """
+        if db_field.name == 'stage':
+            from tournaments.models import Stage
+            kwargs['queryset'] = Stage.objects.filter(
+                format='poule',
+                tournament__is_archived=False,
+            ).select_related('tournament').order_by(
+                '-tournament__start_date', 'tournament__name', 'stage_number'
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     # ── Custom column helpers ────────────────────────────────────────────────
 

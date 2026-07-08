@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
+from django.http import JsonResponse
+import json
 from .models import Tournament, TournamentTeam, Round, Bracket
 from .forms import TournamentForm, TeamAssignmentForm
 from matches.models import Match
@@ -597,8 +599,45 @@ def tournament_register_melee(request, tournament_id):
         except PlayerCodename.DoesNotExist:
             session_player = None
 
-    # ── Handle POST (one-tap registration) ─────────────────────────────────────
+    # ── Handle POST (one-tap registration or QR registration) ───────────────────
     if request.method == 'POST':
+        # ── QR branch: register a player whose QR card was just scanned ──────────
+        _qr_player_id = request.session.pop('qr_resolved_melee_player_id', None)
+        if _qr_player_id:
+            from teams.models import Player as _Player
+            try:
+                _qr_player = _Player.objects.get(id=_qr_player_id)
+            except _Player.DoesNotExist:
+                messages.error(request, "QR-scanned player could not be found.")
+                return redirect('tournament_register_melee', tournament_id=tournament.id)
+
+            # Duplicate check (also enforced at resolve time, but re-check on POST)
+            if MeleePlayer.objects.filter(tournament=tournament, player=_qr_player).exists():
+                messages.info(request, f"{_qr_player.name} is already registered for this tournament.")
+                return redirect('tournament_register_melee', tournament_id=tournament.id)
+
+            # Capacity check
+            if tournament.max_participants:
+                _current_count = MeleePlayer.objects.filter(tournament=tournament).count()
+                if _current_count >= tournament.max_participants:
+                    messages.error(
+                        request,
+                        f"Tournament is full ({tournament.max_participants} players maximum)."
+                    )
+                    return redirect('tournament_register_melee', tournament_id=tournament.id)
+
+            MeleePlayer.objects.create(
+                tournament=tournament,
+                player=_qr_player,
+                original_team=_qr_player.team,
+            )
+            messages.success(
+                request,
+                f"{_qr_player.name} has been registered for {tournament.name} via QR scan."
+            )
+            return redirect('tournament_register_melee', tournament_id=tournament.id)
+
+        # ── Normal branch: register the session player ───────────────────────────
         if not session_player:
             messages.error(request, "Please log in with your PFC identity before registering.")
             return redirect('tournament_register_melee', tournament_id=tournament.id)
@@ -827,3 +866,71 @@ def tournament_check_completion(request, tournament_id):
 
 # Import mêlée leaderboard view
 from .melee_leaderboard_view import melee_player_leaderboard as melee_leaderboard
+
+
+def tournament_melee_qr_resolve(request, tournament_id):
+    """
+    POST /tournaments/<id>/register/melee/qr-resolve/
+
+    Body (JSON): { "token": "PFC-QR:<OPAQUE_ID>:<HMAC>" }
+
+    Verifies the HMAC token, looks up the player server-side, stores the
+    player_id in session['qr_resolved_melee_player_id'] (never the codename),
+    and returns safe identity fields for the confirmation modal.
+
+    The session key is consumed (pop-ped) by tournament_register_melee on POST.
+    Scope: melee registration only.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Method not allowed'}, status=405)
+
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+
+    # Guard: must still be accepting registrations
+    if not tournament.is_melee or not tournament.is_active or tournament.melee_teams_generated:
+        return JsonResponse({'ok': False, 'error': 'Registration is closed for this tournament.'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
+
+    token = data.get('token', '').strip()
+    if not token:
+        return JsonResponse({'ok': False, 'error': 'No token provided'}, status=400)
+
+    from pfc_core.qr_utils import verify_player_token
+    player_id = verify_player_token(token)
+    if not player_id:
+        return JsonResponse({'ok': False, 'error': 'Invalid or tampered QR code'}, status=400)
+
+    from friendly_games.models import PlayerCodename
+    try:
+        pc = PlayerCodename.objects.select_related('player__team').get(player_id=player_id)
+    except PlayerCodename.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Player not found'}, status=404)
+
+    # Check if already registered — return a clear error so the modal can show it
+    from .models import MeleePlayer
+    if MeleePlayer.objects.filter(tournament=tournament, player=pc.player).exists():
+        return JsonResponse({'ok': False, 'error': f'{pc.player.name} is already registered for this tournament.'}, status=409)
+
+    # Store player_id server-side only — codename is never sent to the browser
+    request.session['qr_resolved_melee_player_id'] = pc.player.id
+    request.session.modified = True
+
+    avatar_url = ''
+    try:
+        profile = pc.player.profile
+        if profile.profile_picture:
+            avatar_url = profile.profile_picture.url
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'ok': True,
+        'player_name': pc.player.name,
+        'player_id': pc.player.id,
+        'team_name': pc.player.team.name if pc.player.team else '',
+        'profile_picture_url': avatar_url,
+    })

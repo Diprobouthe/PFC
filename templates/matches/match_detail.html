@@ -642,8 +642,12 @@
             <i class="fas fa-check-circle"></i> Validate as {{ my_team.name }}
         </a>
         {% elif my_team and my_team in activated_teams %}
+        {# Already activated — show waiting state + QR option to confirm opponent #}
         <button class="md-primary-btn md-btn-waiting" disabled>
             <i class="fas fa-hourglass-half"></i> Waiting for opponent
+        </button>
+        <button id="mdQrConfirmOpponentBtn" class="md-primary-btn" style="background:#0d6efd;color:#fff;margin-top:8px;">
+            <i class="fas fa-qrcode"></i> Activate opponent via QR
         </button>
         {% else %}
         {# No session — prompt team login; do not expose both-team buttons #}
@@ -670,9 +674,16 @@
             <i class="fas fa-check-double"></i> Validate Score
         </a>
         {% elif my_team and result and result.submitted_by == my_team %}
+        {# Submitter: offer QR validation so they can scan the opponent's card on the same phone #}
+        {% if opponent_team %}
+        <a href="{% url 'match_validate_result' match.id opponent_team.id %}" class="md-primary-btn md-btn-validate2">
+            <i class="fas fa-qrcode"></i> Validate via Opponent QR
+        </a>
+        {% else %}
         <button class="md-primary-btn md-btn-waiting" disabled>
             <i class="fas fa-hourglass-half"></i> Waiting for validation
         </button>
+        {% endif %}
         {% else %}
         {# No session — prompt team login; do not expose both-team buttons #}
         <button class="md-primary-btn md-btn-waiting" disabled>
@@ -854,4 +865,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 </script>
+
+{# QR confirm-opponent modal (only rendered when the already-activated team is waiting) #}
+{% if match.status == 'pending_verification' and my_team and my_team_activated %}
+{% with qr_resolve_url=qr_resolve_url|default:'' %}
+{% include 'partials/qr_scanner_modal.html' %}
+{% endwith %}
+<form id="mdQrConfirmOpponentForm" method="post" action="{% url 'match_qr_confirm_opponent' match.id %}" style="display:none;">
+    {% csrf_token %}
+</form>
+<script>
+(function() {
+    var btn = document.getElementById('mdQrConfirmOpponentBtn');
+    if (!btn) return;
+    // Set the QR resolve URL for the scanner modal
+    window.QR_RESOLVE_URL = '{% url "qr_resolve_match" %}';
+    btn.addEventListener('click', function() {
+        if (typeof openQrScanner === 'function') {
+            openQrScanner();
+        } else {
+            var modal = document.getElementById('qrScannerModal');
+            if (modal) modal.style.display = 'flex';
+        }
+    });
+    // When the scanner resolves a player, show confirmation then submit
+    document.addEventListener('qrPlayerResolved', function(e) {
+        var d = e.detail || {};
+        var label = document.createElement('p');
+        label.style.cssText = 'color:#198754;font-size:0.85rem;margin-top:4px;text-align:center;';
+        label.textContent = 'Opponent identified: ' + (d.player_name || '') + ' — confirming…';
+        btn.insertAdjacentElement('afterend', label);
+        btn.disabled = true;
+        document.getElementById('mdQrConfirmOpponentForm').submit();
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}
