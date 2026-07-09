@@ -200,22 +200,27 @@ def _create_post_game_grace_entries(active_entries, game_ref):
             continue
         seen.add(key)
 
-        # Skip if an active post_game entry already exists at this court.
+        # Skip if an active post_game entry for THIS SAME game already exists.
+        # We intentionally do NOT refresh entries from other games — each game
+        # gets its own 30-min grace window, and refreshing an old entry from a
+        # different game would extend stale presence incorrectly.
         already_has_grace = BillboardEntry.objects.filter(
             codename=entry.codename,
             action_type='AT_COURTS',
             court_complex=entry.court_complex,
             presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+            game_ref=game_ref,
             is_active=True,
         ).exists()
 
         if already_has_grace:
-            # Refresh the expiry instead of creating a duplicate.
+            # Refresh the expiry only for the entry from THIS game.
             BillboardEntry.objects.filter(
                 codename=entry.codename,
                 action_type='AT_COURTS',
                 court_complex=entry.court_complex,
                 presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                game_ref=game_ref,
                 is_active=True,
             ).update(expires_at=grace_expiry)
             logger.debug(

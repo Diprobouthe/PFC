@@ -162,19 +162,28 @@ class BillboardListView(ListView):
         def _is_currently_present(entry):
             if entry.action_type != 'AT_COURTS':
                 return False
+            now = timezone.now()
+            # Reject any entry whose expires_at has passed, regardless of source.
+            if entry.expires_at is not None and now >= entry.expires_at:
+                return False
             src = entry.presence_source
             if src in (BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
                        BillboardEntry.PRESENCE_SOURCE_MATCH):
-                # Active game: is_active=True is sufficient (lifecycle-managed)
+                # Game entries are lifecycle-managed: is_active is set to False
+                # when the specific match/game ends, regardless of tournament state.
+                # The only authority is is_active — no date guard is applied here
+                # because a tournament can span multiple days and a match started
+                # on a previous day that was never properly closed must still be
+                # hidden by the lifecycle (is_active=False), not by a calendar check.
+                # The same-day guard was masking lifecycle failures instead of fixing
+                # them, and it incorrectly hid valid entries from multi-day tournaments.
                 return True
             if src == BillboardEntry.PRESENCE_SOURCE_POST_GAME:
-                # 30-min grace window after game end — check expires_at
-                if entry.expires_at is None:
-                    return True
-                return timezone.now() < entry.expires_at
-            # Manual / legacy: apply the 2-hour window
+                # 30-min grace window — expires_at already checked above.
+                return True
+            # Manual / legacy (source=manual or None): apply the 2-hour window.
             court = entry.court_complex
-            cutoff = (get_court_local_now(court) if court else timezone.now()) - timedelta(hours=2)
+            cutoff = (get_court_local_now(court) if court else now) - timedelta(hours=2)
             return entry.created_at >= cutoff
 
         # Deduplicate: show only the most recent active entry per codename

@@ -19,26 +19,40 @@ logger = logging.getLogger(__name__)
 def _source_aware_occupancy(court_complex):
     """
     Return the count of distinct players currently at *court_complex* using the
-    same source-aware definition as BillboardListView and court_analytics_api:
+    unified current-presence rule (consistent with BillboardListView):
 
-    - Game entries (friendly_game / tournament_match): is_active=True is sufficient
-      (cleared by lifecycle management when the game ends).
-    - Manual / legacy entries: is_active=True AND within the 2-hour rolling window.
+    - expires_at: any entry with expires_at < now is excluded regardless of source.
+    - friendly_game / tournament_match: is_active=True AND created on court-local today
+      (same-day guard as fallback against lifecycle failures).
+    - post_game: is_active=True AND expires_at >= now (already covered above).
+    - manual / None: is_active=True AND within the 2-hour rolling window.
     - Distinct codenames so one player with multiple active entries counts as 1.
     """
     from billboard.models import BillboardEntry
-    two_hours_ago = get_court_local_now(court_complex) - timedelta(hours=2)
+    now = get_court_local_now(court_complex)
+    two_hours_ago = now - timedelta(hours=2)
+    today = now.date()
     return (
         BillboardEntry.objects.filter(
             court_complex=court_complex,
             action_type='AT_COURTS',
             is_active=True,
         )
+        # Exclude entries whose soft expiry has passed.
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
         .filter(
-            Q(presence_source__in=[
-                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
-                BillboardEntry.PRESENCE_SOURCE_MATCH,
-            ]) |
+            # Game entries: lifecycle-managed via is_active (already filtered above).
+            # No date guard — a tournament can span multiple days; presence is tied
+            # to the specific match/game being active, not to calendar date.
+            Q(
+                presence_source__in=[
+                    BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                    BillboardEntry.PRESENCE_SOURCE_MATCH,
+                ],
+            ) |
+            # Post-game grace: expires_at already checked above
+            Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME) |
+            # Manual / legacy: 2-hour rolling window
             Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
               created_at__gte=two_hours_ago) |
             Q(presence_source__isnull=True,

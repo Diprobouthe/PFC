@@ -35,6 +35,13 @@ class Command(BaseCommand):
                 match.waiting_for_court = False
                 match.save()
                 
+                # Auto-register players to Billboard when match starts
+                try:
+                    from matches.views import auto_register_players_to_billboard
+                    auto_register_players_to_billboard(match)
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f"Failed to auto-register players for match {match.id}: {e}"))
+                
                 assigned_count += 1
                 self.stdout.write(
                     self.style.SUCCESS(

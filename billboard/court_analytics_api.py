@@ -11,13 +11,18 @@ Endpoints:
 Presence counting rules
 -----------------------
 Game-generated entries (presence_source = 'friendly_game' or 'tournament_match'):
-  Lifecycle-managed: is_active is cleared when the game ends/cancels/expires.
-  A player is "currently present" as long as is_active=True, regardless of age.
+  Lifecycle-managed: is_active is cleared when the specific match/game ends.
+  A player is "currently present" as long as is_active=True, regardless of age
+  or tournament state.  Active tournament ≠ active physical presence.
+
+Post-game grace entries (presence_source = 'post_game'):
+  Created when a match/game ends; visible for 30 minutes (expires_at).
+  Allows players to be found for a rematch or new game after the match ends.
 
 Manual check-ins (presence_source = 'manual', or legacy entries with no source):
   Time-window managed: counted as present only within a 2-hour rolling window.
 
-In both cases, distinct codenames are counted so one player with multiple
+In all cases, distinct codenames are counted so one player with multiple
 active entries (e.g. a manual check-in AND a game entry) counts as 1 person.
 """
 from collections import defaultdict
@@ -53,29 +58,35 @@ def _current_occupancy(qs, two_hours_ago):
     """
     Count distinct players currently at court from *qs* (already filtered to AT_COURTS).
 
-    - Game entries (friendly_game / tournament_match): is_active=True is sufficient
-      (cleared on game end regardless of age).
+    Presence rules (consistent with BillboardListView and analytics_utils):
+    - Game entries (friendly_game / tournament_match): is_active=True is sufficient.
+      Cleared by the lifecycle when the specific match/game ends, regardless of
+      tournament state or calendar date.
+    - Post-game grace (post_game): is_active=True AND expires_at >= now.
     - Manual / legacy entries: is_active=True AND within the 2-hour window.
     - Returns a distinct codename count so one player with multiple entries = 1 person.
     """
+    now = timezone.now()
     return (
         qs.filter(
             action_type="AT_COURTS",
             is_active=True,
         )
+        # Exclude soft-expired entries (post_game grace that has elapsed).
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
         .filter(
+            # Game entries: lifecycle-managed, no date guard.
             Q(presence_source__in=[
                 BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
                 BillboardEntry.PRESENCE_SOURCE_MATCH,
             ]) |
+            # Post-game grace: expires_at already checked above.
+            Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME) |
             Q(
                 presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
                 created_at__gte=two_hours_ago,
             ) |
-            # Legacy entries created before the presence_source field existed
-            # have presence_source='manual' (the default), so the manual branch
-            # above already covers them.  This branch is a safety net for any
-            # NULL values that might exist in older rows.
+            # Legacy entries with NULL presence_source — safety net.
             Q(
                 presence_source__isnull=True,
                 created_at__gte=two_hours_ago,

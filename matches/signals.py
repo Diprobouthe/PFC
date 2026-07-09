@@ -94,6 +94,13 @@ def auto_assign_waiting_matches_when_court_available(sender, instance, created, 
                         match.waiting_for_court = False
                         match.save()
                         
+                        # Auto-register players to Billboard when match starts
+                        try:
+                            from .views import auto_register_players_to_billboard
+                            auto_register_players_to_billboard(match)
+                        except Exception as e:
+                            logger.error(f"Failed to auto-register players for match {match.id} upon court assignment: {e}")
+                        
                         logger.info(f"Auto-assigned court {assigned_court.name} to waiting match {match.id} and activated it")
                         
                         # Only assign one match per court availability event

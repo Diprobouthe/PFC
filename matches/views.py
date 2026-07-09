@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 from django.urls import reverse
+from datetime import timedelta
 import logging
 
 from .models import Match, MatchActivation, MatchPlayer, MatchResult, NextOpponentRequest
@@ -49,17 +50,19 @@ def auto_register_players_to_billboard(match):
                 player_codename = PlayerCodename.objects.get(player=player)
                 codename = player_codename.codename
                 
-                # Idempotent: skip if this match already has an active entry for this player
-                already_registered = BillboardEntry.objects.filter(
+                # Check if an active entry already exists for this player + match.
+                existing = BillboardEntry.objects.filter(
                     codename=codename,
                     action_type='AT_COURTS',
                     court_complex=court_complex,
                     game_ref=game_ref,
                     is_active=True,
-                ).exists()
+                ).first()
                 
-                if not already_registered:
-                    # Create Billboard entry tagged with source and game_ref
+                if not existing:
+                    # Create a fresh Billboard entry tagged with source and game_ref.
+                    # Use update_fields=[] after create to force created_at to now
+                    # (auto_now_add always uses now() at INSERT time, so this is correct).
                     BillboardEntry.objects.create(
                         codename=codename,
                         action_type='AT_COURTS',
@@ -71,7 +74,21 @@ def auto_register_players_to_billboard(match):
                     )
                     logger.info(f"Auto-registered player {player.name} (codename: {codename}) to Billboard at {court_complex.name}")
                 else:
-                    logger.debug(f"Player {player.name} already registered for match {match.id} — skipped")
+                    # Entry already exists for this match — this is a re-activation
+                    # (e.g. 'disagree' reverted match to active). Deactivate the old
+                    # entry and create a fresh one so created_at reflects now.
+                    existing.is_active = False
+                    existing.save(update_fields=['is_active'])
+                    BillboardEntry.objects.create(
+                        codename=codename,
+                        action_type='AT_COURTS',
+                        court_complex=court_complex,
+                        message=f"Auto-registered via match re-activation",
+                        is_active=True,
+                        presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
+                        game_ref=game_ref,
+                    )
+                    logger.debug(f"Player {player.name} re-registered for match {match.id} with fresh timestamp")
                     
             except PlayerCodename.DoesNotExist:
                 logger.warning(f"Player {player.name} (ID: {player.id}) has no codename for Billboard registration")
@@ -84,44 +101,101 @@ def _deactivate_match_presence(match):
     """
     Deactivate all AT_COURTS BillboardEntry records that were auto-created
     for *match* when it was activated, then create 30-minute post-game grace
-    entries so players remain visible at the Court Complex after the match ends.
+    entries for ALL players in the match roster.
+
+    Source of truth for post-game entries: MatchPlayer records for this match
+    (both teams), NOT the existing BillboardEntry rows.  This ensures all 4
+    players in a doubles match get a grace entry even if only 2 were the
+    result-confirmation actors (submitter + QR validator).
 
     Only touches entries tagged with game_ref='match:<match.id>'.
     Manual check-ins and other games' entries are never affected.
     Historical records are preserved (is_active=False, not deleted).
     Safe to call multiple times — idempotent.  Never raises.
     """
-    from friendly_games.presence_utils import _create_post_game_grace_entries
     try:
         game_ref = f"match:{match.id}"
 
-        # Collect active entries before deactivating so we can create grace entries.
-        active_entries = list(
-            BillboardEntry.objects.filter(
-                action_type='AT_COURTS',
-                game_ref=game_ref,
-                is_active=True,
-            ).select_related('court_complex')
-        )
-
+        # 1. Deactivate all active game-generated entries for this match.
         count = BillboardEntry.objects.filter(
             action_type='AT_COURTS',
             game_ref=game_ref,
             is_active=True,
         ).update(is_active=False)
-
         if count:
             logger.info(
                 f"Match {match.id}: deactivated {count} presence "
                 f"entry/entries at match completion."
             )
 
-        # Create 30-min post-game grace entries for each player.
-        _create_post_game_grace_entries(active_entries, game_ref)
+        # 2. Resolve the court complex for this match.
+        if not match.court:
+            logger.warning(
+                f"Match {match.id}: no court assigned — cannot create post-game grace entries"
+            )
+            return
+        court_complex = match.court.courtcomplex_set.first()
+        if not court_complex:
+            logger.warning(
+                f"Match {match.id}: court {match.court} has no court complex — "
+                "cannot create post-game grace entries"
+            )
+            return
+
+        # 3. Build post-game grace entries from the full MatchPlayer roster.
+        #    This is the authoritative list of players who physically played.
+        #    It is independent of who submitted the result or validated via QR.
+        grace_expiry = timezone.now() + timedelta(minutes=30)
+        match_players = MatchPlayer.objects.filter(match=match).select_related('player')
+
+        for mp in match_players:
+            player = mp.player
+            try:
+                player_codename_obj = PlayerCodename.objects.get(player=player)
+                codename = player_codename_obj.codename
+            except PlayerCodename.DoesNotExist:
+                logger.warning(
+                    f"Match {match.id}: player {player.name} has no codename — "
+                    "skipping post-game grace entry"
+                )
+                continue
+
+            # Idempotent: if a grace entry for this player+game already exists,
+            # refresh its expiry rather than creating a duplicate.
+            existing_grace = BillboardEntry.objects.filter(
+                codename=codename,
+                action_type='AT_COURTS',
+                court_complex=court_complex,
+                presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                game_ref=game_ref,
+                is_active=True,
+            ).first()
+
+            if existing_grace:
+                existing_grace.expires_at = grace_expiry
+                existing_grace.save(update_fields=['expires_at'])
+                logger.debug(
+                    f"Match {match.id}: refreshed post-game grace expiry for "
+                    f"{player.name} ({codename})"
+                )
+            else:
+                BillboardEntry.objects.create(
+                    codename=codename,
+                    action_type='AT_COURTS',
+                    court_complex=court_complex,
+                    message='Post-game availability (30 min)',
+                    is_active=True,
+                    presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                    game_ref=game_ref,
+                    expires_at=grace_expiry,
+                )
+                logger.info(
+                    f"Match {match.id}: created post-game grace entry for "
+                    f"{player.name} ({codename}) at {court_complex.name}"
+                )
 
     except Exception as exc:
         logger.error(f"Error deactivating presence for match {match.id}: {exc}")
-
 
 def match_list(request, tournament_id=None):
     # Tournament matches (existing functionality)
@@ -801,6 +875,14 @@ def match_submit_result(request, match_id, team_id):
             match.save()
             notify_match_state_changed(match.id, match.status)
 
+            # Deactivate game-generated presence when result is submitted.
+            # The match is no longer actively being played — players are in
+            # the validation phase.  Post-game grace entries are created so
+            # players remain visible at the court for the 30-min window.
+            # If the opponent disagrees, auto_register_players_to_billboard()
+            # will create fresh entries when the match reverts to active.
+            _deactivate_match_presence(match)
+
             # Submitting team returns to match_detail (waiting state)
             # The opposing team navigates to validation themselves
             return redirect("match_detail", match_id=match.id)
@@ -962,7 +1044,11 @@ def match_validate_result(request, match_id, team_id):
                     match.loser = None
                 match.save()
                 notify_match_state_changed(match.id, match.status)  # completed
-                # Deactivate game-generated presence entries for this match
+                # Deactivate game-generated presence entries for this match.
+                # Presence was already deactivated at result-submit time (waiting_validation),
+                # so this call is typically a safe idempotent no-op.  It is kept here as
+                # a safety net in case the match was activated via a path that bypassed
+                # the submit step (e.g. admin override).
                 _deactivate_match_presence(match)
                 
                 # ===== AUTO-SHUFFLE CHECK =====
@@ -1077,6 +1163,12 @@ def match_validate_result(request, match_id, team_id):
                         _next_complex = match.court.courtcomplex_set.first()
                         next_match_to_assign.start_time = get_court_local_now(_next_complex) if _next_complex else timezone.now()
                         next_match_to_assign.save()
+                        
+                        # Auto-register players to Billboard when match starts
+                        try:
+                            auto_register_players_to_billboard(next_match_to_assign)
+                        except Exception as e:
+                            logger.error(f"Failed to auto-register players for match {next_match_to_assign.id} upon promotion: {e}")
                     else:
                         # No matches waiting, mark court as available
                         match.court.is_available = True
@@ -1092,6 +1184,14 @@ def match_validate_result(request, match_id, team_id):
                 match.team2_score = None
                 match.save()
                 notify_match_state_changed(match.id, match.status)
+                # Re-register presence: the match is active again so players are
+                # back on court.  auto_register_players_to_billboard() deactivates
+                # any stale entry for this game_ref and creates a fresh one with
+                # created_at=now, so the displayed timestamp is current.
+                try:
+                    auto_register_players_to_billboard(match)
+                except Exception as e:
+                    logger.error(f"Failed to re-register presence on disagree for match {match.id}: {e}")
                 # Redirect silently — match_detail UI communicates active state
                 return redirect("match_detail", match_id=match.id)
     else:
