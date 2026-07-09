@@ -296,7 +296,7 @@
         <a href="{% url 'billboard:list' %}" class="ic-card ic-courts">
             <div class="ic-icon"><i class="fas fa-map-marker-alt"></i></div>
             <div class="ic-body">
-                <div class="ic-label">Courts</div>
+                <div class="ic-label">{% if at_courts_court_name %}{{ at_courts_court_name }}{% else %}All Courts{% endif %}</div>
                 {% if currently_at_courts > 0 %}
                     <div class="ic-value">{{ currently_at_courts }} player{{ currently_at_courts|pluralize }}</div>
                     <div class="ic-sub">at courts now</div>

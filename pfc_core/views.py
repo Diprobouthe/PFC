@@ -3,43 +3,76 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from teams.utils import get_team_info_from_session
-from billboard.models import BillboardEntry
+from billboard.analytics_utils import get_current_occupancy
+from billboard.presence_prefs import UserPresencePrefs
+from courts.models import CourtComplex
+from friendly_games.court_utils import SESSION_PREF_COMPLEX_KEY
 from django.utils import timezone
-from django.db.models import Q
-from datetime import timedelta
 import requests
+
+
+def _resolve_home_court_complex(request):
+    """
+    Resolve which CourtComplex to show on the home page for the current user.
+
+    Priority chain (highest → lowest):
+      1. Player's last-used court complex from UserPresencePrefs (billboard history).
+      2. Session-stored preferred_court_complex_id (set when user picks a court
+         for a friendly game or billboard entry).
+      3. None → caller falls back to all-courts aggregate.
+
+    Returns (CourtComplex | None, source_label: str)
+    """
+    # 1. Billboard prefs (most reliable — updated every time a BillboardEntry is saved)
+    codename = request.session.get('player_codename')
+    if codename:
+        prefs = UserPresencePrefs.get_for_codename(codename)
+        if prefs and prefs.last_court_complex_id:
+            return prefs.last_court_complex, 'prefs'
+
+    # 2. Session preference (set by friendly game / court selection)
+    pref_complex_id = request.session.get(SESSION_PREF_COMPLEX_KEY)
+    if pref_complex_id:
+        try:
+            cc = CourtComplex.objects.get(pk=pref_complex_id)
+            return cc, 'session'
+        except CourtComplex.DoesNotExist:
+            pass
+
+    return None, 'none'
+
 
 def home(request):
     """View for the home page"""
     # Get team info if player is logged in
     team_info = get_team_info_from_session(request)
-    
-    # Count distinct players currently at courts using the same source-aware
-    # definition as BillboardListView and court_analytics_api._current_occupancy():
-    #   - Game entries (friendly_game / tournament_match): is_active=True is sufficient
-    #   - Manual / legacy entries: is_active=True AND within the 2-hour rolling window
-    # Distinct codenames are counted so one player with multiple active entries = 1.
-    now = timezone.now()
-    two_hours_ago = now - timedelta(hours=2)
-    currently_at_courts = (
-        BillboardEntry.objects.filter(
-            action_type='AT_COURTS',
-            is_active=True,
+
+    # ── At-Courts count ──────────────────────────────────────────────────────
+    # Use the canonical get_current_occupancy() from analytics_utils so the
+    # home page count is always consistent with the Billboard and Analytics
+    # views.  The source of truth is BillboardEntry lifecycle (is_active),
+    # not a date guard.
+    #
+    # Court complex resolution:
+    #   - If the user has a known court context (billboard prefs or session),
+    #     show the count for that specific complex.
+    #   - Otherwise, show the total across all complexes.
+    home_court_complex, court_source = _resolve_home_court_complex(request)
+
+    if home_court_complex is not None:
+        # Per-complex count via the canonical helper.
+        currently_at_courts = get_current_occupancy(home_court_complex)
+        at_courts_court_name = home_court_complex.name
+    else:
+        # No court context — aggregate across all complexes.
+        # Sum per-complex counts (distinct within each complex; a player at
+        # multiple complexes simultaneously is counted once per complex, which
+        # is the correct physical interpretation).
+        all_complexes = CourtComplex.objects.all()
+        currently_at_courts = sum(
+            get_current_occupancy(cc) for cc in all_complexes
         )
-        .filter(
-            Q(presence_source__in=[
-                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
-                BillboardEntry.PRESENCE_SOURCE_MATCH,
-            ]) |
-            Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
-              created_at__gte=two_hours_ago) |
-            Q(presence_source__isnull=True,
-              created_at__gte=two_hours_ago)
-        )
-        .values('codename')
-        .distinct()
-        .count()
-    )
+        at_courts_court_name = None  # template shows generic label
     
     # Get weather for Pedion Areos, Athens
     weather_data = None
@@ -94,7 +127,8 @@ def home(request):
     context = {
         'team_info': team_info,
         'currently_at_courts': currently_at_courts,
-        'weather_data': weather_data
+        'at_courts_court_name': at_courts_court_name,
+        'weather_data': weather_data,
     }
     
     return render(request, 'home.html', context)
