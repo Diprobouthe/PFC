@@ -5,6 +5,7 @@ from django.views.decorators.http import require_http_methods
 from teams.utils import get_team_info_from_session
 from billboard.models import BillboardEntry
 from django.utils import timezone
+from django.db.models import Q
 from datetime import timedelta
 import requests
 
@@ -13,19 +14,32 @@ def home(request):
     # Get team info if player is logged in
     team_info = get_team_info_from_session(request)
     
-    # Get court occupancy from billboard
+    # Count distinct players currently at courts using the same source-aware
+    # definition as BillboardListView and court_analytics_api._current_occupancy():
+    #   - Game entries (friendly_game / tournament_match): is_active=True is sufficient
+    #   - Manual / legacy entries: is_active=True AND within the 2-hour rolling window
+    # Distinct codenames are counted so one player with multiple active entries = 1.
     now = timezone.now()
-    four_hours_ago = now - timedelta(hours=4)
-    
-    # Count people currently at courts (last 4 hours)
-    # Include both original posters and responders (same logic as billboard)
-    at_courts_entries = BillboardEntry.objects.filter(
-        action_type='AT_COURTS',
-        created_at__gte=four_hours_ago,
-        is_active=True
-    ).prefetch_related('responses')
-    
-    currently_at_courts = sum(1 + entry.responses.count() for entry in at_courts_entries)
+    two_hours_ago = now - timedelta(hours=2)
+    currently_at_courts = (
+        BillboardEntry.objects.filter(
+            action_type='AT_COURTS',
+            is_active=True,
+        )
+        .filter(
+            Q(presence_source__in=[
+                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                BillboardEntry.PRESENCE_SOURCE_MATCH,
+            ]) |
+            Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+              created_at__gte=two_hours_ago) |
+            Q(presence_source__isnull=True,
+              created_at__gte=two_hours_ago)
+        )
+        .values('codename')
+        .distinct()
+        .count()
+    )
     
     # Get weather for Pedion Areos, Athens
     weather_data = None

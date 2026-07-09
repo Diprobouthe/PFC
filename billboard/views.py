@@ -189,7 +189,19 @@ class BillboardListView(ListView):
                 seen_codenames.add(e.codename)
                 at_courts_deduped.append(e)
         context['at_courts'] = at_courts_deduped
-        context['going_to_courts'] = [e for e in entries if e.action_type == 'GOING_TO_COURTS']
+        # Only show GOING_TO_COURTS entries for today or future dates.
+        # Use the court-local date for each entry so Athens courts are not affected
+        # by server UTC offset.  Entries with no court or no scheduled_date fall back
+        # to today (UTC) so they are always shown rather than silently dropped.
+        def _is_current_going(entry):
+            if entry.action_type != 'GOING_TO_COURTS':
+                return False
+            if not entry.scheduled_date:
+                return True  # no date set — treat as today
+            court = entry.court_complex
+            today = (get_court_local_now(court) if court else timezone.localtime()).date()
+            return entry.scheduled_date >= today
+        context['going_to_courts'] = [e for e in entries if _is_current_going(e)]
         context['looking_for_match'] = [e for e in entries if e.action_type == 'LOOKING_FOR_MATCH']
         
         # Calculate total people counts (original posters + responders)

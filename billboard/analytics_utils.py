@@ -16,6 +16,40 @@ from billboard.analytics_models import (
 logger = logging.getLogger(__name__)
 
 
+def _source_aware_occupancy(court_complex):
+    """
+    Return the count of distinct players currently at *court_complex* using the
+    same source-aware definition as BillboardListView and court_analytics_api:
+
+    - Game entries (friendly_game / tournament_match): is_active=True is sufficient
+      (cleared by lifecycle management when the game ends).
+    - Manual / legacy entries: is_active=True AND within the 2-hour rolling window.
+    - Distinct codenames so one player with multiple active entries counts as 1.
+    """
+    from billboard.models import BillboardEntry
+    two_hours_ago = get_court_local_now(court_complex) - timedelta(hours=2)
+    return (
+        BillboardEntry.objects.filter(
+            court_complex=court_complex,
+            action_type='AT_COURTS',
+            is_active=True,
+        )
+        .filter(
+            Q(presence_source__in=[
+                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                BillboardEntry.PRESENCE_SOURCE_MATCH,
+            ]) |
+            Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+              created_at__gte=two_hours_ago) |
+            Q(presence_source__isnull=True,
+              created_at__gte=two_hours_ago)
+        )
+        .values('codename')
+        .distinct()
+        .count()
+    )
+
+
 def record_usage_snapshot(court_complex):
     """
     Record a real-time snapshot of current players at a court complex.
@@ -27,13 +61,10 @@ def record_usage_snapshot(court_complex):
     from billboard.models import BillboardEntry
     
     try:
-        # Count active "AT_COURTS" entries for this complex (last 2 hours)
-        current_count = BillboardEntry.objects.filter(
-            court_complex=court_complex,
-            action_type='AT_COURTS',
-            is_active=True,
-            created_at__gte=get_court_local_now(court_complex) - timedelta(hours=2)
-        ).count()
+        # Count current players using source-aware logic (same as BillboardListView).
+        # Game entries count while is_active=True regardless of age;
+        # manual entries use the 2-hour rolling window.
+        current_count = _source_aware_occupancy(court_complex)
         
         # Create snapshot
         snapshot = CourtComplexUsageSnapshot.objects.create(
@@ -205,12 +236,7 @@ def get_current_occupancy(court_complex):
     """
     from billboard.models import BillboardEntry
     
-    return BillboardEntry.objects.filter(
-        court_complex=court_complex,
-        action_type='AT_COURTS',
-        is_active=True,
-        created_at__gte=get_court_local_now(court_complex) - timedelta(hours=2)
-    ).count()
+    return _source_aware_occupancy(court_complex)
 
 
 def get_peak_hours(court_complex, days=7):
