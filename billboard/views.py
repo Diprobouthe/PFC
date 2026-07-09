@@ -213,10 +213,16 @@ class BillboardListView(ListView):
         context['going_to_courts'] = [e for e in entries if _is_current_going(e)]
         context['looking_for_match'] = [e for e in entries if e.action_type == 'LOOKING_FOR_MATCH']
         
-        # Calculate total people counts (original posters + responders)
-        context['total_at_courts'] = sum(1 + entry.responses.count() for entry in context['at_courts'])
-        context['total_going_to_courts'] = sum(1 + entry.responses.count() for entry in context['going_to_courts'])
-        context['total_looking_for_match'] = sum(1 + entry.responses.count() for entry in context['looking_for_match'])
+        # ── Canonical player counts ──────────────────────────────────────────
+        # total_at_courts counts distinct players who are physically present:
+        # each BillboardEntry in at_courts_deduped = 1 player (already deduped
+        # by codename above).  BillboardResponse rows are UI-only joiners that
+        # do NOT represent canonical presence; including them in the count
+        # diverges from the analytics/home counts which use the live
+        # BillboardEntry query exclusively.
+        context['total_at_courts'] = len(at_courts_deduped)
+        context['total_going_to_courts'] = len(context['going_to_courts'])
+        context['total_looking_for_match'] = len(context['looking_for_match'])
 
         # One-tap UI context
         context['courts'] = CourtComplex.objects.order_by('name')

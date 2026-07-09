@@ -19,11 +19,13 @@ logger = logging.getLogger(__name__)
 def _source_aware_occupancy(court_complex):
     """
     Return the count of distinct players currently at *court_complex* using the
-    unified current-presence rule (consistent with BillboardListView):
+    unified current-presence rule (consistent with BillboardListView and
+    court_analytics_api._current_occupancy):
 
     - expires_at: any entry with expires_at < now is excluded regardless of source.
-    - friendly_game / tournament_match: is_active=True AND created on court-local today
-      (same-day guard as fallback against lifecycle failures).
+    - friendly_game / tournament_match: is_active=True is sufficient.
+      Lifecycle-managed: is_active is cleared when the specific match/game ends.
+      Active tournament ≠ active physical presence.
     - post_game: is_active=True AND expires_at >= now (already covered above).
     - manual / None: is_active=True AND within the 2-hour rolling window.
     - Distinct codenames so one player with multiple active entries counts as 1.
@@ -31,7 +33,6 @@ def _source_aware_occupancy(court_complex):
     from billboard.models import BillboardEntry
     now = get_court_local_now(court_complex)
     two_hours_ago = now - timedelta(hours=2)
-    today = now.date()
     return (
         BillboardEntry.objects.filter(
             court_complex=court_complex,

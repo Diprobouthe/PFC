@@ -39,7 +39,10 @@ from billboard.models import BillboardEntry
 
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-PRESENCE_TYPES = ("AT_COURTS", "GOING_TO_COURTS")
+# The base queryset for analytics uses only AT_COURTS entries.
+# GOING_TO_COURTS entries are intent/scheduling data, not physical presence,
+# and must not be counted in the current-occupancy or historical visitor totals.
+PRESENCE_TYPES = ("AT_COURTS",)
 
 
 def _entry_qs(days=30, court=None):
