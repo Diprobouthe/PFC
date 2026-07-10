@@ -16,6 +16,14 @@ from billboard.analytics_models import (
 logger = logging.getLogger(__name__)
 
 
+# Maximum age for a game-generated presence entry to be considered "live".
+# A petanque match cannot realistically last longer than 6 hours.  If a
+# game entry is older than this cap, the lifecycle hook (deactivate_match_presence
+# / deactivate_friendly_game_presence) failed to fire — treat the entry as
+# stale rather than showing phantom presence indefinitely.
+_GAME_PRESENCE_MAX_AGE_HOURS = 6
+
+
 def _source_aware_occupancy(court_complex):
     """
     Return the count of distinct players currently at *court_complex* using the
@@ -23,8 +31,9 @@ def _source_aware_occupancy(court_complex):
     court_analytics_api._current_occupancy):
 
     - expires_at: any entry with expires_at < now is excluded regardless of source.
-    - friendly_game / tournament_match: is_active=True is sufficient.
-      Lifecycle-managed: is_active is cleared when the specific match/game ends.
+    - friendly_game / tournament_match: is_active=True AND created within the last
+      _GAME_PRESENCE_MAX_AGE_HOURS hours.  The age cap is a safety net against
+      lifecycle failures (e.g. a match left in 'active' status without a result).
       Active tournament ≠ active physical presence.
     - post_game: is_active=True AND expires_at >= now (already covered above).
     - manual / None: is_active=True AND within the 2-hour rolling window.
@@ -33,6 +42,7 @@ def _source_aware_occupancy(court_complex):
     from billboard.models import BillboardEntry
     now = get_court_local_now(court_complex)
     two_hours_ago = now - timedelta(hours=2)
+    game_cutoff = now - timedelta(hours=_GAME_PRESENCE_MAX_AGE_HOURS)
     return (
         BillboardEntry.objects.filter(
             court_complex=court_complex,
@@ -42,14 +52,16 @@ def _source_aware_occupancy(court_complex):
         # Exclude entries whose soft expiry has passed.
         .filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
         .filter(
-            # Game entries: lifecycle-managed via is_active (already filtered above).
-            # No date guard — a tournament can span multiple days; presence is tied
-            # to the specific match/game being active, not to calendar date.
+            # Game entries: lifecycle-managed via is_active + safety age cap.
+            # The age cap guards against lifecycle failures (match left active
+            # without a result submission).  A real petanque match cannot last
+            # more than _GAME_PRESENCE_MAX_AGE_HOURS hours.
             Q(
                 presence_source__in=[
                     BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
                     BillboardEntry.PRESENCE_SOURCE_MATCH,
                 ],
+                created_at__gte=game_cutoff,
             ) |
             # Post-game grace: expires_at already checked above
             Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME) |

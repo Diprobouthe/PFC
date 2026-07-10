@@ -156,9 +156,12 @@ class BillboardListView(ListView):
         
         # "Currently at Courts" — lifecycle-aware presence display.
         # Game entries (friendly_game / tournament_match): shown while is_active=True
-        #   (is_active is cleared when the game ends/cancels/expires).
+        #   AND created within the last _GAME_PRESENCE_MAX_AGE_HOURS hours.
+        #   The age cap is a safety net against lifecycle failures (e.g. a match
+        #   left in 'active' status without a result submission).
         # Manual / legacy entries: shown within a 2-hour rolling window.
         # Entries are already filtered to is_active=True by get_queryset().
+        _GAME_PRESENCE_MAX_AGE_HOURS = 6
         def _is_currently_present(entry):
             if entry.action_type != 'AT_COURTS':
                 return False
@@ -171,13 +174,12 @@ class BillboardListView(ListView):
                        BillboardEntry.PRESENCE_SOURCE_MATCH):
                 # Game entries are lifecycle-managed: is_active is set to False
                 # when the specific match/game ends, regardless of tournament state.
-                # The only authority is is_active — no date guard is applied here
-                # because a tournament can span multiple days and a match started
-                # on a previous day that was never properly closed must still be
-                # hidden by the lifecycle (is_active=False), not by a calendar check.
-                # The same-day guard was masking lifecycle failures instead of fixing
-                # them, and it incorrectly hid valid entries from multi-day tournaments.
-                return True
+                # A safety age cap (_GAME_PRESENCE_MAX_AGE_HOURS) guards against
+                # lifecycle failures where a match is left in 'active' status
+                # indefinitely without a result being submitted.  A real petanque
+                # match cannot last more than 6 hours.
+                game_cutoff = now - timedelta(hours=_GAME_PRESENCE_MAX_AGE_HOURS)
+                return entry.created_at >= game_cutoff
             if src == BillboardEntry.PRESENCE_SOURCE_POST_GAME:
                 # 30-min grace window — expires_at already checked above.
                 return True

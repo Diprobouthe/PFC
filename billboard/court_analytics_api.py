@@ -57,19 +57,25 @@ def _entry_qs(days=30, court=None):
     return qs
 
 
+# Maximum age for a game-generated presence entry to be considered "live".
+# Mirrors the constant in analytics_utils.py.
+_GAME_PRESENCE_MAX_AGE_HOURS = 6
+
+
 def _current_occupancy(qs, two_hours_ago):
     """
     Count distinct players currently at court from *qs* (already filtered to AT_COURTS).
 
     Presence rules (consistent with BillboardListView and analytics_utils):
-    - Game entries (friendly_game / tournament_match): is_active=True is sufficient.
-      Cleared by the lifecycle when the specific match/game ends, regardless of
-      tournament state or calendar date.
+    - Game entries (friendly_game / tournament_match): is_active=True AND created
+      within the last _GAME_PRESENCE_MAX_AGE_HOURS hours.  The age cap is a safety
+      net against lifecycle failures (match left in 'active' without a result).
     - Post-game grace (post_game): is_active=True AND expires_at >= now.
     - Manual / legacy entries: is_active=True AND within the 2-hour window.
     - Returns a distinct codename count so one player with multiple entries = 1 person.
     """
     now = timezone.now()
+    game_cutoff = now - timedelta(hours=_GAME_PRESENCE_MAX_AGE_HOURS)
     return (
         qs.filter(
             action_type="AT_COURTS",
@@ -78,11 +84,14 @@ def _current_occupancy(qs, two_hours_ago):
         # Exclude soft-expired entries (post_game grace that has elapsed).
         .filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
         .filter(
-            # Game entries: lifecycle-managed, no date guard.
-            Q(presence_source__in=[
-                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
-                BillboardEntry.PRESENCE_SOURCE_MATCH,
-            ]) |
+            # Game entries: lifecycle-managed + safety age cap.
+            Q(
+                presence_source__in=[
+                    BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                    BillboardEntry.PRESENCE_SOURCE_MATCH,
+                ],
+                created_at__gte=game_cutoff,
+            ) |
             # Post-game grace: expires_at already checked above.
             Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME) |
             Q(
