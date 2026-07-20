@@ -257,10 +257,14 @@ class TeamBuildSession(models.Model):
         # Determine team name
         name = self.proposed_team_name.strip() or f"Team {self.creator.name}"
 
-        # Create the team using the existing generate_pin utility
+        # Create the team using the existing generate_pin utility.
+        # Tournament-invite sessions produce tournament-only teams (is_tournament_temp=True)
+        # so they are hidden from the public Teams directory and search.
+        # Normal invite sessions produce permanent teams (is_tournament_temp=False).
         team = Team.objects.create(
             name=name,
             pin=generate_pin(),
+            is_tournament_temp=self.is_tournament_type,
         )
 
         # Assign all accepted players + creator to the team

@@ -110,3 +110,38 @@ def auto_assign_waiting_matches_when_court_available(sender, instance, created, 
             # Log the error but don't let it break court operations
             logger.error(f"Failed to auto-assign waiting matches when court {instance.name} became available: {e}")
 
+
+
+# ---------------------------------------------------------------------------
+# VS Mode: update encounter points when a sub-game completes
+# ---------------------------------------------------------------------------
+
+@receiver(post_save, sender=Match)
+def update_vs_encounter_on_match_complete(sender, instance, created, **kwargs):
+    """
+    When a VS sub-game Match transitions to 'completed', recalculate the
+    parent VSEncounter's point totals and update TournamentTeam.vs_points.
+
+    This signal is intentionally isolated from all non-VS matches:
+      - It exits immediately if the match has no vs_encounter FK.
+      - It does NOT touch any Mêlée, Super Mêlée, or Friendly Game logic.
+    """
+    if created:
+        return  # Only care about status changes, not new match creation
+
+    if instance.status != "completed":
+        return  # Only act when the match just became completed
+
+    if not instance.vs_encounter_id:
+        return  # Not a VS sub-game — do nothing
+
+    try:
+        from tournaments.vs_utils import update_vs_encounter_points
+        update_vs_encounter_points(instance.vs_encounter)
+    except Exception as exc:
+        logger.error(
+            "VS Mode: failed to update encounter points for match %s (encounter %s): %s",
+            instance.pk,
+            instance.vs_encounter_id,
+            exc,
+        )

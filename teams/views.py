@@ -17,34 +17,33 @@ def team_list(request):
     Only Full Profile teams are shown publicly. Minimal, sub-team, and friendly
     profile teams are functional entities but are hidden from public discovery.
     """
-    # Filter out tournament temp teams (Mêlée / Tête-à-tête), child teams, and non-full-profile teams from public view
+    # Public visibility rule:
+    #   - not archived
+    #   - not a tournament-temp (Melee / Tete-a-tete generated)
+    #   - not a subteam
+    #   - full profile only (teams must explicitly be promoted to full profile to appear publicly)
     teams = Team.objects.filter(
-        is_tournament_temp=False,  # Hide auto-generated tournament temp teams
-        parent_team__isnull=True  # Hide child teams (subteams)
+        is_archived=False,
+        is_tournament_temp=False,
+        parent_team__isnull=True,
+        profile__profile_type='full',
     ).order_by('name')
-    
-    # Prepare teams with profile data — only include Full Profile teams
+
     teams_with_profiles = []
     for team in teams:
         try:
             profile = team.profile
-        except:
-            # Teams without a profile are treated as minimal (no public presence)
+        except Exception:
             continue
-        
-        # Only show Full Profile teams in the public list
-        if profile.profile_type != 'full':
-            continue
-        
+
         # Get accurate team statistics (this will sync if needed)
         stats = profile.get_accurate_statistics()
-        
-        # Get team statistics
+
         team_data = {
             'team': team,
             'profile': profile,
             'player_count': team.players.count(),
-            'badges': profile.get_badge_display()[:3],  # Show first 3 badges
+            'badges': profile.get_badge_display()[:3],
             'total_badges': len(profile.get_badge_display()),
             'matches_played': stats['matches_played'],
             'matches_won': stats['matches_won'],
@@ -59,19 +58,17 @@ def team_detail(request, team_id):
     Minimal Profile teams do not have a public profile page — they return 404.
     """
     from django.http import Http404
-    team = get_object_or_404(Team, id=team_id)
-    
-    # Get or create team profile
-    try:
-        profile = team.profile
-    except:
-        # No profile means no public presence
-        raise Http404("Team profile not found.")
-    
-    # Minimal Profile teams are not publicly accessible
-    if profile.profile_type in ('minimal', 'sub_team', 'friendly'):
-        raise Http404("This team does not have a public profile page.")
-    
+    # Public visibility rule: not archived, not temp, full profile only.
+    team = get_object_or_404(
+        Team,
+        id=team_id,
+        is_archived=False,
+        is_tournament_temp=False,
+        profile__profile_type='full',
+    )
+    # Fetch the profile (guaranteed to exist and be 'full' by the query above)
+    profile = team.profile
+
     # Get players with their profiles
     players = team.players.select_related('profile').all()
     
@@ -544,15 +541,14 @@ def team_search_api(request):
             return JsonResponse({'teams': []})
         
         # Search teams by name (case-insensitive).
-        # Exclude Friendly Games system team, mêlée teams, and teams with non-full profiles
-        # (minimal, sub_team, friendly) — same visibility rule as the public team list.
+        # Strict visibility rule: not archived, not tournament-temp, not a subteam,
+        # full profile only (same rule as the public Teams page).
         teams = Team.objects.filter(
             name__icontains=query,
-            profile__profile_type='full',   # Only full-profile teams are publicly discoverable
-        ).exclude(
-            name='Friendly Games'
-        ).exclude(
-            name__icontains='Mêlée Team'
+            is_archived=False,
+            is_tournament_temp=False,
+            parent_team__isnull=True,
+            profile__profile_type='full',
         ).values('id', 'name')[:10]  # Limit to 10 results
         
         return JsonResponse({'teams': list(teams)})
@@ -767,8 +763,14 @@ def player_leaderboard(request):
         position_players.sort(key=lambda p: p.win_rate, reverse=True)
         position_leaderboards[position_display_names[pos]] = position_players
     
-    # Get all teams for the filter dropdown (include all teams for player statistics)
-    teams = Team.objects.all().order_by('name')
+    # Get selectable teams for the filter dropdown.
+    # Strict visibility rule: not archived, not temp, not subteam, full profile only.
+    teams = Team.objects.filter(
+        is_archived=False,
+        is_tournament_temp=False,
+        parent_team__isnull=True,
+        profile__profile_type='full',
+    ).order_by('name')
     
     context = {
         'players': players_with_stats,

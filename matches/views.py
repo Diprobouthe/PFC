@@ -97,11 +97,15 @@ def auto_register_players_to_billboard(match):
     except Exception as e:
         logger.error(f"Error auto-registering players to Billboard for match {match.id}: {e}")
 
-def _deactivate_match_presence(match):
+def _deactivate_match_presence(match, skip_grace=False):
     """
     Deactivate all AT_COURTS BillboardEntry records that were auto-created
-    for *match* when it was activated, then create 30-minute post-game grace
-    entries for ALL players in the match roster.
+    for *match* when it was activated, then (unless skip_grace=True) create
+    30-minute post-game grace entries for ALL players in the match roster.
+
+    skip_grace=True is used by the stale-match cleanup command: the match
+    was never properly finished (no result submitted), so no post-game grace
+    window should be created — the players are simply no longer present.
 
     Source of truth for post-game entries: MatchPlayer records for this match
     (both teams), NOT the existing BillboardEntry rows.  This ensures all 4
@@ -128,7 +132,15 @@ def _deactivate_match_presence(match):
                 f"entry/entries at match completion."
             )
 
-        # 2. Resolve the court complex for this match.
+        # 2. If skip_grace is True (stale cleanup), stop here — no post-game grace.
+        if skip_grace:
+            logger.info(
+                f"Match {match.id}: skip_grace=True — skipping post-game grace entries "
+                f"(stale match cleanup)."
+            )
+            return
+
+        # 3. Resolve the court complex for this match.
         if not match.court:
             logger.warning(
                 f"Match {match.id}: no court assigned — cannot create post-game grace entries"
@@ -142,7 +154,7 @@ def _deactivate_match_presence(match):
             )
             return
 
-        # 3. Build post-game grace entries from the full MatchPlayer roster.
+        # 4. Build post-game grace entries from the full MatchPlayer roster.
         #    This is the authoritative list of players who physically played.
         #    It is independent of who submitted the result or validated via QR.
         grace_expiry = timezone.now() + timedelta(minutes=30)

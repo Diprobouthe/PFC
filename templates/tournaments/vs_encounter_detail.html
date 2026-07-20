@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}VS Encounter — {{ team1.name }} vs {{ team2.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  {# ── Header ── #}
+  <div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body text-center">
+      <h2 class="fw-bold mb-1">
+        <span class="text-primary">{{ team1.name }}</span>
+        <span class="mx-3 text-muted">vs</span>
+        <span class="text-danger">{{ team2.name }}</span>
+      </h2>
+      <p class="text-muted mb-2">{{ tournament.name }}</p>
+
+      {# Score summary #}
+      <div class="d-flex justify-content-center align-items-center gap-4 mt-3">
+        <div class="text-center">
+          <div class="display-5 fw-bold text-primary">{{ encounter.team1_points }}</div>
+          <small class="text-muted">{{ team1.name }}</small>
+        </div>
+        <div class="text-muted fs-4">—</div>
+        <div class="text-center">
+          <div class="display-5 fw-bold text-danger">{{ encounter.team2_points }}</div>
+          <small class="text-muted">{{ team2.name }}</small>
+        </div>
+      </div>
+
+      {% if encounter.is_complete %}
+        <span class="badge bg-success mt-2">Encounter Complete</span>
+      {% else %}
+        <span class="badge bg-warning text-dark mt-2">In Progress</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Sub-games table ── #}
+  <h5 class="mb-3">Sub-Games</h5>
+  <div class="list-group">
+    {% for sg in sub_game_data %}
+    {% with match=sg.match %}
+    <a href="{% url 'vs_sub_game_detail' match.id %}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+      <div>
+        <span class="badge
+          {% if match.match_type == 'tete_a_tete' %}bg-info text-dark
+          {% elif match.match_type == 'doublet' %}bg-primary
+          {% else %}bg-secondary{% endif %} me-2">
+          {% if match.match_type == 'tete_a_tete' %}Tête-à-tête
+          {% elif match.match_type == 'doublet' %}Doubles
+          {% else %}Triples{% endif %}
+        </span>
+        <strong>{{ match.vs_points_value }} pt{% if match.vs_points_value != 1 %}s{% endif %}</strong>
+      </div>
+
+      <div class="text-center">
+        {% if match.status == 'completed' %}
+          {% if match.winner %}
+            <span class="text-success fw-bold">{{ match.winner.name }} won</span>
+          {% else %}
+            <span class="text-muted">Draw</span>
+          {% endif %}
+          <br>
+          <small class="text-muted">{{ match.team1_score }} – {{ match.team2_score }}</small>
+        {% elif sg.both_locked %}
+          <span class="badge bg-success">Lineups revealed — ready to play</span>
+        {% elif sg.own_locked and not sg.opp_locked %}
+          <span class="badge bg-warning text-dark">Waiting for opponent lineup</span>
+        {% elif sg.opp_locked and not sg.own_locked %}
+          <span class="badge bg-info text-dark">Opponent submitted — submit yours</span>
+        {% else %}
+          <span class="badge bg-secondary">Awaiting lineups</span>
+        {% endif %}
+      </div>
+
+      <div>
+        <span class="badge
+          {% if match.status == 'completed' %}bg-success
+          {% elif match.status == 'active' %}bg-primary
+          {% elif match.status == 'pending' %}bg-secondary
+          {% else %}bg-warning text-dark{% endif %}">
+          {{ match.get_status_display }}
+        </span>
+      </div>
+    </a>
+    {% endwith %}
+    {% empty %}
+    <div class="list-group-item text-muted">No sub-games generated yet.</div>
+    {% endfor %}
+  </div>
+
+  {# ── Back link ── #}
+  <div class="mt-4">
+    <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-outline-secondary btn-sm">
+      &larr; Back to Tournament
+    </a>
+  </div>
+
+</div>
+{% endblock %}

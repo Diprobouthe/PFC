@@ -408,7 +408,13 @@ def tournament_register_subteams(request, tournament_id):
         return redirect('tournament_register', tournament_id=tournament.id)
     
     try:
-        team = Team.objects.get(pin=team_pin)
+        # Strict rule: archived, temp, and non-full-profile teams may not self-register.
+        team = Team.objects.get(
+            pin=team_pin,
+            is_archived=False,
+            is_tournament_temp=False,
+            profile__profile_type='full',
+        )
     except Team.DoesNotExist:
         messages.error(request, "Invalid team PIN.")
         return redirect('tournament_register', tournament_id=tournament.id)
@@ -476,7 +482,13 @@ def tournament_register_choice(request, tournament_id):
         return redirect('tournament_register', tournament_id=tournament.id)
     
     try:
-        team = Team.objects.get(pin=team_pin)
+        # Strict rule: archived, temp, and non-full-profile teams may not self-register.
+        team = Team.objects.get(
+            pin=team_pin,
+            is_archived=False,
+            is_tournament_temp=False,
+            profile__profile_type='full',
+        )
     except Team.DoesNotExist:
         messages.error(request, "Invalid team PIN.")
         return redirect('tournament_register', tournament_id=tournament.id)
@@ -662,16 +674,30 @@ def tournament_register_melee(request, tournament_id):
             player=session_player,
             original_team=session_player.team,
         )
-        messages.success(
-            request,
-            f"You are registered for {tournament.name}! "
-            f"You will be assigned to a team when registration closes."
-        )
+        if tournament.melee_format == 'tete_a_tete':
+            _reg_msg = (
+                f"You are registered for {tournament.name}! "
+                f"You will play as an individual — no team assignment needed."
+            )
+        else:
+            _reg_msg = (
+                f"You are registered for {tournament.name}! "
+                f"You will be assigned to a team when registration closes."
+            )
+        messages.success(request, _reg_msg)
         return redirect('tournament_detail', tournament_id=tournament.id)
 
     # ── Build context for GET ───────────────────────────────────────────────────
     current_registrations = tournament.melee_players.all().select_related('player')
-    team_size = 2 if tournament.melee_format == "doublets" else 3
+    # Determine team size from the actual melee_format so tete_a_tete (1v1)
+    # is not incorrectly shown as doublets (2) or triplets (3).
+    _fmt = tournament.melee_format
+    if _fmt == 'tete_a_tete':
+        team_size = 1
+    elif _fmt == 'doublets':
+        team_size = 2
+    else:  # triplets or unknown
+        team_size = 3
     reg_count = current_registrations.count()
     estimated_teams = reg_count // team_size
 
@@ -688,6 +714,7 @@ def tournament_register_melee(request, tournament_id):
         'max_participants': tournament.max_participants,
         'is_full': is_full,
         'team_size': team_size,
+        'is_singles': _fmt == 'tete_a_tete',
         'estimated_teams': estimated_teams,
         'leftover_players': reg_count % team_size,
     }
@@ -779,7 +806,15 @@ def tournament_generate_melee_teams(request, tournament_id):
     
     # Get current registrations for display
     registrations = tournament.melee_players.all().select_related('player')
-    team_size = 2 if tournament.melee_format == "doublets" else 3
+    # Determine team size from the actual melee_format so tete_a_tete (1v1)
+    # is not incorrectly shown as doublets (2) or triplets (3).
+    _fmt = tournament.melee_format
+    if _fmt == 'tete_a_tete':
+        team_size = 1
+    elif _fmt == 'doublets':
+        team_size = 2
+    else:  # triplets or unknown
+        team_size = 3
     estimated_teams = len(registrations) // team_size
     
     context = {
@@ -787,6 +822,7 @@ def tournament_generate_melee_teams(request, tournament_id):
         'registrations': registrations,
         'registration_count': len(registrations),
         'team_size': team_size,
+        'is_singles': _fmt == 'tete_a_tete',
         'estimated_teams': estimated_teams,
         'leftover_players': len(registrations) % team_size,
     }
@@ -934,3 +970,295 @@ def tournament_melee_qr_resolve(request, tournament_id):
         'team_name': pc.player.team.name if pc.player.team else '',
         'profile_picture_url': avatar_url,
     })
+
+
+# ---------------------------------------------------------------------------
+# VS Mode views
+# ---------------------------------------------------------------------------
+
+def _get_team_from_pin(request, tournament):
+    """
+    Return the Team whose PIN matches the session-stored team PIN for this
+    tournament, or None if the team cannot be identified.
+
+    We reuse the same PIN-based session key that the existing tournament flow
+    uses so VS Mode integrates naturally with the existing login mechanism.
+    """
+    from teams.models import Team as _Team
+    pin = request.session.get(f"team_pin_{tournament.id}")
+    if not pin:
+        return None
+    try:
+        # Strict rule: archived, temp, and non-full-profile teams may not participate in VS Mode.
+        return _Team.objects.get(
+            pin=pin,
+            is_archived=False,
+            is_tournament_temp=False,
+            profile__profile_type='full',
+        )
+    except _Team.DoesNotExist:
+        return None
+
+
+def vs_lineup_submit(request, match_id):
+    """
+    POST: Submit (and lock) a team's lineup for a VS sub-game.
+
+    Security rules (server-side, not CSS):
+      - Only the two teams that own the encounter may submit lineups.
+      - A team may only submit their own lineup (identified via session PIN).
+      - Once locked, a lineup cannot be changed.
+      - Opponent player names are NEVER returned until BOTH lineups are locked.
+
+    GET: Return current lineup state for the requesting team.
+
+    Response JSON:
+      {
+        "ok": true,
+        "own_lineup_locked": bool,
+        "opponent_lineup_locked": bool,
+        "both_locked": bool,
+        "own_players": [...],          # always visible
+        "opponent_players": [...],     # ONLY when both_locked == true
+        "opponent_status": "str",      # human-readable status text
+      }
+    """
+    from django.views.decorators.http import require_http_methods
+    from .models import VSLineup, VSEncounter
+    from teams.models import Player
+
+    match = get_object_or_404(Match, id=match_id)
+
+    if not match.vs_encounter_id:
+        return JsonResponse({"ok": False, "error": "Not a VS sub-game"}, status=400)
+
+    encounter: VSEncounter = match.vs_encounter
+    tournament = match.tournament
+
+    # Identify the requesting team via session PIN
+    requesting_team = _get_team_from_pin(request, tournament)
+    if requesting_team is None:
+        return JsonResponse({"ok": False, "error": "Team not identified. Please log in with your team PIN."}, status=403)
+
+    # Verify the team belongs to this encounter
+    if requesting_team.pk not in (encounter.team1_id, encounter.team2_id):
+        return JsonResponse({"ok": False, "error": "Your team is not part of this encounter."}, status=403)
+
+    is_team1 = (requesting_team.pk == encounter.team1_id)
+    opponent_team_id = encounter.team2_id if is_team1 else encounter.team1_id
+
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            return JsonResponse({"ok": False, "error": "Invalid JSON body"}, status=400)
+
+        player_ids = body.get("player_ids", [])
+        if not isinstance(player_ids, list):
+            return JsonResponse({"ok": False, "error": "player_ids must be a list"}, status=400)
+
+        # Check if lineup already locked
+        existing = VSLineup.objects.filter(match=match, team=requesting_team).first()
+        if existing and existing.is_locked:
+            return JsonResponse({"ok": False, "error": "Lineup already locked and cannot be changed."}, status=400)
+
+        # Validate players belong to the team
+        players = Player.objects.filter(id__in=player_ids, team=requesting_team)
+        if len(player_ids) > 0 and players.count() != len(player_ids):
+            return JsonResponse({"ok": False, "error": "One or more player IDs are invalid or do not belong to your team."}, status=400)
+
+        # Create or update lineup and lock it
+        lineup, _ = VSLineup.objects.get_or_create(
+            match=match,
+            team=requesting_team,
+            defaults={"is_locked": False},
+        )
+        lineup.players.set(players)
+        lineup.is_locked = True
+        lineup.save(update_fields=["is_locked"])
+
+        # Update the lock flags on the Match record
+        if is_team1:
+            Match.objects.filter(pk=match.pk).update(vs_lineup_team1_locked=True)
+        else:
+            Match.objects.filter(pk=match.pk).update(vs_lineup_team2_locked=True)
+
+        # Refresh match to get updated lock state
+        match.refresh_from_db(fields=["vs_lineup_team1_locked", "vs_lineup_team2_locked"])
+
+    # Build response (GET or after POST)
+    match.refresh_from_db(fields=["vs_lineup_team1_locked", "vs_lineup_team2_locked"])
+    own_locked = match.vs_lineup_team1_locked if is_team1 else match.vs_lineup_team2_locked
+    opp_locked = match.vs_lineup_team2_locked if is_team1 else match.vs_lineup_team1_locked
+    both_locked = own_locked and opp_locked
+
+    # Own lineup — always visible
+    own_lineup_qs = VSLineup.objects.filter(match=match, team=requesting_team).first()
+    own_players = []
+    if own_lineup_qs:
+        own_players = [
+            {"id": p.id, "name": p.name}
+            for p in own_lineup_qs.players.all()
+        ]
+
+    # Opponent lineup — ONLY revealed when both lineups are locked
+    opponent_players = []
+    if both_locked:
+        opp_lineup_qs = VSLineup.objects.filter(match=match, team_id=opponent_team_id).first()
+        if opp_lineup_qs:
+            opponent_players = [
+                {"id": p.id, "name": p.name}
+                for p in opp_lineup_qs.players.all()
+            ]
+        opponent_status = "Lineup revealed"
+    elif opp_locked:
+        opponent_status = "Opponent lineup submitted — waiting for yours"
+    else:
+        opponent_status = "Waiting for opponent lineup"
+
+    if both_locked:
+        opponent_status = "Lineup revealed"
+
+    return JsonResponse({
+        "ok": True,
+        "own_lineup_locked": own_locked,
+        "opponent_lineup_locked": opp_locked,
+        "both_locked": both_locked,
+        "own_players": own_players,
+        "opponent_players": opponent_players,   # empty until both locked
+        "opponent_status": opponent_status,
+    })
+
+
+def vs_encounter_detail(request, encounter_id):
+    """
+    Display the VS Encounter overview: all sub-games, current scores, and
+    lineup status.  Lineup details are hidden server-side until both teams
+    have locked their lineups for each sub-game.
+    """
+    from .models import VSEncounter, VSLineup
+
+    encounter = get_object_or_404(VSEncounter, id=encounter_id)
+    tournament = encounter.tournament
+    requesting_team = _get_team_from_pin(request, tournament)
+
+    sub_games = Match.objects.filter(vs_encounter=encounter).order_by("id")
+
+    # Build sub-game context with lineup visibility rules applied
+    sub_game_data = []
+    for match in sub_games:
+        t1_locked = match.vs_lineup_team1_locked
+        t2_locked = match.vs_lineup_team2_locked
+        both_locked = t1_locked and t2_locked
+
+        lineup1 = VSLineup.objects.filter(match=match, team=encounter.team1).first()
+        lineup2 = VSLineup.objects.filter(match=match, team=encounter.team2).first()
+
+        # Determine what the requesting team can see
+        if requesting_team and requesting_team.pk == encounter.team1_id:
+            own_lineup = lineup1
+            opp_lineup = lineup2 if both_locked else None
+            own_locked = t1_locked
+            opp_locked = t2_locked
+        elif requesting_team and requesting_team.pk == encounter.team2_id:
+            own_lineup = lineup2
+            opp_lineup = lineup1 if both_locked else None
+            own_locked = t2_locked
+            opp_locked = t1_locked
+        else:
+            # Spectator or unknown team — show nothing until both locked
+            own_lineup = None
+            opp_lineup = None
+            own_locked = t1_locked
+            opp_locked = t2_locked
+
+        sub_game_data.append({
+            "match": match,
+            "both_locked": both_locked,
+            "own_locked": own_locked,
+            "opp_locked": opp_locked,
+            "own_lineup": own_lineup,
+            "opp_lineup": opp_lineup,
+        })
+
+    context = {
+        "encounter": encounter,
+        "tournament": tournament,
+        "requesting_team": requesting_team,
+        "sub_game_data": sub_game_data,
+        "team1": encounter.team1,
+        "team2": encounter.team2,
+    }
+    return render(request, "tournaments/vs_encounter_detail.html", context)
+
+
+def vs_sub_game_detail(request, match_id):
+    """
+    Display a single VS sub-game detail page.  Lineup visibility is enforced
+    server-side: opponent players are only shown once both lineups are locked.
+    """
+    from .models import VSEncounter, VSLineup
+
+    match = get_object_or_404(Match, id=match_id)
+    if not match.vs_encounter_id:
+        return JsonResponse({"error": "Not a VS sub-game"}, status=400)
+
+    encounter: VSEncounter = match.vs_encounter
+    tournament = match.tournament
+    requesting_team = _get_team_from_pin(request, tournament)
+
+    is_team1 = requesting_team and requesting_team.pk == encounter.team1_id
+    is_team2 = requesting_team and requesting_team.pk == encounter.team2_id
+
+    t1_locked = match.vs_lineup_team1_locked
+    t2_locked = match.vs_lineup_team2_locked
+    both_locked = t1_locked and t2_locked
+
+    lineup1 = VSLineup.objects.filter(match=match, team=encounter.team1).first()
+    lineup2 = VSLineup.objects.filter(match=match, team=encounter.team2).first()
+
+    # Apply server-side visibility rules
+    if is_team1:
+        own_lineup = lineup1
+        opp_lineup = lineup2 if both_locked else None
+        own_locked = t1_locked
+        opp_locked = t2_locked
+    elif is_team2:
+        own_lineup = lineup2
+        opp_lineup = lineup1 if both_locked else None
+        own_locked = t2_locked
+        opp_locked = t1_locked
+    else:
+        # Spectator
+        own_lineup = None
+        opp_lineup = None
+        own_locked = t1_locked
+        opp_locked = t2_locked
+
+    # Determine opponent status text
+    if both_locked:
+        opponent_status = "Both lineups revealed"
+    elif opp_locked and not own_locked:
+        opponent_status = "Opponent lineup submitted — waiting for yours"
+    elif own_locked and not opp_locked:
+        opponent_status = "Your lineup submitted — waiting for opponent"
+    else:
+        opponent_status = "Waiting for both lineups"
+
+    context = {
+        "match": match,
+        "encounter": encounter,
+        "tournament": tournament,
+        "requesting_team": requesting_team,
+        "is_team1": is_team1,
+        "is_team2": is_team2,
+        "both_locked": both_locked,
+        "own_locked": own_locked,
+        "opp_locked": opp_locked,
+        "own_lineup": own_lineup,
+        "opp_lineup": opp_lineup,
+        "opponent_status": opponent_status,
+        "team1": encounter.team1,
+        "team2": encounter.team2,
+    }
+    return render(request, "tournaments/vs_sub_game_detail.html", context)

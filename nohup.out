@@ -1,0 +1,448 @@
+nohup: ignoring input
+/usr/local/lib/python3.11/dist-packages/django/db/models/base.py:368: RuntimeWarning: Model 'teams.teamprofile' was already registered. Reloading models is not advised as it can lead to inconsistencies, most notably with related models.
+  new_class._meta.apps.register_model(new_class._meta.app_label, new_class)
+2026-04-07 12:28:39,102 INFO     Starting server at tcp:port=8000:interface=0.0.0.0
+2026-04-07 12:28:39,103 INFO     HTTP/2 support not enabled (install the http2 and tls Twisted extras)
+2026-04-07 12:28:39,103 INFO     Configuring endpoint tcp:port=8000:interface=0.0.0.0
+2026-04-07 12:28:39,104 INFO     Listening on TCP address 0.0.0.0:8000
+Not Found: /favicon.ico
+2026-04-07 12:30:04,627 WARNING  Not Found: /favicon.ico
+Internal Server Error: /api/shoot/active-session/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2128, in get_prep_value
+    return int(value)
+           ^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/contrib/auth/models.py", line 549, in __int__
+    raise TypeError(
+TypeError: Cannot cast AnonymousUser to int. Are you trying to use it in place of User?
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 506, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 561, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/decorators.py", line 50, in handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/pfc_project/pfc_clean/shooting/views.py", line 319, in active_session
+    active_session = ShotSession.objects.filter(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1481, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1499, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1506, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1643, in add_q
+    clause, _ = self._add_q(q_object, can_reuse)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1675, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1585, in build_filter
+    condition = self.build_lookup(lookups, col, value)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1412, in build_lookup
+    lookup = lookup_class(lhs, rhs)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/lookups.py", line 38, in __init__
+    self.rhs = self.get_prep_lookup()
+               ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/related_lookups.py", line 112, in get_prep_lookup
+    self.rhs = target_field.get_prep_value(self.rhs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2130, in get_prep_value
+    raise e.__class__(
+TypeError: Field 'id' expected a number but got <django.contrib.auth.models.AnonymousUser object at 0x7fa02c28ed50>.
+2026-04-07 12:30:53,808 ERROR    Internal Server Error: /api/shoot/active-session/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2128, in get_prep_value
+    return int(value)
+           ^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/contrib/auth/models.py", line 549, in __int__
+    raise TypeError(
+TypeError: Cannot cast AnonymousUser to int. Are you trying to use it in place of User?
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 506, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 561, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/decorators.py", line 50, in handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/pfc_project/pfc_clean/shooting/views.py", line 319, in active_session
+    active_session = ShotSession.objects.filter(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1481, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1499, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1506, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1643, in add_q
+    clause, _ = self._add_q(q_object, can_reuse)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1675, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1585, in build_filter
+    condition = self.build_lookup(lookups, col, value)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1412, in build_lookup
+    lookup = lookup_class(lhs, rhs)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/lookups.py", line 38, in __init__
+    self.rhs = self.get_prep_lookup()
+               ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/related_lookups.py", line 112, in get_prep_lookup
+    self.rhs = target_field.get_prep_value(self.rhs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2130, in get_prep_value
+    raise e.__class__(
+TypeError: Field 'id' expected a number but got <django.contrib.auth.models.AnonymousUser object at 0x7fa02c28ed50>.
+Internal Server Error: /api/shoot/active-session/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2128, in get_prep_value
+    return int(value)
+           ^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/contrib/auth/models.py", line 549, in __int__
+    raise TypeError(
+TypeError: Cannot cast AnonymousUser to int. Are you trying to use it in place of User?
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 506, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 561, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/decorators.py", line 50, in handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/pfc_project/pfc_clean/shooting/views.py", line 319, in active_session
+    active_session = ShotSession.objects.filter(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1481, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1499, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1506, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1643, in add_q
+    clause, _ = self._add_q(q_object, can_reuse)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1675, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1585, in build_filter
+    condition = self.build_lookup(lookups, col, value)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1412, in build_lookup
+    lookup = lookup_class(lhs, rhs)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/lookups.py", line 38, in __init__
+    self.rhs = self.get_prep_lookup()
+               ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/related_lookups.py", line 112, in get_prep_lookup
+    self.rhs = target_field.get_prep_value(self.rhs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2130, in get_prep_value
+    raise e.__class__(
+TypeError: Field 'id' expected a number but got <django.contrib.auth.models.AnonymousUser object at 0x7fa02c2c2050>.
+2026-04-07 12:30:53,906 ERROR    Internal Server Error: /api/shoot/active-session/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2128, in get_prep_value
+    return int(value)
+           ^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/contrib/auth/models.py", line 549, in __int__
+    raise TypeError(
+TypeError: Cannot cast AnonymousUser to int. Are you trying to use it in place of User?
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 557, in thread_handler
+    raise exc_info[1]
+  File "/usr/local/lib/python3.11/dist-packages/django/core/handlers/base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 506, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/asgiref/sync.py", line 561, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/rest_framework/decorators.py", line 50, in handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/pfc_project/pfc_clean/shooting/views.py", line 319, in active_session
+    active_session = ShotSession.objects.filter(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1481, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1499, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/query.py", line 1506, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1643, in add_q
+    clause, _ = self._add_q(q_object, can_reuse)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1675, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1585, in build_filter
+    condition = self.build_lookup(lookups, col, value)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/sql/query.py", line 1412, in build_lookup
+    lookup = lookup_class(lhs, rhs)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/lookups.py", line 38, in __init__
+    self.rhs = self.get_prep_lookup()
+               ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/related_lookups.py", line 112, in get_prep_lookup
+    self.rhs = target_field.get_prep_value(self.rhs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/django/db/models/fields/__init__.py", line 2130, in get_prep_value
+    raise e.__class__(
+TypeError: Field 'id' expected a number but got <django.contrib.auth.models.AnonymousUser object at 0x7fa02c2c2050>.
+Not Found: /favicon.ico
+2026-04-07 12:30:53,919 WARNING  Not Found: /favicon.ico
+Not Found: /favicon.ico
+2026-04-07 12:31:06,720 WARNING  Not Found: /favicon.ico
+Not Found: /api/shoot/active-session/
+2026-04-07 12:31:08,682 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /api/shoot/active-session/
+2026-04-07 12:31:08,833 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /favicon.ico
+2026-04-07 12:34:11,777 WARNING  Not Found: /favicon.ico
+Not Found: /api/shoot/active-session/
+2026-04-07 12:34:13,644 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /api/shoot/active-session/
+2026-04-07 12:34:13,794 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /api/shoot/active-session/
+2026-04-07 12:34:20,050 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /api/shoot/active-session/
+2026-04-07 12:34:20,201 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /api/shoot/active-session/
+2026-04-07 12:35:18,193 WARNING  Not Found: /api/shoot/active-session/
+Not Found: /api/shoot/active-session/
+2026-04-07 12:35:18,342 WARNING  Not Found: /api/shoot/active-session/
+2026-04-07 12:36:14,550 INFO     Killed 1 pending application instances
+10.124.27.1:42482 - - [07/Apr/2026:12:28:42] "WSCONNECTING /ws/invites/13/" - -
+10.124.27.1:42482 - - [07/Apr/2026:12:28:42] "WSCONNECT /ws/invites/13/" - -
+127.0.0.1:32916 - - [07/Apr/2026:12:28:47] "GET /teams/players/1/" 200 32382
+127.0.0.1:32922 - - [07/Apr/2026:12:28:47] "GET /teams/players/1/" 200 32382
+127.0.0.1:38918 - - [07/Apr/2026:12:29:19] "GET /teams/players/1/" 200 32382
+127.0.0.1:38924 - - [07/Apr/2026:12:29:19] "GET /teams/players/1/" 200 32382
+10.124.27.1:45394 - - [07/Apr/2026:12:29:30] "GET /auth/team/check/" 200 104
+10.124.27.1:45376 - - [07/Apr/2026:12:29:30] "GET /auth/team/check/" 200 101
+10.124.27.1:45360 - - [07/Apr/2026:12:29:30] "GET /auth/team/check/" 200 102
+10.124.27.1:45390 - - [07/Apr/2026:12:29:30] "GET /invites/inbox/" 200 15
+10.124.27.1:45346 - - [07/Apr/2026:12:29:30] "GET /auth/team/check/" 200 104
+10.124.27.1:45398 - - [07/Apr/2026:12:29:30] "GET /auth/team/check/" 200 101
+10.124.27.1:48180 - - [07/Apr/2026:12:30:04] "GET /favicon.ico" 404 8517
+10.124.27.1:59852 - - [07/Apr/2026:12:30:30] "GET /auth/team/check/" 200 104
+10.124.27.1:59830 - - [07/Apr/2026:12:30:30] "GET /auth/team/check/" 200 101
+10.124.27.1:59822 - - [07/Apr/2026:12:30:30] "GET /invites/inbox/" 200 15
+10.124.27.1:59828 - - [07/Apr/2026:12:30:30] "GET /auth/team/check/" 200 104
+10.124.27.1:59844 - - [07/Apr/2026:12:30:30] "GET /auth/team/check/" 200 102
+10.124.27.1:59856 - - [07/Apr/2026:12:30:30] "GET /auth/team/check/" 200 101
+10.124.27.1:48432 - - [07/Apr/2026:12:30:52] "HEAD /teams/players/1/" 200 -
+10.124.27.1:48438 - - [07/Apr/2026:12:30:52] "GET /teams/players/1/" 200 32382
+10.124.27.1:48454 - - [07/Apr/2026:12:30:53] "GET /teams/players/1/" 200 32382
+10.124.27.1:48464 - - [07/Apr/2026:12:30:53] "GET /static/shooting/css/shot-tracker.css" 200 7258
+10.124.27.1:48472 - - [07/Apr/2026:12:30:53] "GET /static/shooting/js/shot-tracker.js" 200 14728
+10.124.27.1:48480 - - [07/Apr/2026:12:30:53] "GET /api/shoot/active-session/" 500 159676
+10.124.27.1:48492 - - [07/Apr/2026:12:30:53] "GET /api/shoot/active-session/" 500 159676
+10.124.27.1:48502 - - [07/Apr/2026:12:30:53] "GET /favicon.ico" 404 8517
+10.124.27.1:49840 - - [07/Apr/2026:12:31:06] "GET /favicon.ico" 404 8517
+10.124.27.1:49842 - - [07/Apr/2026:12:31:08] "GET /teams/players/3/" 200 86399
+10.124.27.1:49868 - - [07/Apr/2026:12:31:08] "GET /static/shooting/js/shot-tracker.js" 304 -
+10.124.27.1:49856 - - [07/Apr/2026:12:31:08] "GET /static/shooting/css/shot-tracker.css" 304 -
+10.124.27.1:49880 - - [07/Apr/2026:12:31:08] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:49882 - - [07/Apr/2026:12:31:08] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:44020 - - [07/Apr/2026:12:31:30] "GET /auth/team/check/" 200 104
+10.124.27.1:44022 - - [07/Apr/2026:12:31:30] "GET /auth/team/check/" 200 102
+10.124.27.1:44006 - - [07/Apr/2026:12:31:30] "GET /auth/team/check/" 200 104
+10.124.27.1:44028 - - [07/Apr/2026:12:31:30] "GET /auth/team/check/" 200 101
+10.124.27.1:44004 - - [07/Apr/2026:12:31:30] "GET /invites/inbox/" 200 15
+10.124.27.1:44036 - - [07/Apr/2026:12:31:30] "GET /auth/team/check/" 200 101
+10.124.27.1:38480 - - [07/Apr/2026:12:32:30] "GET /auth/team/check/" 200 104
+10.124.27.1:38494 - - [07/Apr/2026:12:32:30] "GET /auth/team/check/" 200 104
+10.124.27.1:38482 - - [07/Apr/2026:12:32:30] "GET /auth/team/check/" 200 101
+10.124.27.1:38504 - - [07/Apr/2026:12:32:30] "GET /auth/team/check/" 200 102
+10.124.27.1:38512 - - [07/Apr/2026:12:32:30] "GET /invites/inbox/" 200 15
+10.124.27.1:38528 - - [07/Apr/2026:12:32:30] "GET /auth/team/check/" 200 101
+10.124.27.1:49086 - - [07/Apr/2026:12:33:30] "GET /auth/team/check/" 200 104
+10.124.27.1:49088 - - [07/Apr/2026:12:33:30] "GET /auth/team/check/" 200 101
+10.124.27.1:49114 - - [07/Apr/2026:12:33:30] "GET /auth/team/check/" 200 104
+10.124.27.1:49104 - - [07/Apr/2026:12:33:30] "GET /auth/team/check/" 200 102
+10.124.27.1:49096 - - [07/Apr/2026:12:33:30] "GET /invites/inbox/" 200 15
+10.124.27.1:49118 - - [07/Apr/2026:12:33:30] "GET /auth/team/check/" 200 101
+10.124.27.1:54822 - - [07/Apr/2026:12:34:11] "GET /favicon.ico" 404 8517
+10.124.27.1:54838 - - [07/Apr/2026:12:34:13] "GET /teams/players/3/" 200 86399
+10.124.27.1:54848 - - [07/Apr/2026:12:34:13] "GET /static/shooting/js/shot-tracker.js" 304 -
+10.124.27.1:54840 - - [07/Apr/2026:12:34:13] "GET /static/shooting/css/shot-tracker.css" 304 -
+10.124.27.1:54862 - - [07/Apr/2026:12:34:13] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:54864 - - [07/Apr/2026:12:34:13] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:54870 - - [07/Apr/2026:12:34:19] "GET /teams/players/3/" 200 86399
+10.124.27.1:54876 - - [07/Apr/2026:12:34:19] "GET /static/shooting/css/shot-tracker.css" 304 -
+10.124.27.1:54880 - - [07/Apr/2026:12:34:19] "GET /static/shooting/js/shot-tracker.js" 304 -
+10.124.27.1:54884 - - [07/Apr/2026:12:34:20] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:54888 - - [07/Apr/2026:12:34:20] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:45782 - - [07/Apr/2026:12:34:30] "GET /auth/team/check/" 200 104
+10.124.27.1:45760 - - [07/Apr/2026:12:34:30] "GET /auth/team/check/" 200 104
+10.124.27.1:45772 - - [07/Apr/2026:12:34:30] "GET /auth/team/check/" 200 101
+10.124.27.1:45788 - - [07/Apr/2026:12:34:30] "GET /auth/team/check/" 200 102
+10.124.27.1:45774 - - [07/Apr/2026:12:34:30] "GET /invites/inbox/" 200 15
+10.124.27.1:45792 - - [07/Apr/2026:12:34:30] "GET /auth/team/check/" 200 101
+10.124.27.1:42160 - - [07/Apr/2026:12:35:17] "GET /teams/players/3/" 200 86399
+10.124.27.1:42166 - - [07/Apr/2026:12:35:18] "GET /static/shooting/css/shot-tracker.css" 304 -
+10.124.27.1:42182 - - [07/Apr/2026:12:35:18] "GET /static/shooting/js/shot-tracker.js" 304 -
+10.124.27.1:42192 - - [07/Apr/2026:12:35:18] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:42202 - - [07/Apr/2026:12:35:18] "GET /api/shoot/active-session/" 404 35
+10.124.27.1:60094 - - [07/Apr/2026:12:35:30] "GET /auth/team/check/" 200 104
+10.124.27.1:60104 - - [07/Apr/2026:12:35:30] "GET /auth/team/check/" 200 102
+10.124.27.1:60068 - - [07/Apr/2026:12:35:30] "GET /auth/team/check/" 200 101
+10.124.27.1:60080 - - [07/Apr/2026:12:35:30] "GET /auth/team/check/" 200 104
+10.124.27.1:60070 - - [07/Apr/2026:12:35:30] "GET /invites/inbox/" 200 15
+10.124.27.1:60106 - - [07/Apr/2026:12:35:30] "GET /auth/team/check/" 200 101
+10.124.27.1:42482 - - [07/Apr/2026:12:36:14] "WSDISCONNECT /ws/invites/13/" - -

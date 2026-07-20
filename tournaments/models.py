@@ -1123,6 +1123,8 @@ class TournamentTeam(models.Model):
     buchholz_score = models.FloatField(default=0.0, help_text="Sum of opponents scores (Buchholz tie-breaker)")
     opponents_played = models.ManyToManyField(Team, related_name="played_against_in_tournament", blank=True)
     received_bye_in_round = models.PositiveIntegerField(null=True, blank=True, help_text="Round number in which the team received a bye")
+    # VS Mode specific fields
+    vs_points = models.IntegerField(default=0, help_text="Total VS Mode points accumulated across all VS encounters")
     # Add other format-specific fields as needed (e.g., group_id for poules)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1730,3 +1732,85 @@ from .partnership_models import MeleePartnership, MeleeShuffleHistory, MeleePlay
 
 # Import poule/group models
 from .poule_models import Poule, PouleTeam
+
+
+# ---------------------------------------------------------------------------
+# VS Mode models
+# ---------------------------------------------------------------------------
+
+class VSEncounter(models.Model):
+    """
+    Represents a single Team-vs-Team encounter in VS Mode.
+
+    One VSEncounter groups all sub-games (Tête-à-tête, Doubles, Triples)
+    played between two teams.  Points are accumulated from sub-game results
+    and stored here for fast leaderboard queries.
+    """
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='vs_encounters',
+    )
+    team1 = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name='vs_encounters_as_team1',
+    )
+    team2 = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name='vs_encounters_as_team2',
+    )
+    team1_points = models.IntegerField(default=0, help_text="VS points scored by team1 in this encounter")
+    team2_points = models.IntegerField(default=0, help_text="VS points scored by team2 in this encounter")
+    is_complete = models.BooleanField(
+        default=False,
+        help_text="True when all sub-games in this encounter have been completed",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (
+            f"VS: {self.team1.name} vs {self.team2.name} "
+            f"({self.team1_points}–{self.team2_points}) [{self.tournament.name}]"
+        )
+
+
+class VSLineup(models.Model):
+    """
+    Records the player lineup submitted by one team for a single VS sub-game.
+
+    Security rule: opponent lineup MUST NOT be exposed until BOTH lineups are
+    locked.  This is enforced server-side in the view layer — never by CSS.
+    """
+    match = models.ForeignKey(
+        'matches.Match',
+        on_delete=models.CASCADE,
+        related_name='vs_lineups',
+    )
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name='vs_lineup_entries',
+    )
+    players = models.ManyToManyField(
+        'teams.Player',
+        related_name='vs_lineup_participations',
+        blank=True,
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    is_locked = models.BooleanField(
+        default=True,
+        help_text="Once locked, the lineup is final and cannot be changed",
+    )
+
+    class Meta:
+        unique_together = ('match', 'team')
+
+    def __str__(self):
+        locked_str = "locked" if self.is_locked else "pending"
+        return f"Lineup [{locked_str}]: {self.team.name} for match {self.match_id}"

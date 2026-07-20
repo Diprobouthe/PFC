@@ -12,6 +12,23 @@ class TournamentScenario(models.Model):
     description = models.TextField()
     is_free = models.BooleanField(default=False)
     requires_voucher = models.BooleanField(default=True)
+    # Supported formats — controls which format cards appear in the user-facing creator.
+    # Each scenario declares which team-size formats it supports.
+    # Singles (Tête-à-tête) uses individual registration + temporary one-player teams,
+    # NOT normal permanent one-player teams.
+    supports_singles = models.BooleanField(
+        default=False,
+        help_text="Scenario supports Singles / Tête-à-tête (1-player individual entries, temporary teams)"
+    )
+    supports_doubles = models.BooleanField(
+        default=True,
+        help_text="Scenario supports Doubles (2-player entries)"
+    )
+    supports_triples = models.BooleanField(
+        default=True,
+        help_text="Scenario supports Triples (3-player entries)"
+    )
+
     max_singles_players = models.IntegerField(default=24)
     max_doubles_players = models.IntegerField(default=12)
     max_triples_players = models.IntegerField(default=18)
@@ -35,9 +52,25 @@ class TournamentScenario(models.Model):
             ('melee', 'Mêlée (individual registration, dynamic teams)'),
             ('super_melee', 'Super Mêlée (Mêlée + player shuffle after each round)'),
             ('team', 'Normal Team Tournament (existing team registration)'),
+            ('vs_mode', 'VS Mode (Team vs Team, multi-format encounter)'),
         ],
         default='melee',
         help_text="Type of tournament this scenario creates"
+    )
+
+    # VS Mode configuration — only used when scenario_mode='vs_mode'.
+    # Defines the game composition and point values for each sub-game format.
+    # Standard preset: 6 Tête-à-tête (2 pts), 3 Doubles (3 pts), 2 Triples (5 pts).
+    vs_config = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=(
+            'VS Mode game composition and point values. '
+            'Example: {"games": [{"format": "tete_a_tete", "count": 6, "points_per_win": 2}, '
+            '{"format": "doublets", "count": 3, "points_per_win": 3}, '
+            '{"format": "triplets", "count": 2, "points_per_win": 5}]}'
+        )
     )
 
     # Pre-game court countdown (maps to Tournament.pregame_countdown_minutes)

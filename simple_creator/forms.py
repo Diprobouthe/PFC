@@ -14,14 +14,17 @@ class SimpleTournamentCreationForm(forms.Form):
         help_text="Choose your tournament scenario"
     )
     
+    # Format choices are intentionally kept broad here; the template hides
+    # unsupported options via JS/data attributes driven by the scenario flags.
+    # The clean() method enforces the scenario-level constraint server-side.
     format_type = forms.ChoiceField(
         choices=[
-            ('singles', 'Singles / Tête-à-tête (≤24 players)'),
-            ('doubles', 'Doubles (≤12 players)'),
-            ('triples', 'Triples (≤18 players)')
+            ('singles', 'Singles / Tête-à-tête'),
+            ('doubles', 'Doubles'),
+            ('triples', 'Triples'),
         ],
         widget=forms.RadioSelect,
-        help_text="Choose tournament format"
+        help_text="Choose tournament format (available options depend on the selected scenario)"
     )
     
     num_courts = forms.ChoiceField(
@@ -86,6 +89,19 @@ class SimpleTournamentCreationForm(forms.Form):
             except ValueError:
                 raise ValidationError("Invalid number of courts.")
         
+        # Validate that the chosen format is supported by the selected scenario
+        format_type = cleaned_data.get('format_type')
+        if format_type and scenario:
+            format_supported = {
+                'singles': scenario.supports_singles,
+                'doubles': scenario.supports_doubles,
+                'triples': scenario.supports_triples,
+            }.get(format_type, False)
+            if not format_supported:
+                raise ValidationError(
+                    f"The '{format_type}' format is not supported by the '{scenario.display_name}' scenario."
+                )
+
         # Check if scenario requires voucher
         if scenario.requires_voucher and not scenario.is_free:
             if not voucher_code:

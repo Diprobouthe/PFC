@@ -12,7 +12,7 @@ class ScenarioStageInline(admin.TabularInline):
 
 @admin.register(TournamentScenario)
 class TournamentScenarioAdmin(admin.ModelAdmin):
-    list_display = ['display_name', 'name', 'scenario_mode', 'is_free', 'tournament_type', 'draft_type', 'max_doubles_players', 'max_triples_players']
+    list_display = ['display_name', 'name', 'scenario_mode', 'is_free', 'tournament_type', 'draft_type', 'max_singles_players', 'max_doubles_players', 'max_triples_players']
     list_filter = ['is_free', 'scenario_mode', 'tournament_type', 'draft_type']
     search_fields = ['name', 'display_name']
     readonly_fields = ['created_at']
@@ -24,16 +24,33 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
         ('Access Control', {
             'fields': ('is_free', 'requires_voucher')
         }),
+        ('Supported Formats', {
+            'fields': ('supports_singles', 'supports_doubles', 'supports_triples'),
+            'description': (
+                'Controls which format cards appear in the user-facing Easy Tournament creator. '
+                'Singles / Tête-à-tête uses individual registration with temporary one-player teams — '
+                'NOT normal permanent one-player teams. Doubles and Triples use Mêlée-style team shuffling.'
+            )
+        }),
         ('Player Limits', {
-            'fields': ('max_doubles_players', 'max_triples_players')
+            'fields': ('max_singles_players', 'max_doubles_players', 'max_triples_players'),
+            'description': 'Maximum number of individual players allowed per format.'
         }),
         ('Court Configuration', {
             'fields': ('default_court_complex', 'max_courts', 'recommended_courts'),
             'description': 'Court complex is REQUIRED for all tournaments using this scenario.'
         }),
         ('Scenario Mode', {
-            'fields': ('scenario_mode',),
-            'description': 'Determines what type of tournament is created: Mêlée (individual registration), Super Mêlée (Mêlée + player shuffle after each round), or Normal Team Tournament (uses existing team registration system).'
+            'fields': ('scenario_mode', 'vs_config'),
+            'description': (
+                'Determines what type of tournament is created. '
+                'For VS Mode, set scenario_mode to “vs_mode” and optionally configure vs_config. '
+                'Leave vs_config blank to use the standard preset: '
+                '6 Tête-à-tête (2 pts), 3 Doubles (3 pts), 2 Triples (5 pts). '
+                'Example vs_config: {"games": [{"format": "tete_a_tete", "count": 6, "points_per_win": 2}, '
+                '{"format": "doublets", "count": 3, "points_per_win": 3}, '
+                '{"format": "triplets", "count": 2, "points_per_win": 5}]}'
+            )
         }),
         ('Tournament Configuration', {
             'fields': ('tournament_type', 'num_rounds', 'matches_per_team', 'draft_type')

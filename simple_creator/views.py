@@ -91,6 +91,11 @@ def scenario_details(request, scenario_id):
                 'description': scenario.description,
                 'is_free': scenario.is_free,
                 'requires_voucher': scenario.requires_voucher,
+                # Supported formats — drives which format cards are shown in the creator
+                'supports_singles': scenario.supports_singles,
+                'supports_doubles': scenario.supports_doubles,
+                'supports_triples': scenario.supports_triples,
+                'max_singles_players': scenario.max_singles_players,
                 'max_doubles_players': scenario.max_doubles_players,
                 'max_triples_players': scenario.max_triples_players,
                 'tournament_type': scenario.get_tournament_type_display(),

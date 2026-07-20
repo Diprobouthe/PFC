@@ -83,6 +83,11 @@ def get_available_scenarios():
                     'draft_type': scenario.draft_type,
                     'num_rounds': scenario.num_rounds,
                     'matches_per_team': getattr(scenario, 'matches_per_team', 3),
+                    # Supported formats — drives which format cards are shown in the creator
+                    'supports_singles': getattr(scenario, 'supports_singles', False),
+                    'supports_doubles': getattr(scenario, 'supports_doubles', True),
+                    'supports_triples': getattr(scenario, 'supports_triples', True),
+                    'max_singles': scenario.max_singles_players,
                     'max_doubles': scenario.max_doubles_players,
                     'max_triples': scenario.max_triples_players,
                     'pregame_countdown_minutes': getattr(scenario, 'pregame_countdown_minutes', None),
@@ -160,8 +165,8 @@ def create_simple_tournament(request):
         end_datetime = timezone.make_aware(datetime.combine(tomorrow, datetime.min.time().replace(hour=18)))
         
         # Create tournament using virtual courts
-        max_teams = scenario[f'max_{format_type}']
-        max_players = scenario[f'max_{format_type}']  # Use scenario limit for max participants
+        # 'singles' maps to max_singles; 'doubles' to max_doubles; 'triples' to max_triples
+        max_players = scenario.get(f'max_{format_type}', 24)
         tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
         
         # Determine scenario mode (default to 'melee' for backwards compatibility)
@@ -181,16 +186,28 @@ def create_simple_tournament(request):
             except TournamentScenario.DoesNotExist:
                 pass
 
-        # Build tournament kwargs based on mode
+        # Build tournament kwargs based on mode.
+        # Tournament.save() derives play_format from the boolean flags, so we must set the
+        # correct flag for each format:
+        #   singles  → has_tete_a_tete=True  (play_format='tete_a_tete')
+        #   doubles  → has_doublets=True      (play_format='doublets')
+        #   triples  → has_triplets=True      (play_format='triplets')
+        _play_fmt_map = {
+            'singles': 'tete_a_tete',
+            'doubles': 'doublets',
+            'triples': 'triplets',
+        }
+        _play_fmt = _play_fmt_map.get(format_type, 'doublets')
         tournament_kwargs = dict(
             name=tournament_name,
             description=f"Simple {scenario['name']} tournament ({scenario_mode.replace('_', ' ').title()}) with {num_courts} courts",
             start_date=start_datetime,
             end_date=end_datetime,
             format="multi_stage",
-            play_format="triplets" if format_type == "triples" else "doublets",
-            has_triplets=(format_type == "triples"),
-            has_doublets=(format_type == "doubles"),
+            play_format=_play_fmt,
+            has_tete_a_tete=(format_type == 'singles'),
+            has_doublets=(format_type == 'doubles'),
+            has_triplets=(format_type == 'triples'),
             is_active=True,
             automation_status="idle",
             default_time_limit_minutes=timer_minutes,
@@ -200,9 +217,15 @@ def create_simple_tournament(request):
 
         if is_melee_mode:
             # Mêlée and Super Mêlée: individual player registration, dynamic team generation
+            # singles → tete_a_tete (1-player temp teams); doubles → doublets; triples → triplets
+            _melee_fmt = {
+                'singles': 'tete_a_tete',
+                'doubles': 'doublets',
+                'triples': 'triplets',
+            }.get(format_type, 'doublets')
             tournament_kwargs.update(
                 is_melee=True,
-                melee_format="triplets" if format_type == "triples" else "doublets",
+                melee_format=_melee_fmt,
                 melee_teams_generated=False,
                 max_participants=max_players,
                 shuffle_players_after_round=is_super_melee,

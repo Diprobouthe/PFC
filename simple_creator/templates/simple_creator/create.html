@@ -29,7 +29,13 @@
                             <input class="form-check-input" type="radio" name="scenario" 
                                    value="{{ scenario.id }}" id="scenario_{{ scenario.id }}"
                                    data-requires-voucher="{{ scenario.requires_voucher|yesno:'true,false' }}"
-                                   data-is-free="{{ scenario.is_free|yesno:'true,false' }}">
+                                   data-is-free="{{ scenario.is_free|yesno:'true,false' }}"
+                                   data-supports-singles="{{ scenario.supports_singles|yesno:'true,false' }}"
+                                   data-supports-doubles="{{ scenario.supports_doubles|yesno:'true,false' }}"
+                                   data-supports-triples="{{ scenario.supports_triples|yesno:'true,false' }}"
+                                   data-max-singles="{{ scenario.max_singles_players }}"
+                                   data-max-doubles="{{ scenario.max_doubles_players }}"
+                                   data-max-triples="{{ scenario.max_triples_players }}">
                             <label class="form-check-label fw-bold" for="scenario_{{ scenario.id }}">
                                 {{ scenario.display_name }}
                             </label>
@@ -78,27 +84,53 @@
             Choose Format
         </h4>
         
-        <div class="row g-3">
-            {% for value, label in form.format_type.field.choices %}
-            <div class="col-md-4">
-                <div class="format-option" data-format="{{ value }}">
+        {# Format cards — visibility is controlled by JS based on the selected scenario's supports_* flags #}
+        <div id="format-hint" class="alert alert-info py-2 mb-3" style="display:none;">
+            <i class="bi bi-arrow-up-circle"></i> Please select a scenario first to see the available formats.
+        </div>
+        <div class="row g-3" id="format-cards-row">
+            {# Singles / Tête-à-tête #}
+            <div class="col-md-4 format-col" data-format-col="singles" style="display:none;">
+                <div class="format-option" data-format="singles">
                     <div class="form-check text-center">
-                        <input class="form-check-input" type="radio" name="format_type" 
-                               value="{{ value }}" id="format_{{ value }}">
-                        <label class="form-check-label fw-bold d-block" for="format_{{ value }}">
-                            {% if value == 'singles' %}
-                                <i class="bi bi-person fs-2 d-block mb-2 text-primary"></i>
-                            {% elif value == 'doubles' %}
-                                <i class="bi bi-people fs-2 d-block mb-2 text-primary"></i>
-                            {% else %}
-                                <i class="bi bi-people-fill fs-2 d-block mb-2 text-primary"></i>
-                            {% endif %}
-                            {{ label }}
+                        <input class="form-check-input" type="radio" name="format_type"
+                               value="singles" id="format_singles">
+                        <label class="form-check-label fw-bold d-block" for="format_singles">
+                            <i class="bi bi-person fs-2 d-block mb-2 text-primary"></i>
+                            Singles / Tête-à-tête
+                            <small class="d-block text-muted fw-normal" id="singles-cap-label"></small>
                         </label>
                     </div>
                 </div>
             </div>
-            {% endfor %}
+            {# Doubles #}
+            <div class="col-md-4 format-col" data-format-col="doubles" style="display:none;">
+                <div class="format-option" data-format="doubles">
+                    <div class="form-check text-center">
+                        <input class="form-check-input" type="radio" name="format_type"
+                               value="doubles" id="format_doubles">
+                        <label class="form-check-label fw-bold d-block" for="format_doubles">
+                            <i class="bi bi-people fs-2 d-block mb-2 text-primary"></i>
+                            Doubles
+                            <small class="d-block text-muted fw-normal" id="doubles-cap-label"></small>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            {# Triples #}
+            <div class="col-md-4 format-col" data-format-col="triples" style="display:none;">
+                <div class="format-option" data-format="triples">
+                    <div class="form-check text-center">
+                        <input class="form-check-input" type="radio" name="format_type"
+                               value="triples" id="format_triples">
+                        <label class="form-check-label fw-bold d-block" for="format_triples">
+                            <i class="bi bi-people-fill fs-2 d-block mb-2 text-primary"></i>
+                            Triples
+                            <small class="d-block text-muted fw-normal" id="triples-cap-label"></small>
+                        </label>
+                    </div>
+                </div>
+            </div>
         </div>
         <div id="shuffle-note" class="mt-3 text-muted small">
             <i class="bi bi-shuffle"></i>
@@ -209,20 +241,83 @@ document.addEventListener('DOMContentLoaded', function() {
     const voucherInput = document.querySelector('input[name="voucher_code"]');
     const voucherFeedback = document.getElementById('voucher-feedback');
     
-    // Handle scenario selection
+    // ── Format-card visibility helper ─────────────────────────────────────────
+    // Shows only the format cards supported by the selected scenario.
+    // Capacity labels are updated from the scenario's max_* data attributes.
+    function updateFormatCards(radio) {
+        const formatHint   = document.getElementById('format-hint');
+        const formatCols   = document.querySelectorAll('.format-col');
+        const shuffleNote  = document.getElementById('shuffle-note');
+
+        if (!radio) {
+            // No scenario selected yet — hide all cards, show hint
+            formatCols.forEach(col => col.style.display = 'none');
+            if (formatHint) formatHint.style.display = 'block';
+            return;
+        }
+        if (formatHint) formatHint.style.display = 'none';
+
+        const supports = {
+            singles: radio.dataset.supportssingles === 'true',
+            doubles: radio.dataset.supportsdoubles === 'true',
+            triples: radio.dataset.supportstriples === 'true',
+        };
+        const caps = {
+            singles: radio.dataset.maxsingles,
+            doubles: radio.dataset.maxdoubles,
+            triples: radio.dataset.maxtriples,
+        };
+        const capLabels = {
+            singles: document.getElementById('singles-cap-label'),
+            doubles: document.getElementById('doubles-cap-label'),
+            triples: document.getElementById('triples-cap-label'),
+        };
+
+        formatCols.forEach(col => {
+            const fmt = col.dataset.formatCol;
+            col.style.display = supports[fmt] ? '' : 'none';
+            // Deselect hidden formats
+            if (!supports[fmt]) {
+                const r = col.querySelector('input[type="radio"]');
+                if (r) r.checked = false;
+                col.querySelector('.format-option').classList.remove('selected');
+            }
+            // Update capacity label
+            if (capLabels[fmt] && caps[fmt]) {
+                capLabels[fmt].textContent = '\u2264' + caps[fmt] + ' players';
+            }
+        });
+
+        // Auto-select if only one format is visible
+        const visibleCols = [...formatCols].filter(c => c.style.display !== 'none');
+        if (visibleCols.length === 1) {
+            const onlyOpt = visibleCols[0].querySelector('.format-option');
+            const onlyRadio = visibleCols[0].querySelector('input[type="radio"]');
+            onlyRadio.checked = true;
+            document.querySelectorAll('.format-option').forEach(o => o.classList.remove('selected'));
+            onlyOpt.classList.add('selected');
+        }
+
+        // Shuffle note: hide for singles-only scenarios
+        if (shuffleNote) {
+            const selectedFmtRadio = document.querySelector('input[name="format_type"]:checked');
+            shuffleNote.style.display = (selectedFmtRadio && selectedFmtRadio.value === 'singles') ? 'none' : '';
+        }
+    }
+
+    // ── Handle scenario selection ──────────────────────────────────────────────
     scenarioCards.forEach(card => {
         card.addEventListener('click', function() {
             const radio = card.querySelector('input[type="radio"]');
             radio.checked = true;
-            
+
             // Update visual selection
             scenarioCards.forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
-            
+
             // Show/hide voucher section
             const requiresVoucher = radio.dataset.requiresVoucher === 'true';
             const isFree = radio.dataset.isFree === 'true';
-            
             if (requiresVoucher && !isFree) {
                 voucherSection.style.display = 'block';
                 voucherInput.required = true;
@@ -232,26 +327,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 voucherInput.value = '';
                 voucherFeedback.innerHTML = '';
             }
+
+            // Update format cards based on this scenario's supported formats
+            updateFormatCards(radio);
         });
     });
-    
-    // Handle format selection
-    formatOptions.forEach(option => {
+
+    // ── Handle format selection ────────────────────────────────────────────────
+    document.querySelectorAll('.format-option').forEach(option => {
         option.addEventListener('click', function() {
             const radio = option.querySelector('input[type="radio"]');
             radio.checked = true;
-            
-            // Update visual selection
-            formatOptions.forEach(o => o.classList.remove('selected'));
+            document.querySelectorAll('.format-option').forEach(o => o.classList.remove('selected'));
             option.classList.add('selected');
-
-            // Shuffle guard: hide shuffle note when singles/tete_a_tete is selected
+            // Shuffle note
             const shuffleNote = document.getElementById('shuffle-note');
-            if (shuffleNote) {
-                shuffleNote.style.display = (radio.value === 'singles') ? 'none' : '';
-            }
+            if (shuffleNote) shuffleNote.style.display = (radio.value === 'singles') ? 'none' : '';
         });
     });
+
+    // ── On page load: apply format visibility for any pre-selected scenario ────
+    const preSelectedScenario = document.querySelector('input[name="scenario"]:checked');
+    updateFormatCards(preSelectedScenario || null);
     
     // Handle voucher validation
     if (voucherInput) {

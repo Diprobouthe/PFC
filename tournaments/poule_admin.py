@@ -104,15 +104,26 @@ class PouleTeamInline(admin.TabularInline):
                     registered_team_ids = TournamentTeam.objects.filter(
                         tournament=tournament,
                     ).values_list('team_id', flat=True)
+                    # Strict visibility rule: not archived, not temp, full profile only.
                     kwargs['queryset'] = Team.objects.filter(
                         pk__in=registered_team_ids,
                         is_archived=False,
+                        is_tournament_temp=False,
+                        profile__profile_type='full',
                     ).order_by('name')
                 except Poule.DoesNotExist:
-                    kwargs['queryset'] = Team.objects.filter(is_archived=False).order_by('name')
+                    kwargs['queryset'] = Team.objects.filter(
+                        is_archived=False,
+                        is_tournament_temp=False,
+                        profile__profile_type='full',
+                    ).order_by('name')
             else:
-                # New poule — show all non-archived teams
-                kwargs['queryset'] = Team.objects.filter(is_archived=False).order_by('name')
+                # New poule — strict visibility rule: not archived, not temp, full profile only.
+                kwargs['queryset'] = Team.objects.filter(
+                    is_archived=False,
+                    is_tournament_temp=False,
+                    profile__profile_type='full',
+                ).order_by('name')
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 

@@ -235,8 +235,10 @@
     <a href="{% url 'tournament_detail' tournament.id %}">&#8592;</a>
     <span class="mr-title">{{ tournament.name }}</span>
     <span class="mr-badge">
-      {% if tournament.melee_format == "doublets" %}2v2{% else %}3v3{% endif %}
-      &nbsp;Mêlée
+      {% if tournament.melee_format == "tete_a_tete" %}1v1
+      {% elif tournament.melee_format == "doublets" %}2v2
+      {% else %}3v3{% endif %}
+      &nbsp;{% if tournament.melee_format == "tete_a_tete" %}Tête-à-tête{% else %}Mêlée{% endif %}
     </span>
   </div>
 
@@ -261,7 +263,7 @@
     </div>
     <div class="mr-stat">
       <div class="mr-stat-num">{{ estimated_teams }}</div>
-      <div class="mr-stat-label">Teams</div>
+      <div class="mr-stat-label">{% if is_singles %}Players ready{% else %}Teams{% endif %}</div>
     </div>
     <div class="mr-stat">
       <div class="mr-stat-num">{{ leftover_players }}</div>
@@ -352,7 +354,7 @@
     <form method="post" style="flex:1;display:flex;">
       {% csrf_token %}
       <button type="submit" class="mr-btn-register active" style="width:100%;">
-        &#43; Register for Mêlée
+        &#43; Register for {% if is_singles %}Tête-à-tête{% else %}Mêlée{% endif %}
       </button>
     </form>
     {# QR button — register another player by scanning their QR card #}

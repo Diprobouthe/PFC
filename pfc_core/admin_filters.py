@@ -37,13 +37,19 @@ class ActiveTeamMixin:
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         from teams.models import Team
         if db_field.related_model is Team:
-            kwargs['queryset'] = Team.objects.filter(is_archived=False)
+            kwargs['queryset'] = Team.objects.filter(
+                is_archived=False,
+                is_tournament_temp=False,
+            )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         from teams.models import Team
         if db_field.related_model is Team:
-            kwargs['queryset'] = Team.objects.filter(is_archived=False)
+            kwargs['queryset'] = Team.objects.filter(
+                is_archived=False,
+                is_tournament_temp=False,
+            )
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     def get_search_results(self, request, queryset, search_term):
@@ -51,7 +57,10 @@ class ActiveTeamMixin:
         from teams.models import Team
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
         if queryset.model is Team:
-            queryset = queryset.filter(is_archived=False)
+            queryset = queryset.filter(
+                is_archived=False,
+                is_tournament_temp=False,
+            )
         return queryset, use_distinct
 
 

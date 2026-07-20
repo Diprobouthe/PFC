@@ -149,7 +149,14 @@ class PublicPlayerForm(forms.Form):
                 raise forms.ValidationError("Please search for and select a team to join.")
             
             try:
-                selected_team = Team.objects.get(id=selected_team_id)
+                # Strict visibility rule: not archived, not temp, not subteam, full profile only.
+                selected_team = Team.objects.get(
+                    id=selected_team_id,
+                    is_archived=False,
+                    is_tournament_temp=False,
+                    parent_team__isnull=True,
+                    profile__profile_type='full',
+                )
                 cleaned_data['existing_team'] = selected_team
             except Team.DoesNotExist:
                 raise forms.ValidationError("Selected team not found. Please search again.")

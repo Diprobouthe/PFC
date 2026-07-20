@@ -224,7 +224,15 @@ class QuickTeamRegistrationForm(forms.Form):
         pin = self.cleaned_data['team_pin']
         
         try:
-            self.team = Team.objects.get(pin=pin)
+            # Strict rule: archived, temp, and non-full-profile teams may not self-register.
+            # Mêlée/Super Mêlée/Tête-à-tête teams are created by the engine and must not
+            # appear in user-facing registration flows.
+            self.team = Team.objects.get(
+                pin=pin,
+                is_archived=False,
+                is_tournament_temp=False,
+                profile__profile_type='full',
+            )
         except Team.DoesNotExist:
             raise ValidationError("Invalid team PIN. Please check and try again.")
         

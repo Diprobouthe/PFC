@@ -26,9 +26,14 @@ def team_search_api(request):
     if len(query) < 2:
         return JsonResponse({'teams': []})
     
-    # Search teams by name (case-insensitive, contains)
+    # Search teams by name (case-insensitive, contains).
+    # Strict visibility rule: not archived, not temp, not subteam, full profile only.
     teams = Team.objects.filter(
-        name__icontains=query
+        name__icontains=query,
+        is_archived=False,
+        is_tournament_temp=False,
+        parent_team__isnull=True,
+        profile__profile_type='full',
     ).order_by('name')[:10]  # Limit to 10 results
     
     team_data = []

@@ -161,9 +161,15 @@ class StageForm(forms.ModelForm):
 
 
 class TeamAssignmentForm(forms.Form):
-    """Form for assigning teams to a tournament"""
+    """Form for assigning teams to a tournament (staff only).
+    Strict visibility rule: not archived, not temp, not subteam, full profile only."""
     teams = forms.ModelMultipleChoiceField(
-        queryset=Team.objects.all(),
+        queryset=Team.objects.filter(
+            is_archived=False,
+            is_tournament_temp=False,
+            parent_team__isnull=True,
+            profile__profile_type='full',
+        ),
         widget=forms.CheckboxSelectMultiple,
         required=False
     )

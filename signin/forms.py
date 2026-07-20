@@ -11,7 +11,12 @@ class TournamentSigninForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     team = forms.ModelChoiceField(
-        queryset=Team.objects.all(),
+        # Strict visibility rule: not archived, not temp, full profile only.
+        queryset=Team.objects.filter(
+            is_archived=False,
+            is_tournament_temp=False,
+            profile__profile_type='full',
+        ),
         empty_label="Select your team",
         widget=forms.Select(attrs={'class': 'form-select'})
     )

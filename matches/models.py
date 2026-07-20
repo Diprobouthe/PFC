@@ -71,6 +71,29 @@ class Match(models.Model):
         help_text="When the timer expired (if applicable)"
     )
 
+    # VS Mode fields — only populated for sub-games that belong to a VSEncounter.
+    vs_encounter = models.ForeignKey(
+        'tournaments.VSEncounter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sub_games',
+        help_text="VS Encounter this sub-game belongs to (VS Mode only)",
+    )
+    vs_points_value = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Points awarded to the winning team for this VS sub-game (e.g. 2 for Tête-à-tête)",
+    )
+    vs_lineup_team1_locked = models.BooleanField(
+        default=False,
+        help_text="True when team1 has submitted and locked their lineup for this VS sub-game",
+    )
+    vs_lineup_team2_locked = models.BooleanField(
+        default=False,
+        help_text="True when team2 has submitted and locked their lineup for this VS sub-game",
+    )
+
     @property
     def is_draw(self):
         """Check if the match ended in a draw (tie)"""

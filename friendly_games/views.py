@@ -132,7 +132,10 @@ def create_game(request):
             messages.error(request, 'You must provide your codename to create a game.')
             return render(request, 'friendly_games/create_game.html', {
                 'session_codename': session_codename,
-                'teams': Team.objects.all().prefetch_related('players'),
+                'teams': Team.objects.filter(
+                    is_archived=False, is_tournament_temp=False,
+                    parent_team__isnull=True, profile__profile_type='full',
+                ).prefetch_related('players'),
             })
         
         # Validate creator codename
@@ -143,7 +146,10 @@ def create_game(request):
             messages.error(request, f'Invalid codename "{creator_codename}". Please provide a correct codename to create a game.')
             return render(request, 'friendly_games/create_game.html', {
                 'session_codename': session_codename,
-                'teams': Team.objects.all().prefetch_related('players'),
+                'teams': Team.objects.filter(
+                    is_archived=False, is_tournament_temp=False,
+                    parent_team__isnull=True, profile__profile_type='full',
+                ).prefetch_related('players'),
             })
         
         try:
@@ -284,8 +290,14 @@ def create_game(request):
         except Exception as e:
             messages.error(request, f'Error creating game: {str(e)}')
     
-    # Get all teams with their players for selection
-    teams = Team.objects.all().prefetch_related('players')
+    # Get selectable teams for the player-selection UI.
+    # Strict visibility rule: not archived, not temp, not subteam, full profile only.
+    teams = Team.objects.filter(
+        is_archived=False,
+        is_tournament_temp=False,
+        parent_team__isnull=True,
+        profile__profile_type='full',
+    ).prefetch_related('players')
     
     # Auto-detect logged-in player and add to black team
     auto_selected_player = None
