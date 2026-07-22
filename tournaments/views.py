@@ -15,13 +15,24 @@ def is_staff(user):
 
 # Removed login_required decorator
 def tournament_list(request):
-    """View for listing all tournaments"""
-    active_tournaments = Tournament.objects.filter(is_active=True, is_archived=False)
-    archived_tournaments = Tournament.objects.filter(is_archived=True)
-    
+    """View for listing all tournaments — mobile-friendly directory with search."""
+    query = request.GET.get('q', '').strip()
+
+    active_qs = Tournament.objects.filter(is_active=True, is_archived=False)
+    archived_qs = Tournament.objects.filter(is_archived=True)
+
+    if query:
+        active_qs = active_qs.filter(name__icontains=query)
+        archived_qs = archived_qs.filter(name__icontains=query)
+
+    # Newest start_date first within each section
+    active_tournaments = active_qs.order_by('-start_date')
+    archived_tournaments = archived_qs.order_by('-start_date')
+
     context = {
         'active_tournaments': active_tournaments,
         'archived_tournaments': archived_tournaments,
+        'query': query,
     }
     return render(request, 'tournaments/tournament_list.html', context)
 

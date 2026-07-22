@@ -20,6 +20,7 @@
         .form-control, .form-select { border-radius: 10px; border: 2px solid #e2e8f0; padding: 0.75rem 1rem; }
         .voucher-section { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; }
         .court-info { background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; }
+        @keyframes fadeInPanel { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
     </style>
 </head>
 <body>
@@ -43,45 +44,65 @@
                 <form method="post" action="{% url 'create_simple_tournament' %}" id="tournament-form">
                     {% csrf_token %}
                     
-                    <!-- Step 1: Select Scenario -->
+                    <!-- Step 1: Select Scenario (dropdown + detail panel) -->
                     <div class="mb-4">
                         <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">1</span> Select Scenario</h4>
-                        <div class="row g-3">
+
+                        <!-- Hidden radio inputs (keep existing JS working) -->
+                        <div style="display:none" id="scenario-radios">
                             {% for key, scenario in scenarios.items %}
-                            <div class="col-md-6">
-                                <div class="scenario-card" data-scenario="{{ key }}"
-                                     data-requires-voucher="{% if not scenario.is_free %}true{% else %}false{% endif %}"
-                                     data-scenario-mode="{{ scenario.scenario_mode|default:'melee' }}"
-                                     data-supports-singles="{% if scenario.supports_singles %}true{% else %}false{% endif %}"
-                                     data-supports-doubles="{% if scenario.supports_doubles %}true{% else %}false{% endif %}"
-                                     data-supports-triples="{% if scenario.supports_triples %}true{% else %}false{% endif %}"
-                                     data-max-singles="{{ scenario.max_singles|default:0 }}"
-                                     data-max-doubles="{{ scenario.max_doubles|default:0 }}"
-                                     data-max-triples="{{ scenario.max_triples|default:0 }}">
-                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="scenario" value="{{ key }}" id="scenario_{{ key }}">
-                                            <label class="form-check-label fw-bold" for="scenario_{{ key }}">{{ scenario.name }}</label>
-                                        </div>
-                                        <div class="d-flex gap-1 flex-wrap justify-content-end">
-                                            {% if scenario.scenario_mode == 'super_melee' %}
-                                                <span class="badge bg-purple text-white" style="background:#7c3aed!important">Super Mêlée</span>
-                                            {% elif scenario.scenario_mode == 'team' %}
-                                                <span class="badge bg-success">Teams</span>
-                                            {% else %}
-                                                <span class="badge bg-info text-dark">Mêlée</span>
-                                            {% endif %}
-                                            {% if scenario.is_free %}
-                                                <span class="badge-free">Free</span>
-                                            {% else %}
-                                                <span class="badge-voucher">Voucher</span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <p class="text-muted mb-0">{{ scenario.description }}</p>
+                            <input type="radio" name="scenario" value="{{ key }}" id="scenario_{{ key }}">
+                            {% endfor %}
+                        </div>
+
+                        <!-- Dropdown selector -->
+                        <div class="position-relative mb-3" id="scenario-select-wrap">
+                            <select id="scenario-dropdown" class="form-select" style="border-radius:10px;border:2px solid #e2e8f0;padding:.75rem 2.5rem .75rem 1rem;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer">
+                                <option value="">— Choose a scenario —</option>
+                                {% for key, scenario in scenarios.items %}
+                                <option value="{{ key }}"
+                                    data-requires-voucher="{% if not scenario.is_free %}true{% else %}false{% endif %}"
+                                    data-scenario-mode="{{ scenario.scenario_mode|default:'melee' }}"
+                                    data-supports-singles="{% if scenario.supports_singles %}true{% else %}false{% endif %}"
+                                    data-supports-doubles="{% if scenario.supports_doubles %}true{% else %}false{% endif %}"
+                                    data-supports-triples="{% if scenario.supports_triples %}true{% else %}false{% endif %}"
+                                    data-max-singles="{{ scenario.max_singles|default:0 }}"
+                                    data-max-doubles="{{ scenario.max_doubles|default:0 }}"
+                                    data-max-triples="{{ scenario.max_triples|default:0 }}"
+                                    data-desc="{{ scenario.description|escapejs }}"
+                                    data-is-free="{% if scenario.is_free %}true{% else %}false{% endif %}"
+                                    data-mode="{{ scenario.scenario_mode|default:'melee' }}"
+                                >{{ scenario.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <span style="position:absolute;right:1rem;top:50%;transform:translateY(-50%);pointer-events:none;color:#6c757d">&#9662;</span>
+                        </div>
+
+                        <!-- Detail panel (hidden until selection) -->
+                        <div id="scenario-detail-panel" style="display:none;animation:fadeInPanel .2s ease">
+                            <div style="border:2px solid #e2e8f0;border-radius:12px;overflow:hidden">
+                                <div id="sdp-header" style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;padding:.85rem 1.1rem;display:flex;justify-content:space-between;align-items:center">
+                                    <span id="sdp-name" style="font-weight:600;font-size:.95rem"></span>
+                                    <span id="sdp-badge" style="font-size:.75rem;padding:.25em .7em;border-radius:20px;font-weight:600"></span>
+                                </div>
+                                <div style="padding:.9rem 1.1rem">
+                                    <p id="sdp-desc" style="color:#64748b;font-size:.88rem;margin-bottom:.75rem"></p>
+                                    <div id="sdp-chips" style="display:flex;flex-wrap:wrap;gap:.4rem"></div>
                                 </div>
                             </div>
-                            {% endfor %}
+                        </div>
+
+                        <!-- Hidden proxy scenario-card div used by existing JS (updateFormatCards etc.) -->
+                        <div id="active-scenario-card" class="scenario-card" style="display:none"
+                             data-scenario=""
+                             data-requires-voucher="false"
+                             data-scenario-mode="melee"
+                             data-supports-singles="false"
+                             data-supports-doubles="false"
+                             data-supports-triples="false"
+                             data-max-singles="0"
+                             data-max-doubles="0"
+                             data-max-triples="0">
                         </div>
                     </div>
                     
@@ -184,7 +205,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const scenarioCards = document.querySelectorAll('.scenario-card');
+            const scenarioCards = document.querySelectorAll('.scenario-card'); // kept for compat
             const formatCards = document.querySelectorAll('.format-card');
             const courtComplexSelect = document.getElementById('court_complex');
             const courtInfo = document.getElementById('court-info');
@@ -192,6 +213,88 @@
             const voucherSection = document.getElementById('voucher-section');
             const voucherInput = document.getElementById('voucher_code');
             const voucherFeedback = document.getElementById('voucher-feedback');
+
+            // ── Dropdown scenario selector ─────────────────────────────────────────────
+            const dropdown   = document.getElementById('scenario-dropdown');
+            const detailPanel= document.getElementById('scenario-detail-panel');
+            const proxyCard  = document.getElementById('active-scenario-card');
+            const sdpName    = document.getElementById('sdp-name');
+            const sdpBadge   = document.getElementById('sdp-badge');
+            const sdpDesc    = document.getElementById('sdp-desc');
+            const sdpChips   = document.getElementById('sdp-chips');
+
+            function chip(icon, text) {
+                return '<span style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:20px;padding:.25rem .65rem;font-size:.78rem;color:#334155"><i class="bi bi-' + icon + '" style="color:#2563eb"></i>' + text + '</span>';
+            }
+
+            function applyScenarioOption(opt) {
+                if (!opt || !opt.value) {
+                    detailPanel.style.display = 'none';
+                    // Uncheck hidden radio
+                    document.querySelectorAll('#scenario-radios input[type=radio]').forEach(r => r.checked = false);
+                    updateFormatCards(null);
+                    voucherSection.style.display = 'none';
+                    if (voucherInput) { voucherInput.required = false; voucherInput.value = ''; }
+                    if (voucherFeedback) voucherFeedback.innerHTML = '';
+                    return;
+                }
+                const d = opt.dataset;
+                // Sync hidden radio
+                const radio = document.getElementById('scenario_' + opt.value);
+                if (radio) radio.checked = true;
+
+                // Update proxy card data attributes for updateFormatCards()
+                proxyCard.dataset.requiresVoucher = d.requiresVoucher;
+                proxyCard.dataset.scenarioMode    = d.scenarioMode;
+                proxyCard.dataset.supportsSingles = d.supportsSingles;
+                proxyCard.dataset.supportsDoubles = d.supportsDoubles;
+                proxyCard.dataset.supportsTriples = d.supportsTriples;
+                proxyCard.dataset.maxSingles      = d.maxSingles;
+                proxyCard.dataset.maxDoubles      = d.maxDoubles;
+                proxyCard.dataset.maxTriples      = d.maxTriples;
+
+                // Render detail panel
+                const isFree = d.isFree === 'true';
+                sdpName.textContent = opt.textContent.trim();
+                sdpBadge.textContent = isFree ? 'Free' : 'Voucher Required';
+                sdpBadge.style.background = isFree ? '#d1fae5' : '#fef3c7';
+                sdpBadge.style.color      = isFree ? '#065f46' : '#92400e';
+                sdpDesc.textContent = d.desc;
+
+                const modeLabel = {'super_melee':'Super M\u00eal\u00e9e','team':'Teams','melee':'M\u00eal\u00e9e','vs_mode':'VS Mode'}[d.mode] || d.mode;
+                sdpChips.innerHTML =
+                    chip('person',        'Singles \u2264' + d.maxSingles) +
+                    chip('people',        'Doubles \u2264' + d.maxDoubles) +
+                    chip('people-fill',   'Triples \u2264' + d.maxTriples) +
+                    chip('diagram-3',     modeLabel) +
+                    (isFree ? chip('check-circle','Free') : chip('ticket-perforated','Voucher'));
+
+                detailPanel.style.display = 'block';
+
+                // Voucher
+                if (d.requiresVoucher === 'true') {
+                    voucherSection.style.display = 'block';
+                    if (voucherInput) voucherInput.required = true;
+                } else {
+                    voucherSection.style.display = 'none';
+                    if (voucherInput) { voucherInput.required = false; voucherInput.value = ''; }
+                    if (voucherFeedback) voucherFeedback.innerHTML = '';
+                }
+
+                // Update format cards
+                updateFormatCards(proxyCard);
+            }
+
+            if (dropdown) {
+                dropdown.addEventListener('change', function () {
+                    applyScenarioOption(this.options[this.selectedIndex]);
+                });
+                // Auto-select first real option
+                if (dropdown.options.length > 1) {
+                    dropdown.selectedIndex = 1;
+                    applyScenarioOption(dropdown.options[1]);
+                }
+            }
             
             // ── Format-card visibility helper ─────────────────────────────────────────
             // All three cards are visible by default.
@@ -248,31 +351,7 @@
                 }
             }
 
-            // ── Handle scenario selection ──────────────────────────────────────────────
-            scenarioCards.forEach(card => {
-                card.addEventListener('click', function() {
-                    const radio = card.querySelector('input[type="radio"]');
-                    radio.checked = true;
-
-                    scenarioCards.forEach(c => c.classList.remove('selected'));
-                    card.classList.add('selected');
-
-                    // Show/hide voucher section
-                    const requiresVoucher = card.dataset.requiresVoucher === 'true';
-                    if (requiresVoucher) {
-                        voucherSection.style.display = 'block';
-                        voucherInput.required = true;
-                    } else {
-                        voucherSection.style.display = 'none';
-                        voucherInput.required = false;
-                        voucherInput.value = '';
-                        voucherFeedback.innerHTML = '';
-                    }
-
-                    // Update format cards based on this scenario's supported formats
-                    updateFormatCards(card);
-                });
-            });
+            // (Scenario selection is now handled by the dropdown above)
 
             // ── Handle format selection ────────────────────────────────────────────────
             document.querySelectorAll('.format-card').forEach(card => {
@@ -284,10 +363,7 @@
                 });
             });
 
-            // ── On page load: apply format visibility for any pre-selected scenario ────
-            // If no scenario is pre-selected, all three cards remain visible (default state).
-            const preSelectedCard = document.querySelector('.scenario-card.selected');
-            updateFormatCards(preSelectedCard || null);
+               // (On page load, format visibility is driven by applyScenarioOption above)
             
             // Handle court complex selection
             courtComplexSelect.addEventListener('change', function() {

@@ -10,10 +10,14 @@ from .models import TeamTournamentSignin
 
 def tournament_signin_list(request):
     """View for listing available tournaments for sign-in"""
-    active_tournaments = Tournament.objects.filter(is_active=True, is_archived=False)
-    
+    q = request.GET.get('q', '').strip()
+    qs = Tournament.objects.filter(is_active=True, is_archived=False).order_by('-start_date', '-created_at')
+    if q:
+        qs = qs.filter(name__icontains=q)
+
     context = {
-        'active_tournaments': active_tournaments,
+        'active_tournaments': qs,
+        'search_query': q,
     }
     return render(request, 'signin/tournament_signin_list.html', context)
 

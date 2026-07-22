@@ -23,8 +23,8 @@ def calculate_melee_badges(stats_list):
     
     badges_map = {}
     
-    # Find tournament winner (highest current rating)
-    max_rating = max(s.current_rating for s in stats_list)
+    # Find tournament winner (biggest rating improvement)
+    max_change = max(s.current_rating - s.starting_rating for s in stats_list)
     
     # Find longest win streak
     max_streak = max(s.current_streak for s in stats_list) if stats_list else 0
@@ -39,11 +39,12 @@ def calculate_melee_badges(stats_list):
     for stats in stats_list:
         player_badges = []
         
-        # 🏆 Tournament Winner (highest rating)
-        if stats.current_rating == max_rating and stats.matches_played > 0:
+        # 🏆 Tournament Leader (biggest rating improvement)
+        player_change = stats.current_rating - stats.starting_rating
+        if player_change == max_change and stats.matches_played > 0 and max_change > 0:
             player_badges.append({
                 'emoji': '🏆',
-                'title': 'Tournament Leader',
+                'title': f'Most Improved: +{round(max_change, 1)}',
                 'type': 'winner'
             })
         
@@ -101,8 +102,8 @@ def melee_player_leaderboard(request, tournament_id):
         .select_related('player')
     )
     
-    # Sort by current_rating (property) in Python
-    stats_list.sort(key=lambda s: (-s.current_rating, -s.wins))
+    # Sort by rating change (biggest improvement = first place), then by wins as tiebreaker
+    stats_list.sort(key=lambda s: (-(s.current_rating - s.starting_rating), -s.wins))
     
     # Calculate badges
     badges_map = calculate_melee_badges(stats_list)

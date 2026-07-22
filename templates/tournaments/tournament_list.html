@@ -1,112 +1,334 @@
 {% extends 'base.html' %}
 
-{% block title %}Tournaments - Petanque Platform{% endblock %}
+{% block title %}Tournaments — PFC{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="mb-4">Tournaments</h1>
-            
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Active Tournaments</h5>
-                    {% if user.is_staff %}
-                    <a href="{% url 'tournament_create' %}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-plus"></i> Create Tournament
-                    </a>
-                    {% endif %}
-                </div>
-                <div class="card-body">
-                    {% if active_tournaments %}
-                        <div class="list-group">
-                            {% for tournament in active_tournaments %}
-                                <a href="{% url 'tournament_detail' tournament.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="mb-1">
-                                            {{ tournament.name }}
-                                            {% if tournament.is_melee %}
-                                                <span class="badge bg-info ms-2">
-                                                    <i class="fas fa-users"></i> Mêlée
-                                                </span>
-                                            {% endif %}
-                                        </h5>
-                                        <p class="mb-1">
-                                            Format: {{ tournament.get_format_display }}
-                                            {% if tournament.is_melee %}
-                                                | {{ tournament.get_melee_format_display }}
-                                            {% endif %}
-                                        </p>
-                                        <small>
-                                            {% if tournament.is_melee %}
-                                                Players: {{ tournament.melee_players.count }}
-                                                {% if tournament.melee_teams_generated %}
-                                                    | Teams: {{ tournament.teams.count }}
-                                                {% else %}
-                                                    | Registration Open
-                                                {% endif %}
-                                            {% else %}
-                                                Teams: {{ tournament.teams.count }}
-                                            {% endif %}
-                                        </small>
-                                    </div>
-                                    <div class="text-end">
-                                        <span class="badge bg-primary rounded-pill">Active</span>
-                                        {% if tournament.is_melee and not tournament.melee_teams_generated %}
-                                            <br><small class="text-muted">Accepting registrations</small>
-                                        {% endif %}
-                                    </div>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-muted">No active tournaments found.</p>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Archived Tournaments</h5>
-                </div>
-                <div class="card-body">
-                    {% if archived_tournaments %}
-                        <div class="list-group">
-                            {% for tournament in archived_tournaments %}
-                                <a href="{% url 'tournament_detail' tournament.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="mb-1">
-                                            {{ tournament.name }}
-                                            {% if tournament.is_melee %}
-                                                <span class="badge bg-info ms-2">
-                                                    <i class="fas fa-users"></i> Mêlée
-                                                </span>
-                                            {% endif %}
-                                        </h5>
-                                        <p class="mb-1">
-                                            Format: {{ tournament.get_format_display }}
-                                            {% if tournament.is_melee %}
-                                                | {{ tournament.get_melee_format_display }}
-                                            {% endif %}
-                                        </p>
-                                        <small>
-                                            {% if tournament.is_melee %}
-                                                Players: {{ tournament.melee_players.count }} | Teams: {{ tournament.teams.count }}
-                                            {% else %}
-                                                Teams: {{ tournament.teams.count }}
-                                            {% endif %}
-                                        </small>
-                                    </div>
-                                    <span class="badge bg-secondary rounded-pill">Archived</span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-muted">No archived tournaments found.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+<style>
+/* ── Tournament Directory ─────────────────────────────────────────── */
+.tdir-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 16px 12px 40px;
+}
+
+/* Search bar */
+.tdir-search {
+    position: relative;
+    margin-bottom: 20px;
+}
+.tdir-search input {
+    width: 100%;
+    padding: 10px 40px 10px 14px;
+    border: 1.5px solid #d0d7e3;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    background: #fff;
+    outline: none;
+    transition: border-color .15s;
+}
+.tdir-search input:focus {
+    border-color: #1a3a8f;
+    box-shadow: 0 0 0 3px rgba(26,58,143,.1);
+}
+.tdir-search .tdir-search-icon {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8a96a8;
+    pointer-events: none;
+}
+.tdir-search .tdir-clear-btn {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8a96a8;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+/* Section heading */
+.tdir-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #6b7a99;
+    padding: 0 2px 6px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #e8ecf3;
+}
+
+/* Tournament card */
+.tdir-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid #e4e9f2;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s, border-color .15s, transform .1s;
+}
+.tdir-card:hover {
+    box-shadow: 0 4px 16px rgba(26,58,143,.10);
+    border-color: #b8c6e8;
+    transform: translateY(-1px);
+    text-decoration: none;
+    color: inherit;
+}
+.tdir-card:active {
+    transform: translateY(0);
+}
+
+/* Left icon column */
+.tdir-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+.tdir-icon.active  { background: #e8f0fe; color: #1a3a8f; }
+.tdir-icon.archived { background: #f0f2f5; color: #8a96a8; }
+
+/* Main text block */
+.tdir-body {
+    flex: 1;
+    min-width: 0;
+}
+.tdir-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1a2340;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+.tdir-meta {
+    font-size: 0.78rem;
+    color: #6b7a99;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.tdir-meta-sep { color: #c8d0e0; }
+
+/* Right column: status badge + arrow */
+.tdir-right {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+.tdir-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+.tdir-badge.active   { background: #e8f5e9; color: #2e7d32; }
+.tdir-badge.reg-open { background: #e3f2fd; color: #1565c0; }
+.tdir-badge.archived { background: #f0f2f5; color: #78909c; }
+.tdir-arrow { color: #c8d0e0; font-size: 0.85rem; }
+
+/* Empty state */
+.tdir-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: #9aa3b5;
+    font-size: 0.88rem;
+}
+.tdir-empty i { font-size: 2rem; margin-bottom: 8px; display: block; }
+
+/* Section gap */
+.tdir-section + .tdir-section { margin-top: 28px; }
+
+/* Page title */
+.tdir-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #1a2340;
+    margin-bottom: 16px;
+}
+
+@media (max-width: 480px) {
+    .tdir-wrap { padding: 12px 8px 32px; }
+    .tdir-name { font-size: 0.9rem; }
+    .tdir-meta { font-size: 0.74rem; }
+}
+</style>
+
+<div class="tdir-wrap">
+
+    <div class="tdir-title">
+        <i class="fas fa-trophy me-2" style="color:#1a3a8f;font-size:1.1rem;"></i>Tournaments
     </div>
+
+    <!-- Search -->
+    <form method="get" action="" class="tdir-search" id="tdir-search-form">
+        <input
+            type="text"
+            name="q"
+            id="tdir-q"
+            value="{{ query }}"
+            placeholder="Search tournaments…"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+        >
+        {% if query %}
+            <button type="button" class="tdir-clear-btn" onclick="document.getElementById('tdir-q').value='';document.getElementById('tdir-search-form').submit();" title="Clear search">
+                <i class="fas fa-times"></i>
+            </button>
+        {% else %}
+            <span class="tdir-search-icon"><i class="fas fa-search"></i></span>
+        {% endif %}
+    </form>
+
+    <!-- ── Active / Current ────────────────────────────────────────── -->
+    <div class="tdir-section">
+        <div class="tdir-section-label">
+            <i class="fas fa-circle me-1" style="color:#2e7d32;font-size:.55rem;vertical-align:middle;"></i>
+            Active &amp; Current
+            {% if active_tournaments %}<span style="font-weight:400;color:#9aa3b5;margin-left:4px;">({{ active_tournaments|length }})</span>{% endif %}
+        </div>
+
+        {% if active_tournaments %}
+            {% for t in active_tournaments %}
+            <a href="{% url 'tournament_detail' t.id %}" class="tdir-card">
+                <div class="tdir-icon active">
+                    {% if t.is_melee %}
+                        <i class="fas fa-users"></i>
+                    {% else %}
+                        <i class="fas fa-trophy"></i>
+                    {% endif %}
+                </div>
+
+                <div class="tdir-body">
+                    <div class="tdir-name">{{ t.name }}</div>
+                    <div class="tdir-meta">
+                        <!-- Format -->
+                        <span>{{ t.get_format_display }}{% if t.is_melee %} · {{ t.get_melee_format_display }}{% endif %}</span>
+                        <span class="tdir-meta-sep">|</span>
+                        <!-- Participant count -->
+                        {% if t.is_melee %}
+                            <span><i class="fas fa-user fa-xs me-1"></i>{{ t.melee_players.count }}</span>
+                        {% else %}
+                            <span><i class="fas fa-shield-alt fa-xs me-1"></i>{{ t.teams.count }}</span>
+                        {% endif %}
+                        <span class="tdir-meta-sep">|</span>
+                        <!-- Dates -->
+                        {% if t.start_date %}
+                            <span><i class="far fa-calendar fa-xs me-1"></i>{{ t.start_date|date:"d M Y" }}{% if t.end_date %} – {{ t.end_date|date:"d M Y" }}{% endif %}</span>
+                        {% else %}
+                            <span><i class="far fa-calendar fa-xs me-1"></i>Created {{ t.created_at|date:"d M Y" }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="tdir-right">
+                    {% if t.is_melee and not t.melee_teams_generated %}
+                        <span class="tdir-badge reg-open">Registering</span>
+                    {% else %}
+                        <span class="tdir-badge active">Active</span>
+                    {% endif %}
+                    <span class="tdir-arrow"><i class="fas fa-chevron-right"></i></span>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="tdir-empty">
+                <i class="fas fa-trophy"></i>
+                {% if query %}No active tournaments match "<strong>{{ query }}</strong>".{% else %}No active tournaments at the moment.{% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Archived ────────────────────────────────────────────────── -->
+    {% if archived_tournaments or query %}
+    <div class="tdir-section">
+        <div class="tdir-section-label">
+            <i class="fas fa-archive me-1" style="font-size:.7rem;vertical-align:middle;"></i>
+            Archived
+            {% if archived_tournaments %}<span style="font-weight:400;color:#9aa3b5;margin-left:4px;">({{ archived_tournaments|length }})</span>{% endif %}
+        </div>
+
+        {% if archived_tournaments %}
+            {% for t in archived_tournaments %}
+            <a href="{% url 'tournament_detail' t.id %}" class="tdir-card">
+                <div class="tdir-icon archived">
+                    {% if t.is_melee %}
+                        <i class="fas fa-users"></i>
+                    {% else %}
+                        <i class="fas fa-trophy"></i>
+                    {% endif %}
+                </div>
+
+                <div class="tdir-body">
+                    <div class="tdir-name">{{ t.name }}</div>
+                    <div class="tdir-meta">
+                        <span>{{ t.get_format_display }}{% if t.is_melee %} · {{ t.get_melee_format_display }}{% endif %}</span>
+                        <span class="tdir-meta-sep">|</span>
+                        {% if t.is_melee %}
+                            <span><i class="fas fa-user fa-xs me-1"></i>{{ t.melee_players.count }}</span>
+                        {% else %}
+                            <span><i class="fas fa-shield-alt fa-xs me-1"></i>{{ t.teams.count }}</span>
+                        {% endif %}
+                        <span class="tdir-meta-sep">|</span>
+                        {% if t.start_date %}
+                            <span><i class="far fa-calendar fa-xs me-1"></i>{{ t.start_date|date:"d M Y" }}{% if t.end_date %} – {{ t.end_date|date:"d M Y" }}{% endif %}</span>
+                        {% else %}
+                            <span><i class="far fa-calendar fa-xs me-1"></i>Created {{ t.created_at|date:"d M Y" }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="tdir-right">
+                    <span class="tdir-badge archived">Archived</span>
+                    <span class="tdir-arrow"><i class="fas fa-chevron-right"></i></span>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="tdir-empty">
+                <i class="fas fa-archive"></i>
+                No archived tournaments match "<strong>{{ query }}</strong>".
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
 </div>
+
+<script>
+/* Live search: submit form 400 ms after user stops typing */
+(function () {
+    var inp = document.getElementById('tdir-q');
+    if (!inp) return;
+    var timer;
+    inp.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+            document.getElementById('tdir-search-form').submit();
+        }, 400);
+    });
+})();
+</script>
 {% endblock %}
