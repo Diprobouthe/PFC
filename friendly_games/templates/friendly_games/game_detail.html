@@ -529,7 +529,7 @@ function copyCode() {
     setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; }, 2000);
 }
 {% if game.is_timed and game.time_limit_minutes and game.status == 'ACTIVE' and not game.is_time_expired %}
-{% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_id="friendly" timer_sound=True %}
+{% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_id="friendly" timer_sound=True timer_start_epoch=game.timer_started_at|date:"U" %}
 {% endif %}
 
 // ── WebSocket-based PFC state listener (server-authoritative) ───────

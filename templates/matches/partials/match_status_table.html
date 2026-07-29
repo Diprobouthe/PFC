@@ -51,7 +51,7 @@
 <script>
 {% for match in matches %}
 {% if match.time_limit_minutes and not match.is_time_expired %}
-{% include "partials/timer_countdown_js.html" with timer_seconds=match.time_remaining_seconds timer_total=match.timer_total_seconds timer_id=match.id timer_sound=False %}
+{% include "partials/timer_countdown_js.html" with timer_seconds=match.time_remaining_seconds timer_total=match.timer_total_seconds timer_id=match.id timer_sound=False timer_start_epoch=match.start_time|date:"U" %}
 {% endif %}
 {% endfor %}
 </script>

@@ -376,14 +376,15 @@ function toggleOptional(btn) {
     chevron.className = open ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
 }
 
-// ── Match timer (if timed) ───────────────────────────────────────
-{% if match.time_limit_minutes and match.status == 'active' and not match.is_time_expired %}
-let remainingSeconds = {{ match.time_remaining_seconds|default:0 }};
+// ── Match timer (if timed) — epoch-based to survive tab sleep ───────
+{% if match.time_limit_minutes and match.status == 'active' and not match.is_time_expired and match.start_time %}
+const timerStartMs = {{ match.start_time|date:"U" }} * 1000;
 const totalSeconds = {{ match.time_limit_minutes }} * 60;
 const timerDisplay = document.getElementById('srTimerDisplay');
 const timerBar = document.getElementById('srTimerBar');
-
 function tickTimer() {
+    const elapsed = Math.max(0, (Date.now() - timerStartMs) / 1000);
+    const remainingSeconds = Math.max(0, Math.round(totalSeconds - elapsed));
     if (remainingSeconds <= 0) { location.reload(); return; }
     const m = Math.floor(remainingSeconds / 60);
     const s = remainingSeconds % 60;
@@ -396,7 +397,6 @@ function tickTimer() {
         timerBar.style.width = (remainingSeconds / totalSeconds * 100) + '%';
         timerBar.style.background = remainingSeconds < totalSeconds * 0.1 ? '#dc3545' : remainingSeconds < totalSeconds * 0.25 ? '#ffc107' : '#198754';
     }
-    remainingSeconds--;
     setTimeout(tickTimer, 1000);
 }
 tickTimer();

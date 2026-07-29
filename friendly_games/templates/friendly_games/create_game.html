@@ -629,11 +629,15 @@ function filterPlayers() {
     const autoName = '{{ auto_selected_player.name|escapejs }}';
     const autoPos = '{{ auto_selected_player.position|default:"MILIEU"|escapejs }}';
     const el = document.querySelector(`[data-id="${autoId}"]`);
-    if (el && selected.black.length < 3) {
-        // Creator is verified via session codename (not QR), qr_verified=false is correct here
+    const alreadySelected = selected.black.some(p => p.id === autoId) || selected.white.some(p => p.id === autoId);
+    if (!alreadySelected && selected.black.length < 3) {
+        // Creator is verified via session codename (not QR), qr_verified=false is correct here.
+        // Do not depend on a visible player-card element existing in the DOM.
         selected.black.push({ id: autoId, name: autoName, pos: autoPos, qr_verified: false });
-        el.classList.add('in-black');
-        updateBadge(el, autoId);
+        if (el) {
+            el.classList.add('in-black');
+            updateBadge(el, autoId);
+        }
         updateTeamSlots();
         updateHiddenInputs();
     }

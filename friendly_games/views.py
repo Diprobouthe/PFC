@@ -156,6 +156,20 @@ def create_game(request):
             # Parse player IDs from JSON
             black_player_ids = json.loads(black_team_players) if black_team_players else []
             white_player_ids = json.loads(white_team_players) if white_team_players else []
+
+            # Restore legacy behaviour: the logged-in creator is always included automatically.
+            # Add them to black team if the client payload omitted them for any reason.
+            creator_already_selected = False
+            for _entry in list(black_player_ids) + list(white_player_ids):
+                if isinstance(_entry, dict):
+                    _entry_id = str(_entry.get('id', ''))
+                else:
+                    _entry_id = str(_entry)
+                if _entry_id == str(creator_player.id):
+                    creator_already_selected = True
+                    break
+            if not creator_already_selected:
+                black_player_ids.insert(0, {'id': creator_player.id, 'qr_verified': False})
             
             # ── Court assignment ──────────────────────────────────────────
             complex_id = request.POST.get('court_complex_id') or None

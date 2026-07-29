@@ -239,7 +239,8 @@
                 <div class="timer-inline {% if remaining == 0 %}timer-expired{% elif remaining < 60 %}timer-danger{% elif remaining < 300 %}timer-warn{% else %}timer-ok{% endif %}"
                      id="timer-bar"
                      data-remaining="{{ remaining }}"
-                     data-total="{{ total }}">
+                     data-total="{{ total }}"
+                     data-start-epoch="{{ scoreboard.friendly_game.timer_started_at|date:'U' }}">
                     <i class="fas fa-clock"></i>
                     <span id="timer-text">
                         {% if remaining == 0 %}
@@ -260,7 +261,8 @@
                 <div class="timer-inline {% if remaining == 0 %}timer-expired{% elif remaining < 60 %}timer-danger{% elif remaining < 300 %}timer-warn{% else %}timer-ok{% endif %}"
                      id="timer-bar"
                      data-remaining="{{ remaining }}"
-                     data-total="{{ total }}">
+                     data-total="{{ total }}"
+                     data-start-epoch="{{ scoreboard.tournament_match.start_time|date:'U' }}">
                     <i class="fas fa-clock"></i>
                     <span id="timer-text">
                         {% if remaining == 0 %}
@@ -409,23 +411,28 @@
     /* ── Timer countdown ─────────────────────────────────────── */
     var timerBar = document.getElementById('timer-bar');
     if (timerBar) {
-        var rem = parseInt(timerBar.dataset.remaining, 10);
+        var startEpochSec = parseInt(timerBar.dataset.startEpoch, 10);
+        var total = parseInt(timerBar.dataset.total, 10);
         var txt = document.getElementById('timer-text');
-        if (rem > 0) {
-            setInterval(function(){
-                rem--;
-                if (rem <= 0) { rem = 0; }
+        if (startEpochSec && total > 0) {
+            var timerStartMs = startEpochSec * 1000;
+            (function tick() {
+                var elapsed = Math.max(0, (Date.now() - timerStartMs) / 1000);
+                var rem = Math.max(0, Math.round(total - elapsed));
                 var m = Math.floor(rem / 60);
                 var s = rem % 60;
-                txt.textContent = rem > 0
-                    ? (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s
-                    : 'TIME UP';
+                if (txt) {
+                    txt.textContent = rem > 0
+                        ? (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s
+                        : 'TIME UP';
+                }
                 timerBar.className = 'timer-inline ' + (
                     rem === 0 ? 'timer-expired' :
                     rem < 60 ? 'timer-danger' :
                     rem < 300 ? 'timer-warn' : 'timer-ok'
                 );
-            }, 1000);
+                if (rem > 0) { setTimeout(tick, 1000); }
+            })();
         }
     }
 

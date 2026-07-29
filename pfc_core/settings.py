@@ -32,40 +32,31 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
-    # Manus sandbox testing domains
-    '8000-il5kjf1wne3gydpvqrj08-3f2b35cd.us2.manus.computer',
-    '8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
-    '8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
-    '8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
-    '8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
+    # Manus sandbox preview domains — wildcard covers any sandbox URL automatically
+    '.manus.computer',
+    '.manusvm.computer',
     # Production domains
     'pfc.events',
     'www.pfc.events',
     'pfc-e1ce.onrender.com',
     'pfc-platform.onrender.com',
-    '8000-i3s0rjhjuovyc5djxtgnl-3bf937d8.us2.manus.computer',
 ]
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-# CSRF settings - Updated for current sandbox environment
+# CSRF trusted origins — wildcard sandbox domains + production
 CSRF_TRUSTED_ORIGINS = [
-    'https://8000-il5kjf1wne3gydpvqrj08-3f2b35cd.us2.manus.computer',
-    'http://8000-il5kjf1wne3gydpvqrj08-3f2b35cd.us2.manus.computer',
-    'https://8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
-    'http://8000-i74m7mthbo918tehvjxcd-2d30372b.us2.manus.computer',
-    'https://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
-    'http://8000-i3h5t5fooex7a987mj80g-e785601b.manusvm.computer',
-    'https://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
-    'http://8000-ijxeiz39tjyehkdgrirle-008a7025.manusvm.computer',
-    'https://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
-    'http://8000-isph4jv5jdr6izr1ytqe3-1f3945c4.manusvm.computer',
+    # Manus sandbox preview domains — wildcard covers any sandbox URL automatically
+    'https://*.manus.computer',
+    'http://*.manus.computer',
+    'https://*.manusvm.computer',
+    'http://*.manusvm.computer',
+    # Production
     'https://pfc-platform.onrender.com',
-    'https://8000-i3s0rjhjuovyc5djxtgnl-3bf937d8.us2.manus.computer',
-    'http://8000-i3s0rjhjuovyc5djxtgnl-3bf937d8.us2.manus.computer',
     'https://pfc.events',
     'https://www.pfc.events',
     'https://pfc-e1ce.onrender.com',
+    # Local development
     'http://localhost:8000',
     'https://localhost:8000',
     'http://127.0.0.1:8000',

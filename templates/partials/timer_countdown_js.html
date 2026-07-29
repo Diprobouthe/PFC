@@ -3,19 +3,40 @@ Reusable timer countdown JavaScript.
 Drives the countdown for timer_card, timer_bar, and timer_badge partials.
 
 Required context:
-  timer_seconds  — int, remaining seconds (server-side computed)
-  timer_total    — int, total seconds (time_limit_minutes * 60)
-  timer_id       — str, matching the timer_id used in the HTML partial
-  timer_sound    — bool, whether to play audio warnings (default: false)
+  timer_seconds    — int, remaining seconds (server-side computed, used as fallback)
+  timer_total      — int, total seconds (time_limit_minutes * 60)
+  timer_id         — str, matching the timer_id used in the HTML partial
+  timer_sound      — bool, whether to play audio warnings (default: false)
+
+Optional context (epoch-based, survives tab sleep / phone screen-off):
+  timer_start_epoch — int, Unix epoch seconds of when the timer started.
+                      When provided, remaining time is recalculated from
+                      Date.now() on every tick instead of simple decrement.
+                      Pass match.start_time|date:"U" for tournament matches or
+                      game.timer_started_at|date:"U" for friendly games.
 
 Usage (inside a <script> block or {% block extra_js %}):
-  {% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=1800 timer_id="friendly" timer_sound=True %}
+  {% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=1800 timer_id="friendly" timer_sound=True timer_start_epoch=game.timer_started_at|date:"U" %}
 {% endcomment %}
 
 {% with tid=timer_id|default:"main" %}
 (function() {
-    var remaining_{{ tid }} = {{ timer_seconds|default:0 }};
     var total_{{ tid }} = {{ timer_total|default:0 }};
+    {% if timer_start_epoch %}
+    // Epoch-based: recalculate from wall-clock time on every tick.
+    // Survives tab backgrounding and phone screen-off without drift.
+    var timerStartMs_{{ tid }} = {{ timer_start_epoch }} * 1000;
+    function getRemainingSeconds_{{ tid }}() {
+        var elapsed = Math.max(0, (Date.now() - timerStartMs_{{ tid }}) / 1000);
+        return Math.max(0, Math.round(total_{{ tid }} - elapsed));
+    }
+    {% else %}
+    // Fallback: simple decrement (may drift if tab is backgrounded).
+    var _remaining_{{ tid }} = {{ timer_seconds|default:0 }};
+    function getRemainingSeconds_{{ tid }}() {
+        return _remaining_{{ tid }};
+    }
+    {% endif %}
     {% if timer_sound %}
     var warn5_{{ tid }} = false;
     var warn1_{{ tid }} = false;
@@ -41,6 +62,11 @@ Usage (inside a <script> block or {% block extra_js %}):
     {% endif %}
 
     function tick_{{ tid }}() {
+        var remaining_{{ tid }} = getRemainingSeconds_{{ tid }}();
+        {% if not timer_start_epoch %}
+        // Decrement the fallback counter for the next tick
+        if (_remaining_{{ tid }} > 0) { _remaining_{{ tid }}--; }
+        {% endif %}
         {% if timer_sound %}
         if (remaining_{{ tid }} === 300 && !warn5_{{ tid }}) { playWarning_{{ tid }}(); warn5_{{ tid }} = true; }
         if (remaining_{{ tid }} === 60 && !warn1_{{ tid }}) { playWarning_{{ tid }}(); setTimeout(function(){ playWarning_{{ tid }}(); }, 200); warn1_{{ tid }} = true; }
@@ -60,7 +86,6 @@ Usage (inside a <script> block or {% block extra_js %}):
             var p = document.getElementById('timer-progress-{{ tid }}');
             if (p) { p.style.width = '0%'; p.className = 'progress-bar bg-danger'; }
             if (d) d.style.color = '#dc3545';
-            clearInterval(interval_{{ tid }});
             return;
         }
 
@@ -98,13 +123,13 @@ Usage (inside a <script> block or {% block extra_js %}):
             }
         }
 
-        remaining_{{ tid }}--;
+        setTimeout(tick_{{ tid }}, 1000);
     }
 
-    if (remaining_{{ tid }} > 0) {
+    var initialRemaining_{{ tid }} = getRemainingSeconds_{{ tid }}();
+    if (initialRemaining_{{ tid }} > 0) {
         tick_{{ tid }}();
-        var interval_{{ tid }} = setInterval(tick_{{ tid }}, 1000);
-    } else if (remaining_{{ tid }} === 0 && total_{{ tid }} > 0) {
+    } else if (initialRemaining_{{ tid }} === 0 && total_{{ tid }} > 0) {
         // Already expired on load
         var d = document.getElementById('timer-display-{{ tid }}');
         if (d) { d.textContent = '00:00'; d.style.color = '#dc3545'; }

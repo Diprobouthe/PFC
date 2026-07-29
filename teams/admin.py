@@ -1,4 +1,7 @@
 from django.contrib import admin
+from django.utils.html import format_html
+from django.urls import path
+from django.http import HttpResponse
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile
 
 class PlayerInline(admin.TabularInline):
@@ -239,15 +242,50 @@ class PlayerProfileInline(admin.StackedInline):
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'team', 'is_captain', 'created_at', 'has_profile')
+    list_display = ('name', 'team', 'is_captain', 'created_at', 'has_profile', 'qr_download_link')
     list_filter = ('team', 'is_captain')
     search_fields = ('name', 'team__name')
     inlines = [PlayerProfileInline]
-    
+
     def has_profile(self, obj):
         return hasattr(obj, 'profile')
     has_profile.boolean = True
     has_profile.short_description = 'Has Profile'
+
+    def qr_download_link(self, obj):
+        url = f'/admin/teams/player/{obj.pk}/qr-download/'
+        return format_html(
+            '<a href="{}" class="button" style="padding:3px 10px;font-size:.8rem;">'
+            '⬇ QR</a>', url
+        )
+    qr_download_link.short_description = 'QR Code'
+    qr_download_link.allow_tags = True
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path('<int:player_id>/qr-download/',
+                 self.admin_site.admin_view(self.qr_download_view),
+                 name='player_qr_download'),
+        ]
+        return custom + urls
+
+    def qr_download_view(self, request, player_id):
+        """Return the player's QR code as a downloadable PNG."""
+        import io, base64
+        from django.shortcuts import get_object_or_404
+        from pfc_core.qr_utils import generate_qr_image_data_uri
+
+        player = get_object_or_404(Player, pk=player_id)
+        data_uri = generate_qr_image_data_uri(player.id)
+        # Strip the data URI prefix to get raw base64
+        _, b64 = data_uri.split(',', 1)
+        png_bytes = base64.b64decode(b64)
+
+        safe_name = player.name.replace(' ', '_').replace('/', '-')
+        response = HttpResponse(png_bytes, content_type='image/png')
+        response['Content-Disposition'] = f'attachment; filename="QR_{safe_name}.png"'
+        return response
 
 @admin.register(PlayerProfile)
 class PlayerProfileAdmin(admin.ModelAdmin):
