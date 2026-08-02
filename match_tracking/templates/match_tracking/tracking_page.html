@@ -1,0 +1,733 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Match Tracking — PFC</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+{% if request.session.player_codename %}
+<meta name="logged-in-codename" content="{{ request.session.player_codename }}">
+{% endif %}
+<style>
+/* ── Reset / base ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.mt-topbar { background: #1a1a2e; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+.mt-topbar-title { font-size: 14px; font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-topbar-status { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+.mt-status-active   { background: #16a34a; color: #fff; }
+.mt-status-inactive { background: #64748b; color: #fff; }
+.mt-status-complete { background: #0ea5e9; color: #fff; }
+
+/* ── Score section ───────────────────────────────────────────────────────── */
+.mt-score-section { background: #fff; padding: 16px 14px 12px; border-bottom: 1px solid #e2e8f0; }
+.mt-score-row { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 10px; }
+.mt-score-team { flex: 1; text-align: center; }
+.mt-score-team-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 2px; }
+.mt-score-val { font-size: 52px; font-weight: 900; line-height: 1; }
+.mt-score-val.black { color: #1a1a2e; }
+.mt-score-val.white { color: #0ea5e9; }
+.mt-score-sep { font-size: 36px; font-weight: 300; color: #cbd5e1; padding: 0 10px; }
+.mt-score-controls { display: flex; gap: 6px; justify-content: center; }
+.mt-score-btn { display: flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: 10px; border: 2px solid; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+.mt-score-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.mt-score-btn.black-plus  { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+.mt-score-btn.black-minus { background: #fff; color: #1a1a2e; border-color: #1a1a2e; }
+.mt-score-btn.white-plus  { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+.mt-score-btn.white-minus { background: #fff; color: #0ea5e9; border-color: #0ea5e9; }
+.mt-score-btn.submit-btn  { background: #16a34a; color: #fff; border-color: #16a34a; padding: 8px 18px; }
+.mt-score-btn.reset-btn   { background: #fff; color: #dc2626; border-color: #dc2626; padding: 8px 12px; }
+.mt-timer { text-align: center; font-size: 12px; color: #64748b; margin-top: 6px; }
+.mt-timer span { font-weight: 700; color: #1a1a2e; }
+.mt-qr-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 10px; border-radius: 12px; background: #f8fafc; border: 2px dashed #94a3b8; color: #475569; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; transition: all 0.15s; }
+.mt-qr-btn:hover { background: #e2e8f0; border-color: #64748b; }
+.mt-score-feedback { font-size: 12px; text-align: center; min-height: 18px; margin-top: 4px; }
+.mt-score-feedback.ok  { color: #16a34a; }
+.mt-score-feedback.err { color: #dc2626; }
+
+/* ── Players section ─────────────────────────────────────────────────────── */
+.mt-players-section { padding: 12px 14px; }
+.mt-team-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 6px; margin-top: 4px; }
+.mt-player-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.mt-player-card {
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    flex: 1 1 calc(50% - 4px);
+    min-width: 140px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    opacity: 0.55;
+}
+.mt-player-card.authorized  { opacity: 1; border-color: #94a3b8; }
+.mt-player-card.selected    { border-color: #16a34a !important; background: #f0fdf4 !important; opacity: 1; box-shadow: 0 0 0 2px #bbf7d0; }
+.mt-player-card-name { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-player-card-pos  { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
+.mt-player-card-acc  { font-size: 13px; font-weight: 700; color: #16a34a; margin-top: 4px; }
+.mt-lock-icon { position: absolute; top: 8px; right: 10px; font-size: 14px; }
+.mt-lock-icon.locked   { color: #cbd5e1; }
+.mt-lock-icon.unlocked { color: #16a34a; }
+
+/* ── Shot controls ───────────────────────────────────────────────────────── */
+.mt-shot-section { padding: 0 14px 12px; }
+.mt-shot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shot-btn {
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px 8px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 12px;
+    font-weight: 700;
+}
+.shot-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.shot-btn:active:not(:disabled) { transform: scale(0.93); }
+.shot-btn-carreau       { border-color: #1a56db; color: #1a56db; background: #fffbf0; }
+.shot-btn-petit-carreau { border-color: #1a56db; color: #1a56db; background: #f0f7ff; }
+.shot-btn-hit           { border-color: #28a745; color: #28a745; background: #f0fff4; }
+.shot-btn-miss          { border-color: #dc3545; color: #dc3545; background: #fff0f0; }
+.shot-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+.shot-icon svg { width: 36px; height: 36px; }
+.shot-btn-carreau       .shot-icon svg { fill: #1a56db; stroke: none; }
+.shot-btn-petit-carreau .shot-icon svg path:first-child { fill: #1a56db; stroke: none; }
+.shot-btn-petit-carreau .shot-icon svg path:last-child  { fill: none; stroke: #1a56db; stroke-width: 1.5; }
+.shot-btn-hit           .shot-icon svg { fill: none; stroke: #28a745; stroke-width: 2.8; }
+.shot-btn-miss          .shot-icon svg { fill: none; stroke: #dc3545; stroke-width: 2.8; }
+.mt-shot-feedback { font-size: 12px; text-align: center; min-height: 18px; margin-top: 6px; }
+.mt-shot-feedback.ok  { color: #16a34a; }
+.mt-shot-feedback.err { color: #dc2626; }
+
+/* ── Stats section ───────────────────────────────────────────────────────── */
+.mt-stats-section { padding: 0 14px 12px; }
+.mt-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+.mt-stats-table th { background: #f8fafc; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 8px; text-align: center; font-size: 10px; }
+.mt-stats-table td { padding: 8px 8px; text-align: center; border-top: 1px solid #f1f5f9; color: #1a1a2e; font-weight: 600; }
+.mt-stats-table td.player-name-cell { text-align: left; font-weight: 700; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-stats-table tr.locked-row td { color: #cbd5e1; }
+.acc-cell { font-weight: 800; color: #16a34a; }
+.acc-cell.zero { color: #94a3b8; }
+
+/* ── Collapsible sections ────────────────────────────────────────────────── */
+.mt-collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer; font-size: 13px; font-weight: 700; color: #475569; }
+.mt-collapse-header .chevron { transition: transform 0.2s; }
+.mt-collapse-header.open .chevron { transform: rotate(180deg); }
+.mt-collapse-body { padding: 10px 14px; display: none; }
+.mt-collapse-body.open { display: block; }
+.mt-history-list { font-size: 12px; color: #475569; }
+.mt-history-row { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.mt-history-score { font-weight: 800; color: #1a1a2e; min-width: 50px; }
+.mt-history-ts { color: #94a3b8; min-width: 55px; }
+.mt-history-by { color: #64748b; }
+.mt-history-empty { color: #94a3b8; font-style: italic; font-size: 12px; }
+
+/* ── Auth notice ─────────────────────────────────────────────────────────── */
+.mt-auth-notice { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 12px; margin: 0 14px 10px; font-size: 12px; color: #92400e; display: flex; align-items: center; gap: 8px; }
+
+/* ── Responsive: wider screens ───────────────────────────────────────────── */
+@media (min-width: 480px) {
+    .mt-player-card { flex: 1 1 calc(33% - 6px); }
+}
+@media (min-width: 640px) {
+    .mt-shot-grid { grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+{% csrf_token %}
+
+<!-- ── Top bar ─────────────────────────────────────────────────────────── -->
+<div class="mt-topbar">
+    <a href="{% if match_type == 'match' %}/matches/detail/{{ pk }}/{% else %}/friendly-games/{{ pk }}/{% endif %}" style="color:#fff;text-decoration:none;font-size:18px;flex-shrink:0;">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+    <div class="mt-topbar-title">{{ game_label }}</div>
+    <span class="mt-topbar-status {% if game_status in 'active,ACTIVE,READY,pending_verification' %}mt-status-active{% elif game_status in 'completed,COMPLETED' %}mt-status-complete{% else %}mt-status-inactive{% endif %}">
+        {{ game_status|upper }}
+    </span>
+</div>
+
+<!-- ── Score section ───────────────────────────────────────────────────── -->
+<div class="mt-score-section">
+    <div class="mt-score-row">
+        <div class="mt-score-team">
+            <div class="mt-score-team-name">{{ team1_name }}</div>
+            <div class="mt-score-val black" id="score-t1">{{ team1_score }}</div>
+        </div>
+        <div class="mt-score-sep">—</div>
+        <div class="mt-score-team">
+            <div class="mt-score-team-name">{{ team2_name }}</div>
+            <div class="mt-score-val white" id="score-t2">{{ team2_score }}</div>
+        </div>
+    </div>
+
+    <!-- Score controls (disabled until QR auth grants permission) -->
+    <div class="mt-score-controls">
+        <button class="mt-score-btn black-minus" id="btn-t1-minus" disabled onclick="adjustScore('t1',-1)" title="{{ team1_name }} −1">
+            <i class="fas fa-minus"></i>
+        </button>
+        <button class="mt-score-btn black-plus" id="btn-t1-plus" disabled onclick="adjustScore('t1',+1)" title="{{ team1_name }} +1">
+            <i class="fas fa-plus"></i> <span style="font-size:11px">{{ team1_name|truncatechars:6 }}</span>
+        </button>
+        <button class="mt-score-btn white-plus" id="btn-t2-plus" disabled onclick="adjustScore('t2',+1)" title="{{ team2_name }} +1">
+            <i class="fas fa-plus"></i> <span style="font-size:11px">{{ team2_name|truncatechars:6 }}</span>
+        </button>
+        <button class="mt-score-btn white-minus" id="btn-t2-minus" disabled onclick="adjustScore('t2',-1)" title="{{ team2_name }} −1">
+            <i class="fas fa-minus"></i>
+        </button>
+    </div>
+    <div class="mt-score-feedback" id="score-feedback"></div>
+
+    {% if timer_start_epoch and timer_total_seconds %}
+    <div class="mt-timer" id="timer-wrap">
+        <i class="fas fa-clock"></i> <span id="timer-display">—</span>
+    </div>
+    {% endif %}
+
+    <!-- QR Scan button -->
+    <button class="mt-qr-btn" onclick="openQrScanner()">
+        <i class="fas fa-qrcode"></i> Scan Player QR
+    </button>
+</div>
+
+<!-- ── Auth notice (shown when not logged in and no QR scanned yet) ──────── -->
+<div class="mt-auth-notice" id="auth-notice">
+    <i class="fas fa-lock"></i>
+    <span>Scan a player QR code to enable controls.</span>
+</div>
+
+<!-- ── Players section ─────────────────────────────────────────────────── -->
+<div class="mt-players-section">
+    <div class="mt-team-label">{{ team1_name }}</div>
+    <div class="mt-player-grid" id="grid-t1">
+        {% for p in players %}{% if p.team == 'BLACK' %}
+        <div class="mt-player-card" id="pcard-{{ p.player_id }}"
+             data-player-id="{{ p.player_id }}"
+             data-player-name="{{ p.player_name }}"
+             data-team="{{ p.team }}"
+             data-position="{{ p.position }}"
+             onclick="selectPlayer({{ p.player_id }})">
+            <div class="mt-player-card-name">{{ p.player_name }}</div>
+            <div class="mt-player-card-pos">{{ p.position|default:"—" }}</div>
+            <div class="mt-player-card-acc" id="acc-{{ p.player_id }}" style="display:none">—%</div>
+            <span class="mt-lock-icon locked" id="lock-{{ p.player_id }}"><i class="fas fa-lock"></i></span>
+        </div>
+        {% endif %}{% endfor %}
+    </div>
+
+    <div class="mt-team-label">{{ team2_name }}</div>
+    <div class="mt-player-grid" id="grid-t2">
+        {% for p in players %}{% if p.team == 'WHITE' %}
+        <div class="mt-player-card" id="pcard-{{ p.player_id }}"
+             data-player-id="{{ p.player_id }}"
+             data-player-name="{{ p.player_name }}"
+             data-team="{{ p.team }}"
+             data-position="{{ p.position }}"
+             onclick="selectPlayer({{ p.player_id }})">
+            <div class="mt-player-card-name">{{ p.player_name }}</div>
+            <div class="mt-player-card-pos">{{ p.position|default:"—" }}</div>
+            <div class="mt-player-card-acc" id="acc-{{ p.player_id }}" style="display:none">—%</div>
+            <span class="mt-lock-icon locked" id="lock-{{ p.player_id }}"><i class="fas fa-lock"></i></span>
+        </div>
+        {% endif %}{% endfor %}
+    </div>
+</div>
+
+<!-- ── Shot controls ───────────────────────────────────────────────────── -->
+<div class="mt-shot-section">
+    <div class="mt-shot-grid">
+        <button class="shot-btn shot-btn-carreau" id="shot-carreau" disabled onclick="recordShot('carreau')" aria-label="Carreau">
+            <span class="shot-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </span>
+            Carreau
+        </button>
+        <button class="shot-btn shot-btn-petit-carreau" id="shot-petit_carreau" disabled onclick="recordShot('petit_carreau')" aria-label="Petit Carreau">
+            <span class="shot-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77V2z" fill="currentColor"/>
+                    <path d="M12 2v15.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </span>
+            Petit Carreau
+        </button>
+        <button class="shot-btn shot-btn-hit" id="shot-hit" disabled onclick="recordShot('hit')" aria-label="Hit">
+            <span class="shot-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </span>
+            Hit
+        </button>
+        <button class="shot-btn shot-btn-miss" id="shot-miss" disabled onclick="recordShot('miss')" aria-label="Miss">
+            <span class="shot-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </span>
+            Miss
+        </button>
+    </div>
+    <div class="mt-shot-feedback" id="shot-feedback"></div>
+</div>
+
+<!-- ── Stats table ─────────────────────────────────────────────────────── -->
+<div class="mt-stats-section">
+    <table class="mt-stats-table">
+        <thead>
+            <tr>
+                <th style="text-align:left">Player</th>
+                <th>Acc%</th>
+                <th>N</th>
+                <th><span title="Carreau">★</span></th>
+                <th><span title="Petit Carreau">½★</span></th>
+                <th><span title="Hit">✓</span></th>
+                <th><span title="Miss">✗</span></th>
+            </tr>
+        </thead>
+        <tbody id="stats-tbody">
+            {% for p in players %}
+            <tr id="stats-row-{{ p.player_id }}" class="locked-row">
+                <td class="player-name-cell">{{ p.player_name }}</td>
+                <td class="acc-cell zero" id="stat-acc-{{ p.player_id }}">—</td>
+                <td id="stat-n-{{ p.player_id }}">—</td>
+                <td id="stat-car-{{ p.player_id }}">—</td>
+                <td id="stat-pc-{{ p.player_id }}">—</td>
+                <td id="stat-hit-{{ p.player_id }}">—</td>
+                <td id="stat-mis-{{ p.player_id }}">—</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ── Score Progression (collapsed) ──────────────────────────────────── -->
+<div class="mt-collapse-header" id="history-header" onclick="toggleCollapse('history')">
+    <span><i class="fas fa-chart-line" style="margin-right:6px"></i>Score Progression</span>
+    <i class="fas fa-chevron-down chevron"></i>
+</div>
+<div class="mt-collapse-body" id="history-body">
+    <div class="mt-history-list" id="history-list">
+        {% if score_history_json != '[]' %}
+        <!-- Rendered by JS from score_history_json -->
+        {% else %}
+        <div class="mt-history-empty">No score updates recorded yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── QR Scanner Modal (reused shared partial) ────────────────────────── -->
+<script>window.QR_RESOLVE_URL = '{{ qr_resolve_url }}';</script>
+{% include "partials/qr_scanner_modal.html" %}
+
+<!-- ── JavaScript ──────────────────────────────────────────────────────── -->
+<script>
+(function() {
+'use strict';
+
+/* ── Constants injected from Django ──────────────────────────────────── */
+var MATCH_TYPE   = '{{ match_type }}';
+var MATCH_PK     = {{ pk }};
+var SCOREBOARD_ID = {% if scoreboard_id %}{{ scoreboard_id }}{% else %}null{% endif %};
+var SCORE_UPDATE_URL = {% if score_update_url %}'{{ score_update_url }}'{% else %}null{% endif %};
+var VERIFY_URL   = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/verify/';
+var STATS_BASE   = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/player/';
+var SHOT_START   = '{{ shot_start_url }}';
+var SHOT_RECORD  = '{{ shot_record_url }}';
+var SHOT_END     = '{{ shot_end_url }}';
+var AUTO_AUTH_ID = {% if auto_auth_player_id %}{{ auto_auth_player_id }}{% else %}null{% endif %};
+var LOGGED_IN_CODENAME = {% if logged_in_codename %}'{{ logged_in_codename }}'{% else %}null{% endif %};
+var TIMER_START_EPOCH  = {% if timer_start_epoch %}{{ timer_start_epoch }}{% else %}null{% endif %};
+var TIMER_TOTAL_SEC    = {% if timer_total_seconds %}{{ timer_total_seconds }}{% else %}null{% endif %};
+var SCORE_HISTORY      = {{ score_history_json|safe }};
+var CSRF = (function() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (el) return el.value;
+    var c = document.cookie.split(';').find(function(x){ return x.trim().startsWith('csrftoken='); });
+    return c ? c.trim().split('=')[1] : '';
+})();
+
+/* ── State ───────────────────────────────────────────────────────────── */
+var authorizedPlayers = {};   // player_id → { codename, stats }
+var scoreAuthCodename = null; // first codename that grants score update permission
+var selectedPlayerId  = null;
+var activeSessionId   = null; // current PracticeSession id for shot recording
+var currentT1 = parseInt(document.getElementById('score-t1').textContent, 10) || 0;
+var currentT2 = parseInt(document.getElementById('score-t2').textContent, 10) || 0;
+
+/* ── Timer ───────────────────────────────────────────────────────────── */
+if (TIMER_START_EPOCH && TIMER_TOTAL_SEC) {
+    (function tickTimer() {
+        var elapsed = Math.floor(Date.now() / 1000) - TIMER_START_EPOCH;
+        var remaining = Math.max(0, TIMER_TOTAL_SEC - elapsed);
+        var m = Math.floor(remaining / 60);
+        var s = remaining % 60;
+        var el = document.getElementById('timer-display');
+        if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+        if (remaining > 0) setTimeout(tickTimer, 1000);
+    })();
+}
+
+/* ── Score history ───────────────────────────────────────────────────── */
+(function renderHistory() {
+    var list = document.getElementById('history-list');
+    if (!list) return;
+    if (!SCORE_HISTORY || SCORE_HISTORY.length === 0) {
+        list.innerHTML = '<div class="mt-history-empty">No score updates recorded yet.</div>';
+        return;
+    }
+    var html = '';
+    SCORE_HISTORY.forEach(function(u) {
+        html += '<div class="mt-history-row">' +
+            '<span class="mt-history-score">' + u.team1_score + '–' + u.team2_score + '</span>' +
+            '<span class="mt-history-ts">' + u.ts + '</span>' +
+            '<span class="mt-history-by">' + (u.by || '') + '</span>' +
+            '</div>';
+    });
+    list.innerHTML = html;
+})();
+
+/* ── Collapse toggle ─────────────────────────────────────────────────── */
+window.toggleCollapse = function(id) {
+    var header = document.getElementById(id + '-header');
+    var body   = document.getElementById(id + '-body');
+    if (!header || !body) return;
+    var isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    header.classList.toggle('open', !isOpen);
+};
+
+/* ── Auto-authorize logged-in player ─────────────────────────────────── */
+if (AUTO_AUTH_ID && LOGGED_IN_CODENAME) {
+    // Logged-in player is a participant — authorize them immediately
+    _authorizePlayer(AUTO_AUTH_ID, LOGGED_IN_CODENAME, null);
+}
+
+/* ── QR resolved event ───────────────────────────────────────────────── */
+document.addEventListener('qrPlayerResolved', function(e) {
+    var data = e.detail;
+    if (!data || !data.player_id) return;
+    // Verify this player is actually in this game
+    fetch(VERIFY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ player_id: data.player_id })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            // res.codename is the server-side resolved codename from the QR session;
+            // it is only present when the QR scan happened in this same browser session.
+            _authorizePlayer(res.player_id, res.codename || null, res.stats);
+            var authMsg = '\u2713 ' + res.player_name + ' authorized';
+            if (!res.codename) authMsg += ' (view only — rescan to enable shots)';
+            _showScoreFeedback(authMsg, 'ok');
+        } else {
+            _showScoreFeedback('\u2717 ' + (res.error || 'Not a participant'), 'err');
+        }
+    })
+    .catch(function() {
+        _showScoreFeedback('\u2717 Network error', 'err');
+    });
+});
+
+function _authorizePlayer(playerId, codename, stats) {
+    authorizedPlayers[playerId] = { codename: codename, stats: stats || {} };
+
+    // Unlock card
+    var card = document.getElementById('pcard-' + playerId);
+    var lock = document.getElementById('lock-' + playerId);
+    if (card) { card.classList.add('authorized'); }
+    if (lock) { lock.className = 'mt-lock-icon unlocked'; lock.innerHTML = '<i class="fas fa-lock-open"></i>'; }
+
+    // Grant score update permission to first authorised participant
+    if (!scoreAuthCodename) {
+        // Retrieve codename from session or from the verify response
+        if (codename) {
+            scoreAuthCodename = codename;
+        } else if (LOGGED_IN_CODENAME && playerId === AUTO_AUTH_ID) {
+            scoreAuthCodename = LOGGED_IN_CODENAME;
+        }
+        if (scoreAuthCodename) _enableScoreControls();
+    }
+
+    // Hide auth notice once at least one player is authorized
+    var notice = document.getElementById('auth-notice');
+    if (notice) notice.style.display = 'none';
+
+    // Update stats display if provided
+    if (stats) _updateStatsDisplay(playerId, stats);
+
+    // Refresh stats from server
+    _fetchPlayerStats(playerId);
+}
+
+function _enableScoreControls() {
+    if (!SCORE_UPDATE_URL) return;
+    ['btn-t1-plus','btn-t1-minus','btn-t2-plus','btn-t2-minus'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = false;
+    });
+}
+
+/* ── Player selection ────────────────────────────────────────────────── */
+window.selectPlayer = function(playerId) {
+    if (!authorizedPlayers[playerId]) return; // locked
+    if (selectedPlayerId === playerId) {
+        // Deselect
+        var prev = document.getElementById('pcard-' + playerId);
+        if (prev) prev.classList.remove('selected');
+        selectedPlayerId = null;
+        _disableShotButtons();
+        return;
+    }
+    // Deselect previous
+    if (selectedPlayerId) {
+        var prevCard = document.getElementById('pcard-' + selectedPlayerId);
+        if (prevCard) prevCard.classList.remove('selected');
+    }
+    selectedPlayerId = playerId;
+    var card = document.getElementById('pcard-' + playerId);
+    if (card) card.classList.add('selected');
+    _enableShotButtons();
+    // Ensure a practice session is active for this player
+    _ensureSession(playerId);
+};
+
+function _enableShotButtons() {
+    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = false;
+    });
+}
+function _disableShotButtons() {
+    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = true;
+    });
+}
+
+/* ── Score adjustment ────────────────────────────────────────────────── */
+window.adjustScore = function(team, delta) {
+    if (!SCORE_UPDATE_URL || !scoreAuthCodename) return;
+    var newT1 = currentT1 + (team === 't1' ? delta : 0);
+    var newT2 = currentT2 + (team === 't2' ? delta : 0);
+    newT1 = Math.max(0, Math.min(13, newT1));
+    newT2 = Math.max(0, Math.min(13, newT2));
+    fetch(SCORE_UPDATE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ team1_score: newT1, team2_score: newT2, codename: scoreAuthCodename })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            currentT1 = res.team1_score;
+            currentT2 = res.team2_score;
+            document.getElementById('score-t1').textContent = currentT1;
+            document.getElementById('score-t2').textContent = currentT2;
+            _appendHistoryRow(currentT1, currentT2, scoreAuthCodename);
+            _showScoreFeedback('\u2713 ' + currentT1 + '–' + currentT2, 'ok');
+        } else {
+            _showScoreFeedback('\u2717 ' + (res.error || 'Update failed'), 'err');
+        }
+    })
+    .catch(function() { _showScoreFeedback('\u2717 Network error', 'err'); });
+};
+
+function _appendHistoryRow(t1, t2, by) {
+    var list = document.getElementById('history-list');
+    if (!list) return;
+    var empty = list.querySelector('.mt-history-empty');
+    if (empty) empty.remove();
+    var now = new Date();
+    var ts = now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+    var row = document.createElement('div');
+    row.className = 'mt-history-row';
+    row.innerHTML = '<span class="mt-history-score">' + t1 + '–' + t2 + '</span>' +
+                    '<span class="mt-history-ts">' + ts + '</span>' +
+                    '<span class="mt-history-by">' + (by || '') + '</span>';
+    list.appendChild(row);
+}
+
+function _showScoreFeedback(msg, cls) {
+    var el = document.getElementById('score-feedback');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'mt-score-feedback ' + cls;
+    setTimeout(function() { el.textContent = ''; el.className = 'mt-score-feedback'; }, 3000);
+}
+
+/* ── Shot recording ──────────────────────────────────────────────────── */
+window.recordShot = function(outcome) {
+    if (!selectedPlayerId) return;
+    var auth = authorizedPlayers[selectedPlayerId];
+    if (!auth) return;
+
+    // Determine codename for this player
+    var codename = auth.codename || (selectedPlayerId === AUTO_AUTH_ID ? LOGGED_IN_CODENAME : null);
+    if (!codename) {
+        _showShotFeedback('\u2717 No codename available', 'err');
+        return;
+    }
+
+    // Temporarily login as this player to use the practice API
+    // The practice API uses CodenameSessionManager which reads from session.
+    // Since we can't change the server session from JS, we call the shot record
+    // endpoint directly using the codename header approach.
+    // The practice/api/record-shot/ endpoint reads from session, so we need
+    // the player to be logged in.  For the logged-in player this works directly.
+    // For QR-authorized players we use the match_tracking shot endpoint which
+    // handles the codename lookup server-side.
+    _doRecordShot(outcome, codename);
+};
+
+function _doRecordShot(outcome, codename) {
+    // Use the match_tracking shot endpoint (handles auth via codename param)
+    fetch('/track/' + MATCH_TYPE + '/' + MATCH_PK + '/shot/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ outcome: outcome, codename: codename, player_id: selectedPlayerId })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            _showShotFeedback('\u2713 ' + outcome.replace('_',' '), 'ok');
+            _updateStatsDisplay(selectedPlayerId, res.stats);
+        } else {
+            _showShotFeedback('\u2717 ' + (res.error || 'Failed'), 'err');
+        }
+    })
+    .catch(function() { _showShotFeedback('\u2717 Network error', 'err'); });
+}
+
+function _showShotFeedback(msg, cls) {
+    var el = document.getElementById('shot-feedback');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'mt-shot-feedback ' + cls;
+    setTimeout(function() { el.textContent = ''; el.className = 'mt-shot-feedback'; }, 2500);
+}
+
+/* ── Stats display ───────────────────────────────────────────────────── */
+function _fetchPlayerStats(playerId) {
+    fetch(STATS_BASE + playerId + '/stats/')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok && res.stats) _updateStatsDisplay(playerId, res.stats);
+    })
+    .catch(function() {});
+}
+
+function _updateStatsDisplay(playerId, stats) {
+    if (!stats) return;
+    // Update accuracy badge on player card
+    var accEl = document.getElementById('acc-' + playerId);
+    if (accEl) {
+        accEl.style.display = '';
+        accEl.textContent = stats.accuracy + '%';
+    }
+    // Update stats table row
+    var row = document.getElementById('stats-row-' + playerId);
+    if (row) row.classList.remove('locked-row');
+
+    function _set(id, val) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = val !== undefined && val !== null ? val : '—';
+    }
+    _set('stat-acc-' + playerId, stats.accuracy !== undefined ? stats.accuracy + '%' : '—');
+    _set('stat-n-' + playerId,   stats.total);
+    _set('stat-car-' + playerId, stats.carreaux);
+    _set('stat-pc-' + playerId,  stats.petit_carreaux);
+    _set('stat-hit-' + playerId, stats.hits);
+    _set('stat-mis-' + playerId, stats.misses);
+
+    var accCell = document.getElementById('stat-acc-' + playerId);
+    if (accCell) {
+        accCell.className = 'acc-cell' + (stats.accuracy > 0 ? '' : ' zero');
+    }
+}
+
+function _ensureSession(playerId) {
+    // Sessions are managed by the server-side shot endpoint; nothing to do here.
+}
+
+/* ── Periodic stats refresh (every 15s for authorized players) ────────── */
+setInterval(function() {
+    Object.keys(authorizedPlayers).forEach(function(pid) {
+        _fetchPlayerStats(parseInt(pid, 10));
+    });
+}, 15000);
+
+/* ── Match status poll (every 30s) — disable all controls when completed ─ */
+var _matchEnded = false;
+var STATUS_URL = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/status/';
+var ACTIVE_STATUSES = ['active', 'ACTIVE', 'pending_verification', 'PENDING_VERIFICATION', 'READY', 'ready'];
+
+function _pollMatchStatus() {
+    if (_matchEnded) return;
+    fetch(STATUS_URL)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (!res.ok) return;
+        var isActive = ACTIVE_STATUSES.indexOf(res.status) >= 0;
+        if (!isActive) {
+            _matchEnded = true;
+            _lockAllControls(res.status);
+        }
+    })
+    .catch(function() {});
+}
+
+function _lockAllControls(status) {
+    // Disable score buttons
+    ['btn-t1-plus','btn-t1-minus','btn-t2-plus','btn-t2-minus'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = true;
+    });
+    // Disable shot buttons
+    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = true;
+    });
+    // Disable QR scan button
+    var qrBtn = document.querySelector('.mt-qr-btn');
+    if (qrBtn) { qrBtn.disabled = true; qrBtn.style.opacity = '0.4'; }
+    // Show read-only banner
+    var notice = document.getElementById('auth-notice');
+    if (notice) {
+        notice.style.background = '#f0fdf4';
+        notice.style.borderColor = '#86efac';
+        notice.style.color = '#166534';
+        notice.innerHTML = '<i class="fas fa-check-circle"></i> <span>Match completed (' + status + ') — read-only history</span>';
+        notice.style.display = 'flex';
+    }
+    // Clear selected player
+    if (selectedPlayerId) {
+        var prev = document.getElementById('pcard-' + selectedPlayerId);
+        if (prev) prev.classList.remove('selected');
+        selectedPlayerId = null;
+    }
+}
+
+// Run immediately on load, then every 30 s
+_pollMatchStatus();
+setInterval(_pollMatchStatus, 30000);
+
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

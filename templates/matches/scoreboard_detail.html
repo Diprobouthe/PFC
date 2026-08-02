@@ -357,6 +357,21 @@
 
     <div class="disclaimer-sm">Unofficial live scores only</div>
 
+    <!-- Match Tracking link -->
+    <div class="text-center mt-2">
+        {% if scoreboard.friendly_game %}
+            <a href="{% url 'match_tracking:tracking_page' 'game' scoreboard.friendly_game.id %}"
+               style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
+                <i class="fas fa-chart-line" style="margin-right:4px;"></i>Game Analysis
+            </a>
+        {% elif scoreboard.tournament_match %}
+            <a href="{% url 'match_tracking:tracking_page' 'match' scoreboard.tournament_match.id %}"
+               style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
+                <i class="fas fa-chart-line" style="margin-right:4px;"></i>Match Analysis
+            </a>
+        {% endif %}
+    </div>
+
     <!-- Score Progression History -->
     {% if score_history %}
     <div class="mt-4" id="score-history-section">

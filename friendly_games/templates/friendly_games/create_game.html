@@ -699,15 +699,12 @@ function setQrTarget(team) {
 document.addEventListener('qrPlayerResolved', function(e) {
     const d = e.detail;
     const el = document.querySelector('[data-id="' + d.player_id + '"]');
-    if (!el) {
-        alert('Player "' + d.player_name + '" verified via QR. If they are not in the list, ask them to join via the Join Game page.');
-        return;
-    }
-    const inBlack = el.classList.contains('in-black');
-    const inWhite = el.classList.contains('in-white');
-    const id = el.dataset.id;
-    const name = el.dataset.name;
-    const pos = el.dataset.pos;
+    // Use DOM element data if available, otherwise fall back to QR event data.
+    const id   = el ? el.dataset.id   : String(d.player_id);
+    const name = el ? el.dataset.name : (d.player_name || String(d.player_id));
+    const pos  = el ? el.dataset.pos  : (d.position || 'MILIEU');
+    const inBlack = el ? el.classList.contains('in-black') : selected.black.some(p => p.id === id);
+    const inWhite = el ? el.classList.contains('in-white') : selected.white.some(p => p.id === id);
 
     if (qrTargetTeam === 'black') {
         if (inBlack) {
@@ -722,12 +719,12 @@ document.addEventListener('qrPlayerResolved', function(e) {
         if (inWhite) {
             const wi = selected.white.findIndex(p => p.id === id);
             if (wi >= 0) selected.white.splice(wi, 1);
-            el.classList.remove('in-white');
+            if (el) el.classList.remove('in-white');
         }
         if (selected.black.length < 3) {
             // QR add: qr_verified=true
             selected.black.push({ id, name, pos, qr_verified: true });
-            el.classList.add('in-black');
+            if (el) el.classList.add('in-black');
         }
     } else {
         if (inWhite) {
@@ -742,15 +739,15 @@ document.addEventListener('qrPlayerResolved', function(e) {
         if (inBlack) {
             const bi = selected.black.findIndex(p => p.id === id);
             if (bi >= 0) selected.black.splice(bi, 1);
-            el.classList.remove('in-black');
+            if (el) el.classList.remove('in-black');
         }
         if (selected.white.length < 3) {
             // QR add: qr_verified=true
             selected.white.push({ id, name, pos, qr_verified: true });
-            el.classList.add('in-white');
+            if (el) el.classList.add('in-white');
         }
     }
-    updateBadge(el, id);
+    if (el) updateBadge(el, id);
     updateTeamSlots();
     updateHiddenInputs();
 });

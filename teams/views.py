@@ -1663,7 +1663,7 @@ def calculate_position_leaderboards():
                     default=F('games_won') * 100.0 / F('games_played'),
                     output_field=FloatField()
                 )
-            ).filter(games_played__gt=0).order_by('-win_rate', '-games_played')[:10]
+            ).filter(games_played__gte=10).order_by('-win_rate', '-games_played')[:10]
             
             leaderboards[position_code.lower()] = {
                 'name': position_name,

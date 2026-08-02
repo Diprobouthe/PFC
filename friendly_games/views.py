@@ -134,7 +134,7 @@ def create_game(request):
                 'session_codename': session_codename,
                 'teams': Team.objects.filter(
                     is_archived=False, is_tournament_temp=False,
-                    parent_team__isnull=True, profile__profile_type='full',
+                    parent_team__isnull=True,
                 ).prefetch_related('players'),
             })
         
@@ -148,7 +148,7 @@ def create_game(request):
                 'session_codename': session_codename,
                 'teams': Team.objects.filter(
                     is_archived=False, is_tournament_temp=False,
-                    parent_team__isnull=True, profile__profile_type='full',
+                    parent_team__isnull=True,
                 ).prefetch_related('players'),
             })
         
@@ -305,12 +305,11 @@ def create_game(request):
             messages.error(request, f'Error creating game: {str(e)}')
     
     # Get selectable teams for the player-selection UI.
-    # Strict visibility rule: not archived, not temp, not subteam, full profile only.
+    # Include all non-archived, non-temp, top-level teams regardless of profile type.
     teams = Team.objects.filter(
         is_archived=False,
         is_tournament_temp=False,
         parent_team__isnull=True,
-        profile__profile_type='full',
     ).prefetch_related('players')
     
     # Auto-detect logged-in player and add to black team

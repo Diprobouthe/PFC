@@ -109,6 +109,7 @@ INSTALLED_APPS = [
     "player_auth",  # Player Identity System (Google + Email OTP)
     "pfc_events",    # Minimal WebSocket event layer for live match transitions
     "invites",       # Targeted invitation system (play + team build)
+    "match_tracking",  # Match Tracking page (new, isolated)
 ]
 
 # ---------------------------------------------------------------------------

@@ -32,6 +32,9 @@ urlpatterns = [
     # Shooting Practice Module (v0.1)
     path('practice/', include('practice.urls')),
 
+    # Match Tracking (new, isolated — no changes to existing apps)
+    path('track/', include('match_tracking.urls', namespace='match_tracking')),
+
     # Simple Tournament Creator
     path('simple/', simple_creator.simple_creator_home, name='simple_creator_home'),
     path('simple/create/', simple_creator.create_simple_tournament, name='create_simple_tournament'),
