@@ -906,12 +906,20 @@ def match_submit_result(request, match_id, team_id):
         if live_score_team2 is not None:
             form.fields["team2_score"].initial = live_score_team2
 
+    # Pass scoreboard_id so the template can link to Score History and Match Analysis
+    _scoreboard_id = None
+    try:
+        from matches.models import LiveScoreboard as _LS2
+        _scoreboard_id = _LS2.objects.filter(tournament_match=match).values_list('id', flat=True).first()
+    except Exception:
+        pass
     context = {
         "match": match,
         "team": team,
         "form": form,
         "live_score_team1": live_score_team1,
         "live_score_team2": live_score_team2,
+        "scoreboard_id": _scoreboard_id,
     }
     return render(request, "matches/match_submit_result.html", context)
 

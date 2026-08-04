@@ -355,10 +355,12 @@
         </div>
     {% endif %}
 
-    <div class="disclaimer-sm">Unofficial live scores only</div>
-
-    <!-- Match Tracking link -->
-    <div class="text-center mt-2">
+    <!-- Score History + Game/Match Analysis links -->
+    <div class="text-center mt-2" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <a href="{% url 'score_history' scoreboard.id %}"
+           style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
+            <i class="fas fa-history" style="margin-right:4px;"></i>Score History
+        </a>
         {% if scoreboard.friendly_game %}
             <a href="{% url 'match_tracking:tracking_page' 'game' scoreboard.friendly_game.id %}"
                style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">

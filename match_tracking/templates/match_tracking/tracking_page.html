@@ -74,6 +74,13 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .mt-lock-icon.locked   { color: #cbd5e1; }
 .mt-lock-icon.unlocked { color: #16a34a; }
 
+/* ── Mode switch (Shooting / Pointing) ──────────────────────────────────── */
+.mt-mode-switch { display: flex; gap: 0; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0; margin: 0 14px 10px; }
+.mt-mode-btn { flex: 1; padding: 9px 6px; font-size: 13px; font-weight: 700; border: none; background: #f8fafc; color: #64748b; cursor: pointer; transition: all 0.15s; }
+.mt-mode-btn.active-shooting { background: #1a56db; color: #fff; }
+.mt-mode-btn.active-pointing { background: #7c3aed; color: #fff; }
+.mt-mode-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
 /* ── Shot controls ───────────────────────────────────────────────────────── */
 .mt-shot-section { padding: 0 14px 12px; }
 .mt-shot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -93,11 +100,18 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 }
 .shot-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .shot-btn:active:not(:disabled) { transform: scale(0.93); }
+/* Shooting colours (blue family) */
 .shot-btn-carreau       { border-color: #1a56db; color: #1a56db; background: #fffbf0; }
 .shot-btn-petit-carreau { border-color: #1a56db; color: #1a56db; background: #f0f7ff; }
 .shot-btn-hit           { border-color: #28a745; color: #28a745; background: #f0fff4; }
 .shot-btn-miss          { border-color: #dc3545; color: #dc3545; background: #fff0f0; }
-.shot-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; }
+/* Pointing colours (purple family, reusing existing PFC symbols) */
+.shot-btn-perfect       { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+.shot-btn-petit-perfect { border-color: #7c3aed; color: #7c3aed; background: #faf5ff; }
+.shot-btn-good          { border-color: #ca8a04; color: #ca8a04; background: #fefce8; }
+.shot-btn-fair          { border-color: #dc2626; color: #dc2626; background: #fff0f0; }
+.shot-btn-far           { border-color: #475569; color: #475569; background: #f8fafc; }
+.shot-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; font-size: 26px; line-height: 1; }
 .shot-icon svg { width: 36px; height: 36px; }
 .shot-btn-carreau       .shot-icon svg { fill: #1a56db; stroke: none; }
 .shot-btn-petit-carreau .shot-icon svg path:first-child { fill: #1a56db; stroke: none; }
@@ -110,13 +124,17 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
 /* ── Stats section ───────────────────────────────────────────────────────── */
 .mt-stats-section { padding: 0 14px 12px; }
-.mt-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+.mt-stats-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; margin-top: 10px; }
+.mt-stats-label.shooting-label { color: #1a56db; }
+.mt-stats-label.pointing-label { color: #7c3aed; }
+.mt-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 4px; }
 .mt-stats-table th { background: #f8fafc; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 8px; text-align: center; font-size: 10px; }
 .mt-stats-table td { padding: 8px 8px; text-align: center; border-top: 1px solid #f1f5f9; color: #1a1a2e; font-weight: 600; }
 .mt-stats-table td.player-name-cell { text-align: left; font-weight: 700; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-stats-table tr.locked-row td { color: #cbd5e1; }
 .acc-cell { font-weight: 800; color: #16a34a; }
 .acc-cell.zero { color: #94a3b8; }
+.acc-cell.pointing { color: #7c3aed; }
 
 /* ── Collapsible sections ────────────────────────────────────────────────── */
 .mt-collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f8fafc; border-top: 1px solid #e2e8f0; cursor: pointer; font-size: 13px; font-weight: 700; color: #475569; }
@@ -244,7 +262,18 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 </div>
 
 <!-- ── Shot controls ───────────────────────────────────────────────────── -->
-<div class="mt-shot-section">
+<!-- ── Mode switch (Shooting / Pointing) ──────────────────────────────────── -->
+<div class="mt-mode-switch" id="mode-switch">
+    <button class="mt-mode-btn active-shooting" id="mode-btn-shooting" disabled onclick="switchMode('shooting')">
+        <i class="fas fa-crosshairs" style="margin-right:5px"></i>Shooting
+    </button>
+    <button class="mt-mode-btn" id="mode-btn-pointing" disabled onclick="switchMode('pointing')">
+        <i class="fas fa-bullseye" style="margin-right:5px"></i>Pointing
+    </button>
+</div>
+
+<!-- ── Shooting controls ────────────────────────────────────────────────────── -->
+<div class="mt-shot-section" id="panel-shooting">
     <div class="mt-shot-grid">
         <button class="shot-btn shot-btn-carreau" id="shot-carreau" disabled onclick="recordShot('carreau')" aria-label="Carreau">
             <span class="shot-icon">
@@ -282,9 +311,33 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     <div class="mt-shot-feedback" id="shot-feedback"></div>
 </div>
 
-<!-- ── Stats table ─────────────────────────────────────────────────────── -->
+<!-- ── Pointing controls ────────────────────────────────────────────────────── -->
+<div class="mt-shot-section" id="panel-pointing" style="display:none">
+    <div class="mt-shot-grid">
+        <button class="shot-btn shot-btn-perfect" id="shot-perfect" disabled onclick="recordShot('perfect')" aria-label="Perfect">
+            <span class="shot-icon">🟢</span>
+            Perfect
+        </button>
+        <button class="shot-btn shot-btn-good" id="shot-good" disabled onclick="recordShot('good')" aria-label="Good">
+            <span class="shot-icon">🟡</span>
+            Good
+        </button>
+        <button class="shot-btn shot-btn-fair" id="shot-fair" disabled onclick="recordShot('fair')" aria-label="Fair">
+            <span class="shot-icon">🔴</span>
+            Fair
+        </button>
+        <button class="shot-btn shot-btn-far" id="shot-far" disabled onclick="recordShot('far')" aria-label="Far">
+            <span class="shot-icon">⚫</span>
+            Far
+        </button>
+    </div>
+</div>
+
+<!-- ── Stats tables (Shooting + Pointing) ──────────────────────────────────── -->
 <div class="mt-stats-section">
-    <table class="mt-stats-table">
+    <!-- Shooting stats -->
+    <div class="mt-stats-label shooting-label"><i class="fas fa-crosshairs" style="margin-right:4px"></i>Shooting</div>
+    <table class="mt-stats-table" id="stats-table-shooting">
         <thead>
             <tr>
                 <th style="text-align:left">Player</th>
@@ -296,16 +349,45 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
                 <th><span title="Miss">✗</span></th>
             </tr>
         </thead>
-        <tbody id="stats-tbody">
+        <tbody id="stats-tbody-shooting">
             {% for p in players %}
-            <tr id="stats-row-{{ p.player_id }}" class="locked-row">
+            <tr id="stats-row-s-{{ p.player_id }}" class="locked-row">
                 <td class="player-name-cell">{{ p.player_name }}</td>
-                <td class="acc-cell zero" id="stat-acc-{{ p.player_id }}">—</td>
-                <td id="stat-n-{{ p.player_id }}">—</td>
-                <td id="stat-car-{{ p.player_id }}">—</td>
-                <td id="stat-pc-{{ p.player_id }}">—</td>
-                <td id="stat-hit-{{ p.player_id }}">—</td>
-                <td id="stat-mis-{{ p.player_id }}">—</td>
+                <td class="acc-cell zero" id="stat-s-acc-{{ p.player_id }}">—</td>
+                <td id="stat-s-n-{{ p.player_id }}">—</td>
+                <td id="stat-s-car-{{ p.player_id }}">—</td>
+                <td id="stat-s-pc-{{ p.player_id }}">—</td>
+                <td id="stat-s-hit-{{ p.player_id }}">—</td>
+                <td id="stat-s-mis-{{ p.player_id }}">—</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pointing stats -->
+    <div class="mt-stats-label pointing-label"><i class="fas fa-bullseye" style="margin-right:4px"></i>Pointing</div>
+    <table class="mt-stats-table" id="stats-table-pointing">
+        <thead>
+            <tr>
+                <th style="text-align:left">Player</th>
+                <th>Acc%</th>
+                <th>N</th>
+                <th><span title="Perfect">🟢</span></th>
+                <th><span title="Good">🟡</span></th>
+                <th><span title="Fair">🔴</span></th>
+                <th><span title="Far">⚫</span></th>
+            </tr>
+        </thead>
+        <tbody id="stats-tbody-pointing">
+            {% for p in players %}
+            <tr id="stats-row-p-{{ p.player_id }}" class="locked-row">
+                <td class="player-name-cell">{{ p.player_name }}</td>
+                <td class="acc-cell zero pointing" id="stat-p-acc-{{ p.player_id }}">—</td>
+                <td id="stat-p-n-{{ p.player_id }}">—</td>
+                <td id="stat-p-per-{{ p.player_id }}">—</td>
+                <td id="stat-p-good-{{ p.player_id }}">—</td>
+                <td id="stat-p-fair-{{ p.player_id }}">—</td>
+                <td id="stat-p-far-{{ p.player_id }}">—</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -359,7 +441,8 @@ var CSRF = (function() {
 })();
 
 /* ── State ───────────────────────────────────────────────────────────── */
-var authorizedPlayers = {};   // player_id → { codename, stats }
+var authorizedPlayers = {};   // player_id → { codename, name, stats }
+var scoreAuthName = null;     // display name of the first authorised participant
 var scoreAuthCodename = null; // first codename that grants score update permission
 var selectedPlayerId  = null;
 var activeSessionId   = null; // current PracticeSession id for shot recording
@@ -429,7 +512,7 @@ document.addEventListener('qrPlayerResolved', function(e) {
         if (res.ok) {
             // res.codename is the server-side resolved codename from the QR session;
             // it is only present when the QR scan happened in this same browser session.
-            _authorizePlayer(res.player_id, res.codename || null, res.stats);
+            _authorizePlayer(res.player_id, res.codename || null, res.stats, res.player_name || '');
             var authMsg = '\u2713 ' + res.player_name + ' authorized';
             if (!res.codename) authMsg += ' (view only — rescan to enable shots)';
             _showScoreFeedback(authMsg, 'ok');
@@ -442,8 +525,14 @@ document.addEventListener('qrPlayerResolved', function(e) {
     });
 });
 
-function _authorizePlayer(playerId, codename, stats) {
-    authorizedPlayers[playerId] = { codename: codename, stats: stats || {} };
+function _authorizePlayer(playerId, codename, stats, displayName) {
+    // Resolve display name: prefer the passed displayName, fall back to the player card's data attribute
+    var resolvedName = displayName || '';
+    if (!resolvedName) {
+        var card = document.getElementById('pcard-' + playerId);
+        if (card) resolvedName = card.getAttribute('data-player-name') || '';
+    }
+    authorizedPlayers[playerId] = { codename: codename, name: resolvedName, stats: stats || {} };
 
     // Unlock card
     var card = document.getElementById('pcard-' + playerId);
@@ -459,7 +548,10 @@ function _authorizePlayer(playerId, codename, stats) {
         } else if (LOGGED_IN_CODENAME && playerId === AUTO_AUTH_ID) {
             scoreAuthCodename = LOGGED_IN_CODENAME;
         }
-        if (scoreAuthCodename) _enableScoreControls();
+        if (scoreAuthCodename) {
+            scoreAuthName = resolvedName;  // store display name for history rows
+            _enableScoreControls();
+        }
     }
 
     // Hide auth notice once at least one player is authorized
@@ -505,14 +597,47 @@ window.selectPlayer = function(playerId) {
     _ensureSession(playerId);
 };
 
+var currentMode = 'shooting'; // 'shooting' or 'pointing'
+
+window.switchMode = function(mode) {
+    currentMode = mode;
+    var panelS = document.getElementById('panel-shooting');
+    var panelP = document.getElementById('panel-pointing');
+    var btnS   = document.getElementById('mode-btn-shooting');
+    var btnP   = document.getElementById('mode-btn-pointing');
+    if (mode === 'shooting') {
+        if (panelS) panelS.style.display = '';
+        if (panelP) panelP.style.display = 'none';
+        if (btnS) { btnS.className = 'mt-mode-btn active-shooting'; }
+        if (btnP) { btnP.className = 'mt-mode-btn'; }
+    } else {
+        if (panelS) panelS.style.display = 'none';
+        if (panelP) panelP.style.display = '';
+        if (btnS) { btnS.className = 'mt-mode-btn'; }
+        if (btnP) { btnP.className = 'mt-mode-btn active-pointing'; }
+    }
+};
+
+var SHOOTING_IDS = ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'];
+var POINTING_IDS = ['shot-perfect','shot-good','shot-fair','shot-far'];
+var MODE_BTNS    = ['mode-btn-shooting','mode-btn-pointing'];
+
 function _enableShotButtons() {
-    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'].forEach(function(id) {
+    SHOOTING_IDS.concat(POINTING_IDS).forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = false;
+    });
+    MODE_BTNS.forEach(function(id) {
         var btn = document.getElementById(id);
         if (btn) btn.disabled = false;
     });
 }
 function _disableShotButtons() {
-    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'].forEach(function(id) {
+    SHOOTING_IDS.concat(POINTING_IDS).forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.disabled = true;
+    });
+    MODE_BTNS.forEach(function(id) {
         var btn = document.getElementById(id);
         if (btn) btn.disabled = true;
     });
@@ -537,7 +662,7 @@ window.adjustScore = function(team, delta) {
             currentT2 = res.team2_score;
             document.getElementById('score-t1').textContent = currentT1;
             document.getElementById('score-t2').textContent = currentT2;
-            _appendHistoryRow(currentT1, currentT2, scoreAuthCodename);
+            _appendHistoryRow(currentT1, currentT2, scoreAuthName || scoreAuthCodename);
             _showScoreFeedback('\u2713 ' + currentT1 + '–' + currentT2, 'ok');
         } else {
             _showScoreFeedback('\u2717 ' + (res.error || 'Update failed'), 'err');
@@ -590,15 +715,15 @@ window.recordShot = function(outcome) {
     // the player to be logged in.  For the logged-in player this works directly.
     // For QR-authorized players we use the match_tracking shot endpoint which
     // handles the codename lookup server-side.
-    _doRecordShot(outcome, codename);
+    _doRecordShot(outcome, codename, currentMode);
 };
 
-function _doRecordShot(outcome, codename) {
+function _doRecordShot(outcome, codename, mode) {
     // Use the match_tracking shot endpoint (handles auth via codename param)
     fetch('/track/' + MATCH_TYPE + '/' + MATCH_PK + '/shot/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ outcome: outcome, codename: codename, player_id: selectedPlayerId })
+        body: JSON.stringify({ outcome: outcome, codename: codename, player_id: selectedPlayerId, mode: mode || 'shooting' })
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {
@@ -630,32 +755,54 @@ function _fetchPlayerStats(playerId) {
     .catch(function() {});
 }
 
+function _setCell(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = (val !== undefined && val !== null) ? val : '—';
+}
+
 function _updateStatsDisplay(playerId, stats) {
     if (!stats) return;
-    // Update accuracy badge on player card
-    var accEl = document.getElementById('acc-' + playerId);
-    if (accEl) {
-        accEl.style.display = '';
-        accEl.textContent = stats.accuracy + '%';
-    }
-    // Update stats table row
-    var row = document.getElementById('stats-row-' + playerId);
-    if (row) row.classList.remove('locked-row');
 
-    function _set(id, val) {
-        var el = document.getElementById(id);
-        if (el) el.textContent = val !== undefined && val !== null ? val : '—';
-    }
-    _set('stat-acc-' + playerId, stats.accuracy !== undefined ? stats.accuracy + '%' : '—');
-    _set('stat-n-' + playerId,   stats.total);
-    _set('stat-car-' + playerId, stats.carreaux);
-    _set('stat-pc-' + playerId,  stats.petit_carreaux);
-    _set('stat-hit-' + playerId, stats.hits);
-    _set('stat-mis-' + playerId, stats.misses);
+    // stats is now { shooting: {...}, pointing: {...} }
+    // Also handle a flat stats object returned directly from record_shot (legacy path).
+    var s = stats.shooting || null;
+    var p = stats.pointing || null;
+    if (!s && stats.carreaux !== undefined) s = stats;   // flat shooting stats
+    if (!p && stats.perfects !== undefined) p = stats;   // flat pointing stats
 
-    var accCell = document.getElementById('stat-acc-' + playerId);
-    if (accCell) {
-        accCell.className = 'acc-cell' + (stats.accuracy > 0 ? '' : ' zero');
+    // Update shooting stats table
+    if (s) {
+        var rowS = document.getElementById('stats-row-s-' + playerId);
+        if (rowS) rowS.classList.remove('locked-row');
+        _setCell('stat-s-acc-' + playerId, s.accuracy !== undefined ? s.accuracy + '%' : '—');
+        _setCell('stat-s-n-'   + playerId, s.total);
+        _setCell('stat-s-car-' + playerId, s.carreaux);
+        _setCell('stat-s-pc-'  + playerId, s.petit_carreaux);
+        _setCell('stat-s-hit-' + playerId, s.hits);
+        _setCell('stat-s-mis-' + playerId, s.misses);
+        var sAcc = document.getElementById('stat-s-acc-' + playerId);
+        if (sAcc) sAcc.className = 'acc-cell' + (s.accuracy > 0 ? '' : ' zero');
+        // Accuracy badge on player card shows shooting accuracy
+        var accEl = document.getElementById('acc-' + playerId);
+        if (accEl && s.total > 0) {
+            accEl.style.display = '';
+            accEl.textContent = s.accuracy + '%';
+        }
+    }
+
+    // Update pointing stats table
+    if (p) {
+        var rowP = document.getElementById('stats-row-p-' + playerId);
+        if (rowP) rowP.classList.remove('locked-row');
+        _setCell('stat-p-acc-'  + playerId, p.accuracy !== undefined ? p.accuracy + '%' : '—');
+        _setCell('stat-p-n-'    + playerId, p.total);
+        _setCell('stat-p-per-'  + playerId, p.perfects);
+        // petit_perfects not shown in Match Tracking (not part of the 4-outcome pointing UI)
+        _setCell('stat-p-good-' + playerId, p.goods);
+        _setCell('stat-p-fair-' + playerId, p.fairs);
+        _setCell('stat-p-far-'  + playerId, p.fars);
+        var pAcc = document.getElementById('stat-p-acc-' + playerId);
+        if (pAcc) pAcc.className = 'acc-cell pointing' + (p.accuracy > 0 ? '' : ' zero');
     }
 }
 
@@ -696,8 +843,10 @@ function _lockAllControls(status) {
         var btn = document.getElementById(id);
         if (btn) btn.disabled = true;
     });
-    // Disable shot buttons
-    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss'].forEach(function(id) {
+    // Disable all shot buttons (shooting + pointing) and mode switch
+    ['shot-carreau','shot-petit_carreau','shot-hit','shot-miss',
+     'shot-perfect','shot-good','shot-fair','shot-far',
+     'mode-btn-shooting','mode-btn-pointing'].forEach(function(id) {
         var btn = document.getElementById(id);
         if (btn) btn.disabled = true;
     });

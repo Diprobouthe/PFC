@@ -92,9 +92,17 @@ def _build_player_list(match_type, pk):
     return players
 
 
+# Shooting outcomes (open-ended, no fixed total)
+SHOOTING_OUTCOMES = {'carreau', 'petit_carreau', 'hit', 'miss'}
+# Pointing outcomes — exactly the four categories used in the PFC Pointing practice UI
+POINTING_OUTCOMES = {'perfect', 'good', 'fair', 'far'}
+
+
 def _get_player_shot_stats(player_id, match_type, pk):
     """
-    Return shot stats for a player (most recent shooting session).
+    Return both shooting and pointing stats for a player.
+    Each stat block is open-ended: percentages are calculated from actual
+    attempts only, with no assumed fixed total.
     """
     try:
         from friendly_games.models import PlayerCodename
@@ -103,32 +111,51 @@ def _get_player_shot_stats(player_id, match_type, pk):
     except Exception:
         return _empty_stats()
 
-    try:
-        from practice.models import PracticeSession
-        session = (
-            PracticeSession.objects
-            .filter(player_codename=codename, practice_type='shooting')
-            .order_by('-started_at')
-            .first()
-        )
-        if session:
+    from practice.models import PracticeSession
+
+    def _session_stats(practice_type):
+        try:
+            session = (
+                PracticeSession.objects
+                .filter(player_codename=codename, practice_type=practice_type, is_active=True)
+                .order_by('-started_at')
+                .first()
+            )
+            if not session:
+                return None
             total = session.total_shots
-            return {
-                'total': total,
-                'carreaux': session.carreaux,
-                'petit_carreaux': session.petit_carreaux,
-                'hits': session.hits,
-                'misses': session.misses,
-                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                'session_id': str(session.id),
-                'is_active': session.is_active,
-            }
-    except Exception:
-        pass
-    return _empty_stats()
+            if practice_type == 'shooting':
+                return {
+                    'total': total,
+                    'carreaux': session.carreaux,
+                    'petit_carreaux': session.petit_carreaux,
+                    'hits': session.hits,
+                    'misses': session.misses,
+                    'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+                    'session_id': str(session.id),
+                    'is_active': session.is_active,
+                }
+            else:  # pointing
+                return {
+                    'total': total,
+                    'perfects': session.perfects,
+                    'petit_perfects': session.petit_perfects,
+                    'goods': session.goods,
+                    'fairs': session.fairs,
+                    'fars': session.fars,
+                    'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+                    'session_id': str(session.id),
+                    'is_active': session.is_active,
+                }
+        except Exception:
+            return None
+
+    shooting = _session_stats('shooting') or _empty_shooting_stats()
+    pointing = _session_stats('pointing') or _empty_pointing_stats()
+    return {'shooting': shooting, 'pointing': pointing}
 
 
-def _empty_stats():
+def _empty_shooting_stats():
     return {
         'total': 0,
         'carreaux': 0,
@@ -141,22 +168,56 @@ def _empty_stats():
     }
 
 
+def _empty_pointing_stats():
+    return {
+        'total': 0,
+        'perfects': 0,
+        'petit_perfects': 0,
+        'goods': 0,
+        'fairs': 0,
+        'fars': 0,
+        'accuracy': 0.0,
+        'session_id': None,
+        'is_active': False,
+    }
+
+
+def _empty_stats():
+    """Combined empty stats (shooting + pointing)."""
+    return {'shooting': _empty_shooting_stats(), 'pointing': _empty_pointing_stats()}
+
+
 def _get_score_history(scoreboard):
-    """Return all ScoreUpdate rows for this scoreboard, oldest first."""
+    """Return all ScoreUpdate rows for this scoreboard, oldest first.
+    Codenames are resolved to player names using the same batch-lookup pattern
+    as _resolve_scorekeeper_names in views_scoreboard.py.
+    """
     from matches.models import ScoreUpdate
-    updates = (
+    updates = list(
         ScoreUpdate.objects
         .filter(scoreboard=scoreboard)
         .order_by('timestamp')
         .values('team1_score', 'team2_score', 'timestamp', 'scorekeeper_codename', 'update_type')
     )
+    # Batch-resolve codenames → player names (never expose raw codenames to the browser)
+    codenames = {u['scorekeeper_codename'] for u in updates if u['scorekeeper_codename']}
+    codename_to_name = {}
+    if codenames:
+        try:
+            from friendly_games.models import PlayerCodename
+            for pc in PlayerCodename.objects.filter(codename__in=codenames).select_related('player'):
+                codename_to_name[pc.codename] = pc.player.name
+        except Exception:
+            pass
     result = []
     for u in updates:
+        raw = u['scorekeeper_codename'] or ''
+        display_name = codename_to_name.get(raw, raw)  # fall back to raw only if lookup fails
         result.append({
             'team1_score': u['team1_score'],
             'team2_score': u['team2_score'],
             'ts': u['timestamp'].strftime('%H:%M:%S'),
-            'by': u['scorekeeper_codename'] or '',
+            'by': display_name,
             'type': u['update_type'],
         })
     return result
@@ -340,11 +401,13 @@ def record_shot(request, match_type, pk):
     """
     POST { outcome: str, codename: str, player_id: int }
 
-    Records a shot for a QR-authorized player using the existing
-    PracticeSession / Shot system.  Creates or resumes an active shooting
-    session for the player's codename.
+    Records a shot (shooting or pointing) for a QR-authorized player using the
+    existing PracticeSession / Shot system.  Sessions are open-ended: attempts
+    start from 0 and accumulate with no fixed total.  Percentages are
+    calculated only from actual recorded attempts.
 
-    Valid outcomes: carreau, petit_carreau, hit, miss
+    Shooting outcomes : carreau, petit_carreau, hit, miss
+    Pointing outcomes : perfect, petit_perfect, good, fair, far
     """
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
@@ -354,12 +417,15 @@ def record_shot(request, match_type, pk):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
 
-    outcome  = data.get('outcome', '').strip().lower()
-    codename = data.get('codename', '').strip().upper()
-    player_id = data.get('player_id')
+    outcome   = data.get('outcome', '').strip().lower()
+    codename  = data.get('codename', '').strip().upper()
 
-    valid_outcomes = ['carreau', 'petit_carreau', 'hit', 'miss']
-    if outcome not in valid_outcomes:
+    # Determine practice type from outcome
+    if outcome in SHOOTING_OUTCOMES:
+        practice_type = 'shooting'
+    elif outcome in POINTING_OUTCOMES:
+        practice_type = 'pointing'
+    else:
         return JsonResponse({'ok': False, 'error': 'Invalid outcome'}, status=400)
 
     if not codename:
@@ -391,22 +457,24 @@ def record_shot(request, match_type, pk):
     if not any(p['player_id'] == pc.player_id for p in players):
         return JsonResponse({'ok': False, 'error': 'Not a participant in this game'}, status=403)
 
-    # Get or create an active shooting session for this codename
+    # Get or create an active open-ended session for this codename + practice type.
+    # drill_type='' means "open shot" (same as OpenShots page).
     try:
         from practice.models import PracticeSession, Shot
         from django.db import transaction
 
         session = (
             PracticeSession.objects
-            .filter(player_codename=codename, practice_type='shooting', is_active=True)
+            .filter(player_codename=codename, practice_type=practice_type, is_active=True)
+            .order_by('-started_at')
             .first()
         )
         if not session:
             session = PracticeSession.objects.create(
                 player_codename=codename,
-                practice_type='shooting',
+                practice_type=practice_type,
                 distance='ing',
-                drill_type='',
+                drill_type='',   # open-ended, no fixed total
             )
 
         with transaction.atomic():
@@ -414,17 +482,41 @@ def record_shot(request, match_type, pk):
             session.refresh_from_db()
 
         total = session.total_shots
-        stats = {
-            'total': total,
-            'carreaux': session.carreaux,
-            'petit_carreaux': session.petit_carreaux,
-            'hits': session.hits,
-            'misses': session.misses,
-            'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-            'session_id': str(session.id),
-            'is_active': session.is_active,
+        if practice_type == 'shooting':
+            stats = {
+                'total': total,
+                'carreaux': session.carreaux,
+                'petit_carreaux': session.petit_carreaux,
+                'hits': session.hits,
+                'misses': session.misses,
+                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+                'session_id': str(session.id),
+                'is_active': session.is_active,
+            }
+        else:
+            stats = {
+                'total': total,
+                'perfects': session.perfects,
+                'petit_perfects': session.petit_perfects,
+                'goods': session.goods,
+                'fairs': session.fairs,
+                'fars': session.fars,
+                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+                'session_id': str(session.id),
+                'is_active': session.is_active,
+            }
+        # Wrap in the combined format so the JS _updateStatsDisplay can update both tables.
+        # The just-recorded type gets the live stats; the other type is fetched from the
+        # last active session so both tables refresh in one round-trip.
+        other_type = 'pointing' if practice_type == 'shooting' else 'shooting'
+        other_stats_dict = _get_player_shot_stats(pc.player_id, match_type, pk)
+        combined = {
+            practice_type: stats,
+            other_type: other_stats_dict.get(other_type, (
+                _empty_shooting_stats() if other_type == 'shooting' else _empty_pointing_stats()
+            )),
         }
-        return JsonResponse({'ok': True, 'stats': stats})
+        return JsonResponse({'ok': True, 'practice_type': practice_type, 'stats': combined})
 
     except Exception as exc:
         logger.error("match_tracking record_shot error: %s", exc)

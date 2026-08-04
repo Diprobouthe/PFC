@@ -347,8 +347,14 @@
 
     </form>
 
-    <!-- Match Tracking link -->
-    <div class="text-center mt-3">
+    <!-- Score History + Match Analysis links -->
+    <div class="text-center mt-3" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        {% if scoreboard_id %}
+        <a href="{% url 'score_history' scoreboard_id %}"
+           style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
+            <i class="fas fa-history" style="margin-right:4px;"></i>Score History
+        </a>
+        {% endif %}
         <a href="{% url 'match_tracking:tracking_page' 'match' match.id %}"
            style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
             <i class="fas fa-chart-line" style="margin-right:4px;"></i>Match Analysis
