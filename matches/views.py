@@ -1152,7 +1152,28 @@ def match_validate_result(request, match_id, team_id):
                     logger.error(f"Rating system error for match {match.id}: {e}")
                     # Continue with normal match completion - rating failures don't break matches
                 # ===== END RATING SYSTEM INTEGRATION =====
-                
+
+                # ===== CERTIFYING ENTITY ELO RATING UPDATE =====
+                # Completely independent of the existing PFC Rating.
+                # A failure here must never affect match completion or PFC ratings.
+                try:
+                    from cert_ratings.processor import process_match_cert_ratings
+                    cert_result = process_match_cert_ratings(match)
+                    if cert_result["success"]:
+                        logger.info(
+                            f"Match {match.id} cert rating update: "
+                            f"{cert_result.get('reason', 'completed successfully')}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Match {match.id} cert rating update failed: "
+                            f"{cert_result.get('reason', 'unknown error')}"
+                        )
+                except Exception as e:
+                    logger.error(f"Cert rating system error for match {match.id}: {e}")
+                    # Continue with normal match completion - cert rating failures don't break matches
+                # ===== END CERTIFYING ENTITY ELO RATING UPDATE =====
+
                 # ===== MELEE PLAYER STATS UPDATE =====
                 # Update individual player statistics for melee tournaments
                 try:

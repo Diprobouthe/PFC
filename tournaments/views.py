@@ -419,12 +419,12 @@ def tournament_register_subteams(request, tournament_id):
         return redirect('tournament_register', tournament_id=tournament.id)
     
     try:
-        # Strict rule: archived, temp, and non-full-profile teams may not self-register.
+        # Eligibility: not archived, not temp.
+        # Public-page visibility (profile_type) is separate from tournament eligibility.
         team = Team.objects.get(
             pin=team_pin,
             is_archived=False,
             is_tournament_temp=False,
-            profile__profile_type='full',
         )
     except Team.DoesNotExist:
         messages.error(request, "Invalid team PIN.")
@@ -493,12 +493,12 @@ def tournament_register_choice(request, tournament_id):
         return redirect('tournament_register', tournament_id=tournament.id)
     
     try:
-        # Strict rule: archived, temp, and non-full-profile teams may not self-register.
+        # Eligibility: not archived, not temp.
+        # Public-page visibility (profile_type) is separate from tournament eligibility.
         team = Team.objects.get(
             pin=team_pin,
             is_archived=False,
             is_tournament_temp=False,
-            profile__profile_type='full',
         )
     except Team.DoesNotExist:
         messages.error(request, "Invalid team PIN.")
@@ -1000,12 +1000,12 @@ def _get_team_from_pin(request, tournament):
     if not pin:
         return None
     try:
-        # Strict rule: archived, temp, and non-full-profile teams may not participate in VS Mode.
+        # Eligibility: not archived, not temp.
+        # Public-page visibility (profile_type) is separate from tournament eligibility.
         return _Team.objects.get(
             pin=pin,
             is_archived=False,
             is_tournament_temp=False,
-            profile__profile_type='full',
         )
     except _Team.DoesNotExist:
         return None

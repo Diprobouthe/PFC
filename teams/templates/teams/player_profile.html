@@ -101,6 +101,16 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     white-space: nowrap !important; margin-top: 6px !important;
 }
 .pp-qr-btn:hover { background: #ccfbf1 !important; color: #134e4a !important; border-color: #134e4a !important; }
+.pp-cert-btn {
+    flex-shrink: 0 !important;
+    display: inline-flex !important; align-items: center !important; gap: 6px !important;
+    padding: 10px 16px !important; border-radius: 14px !important;
+    border: 2px solid #b45309 !important; color: #b45309 !important;
+    font-size: 14px !important; font-weight: 700 !important;
+    text-decoration: none !important; background: #fffbeb !important;
+    white-space: nowrap !important; margin-top: 6px !important;
+}
+.pp-cert-btn:hover { background: #fef3c7 !important; color: #92400e !important; border-color: #92400e !important; }
 
 /* ---- QUICK STATS STRIP — 4 big boxes ---- */
 .pp-stats-strip {
@@ -413,6 +423,9 @@ a.mh-card::after {
             </a>
             <a href="{% url 'player_qr_card' player.id %}" class="pp-qr-btn" title="View and print your QR card for game participation">
                 <i class="fas fa-qrcode"></i> My QR Card
+            </a>
+            <a href="{% url 'cert_ratings:player_cert_ratings' player.id %}" class="pp-cert-btn" title="View your Certifying Entity ratings">
+                <i class="fas fa-certificate"></i> Certifying Entities
             </a>
         </div>
         {% endif %}

@@ -35,6 +35,9 @@ urlpatterns = [
     # Match Tracking (new, isolated — no changes to existing apps)
     path('track/', include('match_tracking.urls', namespace='match_tracking')),
 
+    # Certifying Entity ratings
+    path('cert/', include('cert_ratings.urls', namespace='cert_ratings')),
+
     # Simple Tournament Creator
     path('simple/', simple_creator.simple_creator_home, name='simple_creator_home'),
     path('simple/create/', simple_creator.create_simple_tournament, name='create_simple_tournament'),

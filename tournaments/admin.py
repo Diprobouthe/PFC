@@ -102,6 +102,11 @@ class TournamentAdmin(admin.ModelAdmin):
             "classes": ("collapse",),
             "description": "Set default time limit for all matches in this tournament. Timer starts when both teams activate the match. 'Pre-game countdown' controls the 'Find Your Court' window shown immediately after both teams activate."
         }),
+        ("Certification", {
+            "fields": ("certifying_entity",),
+            "classes": ("collapse",),
+            "description": "Optional: select a Certifying Entity to enable independent Elo rating updates for this tournament's matches. Leave blank for a non-certified tournament."
+        }),
     )
     actions = [
         "make_active", 

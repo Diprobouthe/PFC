@@ -121,6 +121,19 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .mt-shot-feedback { font-size: 12px; text-align: center; min-height: 18px; margin-top: 6px; }
 .mt-shot-feedback.ok  { color: #16a34a; }
 .mt-shot-feedback.err { color: #dc2626; }
+.mt-undo-btn {
+    flex: 1; padding: 9px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    border: 2px solid #f59e0b; background: #fffbeb; color: #b45309;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+}
+.mt-undo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.mt-undo-btn:not(:disabled):hover { background: #fef3c7; }
+.mt-export-btn {
+    flex: 1; padding: 9px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    border: 2px solid #dc2626; background: #fff5f5; color: #dc2626;
+    text-decoration: none; display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+}
+.mt-export-btn:hover { background: #fee2e2; color: #b91c1c; }
 
 /* ── Stats section ───────────────────────────────────────────────────────── */
 .mt-stats-section { padding: 0 14px 12px; }
@@ -331,6 +344,16 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
             Far
         </button>
     </div>
+</div>
+
+<!-- ── Undo + Export actions ──────────────────────────────────────────────── -->
+<div style="display:flex;gap:8px;margin:8px 0 4px;">
+    <button id="btn-undo" class="mt-undo-btn" disabled onclick="undoLastShot()" title="Remove the most recently recorded shot">
+        <i class="fas fa-undo"></i> Undo Last Shot
+    </button>
+    <a id="btn-export-pdf" class="mt-export-btn" href="#" onclick="exportPDF(); return false;" title="Export match analysis to PDF">
+        <i class="fas fa-file-pdf"></i> Export PDF
+    </a>
 </div>
 
 <!-- ── Stats tables (Shooting + Pointing) ──────────────────────────────────── -->
@@ -582,6 +605,7 @@ window.selectPlayer = function(playerId) {
         if (prev) prev.classList.remove('selected');
         selectedPlayerId = null;
         _disableShotButtons();
+    var undoBtn = document.getElementById('btn-undo'); if (undoBtn) undoBtn.disabled = true;
         return;
     }
     // Deselect previous
@@ -593,6 +617,7 @@ window.selectPlayer = function(playerId) {
     var card = document.getElementById('pcard-' + playerId);
     if (card) card.classList.add('selected');
     _enableShotButtons();
+    var undoBtn = document.getElementById('btn-undo'); if (undoBtn) undoBtn.disabled = false;
     // Ensure a practice session is active for this player
     _ensureSession(playerId);
 };
@@ -695,6 +720,31 @@ function _showScoreFeedback(msg, cls) {
 }
 
 /* ── Shot recording ──────────────────────────────────────────────────── */
+/* ── Undo last shot ──────────────────────────────────────────────────── */
+window.undoLastShot = function() {
+    if (!selectedPlayerId) return;
+    var auth = authorizedPlayers[selectedPlayerId];
+    if (!auth || !auth.codename) {
+        _showShotFeedback('\u2717 No codename available', 'err');
+        return;
+    }
+    fetch('/track/' + MATCH_TYPE + '/' + MATCH_PK + '/undo/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ codename: auth.codename })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            _showShotFeedback('\u21a9 Undone: ' + (res.undone_outcome || '').replace('_',' '), 'ok');
+            _updateStatsDisplay(selectedPlayerId, res.stats);
+        } else {
+            _showShotFeedback('\u2717 ' + (res.error || 'Undo failed'), 'err');
+        }
+    })
+    .catch(function() { _showShotFeedback('\u2717 Network error', 'err'); });
+};
+
 window.recordShot = function(outcome) {
     if (!selectedPlayerId) return;
     var auth = authorizedPlayers[selectedPlayerId];
@@ -818,6 +868,12 @@ setInterval(function() {
 }, 15000);
 
 /* ── Match status poll (every 30s) — disable all controls when completed ─ */
+/* ── Export PDF ──────────────────────────────────────────────────────── */
+window.exportPDF = function() {
+    var url = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/pdf/';
+    window.open(url, '_blank');
+};
+
 var _matchEnded = false;
 var STATUS_URL = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/status/';
 var ACTIVE_STATUSES = ['active', 'ACTIVE', 'pending_verification', 'PENDING_VERIFICATION', 'READY', 'ready'];
@@ -850,6 +906,8 @@ function _lockAllControls(status) {
         var btn = document.getElementById(id);
         if (btn) btn.disabled = true;
     });
+    // Disable undo button
+    var undoBtn2 = document.getElementById('btn-undo'); if (undoBtn2) undoBtn2.disabled = true;
     // Disable QR scan button
     var qrBtn = document.querySelector('.mt-qr-btn');
     if (qrBtn) { qrBtn.disabled = true; qrBtn.style.opacity = '0.4'; }

@@ -14,4 +14,8 @@ urlpatterns = [
     path('<str:match_type>/<int:pk>/shot/', views.record_shot, name='record_shot'),
     # Game status poll:                   /track/match/<match_id>/status/
     path('<str:match_type>/<int:pk>/status/', views.game_status_api, name='game_status_api'),
+    # Undo last shot:                      /track/match/<match_id>/undo/
+    path('<str:match_type>/<int:pk>/undo/', views.undo_last_shot, name='undo_last_shot'),
+    # Export PDF:                           /track/match/<match_id>/pdf/
+    path('<str:match_type>/<int:pk>/pdf/', views.export_pdf, name='export_pdf'),
 ]

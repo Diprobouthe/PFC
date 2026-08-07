@@ -162,13 +162,13 @@ class StageForm(forms.ModelForm):
 
 class TeamAssignmentForm(forms.Form):
     """Form for assigning teams to a tournament (staff only).
-    Strict visibility rule: not archived, not temp, not subteam, full profile only."""
+    Eligibility: not archived, not temp, not subteam.
+    Public-page visibility (profile_type) is separate from tournament eligibility."""
     teams = forms.ModelMultipleChoiceField(
         queryset=Team.objects.filter(
             is_archived=False,
             is_tournament_temp=False,
             parent_team__isnull=True,
-            profile__profile_type='full',
         ),
         widget=forms.CheckboxSelectMultiple,
         required=False

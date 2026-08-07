@@ -124,7 +124,18 @@ class Tournament(models.Model):
         blank=True,
         help_text="Default time limit in minutes for all matches in this tournament (optional). Applied automatically when matches are created."
     )
-    
+
+    # Certifying Entity — optional; when set, eligible matches update that entity's Elo ratings
+    # in addition to the existing PFC Rating.  Null means the tournament is not certified.
+    certifying_entity = models.ForeignKey(
+        "cert_ratings.CertifyingEntity",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tournaments",
+        help_text="Optional: Certifying Entity whose Elo ratings are updated when this tournament's matches complete.",
+    )
+
     def __str__(self):
         return self.name
     
