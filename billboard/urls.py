@@ -3,6 +3,7 @@ from . import views
 from . import analytics_views
 from . import presence_views
 from . import court_analytics_api
+from . import community_presence_views
 
 app_name = 'billboard'
 
@@ -21,6 +22,11 @@ urlpatterns = [
     path('api/im-here/', presence_views.api_im_here, name='api_im_here'),
     path('api/going/', presence_views.api_going, name='api_going'),
     path('api/leave/', presence_views.api_leave, name='api_leave'),
+
+    # ── Community presence report API ─────────────────────────────────────────
+    path('api/community-report/', community_presence_views.api_community_report, name='api_community_report'),
+    path('api/community-confirm/', community_presence_views.api_community_confirm, name='api_community_confirm'),
+    path('api/community-status/<int:court_id>/', community_presence_views.api_community_status, name='api_community_status'),
 
     # ── Court usage analytics API ─────────────────────────────────────────────
     path('api/analytics/summary/', court_analytics_api.api_analytics_summary, name='api_analytics_summary'),

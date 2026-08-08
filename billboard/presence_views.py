@@ -113,11 +113,19 @@ def api_defaults(request):
         except (ValueError, TypeError):
             pass
     defaults = _get_defaults(codename, court_complex=court_complex)
+    # Include the player's last anonymous choice so the UI can pre-select the toggle
+    last_anonymous = False
+    if codename:
+        prefs = UserPresencePrefs.get_for_codename(codename)
+        if prefs:
+            last_anonymous = prefs.last_anonymous_choice
+
     return JsonResponse({
         "ok": True,
         "codename": codename,
         "defaults": defaults,
         "courts": courts,
+        "last_anonymous": last_anonymous,
     })
 
 
@@ -184,6 +192,8 @@ def api_im_here(request):
     # ───────────────────────────────────────────────────────────────────
 
     message = str(data.get("message", ""))[:200]
+    # Anonymous presence: player is counted as verified but name is hidden publicly.
+    is_anonymous = bool(data.get("is_anonymous", False))
 
     entry = BillboardEntry.objects.create(
         codename=codename,
@@ -191,6 +201,7 @@ def api_im_here(request):
         court_complex=court,
         scheduled_date=sched_date,
         message=message,
+        is_anonymous=is_anonymous,
     )
 
     # Trigger analytics snapshot

@@ -51,6 +51,13 @@ class UserPresencePrefs(models.Model):
         help_text="Comma-separated day numbers ordered by frequency",
     )
 
+    # Remember the user's last anonymous/named choice for presence declarations.
+    # True = last time they chose anonymous; False = last time they chose named.
+    last_anonymous_choice = models.BooleanField(
+        default=False,
+        help_text="True if the player last declared presence as anonymous."
+    )
+
     # Timestamps
     last_seen = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -89,6 +96,10 @@ class UserPresencePrefs(models.Model):
         # Always update last court and last seen
         prefs.last_court_complex = entry.court_complex
         prefs.last_seen = timezone.now()
+
+        # Remember the anonymous/named choice from this entry
+        if hasattr(entry, 'is_anonymous'):
+            prefs.last_anonymous_choice = entry.is_anonymous
 
         # Analyse last 60 entries for this player
         recent = (

@@ -92,6 +92,12 @@ class BillboardEntry(models.Model):
         blank=True,
         help_text="When set, the entry is considered expired after this time (used for post-game grace window)."
     )
+    # Anonymous presence: the user is still verified (codename known internally)
+    # but their name is hidden from the public display.
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="If True, the player is counted as verified-present but their name is not shown publicly."
+    )
     
     class Meta:
         ordering = ['-created_at']
@@ -102,7 +108,10 @@ class BillboardEntry(models.Model):
         return f"{self.get_player_name()} - {self.get_action_type_display()} at {self.court_complex.name}"
     
     def get_player_name(self):
-        """Get the actual player name from codename for display (privacy-safe)"""
+        """Get the actual player name from codename for display (privacy-safe).
+        Returns 'Anonymous' if the player chose anonymous presence."""
+        if self.is_anonymous:
+            return 'Anonymous'
         try:
             from friendly_games.models import PlayerCodename
             player_codename = PlayerCodename.objects.get(codename=self.codename)
@@ -225,6 +234,9 @@ from billboard.analytics_models import (
 
 # Import presence prefs model (must be after BillboardEntry is defined)
 from billboard.presence_prefs import UserPresencePrefs
+
+# Import community presence report model
+from billboard.community_presence import CommunityPresenceReport
 
 # ── Post-save signal: update smart defaults whenever an entry is created ──────
 from django.db.models.signals import post_save

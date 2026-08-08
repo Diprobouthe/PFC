@@ -84,6 +84,14 @@ canvas.bb-chart{width:100%!important;max-height:180px}
         <span class="bb-btn-label">I'm going</span>
       </button>
     </div>
+    <!-- Anonymous toggle -->
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:rgba(255,255,255,.85)">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="anon-toggle" style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer;" onchange="saveAnonPref()">
+        <span>Show my name</span>
+      </label>
+      <span style="opacity:.55;font-size:11px;" id="anon-hint">Your presence is still verified either way</span>
+    </div>
     <button class="bb-defaults-chip" onclick="toggleExpand()" id="expand-chip">
       <i class="fas fa-sliders-h"></i>
       <span id="defaults-summary">Loading…</span>
@@ -127,6 +135,20 @@ canvas.bb-chart{width:100%!important;max-height:180px}
     <i class="fas fa-map-marker-alt" style="color:#22c55e"></i>At the courts
     <span class="bb-count">{{ total_at_courts }}</span>
   </div>
+  <div style="font-size:11px;color:#94a3b8;margin:-6px 0 8px 2px;" id="verified-breakdown">
+    Verified: {{ total_at_courts }}
+    &nbsp;&middot;&nbsp;
+    <span id="anon-breakdown-text">{% for e in at_courts %}{% if not e.is_anonymous %}<span class="named-chip" style="display:none"></span>{% else %}<span class="anon-chip" style="display:none"></span>{% endif %}{% endfor %}
+    <script>
+    (function(){
+      var named = document.querySelectorAll('.named-chip').length;
+      var anon = document.querySelectorAll('.anon-chip').length;
+      var el = document.getElementById('anon-breakdown-text');
+      if(el) el.textContent = named + ' named · ' + anon + ' anonymous';
+    })();
+    </script>
+    </span>
+  </div>
   {% regroup at_courts by court_complex.name as court_groups %}
   {% for group in court_groups %}
   <div class="bb-presence-group">
@@ -145,6 +167,51 @@ canvas.bb-chart{width:100%!important;max-height:180px}
   </div>
   {% endfor %}
   {% endif %}
+
+  <!-- ── Community presence report ──────────────────────────────── -->
+  <div id="community-presence-block" style="display:none;background:#fff;border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#94a3b8;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6366f1;margin-right:4px;"></span>
+        Community report
+      </div>
+      <button onclick="showCommunityReportForm()" style="font-size:11px;color:#6366f1;background:none;border:none;cursor:pointer;padding:0;font-weight:600;">Update</button>
+    </div>
+    <div id="community-report-display">
+      <span id="cp-count" style="font-size:20px;font-weight:800;color:#1e293b;">—</span>
+      <span style="font-size:13px;color:#64748b;"> people on site</span>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px;">
+        Confirmed by <span id="cp-confirms">—</span> users &middot; updated <span id="cp-age">—</span> min ago
+      </div>
+      <button onclick="confirmCommunityReport()" id="cp-confirm-btn" style="margin-top:6px;padding:5px 14px;border-radius:20px;border:1.5px solid #6366f1;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:700;cursor:pointer;">
+        ✓ Confirm this count
+      </button>
+    </div>
+    <div id="community-report-form" style="display:none;margin-top:8px;">
+      <div style="font-size:12px;color:#64748b;margin-bottom:5px;">How many people are here right now?</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="cp-input" min="1" max="999" placeholder="e.g. 12"
+          style="width:90px;padding:7px 10px;border-radius:10px;border:2px solid #c7d2fe;font-size:15px;font-weight:700;text-align:center;">
+        <button onclick="submitCommunityReport()" style="padding:7px 16px;border-radius:10px;background:#6366f1;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">Report</button>
+        <button onclick="hideCommunityReportForm()" style="padding:7px 12px;border-radius:10px;background:#f1f5f9;color:#64748b;border:none;font-size:13px;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <!-- Report button when no report exists yet -->
+  <div id="community-no-report" style="margin-bottom:10px;">
+    <button onclick="showCommunityReportForm(true)" style="width:100%;padding:9px;border-radius:12px;border:1.5px dashed #c7d2fe;background:#f8f9ff;color:#6366f1;font-size:13px;font-weight:600;cursor:pointer;">
+      <i class="fas fa-users" style="margin-right:5px;"></i>Report total people on site
+    </button>
+    <div id="community-report-form-standalone" style="display:none;margin-top:8px;background:#fff;border-radius:14px;padding:10px 12px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="font-size:12px;color:#64748b;margin-bottom:5px;">How many people are here right now?</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="cp-input-standalone" min="1" max="999" placeholder="e.g. 12"
+          style="width:90px;padding:7px 10px;border-radius:10px;border:2px solid #c7d2fe;font-size:15px;font-weight:700;text-align:center;">
+        <button onclick="submitCommunityReportStandalone()" style="padding:7px 16px;border-radius:10px;background:#6366f1;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">Report</button>
+        <button onclick="hideCommunityReportFormStandalone()" style="padding:7px 12px;border-radius:10px;background:#f1f5f9;color:#64748b;border:none;font-size:13px;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Going to courts — compact rows ──────────────────────────── -->
   {% if going_to_courts %}
@@ -246,6 +313,11 @@ async function fetchDefaults(courtId){
     const cid=courtId||document.getElementById('sel-court')?.value||'';
     const url='/billboard/api/defaults/'+(cid?'?court_id='+encodeURIComponent(cid):'');
     const r=await fetch(url);const d=await r.json();BB.defaults=d.defaults||{};updateChip();
+    // Pre-select anonymous toggle from server preference (last choice)
+    if(typeof d.last_anonymous !== 'undefined'){
+      const tog=document.getElementById('anon-toggle');
+      if(tog) tog.checked = !d.last_anonymous; // "Show my name" = NOT anonymous
+    }
     const s=document.getElementById('sel-court');
     if(s){
       if(!courtId&&BB.defaults.court_id){
@@ -288,7 +360,11 @@ function getPayload(){
 }
 async function oneTapHere(){
   const btn=document.getElementById('btn-im-here');btn.disabled=true;btn.style.opacity='.6';
-  try{const r=await fetch('/billboard/api/im-here/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(getPayload())});
+  try{
+    const payload=getPayload();
+    const showName=document.getElementById('anon-toggle')?.checked ?? true;
+    payload.is_anonymous = !showName;
+    const r=await fetch('/billboard/api/im-here/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(payload)});
   const d=await r.json();if(d.ok){toast('✅ You\'re at '+d.court+'!');setTimeout(()=>location.reload(),1200);}else toast('⚠️ '+(d.error||'Error'));}
   catch(e){toast('⚠️ Network error');}finally{btn.disabled=false;btn.style.opacity='1';}
 }
@@ -340,5 +416,87 @@ function line(id,labels,data){
 }
 function csrf(){return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1]||'';}
 function toast(msg){const t=document.getElementById('bb-toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function saveAnonPref(){/* preference is persisted server-side when the user next checks in */}
+
+/* ── Community presence ──────────────────────────────────────── */
+var _cpCourtId = null;
+function _initCommunityPresence(){
+  // Use the currently selected court
+  const sel = document.getElementById('sel-court');
+  _cpCourtId = sel ? parseInt(sel.value) : null;
+  if(!_cpCourtId) return;
+  _loadCommunityReport(_cpCourtId);
+}
+async function _loadCommunityReport(courtId){
+  try{
+    const r = await fetch('/billboard/api/community-status/'+courtId+'/');
+    const d = await r.json();
+    if(d.ok && d.report && !d.report.is_stale){
+      _showCommunityReport(d.report);
+    } else {
+      _hideCommunityReport();
+    }
+  }catch(e){ _hideCommunityReport(); }
+}
+function _showCommunityReport(rep){
+  document.getElementById('community-presence-block').style.display = 'block';
+  document.getElementById('community-no-report').style.display = 'none';
+  document.getElementById('cp-count').textContent = '~'+rep.reported_count;
+  document.getElementById('cp-confirms').textContent = rep.confirmation_count;
+  document.getElementById('cp-age').textContent = rep.minutes_ago;
+}
+function _hideCommunityReport(){
+  document.getElementById('community-presence-block').style.display = 'none';
+  document.getElementById('community-no-report').style.display = 'block';
+}
+function showCommunityReportForm(standalone){
+  if(standalone){
+    document.getElementById('community-report-form-standalone').style.display = 'block';
+  } else {
+    document.getElementById('community-report-display').style.display = 'none';
+    document.getElementById('community-report-form').style.display = 'block';
+  }
+}
+function hideCommunityReportForm(){
+  document.getElementById('community-report-display').style.display = 'block';
+  document.getElementById('community-report-form').style.display = 'none';
+}
+function hideCommunityReportFormStandalone(){
+  document.getElementById('community-report-form-standalone').style.display = 'none';
+}
+async function submitCommunityReport(){
+  const count = parseInt(document.getElementById('cp-input')?.value);
+  if(!count || count < 1){ toast('⚠️ Enter a valid number'); return; }
+  await _postCommunityReport(count);
+  hideCommunityReportForm();
+}
+async function submitCommunityReportStandalone(){
+  const count = parseInt(document.getElementById('cp-input-standalone')?.value);
+  if(!count || count < 1){ toast('⚠️ Enter a valid number'); return; }
+  await _postCommunityReport(count);
+  hideCommunityReportFormStandalone();
+}
+async function _postCommunityReport(count){
+  if(!_cpCourtId){ toast('⚠️ No court selected'); return; }
+  try{
+    const r = await fetch('/billboard/api/community-report/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({court_id:_cpCourtId,count:count})});
+    const d = await r.json();
+    if(d.ok){ toast('📊 Reported ~'+count+' people'); _showCommunityReport(d.report); }
+    else toast('⚠️ '+(d.error||'Error'));
+  }catch(e){ toast('⚠️ Network error'); }
+}
+async function confirmCommunityReport(){
+  if(!_cpCourtId) return;
+  try{
+    const r = await fetch('/billboard/api/community-confirm/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({court_id:_cpCourtId})});
+    const d = await r.json();
+    if(d.ok){ toast('✓ Confirmed'); _showCommunityReport(d.report); }
+    else toast('⚠️ '+(d.error||'Error'));
+  }catch(e){ toast('⚠️ Network error'); }
+}
+// Init community presence on page load
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(_initCommunityPresence, 600); // after fetchDefaults sets the court selector
+});
 </script>
 {% endblock %}
