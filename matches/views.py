@@ -16,6 +16,7 @@ from courts.timezone_utils import get_court_local_date, get_court_local_now
 from .forms import MatchActivationForm, MatchResultForm, MatchValidationForm
 from .utils import auto_assign_court, get_court_assignment_status
 from pfc_events.signals import notify_match_state_changed
+from pfc_core.qr_action_auth import get_qr_action_player, get_qr_action_token
 from .utils import detect_match_type, validate_match_type  # Import match type utilities
 
 logger = logging.getLogger(__name__)
@@ -281,12 +282,15 @@ def match_detail(request, match_id):
     # belongs to the player's original team, not the Mêlée team.
     my_team = None
     opponent_team = None
+    qr_action_player = get_qr_action_player(request)
     codename = request.session.get('player_codename')
-    if codename:
+    if qr_action_player or codename:
         from friendly_games.models import PlayerCodename
         try:
-            player_codename_obj = PlayerCodename.objects.get(codename=codename.upper())
-            player = player_codename_obj.player
+            player = qr_action_player
+            if player is None:
+                player_codename_obj = PlayerCodename.objects.get(codename=codename.upper())
+                player = player_codename_obj.player
             mp = MatchPlayer.objects.filter(match=match, player=player).select_related('team').first()
             if mp:
                 my_team = mp.team
@@ -362,7 +366,16 @@ def match_detail(request, match_id):
         # Auto-redirect the opposing team to the validation page.
         # The submitting team stays here (waiting state).
         if result and my_team and result.submitted_by != my_team:
-            return redirect('match_validate_result', match_id=match.id, team_id=my_team.id)
+            _qr_redirect_token = get_qr_action_token(request)
+            _validate_url = reverse('match_validate_result', kwargs={'match_id': match.id, 'team_id': my_team.id})
+            if _qr_redirect_token:
+                _validate_url = f"{_validate_url}?qr_action={_qr_redirect_token}"
+            return redirect(_validate_url)
+
+    _qr_detail_token = get_qr_action_token(request)
+    if _qr_detail_token and submit_url:
+        _sep = '&' if '?' in submit_url else '?'
+        submit_url = f"{submit_url}{_sep}qr_action={_qr_detail_token}"
 
     context = {
         "match": match,
@@ -384,6 +397,7 @@ def match_detail(request, match_id):
         "submit_url": submit_url,
         # Result
         "result": result,
+        "qr_action_token": _qr_detail_token,
     }
     return render(request, "matches/match_detail.html", context)
 
@@ -445,7 +459,11 @@ def match_activate(request, match_id, team_id):
                 session_team = mp.team
         except Exception:
             pass
-    # Priority 2: fall back to team PIN session
+    # Priority 2: a scanned-player proof takes precedence for this one page.
+    qr_action_player = get_qr_action_player(request)
+    if qr_action_player and qr_action_player.team_id in (match.team1_id, match.team2_id):
+        session_team = qr_action_player.team
+    # Priority 3: fall back to team PIN session.
     if session_team is None:
         session_pin = request.session.get("team_pin")
         if session_pin:
@@ -798,6 +816,7 @@ def match_activate(request, match_id, team_id):
         "team_players_with_pos": team_players_with_pos,
         "auto_preselect": auto_preselect,
         "required_count": required_count,
+        "qr_action_token": get_qr_action_token(request),
         "pos_choices": [
             ('pointer', 'Pointer'),
             ('milieu', 'Milieu'),
@@ -824,6 +843,9 @@ def match_submit_result(request, match_id, team_id):
                 _session_team = _mp.team
         except Exception:
             pass
+    _qr_action_player = get_qr_action_player(request)
+    if _qr_action_player and _qr_action_player.team_id in (match.team1_id, match.team2_id):
+        _session_team = _qr_action_player.team
     if _session_team is None:
         _session_pin = request.session.get("team_pin")
         if _session_pin:
@@ -920,6 +942,7 @@ def match_submit_result(request, match_id, team_id):
         "live_score_team1": live_score_team1,
         "live_score_team2": live_score_team2,
         "scoreboard_id": _scoreboard_id,
+        "qr_action_token": get_qr_action_token(request),
     }
     return render(request, "matches/match_submit_result.html", context)
 
@@ -941,6 +964,9 @@ def match_validate_result(request, match_id, team_id):
                 _session_team_v = _mp_v.team
         except Exception:
             pass
+    _qr_action_player_v = get_qr_action_player(request)
+    if _qr_action_player_v and _qr_action_player_v.team_id in (match.team1_id, match.team2_id):
+        _session_team_v = _qr_action_player_v.team
     if _session_team_v is None:
         _session_pin_v = request.session.get("team_pin")
         if _session_pin_v:
@@ -981,7 +1007,16 @@ def match_validate_result(request, match_id, team_id):
             # The QR resolve endpoint stores the resolved codename server-side in
         # session['qr_resolved_codename'].  It is NEVER sent from the browser.
         # The active session (Player A) is NEVER replaced or modified.
+        _qr_action_player_v = get_qr_action_player(request)
         _qr_codename_session = request.session.pop('qr_resolved_codename', None)
+        if _qr_action_player_v:
+            # Matches-page QR handoff: the opaque page proof identifies exactly
+            # one scanned roster player and is not persisted after this action.
+            try:
+                _qr_pc = PlayerCodename.objects.get(player=_qr_action_player_v)
+                _qr_codename_session = _qr_pc.codename
+            except PlayerCodename.DoesNotExist:
+                _qr_codename_session = None
         if _qr_codename_session:
             # QR path: two sub-cases depending on which team's URL is being used.
             # is_own_team=True  (submitting team URL): scan a card from the OPPOSING team.
@@ -1063,6 +1098,12 @@ def match_validate_result(request, match_id, team_id):
                     match.winner = None
                     match.loser = None
                 match.save()
+                # Match Tracking authorizations and match-owned OpenShots sessions end with the match.
+                try:
+                    from match_tracking.services import end_tracking_sessions
+                    end_tracking_sessions('match', match.id, 'match_completed')
+                except Exception:
+                    logger.exception('Unable to close Match Tracking for completed match %s', match.id)
                 notify_match_state_changed(match.id, match.status)  # completed
                 # Deactivate game-generated presence entries for this match.
                 # Presence was already deactivated at result-submit time (waiting_validation),
@@ -1245,6 +1286,7 @@ def match_validate_result(request, match_id, team_id):
         "form": form,
         "session_codename": request.session.get('player_codename', ''),
         "is_own_team": is_own_team,
+        "qr_action_token": get_qr_action_token(request),
     }
     return render(request, "matches/match_validate_result.html", context)
 

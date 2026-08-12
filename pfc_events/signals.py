@@ -93,6 +93,14 @@ def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
     if channel_layer is None:
         return  # Channels not configured (unit tests)
 
+    # Every connected detail page can use this authoritative URL to replace
+    # stale state immediately after a server-side transition.
+    state_url = (
+        f"/matches/detail/{object_id}/"
+        if match_type == 'match'
+        else f"/friendly-games/{object_id}/"
+    )
+
     # 1. Shared broadcast (spectators / scoreboard_embed)
     shared_group = f"{match_type}_{object_id}"
     shared_payload = {
@@ -101,6 +109,7 @@ def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
         "match_id":   object_id,
         "new_status": new_status,
         "next_url":   None,
+        "state_url":  state_url,
     }
     _group_send(channel_layer, shared_group, shared_payload)
 
@@ -132,6 +141,7 @@ def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
             "match_id":   object_id,
             "new_status": new_status,
             "next_url":   next_url,
+            "state_url":  state_url,
         }
         for codename in codenames:
             _group_send(channel_layer, f"player_{codename}", personal_payload)

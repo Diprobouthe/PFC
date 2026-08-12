@@ -7,6 +7,7 @@ from friendly_games.models import PlayerCodename
 from pfc_core.session_utils import CodenameSessionManager
 from .forms import TournamentSigninForm
 from .models import TeamTournamentSignin
+from .services import activate_team_tournament_signin
 
 def tournament_signin_list(request):
     """View for listing available tournaments for sign-in"""
@@ -134,26 +135,10 @@ def tournament_signin(request):
             if hasattr(form, 'signin_exists') and form.signin_exists:
                 messages.info(request, f"Your team is already signed in to {tournament.name}.")
             else:
-                # Create new sign-in record
-                signin, created = TeamTournamentSignin.objects.get_or_create(
-                    team=team,
-                    tournament=tournament,
-                    defaults={'is_active': True}
-                )
-                
-                if not created:
-                    signin.is_active = True
-                    signin.signed_in_at = timezone.now()
-                    signin.save()
-                
-                # Also create a TournamentTeam record to ensure the team shows up in tournament views
-                from tournaments.models import TournamentTeam
-                tournament_team, tt_created = TournamentTeam.objects.get_or_create(
-                    team=team,
-                    tournament=tournament,
-                    defaults={}
-                )
-                
+                # Persist through the shared Team Sign-in workflow. This keeps
+                # the active TeamTournamentSignin and TournamentTeam records in
+                # sync, exactly as the legacy form has always required.
+                activate_team_tournament_signin(team=team, tournament=tournament)
                 messages.success(request, f"Successfully signed in to {tournament.name}.")
             
             # Redirect to team dashboard
@@ -165,12 +150,17 @@ def tournament_signin(request):
     
     # Get logged-in codename for auto-fill
     logged_in_codename = CodenameSessionManager.get_logged_in_codename(request) if CodenameSessionManager.is_logged_in(request) else ''
-    
+
+    # Get team info for the "Register My Team" quick button
+    from teams.utils import get_team_info_from_session
+    team_info = get_team_info_from_session(request)
+
     context = {
         'form': form,
         'selected_tournament': selected_tournament,
-        'logged_in_codename': logged_in_codename,  # Add for auto-fill
-        'is_melee': selected_tournament.is_melee if selected_tournament else False
+        'logged_in_codename': logged_in_codename,
+        'is_melee': selected_tournament.is_melee if selected_tournament else False,
+        'team_info': team_info,
     }
     return render(request, 'signin/tournament_signin.html', context)
 

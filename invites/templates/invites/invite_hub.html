@@ -114,12 +114,67 @@
         <label class="ih-label">Proposed team name <span class="ih-optional">(optional)</span></label>
         <input type="text" id="ih-team-name" class="ih-input" maxlength="100" placeholder="e.g. Les Boules d'Or">
       </div>
+
     </div>
 
     <button class="ih-send-btn" id="ih-send-btn" disabled>
       <i class="fas fa-paper-plane"></i> Send Invite
     </button>
     <div id="ih-send-result" class="ih-send-result" style="display:none;"></div>
+  </section>
+
+  <!-- ── QR Direct Build section (visible when Team Build tab is active) ────────── -->
+  <section class="ih-section" id="ih-qr-section" style="display:none;">
+    <div class="ih-section-head">
+      <span class="ih-section-title"><i class="fas fa-qrcode" style="color:#0d6efd;margin-right:6px;"></i>Build Team by QR Scan</span>
+    </div>
+    <p style="font-size:.82rem;color:#555;margin:0 0 10px;">
+      Scan each player’s PFC QR card to add them directly.
+      No invite or acceptance needed — the QR scan is the authorization.
+    </p>
+
+    <div class="ih-field">
+      <label class="ih-label">Team name <span class="ih-optional">(optional)</span></label>
+      <input type="text" id="ih-qr-team-name" class="ih-input" maxlength="100" placeholder="e.g. Les Boules d'Or">
+    </div>
+    <div class="ih-field">
+      <label class="ih-label">Team size</label>
+      <select id="ih-qr-target-size" class="ih-select">
+        <option value="2">2 players</option>
+        <option value="3" selected>3 players</option>
+        <option value="4">4 players</option>
+        <option value="6">6 players</option>
+      </select>
+    </div>
+    <label class="ih-field" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <input type="checkbox" id="ih-qr-include-creator" checked style="width:18px;height:18px;accent-color:#0d6efd;">
+      <span>
+        <strong>Include me in the team</strong>
+        <small style="display:block;color:#666;font-size:.75rem;line-height:1.3;">Checked by default. Uncheck if you are only helping to build a team for the scanned players.</small>
+      </span>
+    </label>
+
+    <div id="ih-qr-members-wrap" style="margin-bottom:10px;display:none;">
+      <div class="ih-label">Scanned players</div>
+      <div id="ih-qr-members" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+    </div>
+
+    <div id="ih-qr-progress-wrap" style="margin-bottom:10px;display:none;">
+      <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
+        <div id="ih-qr-progress-bar" style="height:100%;background:#0d6efd;width:0%;transition:width .3s;"></div>
+      </div>
+      <div id="ih-qr-progress-label" style="font-size:.75rem;color:#666;margin-top:3px;text-align:right;"></div>
+    </div>
+
+    <button type="button" id="ih-qr-scan-btn" class="ih-qr-btn">
+      <i class="fas fa-qrcode"></i> Scan Player QR
+    </button>
+    <div id="ih-qr-feedback" class="ih-qr-feedback" style="display:none;margin-top:10px;"></div>
+
+    <div id="ih-qr-team-created" style="display:none;margin-top:12px;padding:12px;background:#e8f5e9;border-radius:8px;text-align:center;">
+      <strong id="ih-qr-team-name-result" style="display:block;font-size:1rem;color:#1b5e20;margin-bottom:4px;"></strong>
+      <div>PIN: <span id="ih-qr-team-pin-result" style="font-size:1.3rem;font-weight:800;color:#1a4fa0;letter-spacing:3px;"></span></div>
+    </div>
   </section>
 
   <!-- ── Session tracker (shown after team build sent) ────────────── -->
@@ -132,6 +187,15 @@
 
   {% endif %}{# /if player #}
 </div><!-- /ih-wrap -->
+
+<!-- ── QR scanner modal (shared partial) ──────────────────────────── -->
+<script>
+  // Point the QR scanner at the existing match QR-resolve endpoint.
+  // After a successful scan, the resolved codename is stored server-side
+  // in the session; our qr_add_player endpoint reads and pops it.
+  window.QR_RESOLVE_URL = "/matches/api/qr-resolve/";
+</script>
+{% include "partials/qr_scanner_modal.html" %}
 
 
 <!-- ── Styles ─────────────────────────────────────────────────────── -->
@@ -331,6 +395,35 @@
 .ih-accept-btn:hover { background: #163d80; }
 .ih-reject-btn:hover { background: #ebebeb; }
 
+/* QR scan button */
+.ih-qr-btn {
+  width: 100%;
+  padding: 10px 0;
+  background: #0d6efd;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.ih-qr-btn:hover { background: #0b5ed7; }
+.ih-qr-feedback {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.ih-qr-feedback.ok { background: #e8f5e9; color: #2e7d32; }
+.ih-qr-feedback.err { background: #fdecea; color: #c62828; }
+.ih-qr-hint { font-size: 0.75rem; color: #888; margin-top: 5px; }
+
 /* Session info */
 .ih-session-info { font-size: 0.88rem; color: #333; }
 .ih-session-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f3f7; }
@@ -385,6 +478,7 @@
       currentType = btn.dataset.type;
       document.getElementById("ih-play-extras").style.display = currentType === "play" ? "" : "none";
       document.getElementById("ih-team-extras").style.display = currentType === "team_build" ? "" : "none";
+      document.getElementById("ih-qr-section").style.display  = currentType === "team_build" ? "" : "none";
     });
   });
 
@@ -682,6 +776,134 @@
   function fmtTime(iso) {
     try { return new Date(iso).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
     catch { return iso; }
+  }
+
+  // ── QR Direct Build ───────────────────────────────────────────────
+  // Completely separate from the Invite flow.
+  // The team builder scans QR cards; each scan directly adds the player.
+  // When enough players are scanned, the team is created immediately.
+  const qrScanBtn      = document.getElementById("ih-qr-scan-btn");
+  const qrFeedback     = document.getElementById("ih-qr-feedback");
+  const qrMembers      = document.getElementById("ih-qr-members");
+  const qrMembersWrap  = document.getElementById("ih-qr-members-wrap");
+  const qrProgressWrap = document.getElementById("ih-qr-progress-wrap");
+  const qrProgressBar  = document.getElementById("ih-qr-progress-bar");
+  const qrProgressLbl  = document.getElementById("ih-qr-progress-label");
+  const qrTeamCreated    = document.getElementById("ih-qr-team-created");
+  const qrIncludeCreator = document.getElementById("ih-qr-include-creator");
+  let   qrSessionToken   = null; // set once a QR build session is created server-side
+  let   qrScannedCount   = 0;    // visible scanned-player chips only
+
+  if (qrScanBtn) {
+    qrScanBtn.addEventListener("click", () => {
+      if (typeof openQrScanner === "function") openQrScanner();
+    });
+  }
+
+  document.addEventListener("qrPlayerResolved", function () {
+    // First scan: create a TeamBuildSession on the server so we have a token
+    const targetSize     = parseInt(document.getElementById("ih-qr-target-size").value) || 3;
+    const proposedName   = (document.getElementById("ih-qr-team-name").value || "").trim();
+    const includeCreator = !qrIncludeCreator || qrIncludeCreator.checked;
+
+    if (!qrSessionToken) {
+      // QR builds use their dedicated session endpoint; no invitation is created.
+      createQrSession(targetSize, proposedName, includeCreator).then(tok => {
+        if (tok) {
+          qrSessionToken = tok;
+          lockQrBuildOptions();
+          doQrAdd(targetSize);
+        } else {
+          showQrFeedback("err", "Could not start QR session.");
+        }
+      });
+    } else {
+      doQrAdd(targetSize);
+    }
+  });
+
+  function createQrSession(targetSize, proposedName, includeCreator) {
+    // Use the dedicated QR session endpoint.
+    return fetch("/invites/qr-start-session/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify({
+        target_size: targetSize,
+        proposed_name: proposedName,
+        include_creator: includeCreator,
+      }),
+    })
+      .then(r => r.json())
+      .then(d => d.ok ? d.session_token : null)
+      .catch(() => null);
+  }
+
+  function lockQrBuildOptions() {
+    const size = document.getElementById("ih-qr-target-size");
+    const name = document.getElementById("ih-qr-team-name");
+    if (size) size.disabled = true;
+    if (name) name.readOnly = true;
+    if (qrIncludeCreator) qrIncludeCreator.disabled = true;
+  }
+
+  function doQrAdd(targetSize) {
+    fetch("/invites/qr-add-player/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify({ session_token: qrSessionToken }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          qrScannedCount++;
+          appendQrMember(data.player_name);
+          updateQrProgress(data.accepted_count, data.target_size || targetSize);
+          if (data.team_created) {
+            showQrFeedback("ok", `✓ Team created! PIN: ${data.team_pin}`);
+            showQrTeamCreated(data.team_name, data.team_pin);
+            qrScanBtn.disabled = true;
+          } else {
+            showQrFeedback("ok", `✓ ${escHtml(data.player_name)} added (${data.accepted_count}/${data.target_size}).`);
+          }
+        } else {
+          showQrFeedback("err", data.error || "Could not add player.");
+        }
+      })
+      .catch(() => showQrFeedback("err", "Network error."));
+  }
+
+  function appendQrMember(name) {
+    if (!qrMembers) return;
+    if (qrMembersWrap) qrMembersWrap.style.display = "";
+    const chip = document.createElement("span");
+    chip.className = "ih-player-chip";
+    chip.style.background = "#e0f2fe";
+    chip.style.color = "#0369a1";
+    chip.innerHTML = `<i class="fas fa-qrcode" style="font-size:.7rem;margin-right:3px;"></i>${escHtml(name)}`;
+    qrMembers.appendChild(chip);
+  }
+
+  function updateQrProgress(done, total) {
+    if (!qrProgressWrap) return;
+    qrProgressWrap.style.display = "";
+    const pct = Math.min(100, Math.round((done / total) * 100));
+    if (qrProgressBar) qrProgressBar.style.width = pct + "%";
+    if (qrProgressLbl) qrProgressLbl.textContent = `${done} / ${total} players`;
+  }
+
+  function showQrTeamCreated(name, pin) {
+    if (!qrTeamCreated) return;
+    document.getElementById("ih-qr-team-name-result").textContent = "Team: " + name;
+    document.getElementById("ih-qr-team-pin-result").textContent  = pin;
+    qrTeamCreated.style.display = "";
+  }
+
+  function showQrFeedback(cls, msg) {
+    if (!qrFeedback) return;
+    qrFeedback.className = "ih-qr-feedback " + cls;
+    qrFeedback.textContent = msg;
+    qrFeedback.style.display = "";
+    setTimeout(() => { qrFeedback.style.display = "none"; }, 5000);
   }
 
   // ── Init ───────────────────────────────────────────────────

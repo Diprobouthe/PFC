@@ -185,10 +185,14 @@ class TeamBuildSession(models.Model):
 
     target_size = models.PositiveSmallIntegerField(
         default=3,
-        help_text="Number of players needed (including creator) to form the team.",
+        help_text="Number of players needed to form the team.",
+    )
+    include_creator = models.BooleanField(
+        default=True,
+        help_text="Whether the session creator is counted and added to the final team roster.",
     )
 
-    # Players who accepted (creator is added automatically on creation)
+    # Players who accepted or were directly QR-authorized for this build.
     accepted_players = models.ManyToManyField(
         Player,
         blank=True,
@@ -230,8 +234,11 @@ class TeamBuildSession(models.Model):
 
     @property
     def accepted_count(self):
-        # +1 for the creator who is always counted
-        return self.accepted_players.count() + 1
+        """Count accepted players, optionally including the session creator."""
+        count = self.accepted_players.count()
+        if self.include_creator and not self.accepted_players.filter(pk=self.creator_id).exists():
+            count += 1
+        return count
 
     @property
     def is_ready(self):
@@ -267,21 +274,21 @@ class TeamBuildSession(models.Model):
             is_tournament_temp=self.is_tournament_type,
         )
 
-        # Assign all accepted players + creator to the team
+        # Assign accepted players. The creator remains included by default,
+        # but a QR-only build may deliberately exclude the operator.
         all_players = list(self.accepted_players.all())
-        # Creator may or may not be in accepted_players; ensure they are included
         creator_in_list = any(p.pk == self.creator_id for p in all_players)
-        if not creator_in_list:
+        if self.include_creator and not creator_in_list:
             all_players.append(self.creator)
 
         for player in all_players:
-            # Move player to the new team
             player.team = team
             player.save(update_fields=["team"])
 
-        # Mark the creator as captain
-        self.creator.is_captain = True
-        self.creator.save(update_fields=["is_captain"])
+        # Only a creator who is actually on the roster can be the team captain.
+        if self.include_creator or creator_in_list:
+            self.creator.is_captain = True
+            self.creator.save(update_fields=["is_captain"])
 
         # Mark session complete
         self.created_team = team

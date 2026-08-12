@@ -52,8 +52,44 @@
         text-decoration: none;
         -webkit-tap-highlight-color: transparent;
     }
+    .pfc-brand-link {
+        position: relative;
+        width: 74px;
+        height: 32px;
+        justify-content: flex-start;
+    }
+    .pfc-brand-face {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        transition: opacity .55s ease, transform .55s ease;
+    }
+    .pfc-brand-pfc { animation: pfcBrandText 7s infinite; }
+    .pfc-brand-home {
+        justify-content: center;
+        color: #fff;
+        font-size: 22px;
+        opacity: 0;
+        transform: scale(.8);
+        animation: pfcBrandHome 7s infinite;
+    }
     .pfc-brand-link img { height: 28px; width: auto; opacity: .95; }
     .pfc-brand-link:hover img { opacity: 1; }
+    @keyframes pfcBrandText {
+        0%, 42% { opacity: 1; transform: scale(1); }
+        50%, 92% { opacity: 0; transform: scale(.85); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pfcBrandHome {
+        0%, 42% { opacity: 0; transform: scale(.8); }
+        50%, 92% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0; transform: scale(.8); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .pfc-brand-pfc, .pfc-brand-home { animation: none; }
+        .pfc-brand-home { display: none; }
+    }
 
     /* CENTRE: Ball — PRIMARY CTA, large, floating below header */
     .pfc-cta-btn {
@@ -177,8 +213,9 @@
 
             <!-- LEFT: PFC logo -->
             <div class="pfc-left-group">
-                <a href="{% url 'home' %}" class="pfc-brand-link" title="Home">
-                    <img src="{% static 'PFCtextwhite.svg' %}" alt="PFC">
+                <a href="{% url 'home' %}" class="pfc-brand-link" title="Home" aria-label="Home">
+                    <span class="pfc-brand-face pfc-brand-pfc"><img src="{% static 'PFCtextwhite.svg' %}" alt="PFC"></span>
+                    <span class="pfc-brand-face pfc-brand-home" aria-hidden="true"><i class="fas fa-home"></i></span>
                 </a>
             </div>
 

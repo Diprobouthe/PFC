@@ -22,4 +22,6 @@ urlpatterns = [
     path("inbox/", views.inbox, name="inbox"),
     path("session/<uuid:token>/", views.session_status, name="session_status"),
     path("players/search/", views.player_search, name="player_search"),
+    path("qr-add-player/", views.qr_add_player, name="qr_add_player"),
+    path("qr-start-session/", views.qr_start_session, name="qr_start_session"),
 ]

@@ -85,63 +85,103 @@
                 
                 <!-- Regular Team Sign-in (always show for non-Mêlée or as alternative) -->
                 {% if not selected_tournament.is_melee %}
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-users me-2"></i>Team Sign-in
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted mb-4">Select your team and enter your PIN to sign in to the tournament.</p>
-                            
-                            <form method="post" action="{% url 'tournament_signin' %}">
-                                {% csrf_token %}
-                                
-                                <div class="mb-3">
-                                    {{ form.tournament.label_tag }}
-                                    {{ form.tournament }}
-                                    {% if form.tournament.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.tournament.errors }}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="mb-3">
-                                    {{ form.team.label_tag }}
-                                    {{ form.team }}
-                                    {% if form.team.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.team.errors }}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="mb-3">
-                                    {{ form.pin.label_tag }}
-                                    {{ form.pin }}
-                                    {% if form.pin.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {{ form.pin.errors }}
-                                        </div>
-                                    {% endif %}
-                                    <div class="form-text">Your team PIN was provided by the tournament administrator.</div>
-                                </div>
-                                
-                                {% if form.non_field_errors %}
-                                    <div class="alert alert-danger">
-                                        {{ form.non_field_errors }}
-                                    </div>
-                                {% endif %}
-                                
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-sign-in-alt me-2"></i> Sign in Team
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+
+                <!-- ── Success/error banner for AJAX registration ─────────── -->
+                <div id="reg-banner" style="display:none;" class="alert mb-3"></div>
+
+                <!-- ── Primary registration paths ───────────────────────────── -->
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <div class="card h-100 border-success shadow-sm">
+                      <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Register My Team</h5>
+                      </div>
+                      <div class="card-body d-flex flex-column">
+                        {% if team_info %}
+                        <p class="text-muted small mb-3">
+                          Register <strong>{{ team_info.team_name }}</strong> directly. Your PIN is handled internally.
+                        </p>
+                        <button class="btn btn-success mt-auto" id="reg-myteam-btn" type="button">
+                          <i class="fas fa-check me-1"></i>Register {{ team_info.team_name }}
+                        </button>
+                        {% else %}
+                        <p class="text-muted small mb-3">No team is linked to this session yet.</p>
+                        <button class="btn btn-outline-secondary mt-auto" type="button" disabled>
+                          <i class="fas fa-users me-1"></i>Register My Team
+                        </button>
+                        {% endif %}
+                        <div id="reg-myteam-result" class="mt-2" style="display:none;"></div>
+                      </div>
                     </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card h-100 border-info shadow-sm">
+                      <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-qrcode me-2"></i>Register Other Team</h5>
+                      </div>
+                      <div class="card-body d-flex flex-column">
+                        <p class="text-muted small mb-3">
+                          Scan a player's QR card to identify and register their team. The team PIN is never shown.
+                        </p>
+                        <button class="btn btn-info text-white mt-auto" id="reg-qr-btn" type="button">
+                          <i class="fas fa-qrcode me-1"></i>Scan Player QR
+                        </button>
+                        <div id="reg-qr-result" class="mt-2" style="display:none;"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PIN and manual selection remain available, but do not crowd the normal path. -->
+                <details class="card mb-4">
+                  <summary class="card-header" style="cursor:pointer;list-style:none;">
+                    <h6 class="mb-0 d-inline"><i class="fas fa-sliders-h me-2 text-secondary"></i>Advanced Registration Options</h6>
+                    <span class="text-muted small ms-2">PIN and manual team selection</span>
+                  </summary>
+                  <div class="card-body">
+                    <div class="mb-4">
+                      <h6><i class="fas fa-key me-2 text-primary"></i>Enter Team PIN</h6>
+                      <p class="text-muted small mb-3">Type the 6-digit PIN of a team to register directly.</p>
+                      <div class="input-group" style="max-width:340px;">
+                        <input type="text" id="reg-pin-input" class="form-control"
+                               placeholder="6-digit PIN" maxlength="6" pattern="[0-9]{6}"
+                               inputmode="numeric" autocomplete="off"
+                               style="letter-spacing:4px;font-size:1.1rem;font-weight:700;">
+                        <button class="btn btn-primary" id="reg-pin-btn" type="button">
+                          <i class="fas fa-arrow-right me-1"></i>Register
+                        </button>
+                      </div>
+                      <div id="reg-pin-result" class="mt-2" style="display:none;"></div>
+                    </div>
+
+                    <hr>
+                    <h6><i class="fas fa-list me-2 text-secondary"></i>Manual Team Sign-in</h6>
+                    <p class="text-muted small mb-3">Select a team and enter its PIN using the original registration form.</p>
+                    <form method="post" action="{% url 'tournament_signin' %}">
+                      {% csrf_token %}
+                      <div class="mb-3">
+                        {{ form.tournament.label_tag }}
+                        {{ form.tournament }}
+                        {% if form.tournament.errors %}<div class="invalid-feedback d-block">{{ form.tournament.errors }}</div>{% endif %}
+                      </div>
+                      <div class="mb-3">
+                        {{ form.team.label_tag }}
+                        {{ form.team }}
+                        {% if form.team.errors %}<div class="invalid-feedback d-block">{{ form.team.errors }}</div>{% endif %}
+                      </div>
+                      <div class="mb-3">
+                        {{ form.pin.label_tag }}
+                        {{ form.pin }}
+                        {% if form.pin.errors %}<div class="invalid-feedback d-block">{{ form.pin.errors }}</div>{% endif %}
+                        <div class="form-text">Your team PIN was provided by the tournament administrator.</div>
+                      </div>
+                      {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                      <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-outline-primary"><i class="fas fa-sign-in-alt me-2"></i>Sign in Team</button>
+                      </div>
+                    </form>
+                  </div>
+                </details>
                 {% else %}
                     <!-- Alternative team sign-in for Mêlée tournaments (if teams already generated) -->
                     {% if selected_tournament.melee_teams_generated %}
@@ -221,4 +261,136 @@
         </div>
     </div>
 </div>
+
+{% if selected_tournament and not selected_tournament.is_melee %}
+<!-- QR scanner modal (reused from partials) -->
+<script>
+  window.QR_RESOLVE_URL = "{% url 'qr_resolve_match' %}";
+</script>
+{% include "partials/qr_scanner_modal.html" %}
+
+<script>
+(function () {
+  const TOURNAMENT_ID = {{ selected_tournament.id }};
+
+  function getCsrf() {
+    return document.cookie.match(/csrftoken=([^;]+)/)?.[1] ?? "";
+  }
+
+  function showBanner(cls, msg) {
+    const b = document.getElementById("reg-banner");
+    if (!b) return;
+    b.className = "alert alert-" + cls;
+    b.textContent = msg;
+    b.style.display = "";
+    b.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setTimeout(() => { b.style.display = "none"; }, 8000);
+  }
+
+  function renderTeamResult(containerId, data) {
+    const el = document.getElementById(containerId);
+    if (!el || !data.ok) return;
+    const players = (data.players || []).map(p =>
+      `<span class="badge bg-secondary me-1">${escHtml(p.name)}${p.position ? " (" + escHtml(p.position) + ")" : ""}</span>`
+    ).join("");
+    el.innerHTML = `<div class="alert alert-success p-2 mt-2">
+      <strong><i class="fas fa-check-circle me-1"></i>${escHtml(data.team_name)}</strong> registered!<br>
+      <small>${players}</small></div>`;
+    el.style.display = "";
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+      body: JSON.stringify(body),
+    }).then(r => r.json());
+  }
+
+  // ── 1. Enter Team PIN ────────────────────────────────────────────
+  const pinInput = document.getElementById("reg-pin-input");
+  const pinBtn   = document.getElementById("reg-pin-btn");
+  if (pinBtn) {
+    pinBtn.addEventListener("click", () => {
+      const pin = (pinInput?.value ?? "").trim();
+      if (!/^\d{6}$/.test(pin)) { showBanner("warning", "Please enter a valid 6-digit PIN."); return; }
+      pinBtn.disabled = true;
+      pinBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Registering…';
+      postJson(`/tournaments/${TOURNAMENT_ID}/register/api/pin/`, { pin })
+        .then(data => {
+          pinBtn.disabled = false;
+          pinBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Register';
+          if (data.ok) {
+            renderTeamResult("reg-pin-result", data);
+            showBanner("success", `✓ ${data.team_name} registered successfully!`);
+            if (pinInput) pinInput.value = "";
+          } else {
+            showBanner("danger", data.error || "Registration failed.");
+          }
+        })
+        .catch(() => {
+          pinBtn.disabled = false;
+          pinBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Register';
+          showBanner("danger", "Network error. Please try again.");
+        });
+    });
+    if (pinInput) pinInput.addEventListener("keydown", e => { if (e.key === "Enter") pinBtn.click(); });
+  }
+
+  // ── 2. Register My Team ──────────────────────────────────────────
+  const myTeamBtn = document.getElementById("reg-myteam-btn");
+  if (myTeamBtn) {
+    myTeamBtn.addEventListener("click", () => {
+      myTeamBtn.disabled = true;
+      myTeamBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Registering…';
+      postJson(`/tournaments/${TOURNAMENT_ID}/register/api/my-team/`, {})
+        .then(data => {
+          myTeamBtn.disabled = false;
+          myTeamBtn.innerHTML = '<i class="fas fa-check me-1"></i>Register My Team';
+          if (data.ok) {
+            renderTeamResult("reg-myteam-result", data);
+            showBanner("success", `✓ ${data.team_name} registered successfully!`);
+          } else {
+            showBanner("danger", data.error || "Registration failed.");
+          }
+        })
+        .catch(() => {
+          myTeamBtn.disabled = false;
+          myTeamBtn.innerHTML = '<i class="fas fa-check me-1"></i>Register My Team';
+          showBanner("danger", "Network error. Please try again.");
+        });
+    });
+  }
+
+  // ── 3. Register Other Team (QR) ──────────────────────────────────
+  const qrBtn = document.getElementById("reg-qr-btn");
+  if (qrBtn) {
+    qrBtn.addEventListener("click", () => {
+      if (typeof openQrScanner === "function") openQrScanner();
+    });
+  }
+
+  document.addEventListener("qrPlayerResolved", function () {
+    postJson(`/tournaments/${TOURNAMENT_ID}/register/api/qr-team/`, {})
+      .then(data => {
+        if (data.ok) {
+          renderTeamResult("reg-qr-result", data);
+          const msg = data.scanned_player
+            ? `✓ Scanned ${data.scanned_player} — ${data.team_name} registered!`
+            : `✓ ${data.team_name} registered!`;
+          showBanner("success", msg);
+        } else {
+          showBanner("danger", data.error || "QR registration failed.");
+        }
+      })
+      .catch(() => showBanner("danger", "Network error. Please try again."));
+  });
+
+})();
+</script>
+{% endif %}
 {% endblock %}

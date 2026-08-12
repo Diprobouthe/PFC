@@ -23,6 +23,11 @@ urlpatterns = [
     path('<int:tournament_id>/melee/check_completion/', views.tournament_check_completion, name='tournament_check_completion'),
     path('<int:tournament_id>/melee/leaderboard/', views.melee_leaderboard, name='melee_leaderboard'),
     
+    # Simplified registration AJAX endpoints
+    path('<int:tournament_id>/register/api/pin/', views.tournament_register_api_pin, name='tournament_register_api_pin'),
+    path('<int:tournament_id>/register/api/my-team/', views.tournament_register_api_my_team, name='tournament_register_api_my_team'),
+    path('<int:tournament_id>/register/api/qr-team/', views.tournament_register_api_qr_team, name='tournament_register_api_qr_team'),
+
     # Include monitoring URLs
     path('', include('tournaments.urls_monitoring')),
 

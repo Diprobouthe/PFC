@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 import json
 from .models import Tournament, TournamentTeam, Round, Bracket
 from .forms import TournamentForm, TeamAssignmentForm
@@ -1273,3 +1274,176 @@ def vs_sub_game_detail(request, match_id):
         "team2": encounter.team2,
     }
     return render(request, "tournaments/vs_sub_game_detail.html", context)
+
+
+# ── Simplified tournament registration AJAX endpoints ─────────────────────────
+
+@require_POST
+def tournament_register_api_pin(request, tournament_id):
+    """
+    POST /tournaments/<id>/register/api/pin/
+    Body (JSON): { "pin": "123456" }
+
+    Validates the PIN, checks eligibility, and registers the team.
+    Returns team name + players for confirmation, or registers immediately.
+    """
+    import json as _json
+    from django.http import JsonResponse
+    from tournaments.subteam_forms import QuickTeamRegistrationForm
+
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+    if not tournament.is_active:
+        return JsonResponse({"error": "Tournament is not accepting registrations."}, status=400)
+
+    try:
+        data = _json.loads(request.body)
+    except (_json.JSONDecodeError, ValueError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    pin = str(data.get("pin", "")).strip()
+    if not pin:
+        return JsonResponse({"error": "PIN is required."}, status=400)
+
+    form = QuickTeamRegistrationForm(
+        tournament,
+        {"team_pin": pin},
+        allow_existing_registration=True,
+    )
+    if not form.is_valid():
+        errors = []
+        for field_errors in form.errors.values():
+            errors.extend(field_errors)
+        return JsonResponse({"error": " ".join(errors)}, status=400)
+
+    team = form.team
+    # Player has no direct position field; return the existing roster identity only.
+    players = list(team.players.values("id", "name"))
+    # Resolve through the existing Team Sign-in persistence workflow rather
+    # than maintaining a parallel TournamentTeam-only registration path.
+    from signin.services import activate_team_tournament_signin
+    registration = activate_team_tournament_signin(team=team, tournament=tournament)
+    tournament_team = registration["tournament_team"]
+
+    return JsonResponse({
+        "ok": True,
+        "team_id":   team.id,
+        "team_name": team.name,
+        "players":   players,
+        "tournament_team_id": tournament_team.id,
+    })
+
+
+@require_POST
+def tournament_register_api_my_team(request, tournament_id):
+    """
+    POST /tournaments/<id>/register/api/my-team/
+
+    Registers the logged-in user's team without exposing the PIN to the client.
+    """
+    from django.http import JsonResponse
+    from teams.utils import get_team_info_from_session
+    from tournaments.subteam_forms import QuickTeamRegistrationForm
+
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+    if not tournament.is_active:
+        return JsonResponse({"error": "Tournament is not accepting registrations."}, status=400)
+
+    team_info = get_team_info_from_session(request)
+    if not team_info or not team_info.get("team_pin"):
+        return JsonResponse({"error": "No team found in your session. Please log in with your team first."}, status=400)
+
+    pin = team_info["team_pin"]
+    form = QuickTeamRegistrationForm(
+        tournament,
+        {"team_pin": pin},
+        allow_existing_registration=True,
+    )
+    if not form.is_valid():
+        errors = []
+        for field_errors in form.errors.values():
+            errors.extend(field_errors)
+        return JsonResponse({"error": " ".join(errors)}, status=400)
+
+    team = form.team
+    # Player has no direct position field; return the existing roster identity only.
+    players = list(team.players.values("id", "name"))
+    # Resolve through the existing Team Sign-in persistence workflow rather
+    # than maintaining a parallel TournamentTeam-only registration path.
+    from signin.services import activate_team_tournament_signin
+    registration = activate_team_tournament_signin(team=team, tournament=tournament)
+    tournament_team = registration["tournament_team"]
+
+    return JsonResponse({
+        "ok": True,
+        "team_id":   team.id,
+        "team_name": team.name,
+        "players":   players,
+        "tournament_team_id": tournament_team.id,
+    })
+
+
+@require_POST
+def tournament_register_api_qr_team(request, tournament_id):
+    """
+    POST /tournaments/<id>/register/api/qr-team/
+
+    Reads qr_resolved_codename from the server session (placed there by the
+    existing QR scan), resolves the player's team, and registers it.
+    The PIN is never sent to the client.
+    """
+    from django.http import JsonResponse
+    from pfc_core.session_utils import CodenameSessionManager
+    from teams.models import Team
+    from tournaments.subteam_forms import QuickTeamRegistrationForm
+
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+    if not tournament.is_active:
+        return JsonResponse({"error": "Tournament is not accepting registrations."}, status=400)
+
+    # Read and pop the codename stored by the QR scan
+    codename = request.session.pop("qr_resolved_codename", None)
+    if not codename:
+        return JsonResponse({"error": "No QR scan found. Please scan a player QR card first."}, status=400)
+
+    # Resolve the player
+    from friendly_games.models import PlayerCodename
+    try:
+        pc = PlayerCodename.objects.select_related("player__team").get(codename=codename)
+    except PlayerCodename.DoesNotExist:
+        return JsonResponse({"error": "Player not found."}, status=400)
+
+    player = pc.player
+    team = getattr(player, "team", None)
+    if not team:
+        return JsonResponse({"error": f"Player '{player.name}' is not a member of any team."}, status=400)
+
+    if team.is_archived or team.is_tournament_temp:
+        return JsonResponse({"error": f"Team '{team.name}' is not eligible for tournament registration."}, status=400)
+
+    form = QuickTeamRegistrationForm(
+        tournament,
+        {"team_pin": team.pin},
+        allow_existing_registration=True,
+    )
+    if not form.is_valid():
+        errors = []
+        for field_errors in form.errors.values():
+            errors.extend(field_errors)
+        return JsonResponse({"error": " ".join(errors)}, status=400)
+
+    # Player has no direct position field; return the existing roster identity only.
+    players = list(team.players.values("id", "name"))
+    # Resolve through the existing Team Sign-in persistence workflow rather
+    # than maintaining a parallel TournamentTeam-only registration path.
+    from signin.services import activate_team_tournament_signin
+    registration = activate_team_tournament_signin(team=team, tournament=tournament)
+    tournament_team = registration["tournament_team"]
+
+    return JsonResponse({
+        "ok": True,
+        "team_id":   team.id,
+        "team_name": team.name,
+        "scanned_player": player.name,
+        "players":   players,
+        "tournament_team_id": tournament_team.id,
+    })

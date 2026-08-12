@@ -101,7 +101,10 @@ def scenario_details(request, scenario_id):
                 'tournament_type': scenario.get_tournament_type_display(),
                 'draft_type': scenario.get_draft_type_display(),
                 'num_rounds': scenario.num_rounds,
-                'matches_per_team': scenario.matches_per_team
+                'matches_per_team': scenario.matches_per_team,
+                # VS Mode fields — used by the template to bypass the format selector
+                'scenario_mode': scenario.scenario_mode,
+                'vs_config': scenario.vs_config,
             }
         })
     except TournamentScenario.DoesNotExist:
@@ -131,7 +134,7 @@ def _create_simple_tournament(form_data):
     Args:
         form_data: Dict with keys:
             - scenario: TournamentScenario object
-            - format_type: 'doubles' or 'triples'
+            - format_type: 'doubles', 'triples', 'singles', or 'vs' (auto-injected for VS scenarios)
             - num_courts: Number of courts to use (int)
             - voucher_code: Optional voucher code (str)
     
@@ -196,6 +199,11 @@ def _create_simple_tournament(form_data):
     logger = logging.getLogger(__name__)
     logger.error(f"DEBUG: Scenario #{scenario.id} timer = {scenario.default_time_limit_minutes}")
     
+    # ── VS Mode branch ─────────────────────────────────────────────────────────────────────────────────
+    if getattr(scenario, 'scenario_mode', None) == 'vs_mode':
+        return _create_vs_tournament(scenario, form_data, start_date, end_date, tournament_name, available_courts, voucher_object)
+
+    # ── Normal / Mêlée / Super Mêlée branch ───────────────────────────────────────────────────────
     # Determine play_format and melee_format from format_type
     if format_type == 'singles':
         play_format_val = 'tete_a_tete'
@@ -285,6 +293,80 @@ def _create_simple_tournament(form_data):
             is_complete=False
         )
     
+    return simple_tournament
+
+
+def _create_vs_tournament(scenario, form_data, start_date, end_date, tournament_name, available_courts, voucher_object):
+    """
+    Create a VS Mode tournament (Team vs Team encounter).
+
+    A VS tournament:
+      - Is NOT a Mêlée (is_melee=False)
+      - Has play_format='vs_mode'
+      - Contains exactly two registered teams
+      - Automatically creates a VSEncounter and all 11 sub-games
+        (6 Tête-à-tête + 3 Doublettes + 2 Triplettes) from the scenario's
+        vs_config (falls back to DEFAULT_VS_CONFIG)
+
+    The format selector is bypassed — the full VS structure is fixed.
+    """
+    from tournaments.models import VSEncounter
+    from tournaments.vs_utils import generate_vs_sub_games
+
+    num_courts = form_data['num_courts']
+
+    tournament = Tournament.objects.create(
+        name=tournament_name,
+        description=f"VS Mode encounter — {scenario.display_name}",
+        start_date=start_date,
+        end_date=end_date,
+        format="multi_stage",
+        play_format="vs_mode",
+        is_active=True,
+        max_participants=2,  # VS is always exactly two teams
+        is_melee=False,
+        melee_teams_generated=False,
+        automation_status="idle",
+        default_time_limit_minutes=scenario.default_time_limit_minutes,
+    )
+
+    # Assign courts
+    for court in available_courts:
+        TournamentCourt.objects.create(tournament=tournament, court=court)
+
+    # Create SimpleTournament record (format_type='vs' is a sentinel value)
+    simple_tournament = SimpleTournament.objects.create(
+        tournament=tournament,
+        scenario=scenario,
+        format_type='doubles',  # closest valid choice; VS is identified by scenario_mode
+        uses_virtual_courts=False,
+        num_courts=num_courts,
+        court_complex=scenario.default_court_complex,
+        voucher_used=voucher_object,
+        auto_start_date=start_date,
+        auto_end_date=end_date,
+    )
+
+    if voucher_object:
+        voucher_object.use_voucher(tournament)
+
+    # Create a single Stage so the tournament admin/detail pages work
+    Stage.objects.create(
+        tournament=tournament,
+        stage_number=1,
+        name="VS Encounter",
+        format="round_robin",
+        num_qualifiers=0,
+        num_rounds_in_stage=1,
+        is_complete=False,
+    )
+
+    # NOTE: The VSEncounter and its 11 sub-games are created when the two teams
+    # are registered and activate their lineups.  At creation time we do not yet
+    # know which two teams will participate, so we leave the encounter creation
+    # to the team-registration flow (tournaments/views.py tournament_register*).
+    # The tournament is returned ready for team registration.
+
     return simple_tournament
 
 

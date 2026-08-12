@@ -92,6 +92,45 @@ def _build_player_list(match_type, pk):
     return players
 
 
+def _is_tracking_active(match_type, pk):
+    """Return whether this exact match/game is still eligible for tracking."""
+    if match_type == 'match':
+        from matches.models import Match
+        return Match.objects.filter(pk=pk, status__in=['active', 'ACTIVE']).exists()
+    from friendly_games.models import FriendlyGame
+    return FriendlyGame.objects.filter(
+        pk=pk,
+        status__in=['active', 'ACTIVE', 'pending_verification', 'PENDING_VERIFICATION'],
+    ).exists()
+
+
+def _serialize_practice_stats(session):
+    """Return the established open-ended statistics shape for one PracticeSession."""
+    total = session.total_shots
+    base = {
+        'total': total,
+        'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+        'session_id': str(session.id),
+        'is_active': session.is_active,
+    }
+    if session.practice_type == 'shooting':
+        return {
+            **base,
+            'carreaux': session.carreaux,
+            'petit_carreaux': session.petit_carreaux,
+            'hits': session.hits,
+            'misses': session.misses,
+        }
+    return {
+        **base,
+        'perfects': session.perfects,
+        'petit_perfects': session.petit_perfects,
+        'goods': session.goods,
+        'fairs': session.fairs,
+        'fars': session.fars,
+    }
+
+
 # Shooting outcomes (open-ended, no fixed total)
 SHOOTING_OUTCOMES = {'carreau', 'petit_carreau', 'hit', 'miss'}
 # Pointing outcomes — exactly the four categories used in the PFC Pointing practice UI
@@ -99,56 +138,36 @@ POINTING_OUTCOMES = {'perfect', 'good', 'fair', 'far'}
 
 
 def _get_player_shot_stats(player_id, match_type, pk):
-    """
-    Return both shooting and pointing stats for a player.
-    Each stat block is open-ended: percentages are calculated from actual
-    attempts only, with no assumed fixed total.
-    """
-    try:
-        from friendly_games.models import PlayerCodename
-        pc = PlayerCodename.objects.get(player_id=player_id)
-        codename = pc.codename
-    except Exception:
-        return _empty_stats()
-
-    from practice.models import PracticeSession
+    """Return open-ended shooting and pointing stats owned by this match only."""
+    from .services import tracking_practice_session
 
     def _session_stats(practice_type):
-        try:
-            session = (
-                PracticeSession.objects
-                .filter(player_codename=codename, practice_type=practice_type, is_active=True)
-                .order_by('-started_at')
-                .first()
-            )
-            if not session:
-                return None
-            total = session.total_shots
-            if practice_type == 'shooting':
-                return {
-                    'total': total,
-                    'carreaux': session.carreaux,
-                    'petit_carreaux': session.petit_carreaux,
-                    'hits': session.hits,
-                    'misses': session.misses,
-                    'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                    'session_id': str(session.id),
-                    'is_active': session.is_active,
-                }
-            else:  # pointing
-                return {
-                    'total': total,
-                    'perfects': session.perfects,
-                    'petit_perfects': session.petit_perfects,
-                    'goods': session.goods,
-                    'fairs': session.fairs,
-                    'fars': session.fars,
-                    'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                    'session_id': str(session.id),
-                    'is_active': session.is_active,
-                }
-        except Exception:
+        session = tracking_practice_session(match_type, pk, player_id, practice_type)
+        if not session:
             return None
+        total = session.total_shots
+        if practice_type == 'shooting':
+            return {
+                'total': total,
+                'carreaux': session.carreaux,
+                'petit_carreaux': session.petit_carreaux,
+                'hits': session.hits,
+                'misses': session.misses,
+                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+                'session_id': str(session.id),
+                'is_active': session.is_active,
+            }
+        return {
+            'total': total,
+            'perfects': session.perfects,
+            'petit_perfects': session.petit_perfects,
+            'goods': session.goods,
+            'fairs': session.fairs,
+            'fars': session.fars,
+            'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
+            'session_id': str(session.id),
+            'is_active': session.is_active,
+        }
 
     shooting = _session_stats('shooting') or _empty_shooting_stats()
     pointing = _session_stats('pointing') or _empty_pointing_stats()
@@ -197,7 +216,7 @@ def _get_score_history(scoreboard):
         ScoreUpdate.objects
         .filter(scoreboard=scoreboard)
         .order_by('timestamp')
-        .values('team1_score', 'team2_score', 'timestamp', 'scorekeeper_codename', 'update_type')
+        .values('id', 'team1_score', 'team2_score', 'timestamp', 'scorekeeper_codename', 'update_type')
     )
     # Batch-resolve codenames → player names (never expose raw codenames to the browser)
     codenames = {u['scorekeeper_codename'] for u in updates if u['scorekeeper_codename']}
@@ -212,8 +231,9 @@ def _get_score_history(scoreboard):
     result = []
     for u in updates:
         raw = u['scorekeeper_codename'] or ''
-        display_name = codename_to_name.get(raw, raw)  # fall back to raw only if lookup fails
+        display_name = codename_to_name.get(raw, '')  # Never expose a raw codename in history.
         result.append({
+            'id': u['id'],
             'team1_score': u['team1_score'],
             'team2_score': u['team2_score'],
             'ts': u['timestamp'].strftime('%H:%M:%S'),
@@ -337,56 +357,50 @@ def player_stats_api(request, match_type, pk, player_id):
 @csrf_exempt
 @require_http_methods(["POST"])
 def verify_participant(request, match_type, pk):
-    """
-    POST { player_id: <int> }
-    Verifies the QR-resolved player is a participant in this specific game.
-
-    The QR resolve endpoints never send the codename to the browser (by design).
-    Instead they store it in request.session['qr_resolved_codename'].  This
-    endpoint reads that session value and returns it to the Match Tracking page
-    so that subsequent shot-recording calls can include it.  The codename is
-    consumed (popped) from the session after being read so it cannot be reused.
-    """
+    """Persist QR authorization for one valid participant in this exact match/game."""
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
+    if not _is_tracking_active(match_type, pk):
+        from .services import end_tracking_sessions
+        end_tracking_sessions(match_type, pk, 'match_completed')
+        return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
     try:
-        data = json.loads(request.body)
-        player_id = int(data.get('player_id', 0))
+        player_id = int(json.loads(request.body).get('player_id', 0))
     except (ValueError, TypeError, json.JSONDecodeError):
         return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
 
-    players = _build_player_list(match_type, pk)
-    participant = next((p for p in players if p['player_id'] == player_id), None)
+    participant = next((p for p in _build_player_list(match_type, pk) if p['player_id'] == player_id), None)
     if not participant:
         return JsonResponse({'ok': False, 'error': 'Player is not a participant in this game'}, status=403)
 
-    # Read the codename that was stored server-side by the QR resolve endpoint.
-    # Pop it so it cannot be replayed for a different player.
+    # The shared QR resolver stores its proof server-side for this browser session.
     qr_codename = request.session.pop('qr_resolved_codename', None)
-    if qr_codename:
-        request.session.modified = True
-        # Verify the resolved codename actually belongs to this player_id
-        try:
-            from friendly_games.models import PlayerCodename
-            pc = PlayerCodename.objects.get(codename=qr_codename)
-            if pc.player_id != player_id:
-                # Mismatch — someone sent a player_id that doesn't match the QR scan
-                return JsonResponse({'ok': False, 'error': 'QR identity mismatch'}, status=403)
-            codename = qr_codename
-        except PlayerCodename.DoesNotExist:
-            codename = None
-    else:
-        codename = None
+    request.session.modified = True
+    if not qr_codename:
+        return JsonResponse({'ok': False, 'error': 'Scan the player QR card again to authorize tracking'}, status=403)
 
+    try:
+        from friendly_games.models import PlayerCodename
+        pc = PlayerCodename.objects.select_related('player').get(codename=qr_codename)
+    except PlayerCodename.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'QR identity could not be resolved'}, status=403)
+    if pc.player_id != player_id:
+        return JsonResponse({'ok': False, 'error': 'QR identity mismatch'}, status=403)
+
+    from .services import authorize_player
+    tracking_session, authorization = authorize_player(match_type, pk, pc.player, pc.codename)
     stats = _get_player_shot_stats(player_id, match_type, pk)
     return JsonResponse({
         'ok': True,
+        'tracking_session_id': tracking_session.id,
         'player_id': player_id,
         'player_name': participant['player_name'],
         'team': participant['team'],
         'position': participant['position'],
-        'codename': codename,   # returned only to this browser session; used for shot recording
+        # Returned only to the verified scanning browser; the server also retains
+        # the identity in TrackingAuthorization for this match-scoped period.
+        'codename': authorization.codename,
         'stats': stats,
     })
 
@@ -398,29 +412,17 @@ def verify_participant(request, match_type, pk):
 @csrf_exempt
 @require_http_methods(["POST"])
 def record_shot(request, match_type, pk):
-    """
-    POST { outcome: str, codename: str, player_id: int }
-
-    Records a shot (shooting or pointing) for a QR-authorized player using the
-    existing PracticeSession / Shot system.  Sessions are open-ended: attempts
-    start from 0 and accumulate with no fixed total.  Percentages are
-    calculated only from actual recorded attempts.
-
-    Shooting outcomes : carreau, petit_carreau, hit, miss
-    Pointing outcomes : perfect, petit_perfect, good, fair, far
-    """
+    """Record one open-ended shot for a player authorized in this exact tracking period."""
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
-
     try:
         data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
+        outcome = data.get('outcome', '').strip().lower()
+        player_id = int(data.get('player_id', 0))
+        codename = data.get('codename', '').strip().upper()
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
 
-    outcome   = data.get('outcome', '').strip().lower()
-    codename  = data.get('codename', '').strip().upper()
-
-    # Determine practice type from outcome
     if outcome in SHOOTING_OUTCOMES:
         practice_type = 'shooting'
     elif outcome in POINTING_OUTCOMES:
@@ -428,98 +430,50 @@ def record_shot(request, match_type, pk):
     else:
         return JsonResponse({'ok': False, 'error': 'Invalid outcome'}, status=400)
 
-    if not codename:
-        return JsonResponse({'ok': False, 'error': 'Codename required'}, status=400)
+    if not _is_tracking_active(match_type, pk):
+        from .services import end_tracking_sessions
+        end_tracking_sessions(match_type, pk, 'match_completed')
+        return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
-    # Enforce match-status lifecycle: only allow shot recording while the game is active
+    from .services import active_authorization, authorize_player, get_or_create_tracking_practice_session
+    authorization = active_authorization(match_type, pk, player_id, codename=codename or None)
+    if not authorization:
+        # Preserve the existing logged-in participant convenience: their own active
+        # codename is sufficient to start a scoped tracking period for themselves.
+        from pfc_core.session_utils import CodenameSessionManager
+        logged_in_codename = (CodenameSessionManager.get_logged_in_codename(request) or '').upper()
+        if logged_in_codename and codename == logged_in_codename:
+            try:
+                from friendly_games.models import PlayerCodename
+                pc = PlayerCodename.objects.select_related('player').get(codename=logged_in_codename)
+                if pc.player_id == player_id and any(p['player_id'] == player_id for p in _build_player_list(match_type, pk)):
+                    _, authorization = authorize_player(match_type, pk, pc.player, pc.codename)
+            except PlayerCodename.DoesNotExist:
+                authorization = None
+        if not authorization:
+            return JsonResponse({'ok': False, 'error': 'Scan this participant QR card to authorize tracking'}, status=403)
+
     try:
-        if match_type == 'match':
-            from matches.models import Match
-            game_obj = Match.objects.only('status').get(pk=pk)
-            is_active = game_obj.status in ('active', 'ACTIVE')
-        else:
-            from friendly_games.models import FriendlyGame
-            game_obj = FriendlyGame.objects.only('status').get(pk=pk)
-            is_active = game_obj.status in ('active', 'ACTIVE', 'pending_verification')
-        if not is_active:
-            return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
-    except Exception:
-        pass  # If we can't determine status, allow the shot (fail-open for safety)
-
-    # Verify codename belongs to a participant in this game
-    players = _build_player_list(match_type, pk)
-    try:
-        from friendly_games.models import PlayerCodename
-        pc = PlayerCodename.objects.select_related('player').get(codename=codename)
-    except PlayerCodename.DoesNotExist:
-        return JsonResponse({'ok': False, 'error': 'Unknown codename'}, status=403)
-
-    if not any(p['player_id'] == pc.player_id for p in players):
-        return JsonResponse({'ok': False, 'error': 'Not a participant in this game'}, status=403)
-
-    # Get or create an active open-ended session for this codename + practice type.
-    # drill_type='' means "open shot" (same as OpenShots page).
-    try:
-        from practice.models import PracticeSession, Shot
+        from practice.models import Shot
         from django.db import transaction
-
-        session = (
-            PracticeSession.objects
-            .filter(player_codename=codename, practice_type=practice_type, is_active=True)
-            .order_by('-started_at')
-            .first()
-        )
-        if not session:
-            session = PracticeSession.objects.create(
-                player_codename=codename,
-                practice_type=practice_type,
-                distance='ing',
-                drill_type='',   # open-ended, no fixed total
-            )
-
         with transaction.atomic():
+            session = get_or_create_tracking_practice_session(
+                authorization.tracking_session,
+                authorization.player,
+                authorization.codename,
+                practice_type,
+            )
             Shot.objects.create(session=session, outcome=outcome)
             session.refresh_from_db()
 
-        total = session.total_shots
-        if practice_type == 'shooting':
-            stats = {
-                'total': total,
-                'carreaux': session.carreaux,
-                'petit_carreaux': session.petit_carreaux,
-                'hits': session.hits,
-                'misses': session.misses,
-                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                'session_id': str(session.id),
-                'is_active': session.is_active,
-            }
-        else:
-            stats = {
-                'total': total,
-                'perfects': session.perfects,
-                'petit_perfects': session.petit_perfects,
-                'goods': session.goods,
-                'fairs': session.fairs,
-                'fars': session.fars,
-                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                'session_id': str(session.id),
-                'is_active': session.is_active,
-            }
-        # Wrap in the combined format so the JS _updateStatsDisplay can update both tables.
-        # The just-recorded type gets the live stats; the other type is fetched from the
-        # last active session so both tables refresh in one round-trip.
-        other_type = 'pointing' if practice_type == 'shooting' else 'shooting'
-        other_stats_dict = _get_player_shot_stats(pc.player_id, match_type, pk)
-        combined = {
-            practice_type: stats,
-            other_type: other_stats_dict.get(other_type, (
-                _empty_shooting_stats() if other_type == 'shooting' else _empty_pointing_stats()
-            )),
-        }
-        return JsonResponse({'ok': True, 'practice_type': practice_type, 'stats': combined})
-
+        combined = _get_player_shot_stats(player_id, match_type, pk)
+        return JsonResponse({
+            'ok': True,
+            'practice_type': practice_type,
+            'stats': combined,
+        })
     except Exception as exc:
-        logger.error("match_tracking record_shot error: %s", exc)
+        logger.exception("match_tracking record_shot failed for %s:%s", match_type, pk)
         return JsonResponse({'ok': False, 'error': 'Shot recording failed'}, status=500)
 
 
@@ -530,106 +484,53 @@ def record_shot(request, match_type, pk):
 @csrf_exempt
 @require_http_methods(["POST"])
 def undo_last_shot(request, match_type, pk):
-    """
-    POST { codename: str }
-
-    Removes the most recently recorded Shot for the given codename in this
-    match (across both shooting and pointing sessions).  After deletion,
-    session.update_statistics() is called automatically via Shot.delete()
-    signal / pre_delete, then we refresh_from_db and return the updated
-    combined stats.
-
-    Only one shot is removed per call (simple one-step undo).
-    """
+    """Undo one latest shot belonging only to this player and tracking period."""
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
-
     try:
         data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'Invalid JSON'}, status=400)
+        player_id = int(data.get('player_id', 0))
+        codename = data.get('codename', '').strip().upper()
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
 
-    codename = data.get('codename', '').strip().upper()
-    if not codename:
-        return JsonResponse({'ok': False, 'error': 'Codename required'}, status=400)
+    if not _is_tracking_active(match_type, pk):
+        from .services import end_tracking_sessions
+        end_tracking_sessions(match_type, pk, 'match_completed')
+        return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
-    # Verify codename belongs to a participant
-    players = _build_player_list(match_type, pk)
-    try:
-        from friendly_games.models import PlayerCodename
-        pc = PlayerCodename.objects.select_related('player').get(codename=codename)
-    except PlayerCodename.DoesNotExist:
-        return JsonResponse({'ok': False, 'error': 'Unknown codename'}, status=403)
-
-    if not any(p['player_id'] == pc.player_id for p in players):
-        return JsonResponse({'ok': False, 'error': 'Not a participant in this game'}, status=403)
+    from .services import active_authorization
+    authorization = active_authorization(match_type, pk, player_id, codename=codename or None)
+    if not authorization:
+        return JsonResponse({'ok': False, 'error': 'Scan this participant QR card to authorize tracking'}, status=403)
 
     try:
-        from practice.models import PracticeSession, Shot
-
-        # Find the most recent Shot across all active sessions for this codename
+        from practice.models import Shot
         last_shot = (
-            Shot.objects
-            .filter(
-                session__player_codename=codename,
-                session__is_active=True,
+            Shot.objects.filter(
+                session__match_tracking_link__tracking_session=authorization.tracking_session,
+                session__match_tracking_link__player=authorization.player,
             )
-            .order_by('-timestamp', '-id')
             .select_related('session')
+            .order_by('-timestamp', '-id')
             .first()
         )
         if not last_shot:
             return JsonResponse({'ok': False, 'error': 'No shots to undo'}, status=404)
 
         session = last_shot.session
-        practice_type = session.practice_type
-        last_shot.delete()          # Shot.save() calls update_statistics, but delete() does not
-        session.update_statistics() # manually recalculate after deletion
-        session.refresh_from_db()   # pick up the updated counters
-
-        # Build updated stats for the affected session
-        total = session.total_shots
-        if practice_type == 'shooting':
-            updated_stats = {
-                'total': total,
-                'carreaux': session.carreaux,
-                'petit_carreaux': session.petit_carreaux,
-                'hits': session.hits,
-                'misses': session.misses,
-                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                'session_id': str(session.id),
-                'is_active': session.is_active,
-            }
-        else:
-            updated_stats = {
-                'total': total,
-                'perfects': session.perfects,
-                'petit_perfects': session.petit_perfects,
-                'goods': session.goods,
-                'fairs': session.fairs,
-                'fars': session.fars,
-                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                'session_id': str(session.id),
-                'is_active': session.is_active,
-            }
-
-        other_type = 'pointing' if practice_type == 'shooting' else 'shooting'
-        other_stats_dict = _get_player_shot_stats(pc.player_id, match_type, pk)
-        combined = {
-            practice_type: updated_stats,
-            other_type: other_stats_dict.get(other_type, (
-                _empty_shooting_stats() if other_type == 'shooting' else _empty_pointing_stats()
-            )),
-        }
+        undone_outcome = last_shot.outcome
+        last_shot.delete()
+        session.update_statistics()
+        session.refresh_from_db()
         return JsonResponse({
             'ok': True,
-            'undone_outcome': last_shot.outcome,
-            'practice_type': practice_type,
-            'stats': combined,
+            'undone_outcome': undone_outcome,
+            'practice_type': session.practice_type,
+            'stats': _get_player_shot_stats(player_id, match_type, pk),
         })
-
-    except Exception as exc:
-        logger.error("match_tracking undo_last_shot error: %s", exc)
+    except Exception:
+        logger.exception("match_tracking undo_last_shot failed for %s:%s", match_type, pk)
         return JsonResponse({'ok': False, 'error': 'Undo failed'}, status=500)
 
 
@@ -827,16 +728,27 @@ def export_pdf(request, match_type, pk):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AJAX: game status poll (used by the page to auto-disable controls)
+# AJAX: tracking session lifecycle
 # ─────────────────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def end_tracking_session(request, match_type, pk):
+    """End the current Match Tracking period and revoke all QR authorizations."""
+    if match_type not in ('match', 'game'):
+        return JsonResponse({'error': 'Invalid match type'}, status=400)
+    from .services import end_tracking_sessions
+    ended_count = end_tracking_sessions(match_type, pk, 'manual')
+    return JsonResponse({
+        'ok': True,
+        'ended_count': ended_count,
+        'message': 'Tracking session ended',
+    })
+
 
 @require_http_methods(["GET"])
 def game_status_api(request, match_type, pk):
-    """
-    GET /track/<match_type>/<pk>/status/
-    Returns the current match/game status so the page can disable controls
-    when the game is no longer active.
-    """
+    """Return status and automatically close tracking when the match has ended."""
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
     try:
@@ -846,6 +758,10 @@ def game_status_api(request, match_type, pk):
         else:
             from friendly_games.models import FriendlyGame
             obj = FriendlyGame.objects.only('status').get(pk=pk)
-        return JsonResponse({'ok': True, 'status': obj.status})
+        is_active = _is_tracking_active(match_type, pk)
+        if not is_active:
+            from .services import end_tracking_sessions
+            end_tracking_sessions(match_type, pk, 'match_completed')
+        return JsonResponse({'ok': True, 'status': obj.status, 'tracking_active': is_active})
     except Exception:
         return JsonResponse({'ok': False, 'error': 'Not found'}, status=404)

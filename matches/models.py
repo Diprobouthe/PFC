@@ -189,6 +189,11 @@ class Match(models.Model):
             print(f"Released court {self.court.number} after match {self.id} completion")
             
         self.save()
+        try:
+            from match_tracking.services import end_tracking_sessions
+            end_tracking_sessions('match', self.id, 'match_completed')
+        except Exception:
+            pass  # Tracking cleanup must never block core match completion.
         print(f"Match {self.id} completed. Winner: {self.winner}, Loser: {self.loser}")
         
         # Update mêlée player stats if this is a mêlée tournament

@@ -17,12 +17,15 @@ class SimpleTournamentCreationForm(forms.Form):
     # Format choices are intentionally kept broad here; the template hides
     # unsupported options via JS/data attributes driven by the scenario flags.
     # The clean() method enforces the scenario-level constraint server-side.
+    # For VS Mode scenarios, format_type is not required — clean() injects 'vs'.
     format_type = forms.ChoiceField(
         choices=[
             ('singles', 'Singles / Tête-à-tête'),
             ('doubles', 'Doubles'),
             ('triples', 'Triples'),
+            ('vs', 'VS Mode (auto)'),  # sentinel injected by clean() for vs_mode scenarios
         ],
+        required=False,  # VS scenarios skip this field; clean() injects the value
         widget=forms.RadioSelect,
         help_text="Choose tournament format (available options depend on the selected scenario)"
     )
@@ -89,18 +92,24 @@ class SimpleTournamentCreationForm(forms.Form):
             except ValueError:
                 raise ValidationError("Invalid number of courts.")
         
-        # Validate that the chosen format is supported by the selected scenario
-        format_type = cleaned_data.get('format_type')
-        if format_type and scenario:
-            format_supported = {
-                'singles': scenario.supports_singles,
-                'doubles': scenario.supports_doubles,
-                'triples': scenario.supports_triples,
-            }.get(format_type, False)
-            if not format_supported:
-                raise ValidationError(
-                    f"The '{format_type}' format is not supported by the '{scenario.display_name}' scenario."
-                )
+        # VS Mode scenarios do not use the generic format selector — the full
+        # 6 Tête-à-tête + 3 Doubles + 2 Triples structure is fixed.
+        # Inject a sentinel value so the view can detect VS mode.
+        if getattr(scenario, 'scenario_mode', None) == 'vs_mode':
+            cleaned_data['format_type'] = 'vs'
+        else:
+            # Validate that the chosen format is supported by the selected scenario
+            format_type = cleaned_data.get('format_type')
+            if format_type and scenario:
+                format_supported = {
+                    'singles': scenario.supports_singles,
+                    'doubles': scenario.supports_doubles,
+                    'triples': scenario.supports_triples,
+                }.get(format_type, False)
+                if not format_supported:
+                    raise ValidationError(
+                        f"The '{format_type}' format is not supported by the '{scenario.display_name}' scenario."
+                    )
 
         # Check if scenario requires voucher
         if scenario.requires_voucher and not scenario.is_free:

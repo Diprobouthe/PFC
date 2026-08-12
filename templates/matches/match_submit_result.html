@@ -300,6 +300,7 @@
 
     <form method="post" enctype="multipart/form-data" id="srForm">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
         <!-- PIN is injected server-side; no user input needed -->
         <input type="hidden" name="pin" value="">
 
@@ -416,5 +417,11 @@ function tickTimer() {
 tickTimer();
 {% endif %}
 </script>
-
+{% if qr_action_token %}
+<script>
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 {% endblock %}

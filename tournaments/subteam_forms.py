@@ -1,6 +1,11 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Tournament, TournamentTeam
+from tournaments.models import (
+    Tournament,
+    TournamentTeam,
+    is_system_tournament_team,
+    SYSTEM_TEAM_TOURNAMENT_MESSAGE,
+)
 from teams.models import Team
 from teams.subteam_service import get_subteam_manager
 
@@ -214,10 +219,14 @@ class QuickTeamRegistrationForm(forms.Form):
         help_text='Enter your team PIN to register for this tournament'
     )
     
-    def __init__(self, tournament, *args, **kwargs):
+    def __init__(self, tournament, *args, allow_existing_registration=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.tournament = tournament
         self.team = None
+        # The simplified sign-in endpoints resolve a valid team first, then
+        # reuse the established TeamTournamentSignin persistence workflow.
+        # That workflow safely handles an existing TournamentTeam row.
+        self.allow_existing_registration = allow_existing_registration
     
     def clean_team_pin(self):
         """Validate team PIN and get team"""
@@ -236,73 +245,17 @@ class QuickTeamRegistrationForm(forms.Form):
         except Team.DoesNotExist:
             raise ValidationError("Invalid team PIN. Please check and try again.")
         
-        # Check if team is already registered
-        if TournamentTeam.objects.filter(tournament=self.tournament, team=self.team).exists():
+        if is_system_tournament_team(self.team):
+            raise ValidationError(SYSTEM_TEAM_TOURNAMENT_MESSAGE)
+
+        # Classic quick-registration keeps its existing duplicate check.
+        # Simplified sign-in endpoints defer duplicate handling to the shared
+        # TeamTournamentSignin persistence logic used by the working flow.
+        if (not self.allow_existing_registration and
+                TournamentTeam.objects.filter(tournament=self.tournament, team=self.team).exists()):
             raise ValidationError(f"Team '{self.team.name}' is already registered for this tournament.")
         
-        # Check if team size is compatible with tournament format
-        self._validate_team_tournament_compatibility()
-        
         return pin
-    
-    def _validate_team_tournament_compatibility(self):
-        """Validate that team can participate in tournament format"""
-        team_size = self.team.players.count()
-        
-        # Get tournament format requirements
-        has_triplets = getattr(self.tournament, 'has_triplets', False)
-        has_doublets = getattr(self.tournament, 'has_doublets', False)
-        has_tete_a_tete = getattr(self.tournament, 'has_tete_a_tete', False)
-        
-        # Check based on play_format if boolean flags are not set
-        play_format = getattr(self.tournament, 'play_format', '')
-        if not any([has_triplets, has_doublets, has_tete_a_tete]):
-            if play_format == 'triplets':
-                has_triplets = True
-            elif play_format == 'doublets':
-                has_doublets = True
-            elif play_format == 'tete_a_tete':
-                has_tete_a_tete = True
-            elif play_format == 'mixed':
-                has_triplets = has_doublets = has_tete_a_tete = True
-        
-        # Validate team size against tournament requirements
-        errors = []
-        
-        if has_triplets and not has_doublets and not has_tete_a_tete:
-            # Triplets only tournament
-            if team_size < 3:
-                errors.append(f"This tournament requires triplets (3 players). Your team has only {team_size} players.")
-            elif team_size > 3:
-                errors.append(
-                    f"This tournament is for triplets only. Your team has {team_size} players. "
-                    "Consider using subteam registration to create multiple triplets."
-                )
-        
-        elif has_doublets and not has_triplets and not has_tete_a_tete:
-            # Doublettes only tournament
-            if team_size < 2:
-                errors.append(f"This tournament requires doublettes (2 players). Your team has only {team_size} players.")
-            elif team_size > 2:
-                errors.append(
-                    f"This tournament is for doublettes only. Your team has {team_size} players. "
-                    "Consider using subteam registration to create multiple doublettes."
-                )
-        
-        elif has_tete_a_tete and not has_triplets and not has_doublets:
-            # Tête-à-tête only tournament
-            if team_size > 1:
-                errors.append(
-                    f"This tournament is for individual players only. Your team has {team_size} players. "
-                    "Consider using subteam registration to register individual players."
-                )
-        
-        # For mixed tournaments, we're more lenient but still provide guidance
-        elif team_size < 1:
-            errors.append("Your team must have at least 1 player to register.")
-        
-        if errors:
-            raise ValidationError(errors)
     
     def save(self):
         """Register the team for the tournament"""

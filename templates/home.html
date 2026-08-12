@@ -110,7 +110,7 @@
     color: #6b7a99;
 }
 
-/* ── Home-link hint below ball ─────────────────────────────────────── */
+/* ── Home QR action below ball ─────────────────────────────────────── */
 .home-nav-hint {
     margin-top: 20px;
     display: flex;
@@ -128,6 +128,20 @@
     font-weight: 800;
     color: #1a3a8f;
     letter-spacing: .04em;
+}
+.home-qr-action {
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    color: #1a3a8f;
+}
+.home-qr-action:hover { background: #e4ecff; }
+.home-qr-action:disabled { opacity: .65; cursor: wait; }
+.home-qr-feedback {
+    min-height: 18px;
+    margin-top: 8px;
+    font-size: .75rem;
+    font-weight: 600;
 }
 
 /* ── Divider before secondary sections ─────────────────────────────── */
@@ -340,11 +354,18 @@
         <div class="home-ball-label">PFC — Find my match</div>
         <div class="home-ball-sub">Your active game, tournament or friendly</div>
 
-        <!-- PFC text = home hint -->
-        <div class="home-nav-hint">
-            <i class="fas fa-arrow-left" style="font-size:.7rem;"></i>
-            Tap <span class="hint-pfc">PFC</span> in the header to return home
-        </div>
+        {% if request.session.player_codename %}
+        <button type="button" id="homeQrActionBtn" class="home-nav-hint home-qr-action">
+            <i class="fas fa-qrcode" style="font-size:.9rem;"></i>
+            Scan Player QR
+        </button>
+        <div id="homeQrFeedback" class="home-qr-feedback" aria-live="polite"></div>
+        {% else %}
+        <a href="{% url 'player_auth:login' %}" class="home-nav-hint" style="text-decoration:none;">
+            <i class="fas fa-qrcode" style="font-size:.9rem;"></i>
+            Scan Player QR
+        </a>
+        {% endif %}
     </div>
     <!-- ── end hero ─────────────────────────────────────────────────── -->
 
@@ -502,6 +523,10 @@ function toggleSec(id, btn) {
     }
 }
 
+{% if request.session.player_codename %}
+window.QR_RESOLVE_URL = "{% url 'qr_resolve_match' %}";
+{% endif %}
+
 // Show tournament form buttons only when team is logged in
 document.addEventListener('DOMContentLoaded', function () {
     {% if request.session.team_pin %}
@@ -510,4 +535,54 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endif %}
 });
 </script>
+{% if request.session.player_codename %}
+{% include 'partials/qr_scanner_modal.html' %}
+<script>
+(function() {
+    var scanButton = document.getElementById('homeQrActionBtn');
+    var feedback = document.getElementById('homeQrFeedback');
+    var resolving = false;
+    function getCookie(name) {
+        var value = '; ' + document.cookie;
+        var parts = value.split('; ' + name + '=');
+        return parts.length === 2 ? parts.pop().split(';').shift() : '';
+    }
+    function showFeedback(message, ok) {
+        if (!feedback) return;
+        feedback.className = 'home-qr-feedback ' + (ok ? 'text-success' : 'text-danger');
+        feedback.textContent = message;
+    }
+    if (scanButton) {
+        scanButton.addEventListener('click', function() {
+            if (typeof openQrScanner !== 'function') {
+                showFeedback('QR scanner is unavailable. Please reload and try again.', false);
+                return;
+            }
+            openQrScanner();
+        });
+    }
+    document.addEventListener('qrPlayerResolved', function(event) {
+        if (resolving) return;
+        resolving = true;
+        if (scanButton) scanButton.disabled = true;
+        showFeedback('Finding ' + event.detail.player_name + "’s next action…", true);
+        fetch("{% url 'pfc_qr_next_action' %}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({})
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (!data.ok) throw new Error(data.error || 'No current action was found.');
+            window.location.assign(data.next_url);
+        })
+        .catch(function(error) {
+            showFeedback(error.message || 'Unable to resolve the player action.', false);
+            resolving = false;
+            if (scanButton) scanButton.disabled = false;
+        });
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

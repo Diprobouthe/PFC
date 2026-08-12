@@ -341,13 +341,22 @@ def create_game(request):
 
 def game_detail(request, game_id):
     """Display details of a friendly game"""
+    from pfc_core.qr_action_auth import get_qr_action_player, get_qr_action_token
     game = get_object_or_404(FriendlyGame, id=game_id)
     players = game.players.all().select_related('player', 'player__team')
+    _qr_action_player = get_qr_action_player(request)
 
     # Auto-redirect the opposing team to validation when a result is pending.
     if hasattr(game, 'result') and game.result.is_pending_validation():
         from pfc_core.session_utils import CodenameSessionManager
-        session_codename = CodenameSessionManager.get_logged_in_codename(request)
+        session_codename = ''
+        if _qr_action_player:
+            try:
+                session_codename = _qr_action_player.codename_profile.codename
+            except Exception:
+                session_codename = ''
+        if not session_codename:
+            session_codename = CodenameSessionManager.get_logged_in_codename(request)
         if session_codename:
             session_player_team = None
             for gp in players:
@@ -367,7 +376,14 @@ def game_detail(request, game_id):
     is_creator = False
     is_joined = False
     from pfc_core.session_utils import CodenameSessionManager
-    _sc = CodenameSessionManager.get_logged_in_codename(request)
+    _sc = ''
+    if _qr_action_player:
+        try:
+            _sc = _qr_action_player.codename_profile.codename
+        except Exception:
+            _sc = ''
+    if not _sc:
+        _sc = CodenameSessionManager.get_logged_in_codename(request)
     if _sc:
         _sc_upper = _sc.upper()
         for gp in players:
@@ -395,6 +411,7 @@ def game_detail(request, game_id):
         'session_team': session_team or '',
         'is_creator': is_creator,
         'is_joined': is_joined,
+        'qr_action_token': get_qr_action_token(request),
     }
 
     return render(request, 'friendly_games/game_detail.html', context)
@@ -416,6 +433,7 @@ def activate_game(request, game_id):
 def submit_score(request, game_id):
     """Submit scores for a friendly game - First step of two-team validation
     STRICT REQUIREMENT: Submitter must provide a valid codename"""
+    from pfc_core.qr_action_auth import get_qr_action_player, get_qr_action_token
     game = get_object_or_404(FriendlyGame, id=game_id)
     
     # Check if result already exists (someone already submitted)
@@ -427,6 +445,12 @@ def submit_score(request, game_id):
         black_score = int(request.POST.get('black_score', 0))
         white_score = int(request.POST.get('white_score', 0))
         submitter_codename = request.POST.get('submitter_codename', '').strip().upper()
+        _qr_action_player = get_qr_action_player(request)
+        if _qr_action_player:
+            try:
+                submitter_codename = _qr_action_player.codename_profile.codename
+            except Exception:
+                submitter_codename = ''
         submitted_by_team = request.POST.get('submitting_team', '').upper()
         
         # STRICT REQUIREMENT: Submitter must provide a valid codename
@@ -519,7 +543,15 @@ def submit_score(request, game_id):
     white_players = game.players.filter(team='WHITE')
 
     # Auto-detect which team the logged-in player belongs to
-    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    session_codename = ''
+    _qr_action_player = get_qr_action_player(request)
+    if _qr_action_player:
+        try:
+            session_codename = _qr_action_player.codename_profile.codename
+        except Exception:
+            session_codename = ''
+    if not session_codename:
+        session_codename = CodenameSessionManager.get_logged_in_codename(request)
     auto_team = None
     if session_codename:
         for gp in game.players.all():
@@ -555,6 +587,7 @@ def submit_score(request, game_id):
         'auto_team': auto_team,
         'prefill_black_score': prefill_black_score,
         'prefill_white_score': prefill_white_score,
+        'qr_action_token': get_qr_action_token(request),
     }
 
     # Add session context
@@ -807,9 +840,18 @@ def start_match(request, game_id):
         return redirect('friendly_games:game_detail', game_id=game.id)
 
     # ── Creator-only check ────────────────────────────────────────────────────
-    # If the game has a creator_player set, only that player can start it.
+    # A short-lived QR proof may act only as that exact creator for this URL.
     if game.creator_player:
-        session_codename = CodenameSessionManager.get_logged_in_codename(request)
+        from pfc_core.qr_action_auth import get_qr_action_player
+        _qr_action_player = get_qr_action_player(request)
+        session_codename = ''
+        if _qr_action_player:
+            try:
+                session_codename = _qr_action_player.codename_profile.codename
+            except Exception:
+                session_codename = ''
+        if not session_codename:
+            session_codename = CodenameSessionManager.get_logged_in_codename(request)
         is_creator = False
         if session_codename:
             try:
@@ -868,7 +910,9 @@ def validate_result(request, game_id):
     Second step of two-team validation - opposing team validates the submitted result.
     Session-bound: codename is read from session, never from form input.
     """
+    from pfc_core.qr_action_auth import get_qr_action_player, get_qr_action_token
     game = get_object_or_404(FriendlyGame, id=game_id)
+    _qr_action_player = get_qr_action_player(request)
 
     # Check if there's a result to validate
     if not hasattr(game, 'result'):
@@ -887,7 +931,14 @@ def validate_result(request, game_id):
 
     # ── Detect session player's team in this game ──────────────────────────
     from pfc_core.session_utils import CodenameSessionManager
-    session_codename = CodenameSessionManager.get_logged_in_codename(request)
+    session_codename = ''
+    if _qr_action_player:
+        try:
+            session_codename = _qr_action_player.codename_profile.codename
+        except Exception:
+            session_codename = ''
+    if not session_codename:
+        session_codename = CodenameSessionManager.get_logged_in_codename(request)
     session_player_team = None  # 'BLACK', 'WHITE', or None
     if session_codename:
         for gp in game.players.all():
@@ -920,6 +971,11 @@ def validate_result(request, game_id):
         #   2. Session codename (logged-in player) — used when no QR scan occurred.
         #      This is the normal path where the opponent opens the page themselves.
         _qr_codename_session = request.session.pop('qr_resolved_codename', None)
+        if _qr_action_player:
+            try:
+                _qr_codename_session = _qr_action_player.codename_profile.codename
+            except Exception:
+                _qr_codename_session = None
         if _qr_codename_session:
             # QR path: use the scanned opponent's codename as the validator.
             # Do NOT replace session_codename — Player A stays logged in as Player A.
@@ -971,6 +1027,7 @@ def validate_result(request, game_id):
         'submitting_team': submitting_team.lower(),
         'validating_players': validating_players,
         'is_own_team': is_own_team,
+        'qr_action_token': get_qr_action_token(request),
     }
     context.update(session_context)
 

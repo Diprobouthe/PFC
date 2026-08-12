@@ -121,7 +121,12 @@ def create_simple_tournament(request):
         voucher_code = request.POST.get('voucher_code', '').strip()
         
         # Validate inputs
-        if not all([scenario_key, format_type, num_courts]):
+        # For VS mode, format_type is not required (the full structure is always created)
+        scenario_data_check = get_available_scenarios().get(scenario_key, {})
+        is_vs_scenario = scenario_data_check.get('scenario_mode') == 'vs_mode'
+        if is_vs_scenario:
+            format_type = 'doubles'  # harmless placeholder; not used in VS creation
+        if not all([scenario_key, num_courts]) or (not is_vs_scenario and not format_type):
             messages.error(request, 'Please fill all required fields')
             return redirect('simple_creator_home')
         
@@ -167,13 +172,18 @@ def create_simple_tournament(request):
         # Create tournament using virtual courts
         # 'singles' maps to max_singles; 'doubles' to max_doubles; 'triples' to max_triples
         max_players = scenario.get(f'max_{format_type}', 24)
-        tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
+        # VS Mode uses a different name (no format suffix — the format is always the full 11-game set)
+        if scenario.get('scenario_mode') == 'vs_mode':
+            tournament_name = f"{scenario['name']} VS Encounter - {tomorrow.strftime('%Y-%m-%d')}"
+        else:
+            tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
         
         # Determine scenario mode (default to 'melee' for backwards compatibility)
         scenario_mode = scenario.get('scenario_mode', 'melee')
         is_melee_mode = scenario_mode in ('melee', 'super_melee')
         is_super_melee = scenario_mode == 'super_melee'
         is_team_mode = scenario_mode == 'team'
+        is_vs_mode = scenario_mode == 'vs_mode'
 
         # Get timer and pregame countdown from scenario
         timer_minutes = scenario.get('pregame_countdown_minutes', None)  # match time limit
@@ -215,7 +225,17 @@ def create_simple_tournament(request):
         if pregame_countdown is not None:
             tournament_kwargs['pregame_countdown_minutes'] = pregame_countdown
 
-        if is_melee_mode:
+        if is_vs_mode:
+            # VS Mode: Team vs Team encounter with fixed 6 Tête-à-tête + 3 Doubles + 2 Triples.
+            # format_type is irrelevant for VS — the full structure is always created.
+            # Exactly two teams must be registered before the encounter can begin.
+            tournament_kwargs.update(
+                is_melee=False,
+                melee_teams_generated=False,
+                max_participants=2,  # VS is always exactly two teams
+                play_format='doublets',  # placeholder; sub-games use their own match_type
+            )
+        elif is_melee_mode:
             # Mêlée and Super Mêlée: individual player registration, dynamic team generation
             # singles → tete_a_tete (1-player temp teams); doubles → doublets; triples → triplets
             _melee_fmt = {
@@ -309,7 +329,7 @@ def create_simple_tournament(request):
             'tournament_name': tournament.name,
             'scenario': scenario['name'],
             'scenario_mode': scenario_mode,
-            'format': format_type.title(),
+            'format': 'VS Mode (6 Tête-à-tête · 3 Doublettes · 2 Triplettes)' if is_vs_mode else format_type.title(),
             'court_complex': scenario_obj.default_court_complex.name,
             'selected_courts': real_courts,
             'num_courts': num_courts,

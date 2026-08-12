@@ -17,6 +17,7 @@ Architecture contract:
   - Clients MUST NOT poll, reload, or fetch after receiving a WS event.
 """
 import json
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 
@@ -41,13 +42,20 @@ class MatchEventConsumer(AsyncWebsocketConsumer):
         # Join the personal player group so this client receives
         # a personalised next_url without any follow-up HTTP request.
         self.personal_group = None
-        session = self.scope.get("session", {})
-        codename = session.get("player_codename")
+        # Database-backed Django sessions must be read through sync_to_async.
+        # A direct session.get() here raises SynchronousOnlyOperation before the
+        # match WebSocket can join its shared state channel.
+        codename = await self._get_session_codename()
         if codename:
             self.personal_group = f"player_{codename}"
             await self.channel_layer.group_add(self.personal_group, self.channel_name)
 
         await self.accept()
+
+    @database_sync_to_async
+    def _get_session_codename(self):
+        session = self.scope.get("session")
+        return session.get("player_codename") if session else None
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
@@ -76,6 +84,7 @@ class MatchEventConsumer(AsyncWebsocketConsumer):
             "match_id":   event.get("match_id"),
             "new_status": event.get("new_status", ""),
             "next_url":   event.get("next_url"),   # None for spectators
+            "state_url":  event.get("state_url"),  # authoritative detail page after transition
         }))
 
     async def score_updated(self, event):
@@ -94,6 +103,7 @@ class MatchEventConsumer(AsyncWebsocketConsumer):
             "team2_score":      event.get("team2_score"),
             "last_updated_by":  event.get("last_updated_by", ""),
             "is_active":        event.get("is_active", True),
+            "score_update":     event.get("score_update"),
         }))
 
 
@@ -140,4 +150,5 @@ class ScoreboardConsumer(AsyncWebsocketConsumer):
             "team2_score":      event.get("team2_score"),
             "last_updated_by":  event.get("last_updated_by", ""),
             "is_active":        event.get("is_active", True),
+            "score_update":     event.get("score_update"),
         }))

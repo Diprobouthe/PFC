@@ -425,6 +425,11 @@
 
 <script>
 (function(){
+    var qrScoreActionToken = "{{ qr_score_action_token|escapejs }}";
+    if (qrScoreActionToken && window.history && window.history.replaceState) {
+        // One-page proof: remove it from the URL so a reload has no authority.
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
     /* ── Timer countdown ─────────────────────────────────────── */
     var timerBar = document.getElementById('timer-bar');
     if (timerBar) {
@@ -476,7 +481,7 @@
             var codename = document.getElementById('codename').value.trim().toUpperCase();
             var s1 = parseInt(document.getElementById('team1-score-select').value);
             var s2 = parseInt(document.getElementById('team2-score-select').value);
-            if (!codename) { showToast('Login required', false); return; }
+            if (!codename && !qrScoreActionToken) { showToast('Login required', false); return; }
 
             fetch('{% url "update_scoreboard" scoreboard.id %}', {
                 method: 'POST',
@@ -484,7 +489,7 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
-                body: JSON.stringify({ team1_score: s1, team2_score: s2, codename: codename })
+                body: JSON.stringify({ team1_score: s1, team2_score: s2, codename: codename, qr_action: qrScoreActionToken })
             })
             .then(function(r){ return r.json(); })
             .then(function(d){
@@ -509,7 +514,7 @@
     if (resetBtn) {
         resetBtn.addEventListener('click', function() {
             var codename = document.getElementById('codename').value.trim().toUpperCase();
-            if (!codename) { showToast('Login required', false); return; }
+            if (!codename && !qrScoreActionToken) { showToast('Login required', false); return; }
             if (!confirm('Reset to 0–0?')) return;
 
             fetch('{% url "reset_scoreboard" scoreboard.id %}', {
@@ -518,7 +523,7 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
-                body: JSON.stringify({ codename: codename })
+                body: JSON.stringify({ codename: codename, qr_action: qrScoreActionToken })
             })
             .then(function(r){ return r.json(); })
             .then(function(d){

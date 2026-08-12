@@ -1,6 +1,10 @@
 from django import forms
 from teams.models import Team
-from tournaments.models import Tournament
+from tournaments.models import (
+    Tournament,
+    is_system_tournament_team,
+    SYSTEM_TEAM_TOURNAMENT_MESSAGE,
+)
 from .models import TeamTournamentSignin
 
 class TournamentSigninForm(forms.Form):
@@ -35,6 +39,9 @@ class TournamentSigninForm(forms.Form):
             # Verify PIN - only the team's PIN is needed, no other team verification
             if pin != team.pin:
                 raise forms.ValidationError("Invalid PIN. Please try again.")
+
+            if is_system_tournament_team(team):
+                raise forms.ValidationError(SYSTEM_TEAM_TOURNAMENT_MESSAGE)
             
             # Check if team is already signed in to this tournament
             existing_signin = TeamTournamentSignin.objects.filter(

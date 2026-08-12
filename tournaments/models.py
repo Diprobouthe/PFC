@@ -1121,7 +1121,21 @@ class MeleePlayer(models.Model):
     def __str__(self):
         return f"{self.player.name} in {self.tournament.name}"
 
-# --- Tournament Team Model --- 
+# --- Tournament Team Model ---
+SYSTEM_FRIENDLY_GAMES_TEAM_NAME = "Friendly Games"
+SYSTEM_FRIENDLY_GAMES_TEAM_PIN = "000000"
+SYSTEM_TEAM_TOURNAMENT_MESSAGE = "System teams cannot be registered in tournaments."
+
+
+def is_system_tournament_team(team):
+    """Return True only for PFC's dedicated Friendly Games system team."""
+    return bool(
+        team
+        and team.name == SYSTEM_FRIENDLY_GAMES_TEAM_NAME
+        and team.pin == SYSTEM_FRIENDLY_GAMES_TEAM_PIN
+    )
+
+
 class TournamentTeam(models.Model):
     """Intermediate model for teams participating in a tournament with specific attributes."""
     tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
@@ -1143,6 +1157,14 @@ class TournamentTeam(models.Model):
     class Meta:
         unique_together = ("tournament", "team")
         ordering = ["-swiss_points", "-buchholz_score", "seeding_position", "id"] # Default ordering for Swiss
+
+    def save(self, *args, **kwargs):
+        # Final safeguard for every path that attempts to persist a tournament team,
+        # including any direct create outside the normal registration forms.
+        if self.team_id and is_system_tournament_team(self.team):
+            from django.core.exceptions import ValidationError
+            raise ValidationError(SYSTEM_TEAM_TOURNAMENT_MESSAGE)
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.team.name} in {self.tournament.name}"

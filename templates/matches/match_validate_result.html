@@ -320,6 +320,7 @@
     </div>
     <form method="post" id="vrForm">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
         <input type="hidden" name="pin" value="">
         <div style="margin-bottom:14px;">
             <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
@@ -417,6 +418,13 @@ function confirmChoice() {
     }
 }
 </script>
+{% if qr_action_token %}
+<script>
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 <script>window.QR_RESOLVE_URL = "{% url 'qr_resolve_match' %}";</script>
 {% include "partials/qr_scanner_modal.html" %}
 <script>
@@ -438,5 +446,63 @@ document.addEventListener('qrPlayerResolved', function(e) {
     }
     /* No auto-submit. No forced action. */
 });
+</script>
+
+<!-- Existing match state channel: keeps this post-validation page live while the other team decides. -->
+<script>
+(function() {
+    var matchId = {{ match.id }};
+    var stateUrl = "{% url 'match_detail' match.id %}";
+    var leaving = false;
+    var retryDelay = 1000;
+    var socket = null;
+
+    function moveToLatestState() {
+        if (leaving) return;
+        // Call the same session-aware decision resolver used by the PFC Smart
+        // button. This is event-driven from the existing match WebSocket, not polling.
+        fetch('/my-matches/next-url/', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(resolved) {
+            if (leaving) return;
+            leaving = true;
+            var destination = resolved.next_url || stateUrl;
+            var separator = destination.indexOf('?') === -1 ? '?' : '&';
+            window.location.href = destination + separator + 'ws_state=' + Date.now();
+        })
+        .catch(function() {
+            leaving = true;
+            var separator = stateUrl.indexOf('?') === -1 ? '?' : '&';
+            window.location.href = stateUrl + separator + 'ws_state=' + Date.now();
+        });
+    }
+
+    function connect() {
+        var scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        socket = new WebSocket(scheme + '://' + window.location.host + '/ws/match/' + matchId + '/');
+        socket.onopen = function() { retryDelay = 1000; };
+        socket.onmessage = function(event) {
+            var data;
+            try { data = JSON.parse(event.data); } catch (err) { return; }
+            if (data.type !== 'match.state_changed') return;
+            // A result decision changes waiting_validation to completed or active.
+            // Load Match Detail, which renders the new completed/reopened result state.
+            if (data.new_status !== 'waiting_validation') moveToLatestState();
+        };
+        socket.onclose = function() {
+            if (!leaving) {
+                setTimeout(connect, retryDelay);
+                retryDelay = Math.min(retryDelay * 2, 15000);
+            }
+        };
+        socket.onerror = function() { if (socket) socket.close(); };
+    }
+
+    connect();
+    window.addEventListener('beforeunload', function() { leaving = true; if (socket) socket.close(); });
+})();
 </script>
 {% endblock %}

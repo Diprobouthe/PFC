@@ -622,7 +622,7 @@
 
     {% if match.status == 'pending' %}
         {% if my_team and not my_team_activated %}
-        <a href="{% url 'match_activate' match.id my_team.id %}" class="md-primary-btn md-btn-activate">
+        <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-activate">
             <i class="fas fa-play"></i> Activate as {{ my_team.name }}
         </a>
         {% elif my_team and my_team_activated %}
@@ -638,7 +638,7 @@
 
     {% elif match.status == 'pending_verification' %}
         {% if my_team and my_team not in activated_teams %}
-        <a href="{% url 'match_activate' match.id my_team.id %}" class="md-primary-btn md-btn-validate">
+        <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate">
             <i class="fas fa-check-circle"></i> Validate as {{ my_team.name }}
         </a>
         {% elif my_team and my_team in activated_teams %}
@@ -658,7 +658,7 @@
 
     {% elif match.status == 'active' %}
         {% if my_team %}
-        <a href="{% url 'match_submit_result' match.id my_team.id %}" class="md-primary-btn md-btn-submit">
+        <a href="{% url 'match_submit_result' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-submit">
             <i class="fas fa-flag-checkered"></i> Submit Score
         </a>
         {% else %}
@@ -670,13 +670,13 @@
 
     {% elif match.status == 'waiting_validation' %}
         {% if my_team and result and result.submitted_by != my_team %}
-        <a href="{% url 'match_validate_result' match.id my_team.id %}" class="md-primary-btn md-btn-validate2">
+        <a href="{% url 'match_validate_result' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate2">
             <i class="fas fa-check-double"></i> Validate Score
         </a>
         {% elif my_team and result and result.submitted_by == my_team %}
         {# Submitter: offer QR validation so they can scan the opponent's card on the same phone #}
         {% if opponent_team %}
-        <a href="{% url 'match_validate_result' match.id opponent_team.id %}" class="md-primary-btn md-btn-validate2">
+        <a href="{% url 'match_validate_result' match.id opponent_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate2">
             <i class="fas fa-qrcode"></i> Validate via Opponent QR
         </a>
         {% else %}
@@ -699,6 +699,13 @@
 
 </div>
 
+{% if qr_action_token %}
+<script>
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -834,13 +841,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function handleStateChange(data) {
             if (_redirecting) return;
-            // Server sends personalised next_url — use it directly
-            if (data.next_url && data.next_url !== CURRENT_PATH) {
+            // Reuse the same session-aware decision resolver as the PFC Smart
+            // button. The existing match WebSocket triggers this exactly once;
+            // no polling and no Live Score behavior are involved.
+            fetch('/my-matches/next-url/', {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(resolved) {
+                if (_redirecting) return;
+                var targetUrl = resolved.next_url || data.state_url || data.next_url;
+                if (!targetUrl) return;
                 _redirecting = true;
-                window.location.href = data.next_url;
-                return;
-            }
-            // Spectator payload (next_url === null): no navigation needed
+                if (targetUrl === CURRENT_PATH) {
+                    var joiner = targetUrl.indexOf('?') === -1 ? '?' : '&';
+                    window.location.href = targetUrl + joiner + 'ws_state=' + Date.now();
+                } else {
+                    window.location.href = targetUrl;
+                }
+            })
+            .catch(function() {
+                if (!data.state_url) return;
+                _redirecting = true;
+                var joiner = data.state_url.indexOf('?') === -1 ? '?' : '&';
+                window.location.href = data.state_url + joiner + 'ws_state=' + Date.now();
+            });
         }
 
         const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';

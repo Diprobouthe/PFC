@@ -37,6 +37,9 @@ so the info page is the correct destination.
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.db.models import Q
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from urllib.parse import urlencode
 
 from matches.models import Match, MatchActivation, MatchResult, LiveScoreboard
 from django.utils import timezone as _tz
@@ -568,6 +571,62 @@ def my_matches_list(request):
 # JSON endpoint — session-aware "where should I be?" for the universal poller
 # ---------------------------------------------------------------------------
 from django.http import JsonResponse as _JsonResponse
+
+@require_POST
+def resolve_scanned_player_next_url(request):
+    """Resolve the scanned player's existing Smart action without changing login identity.
+
+    The shared QR resolver has already verified the physical card and placed its
+    codename in this browser session. This endpoint consumes that one-time proof,
+    runs the same tournament/friendly Smart candidate functions for the scanned
+    player, then returns the existing decision URL with a short-lived signed
+    proof scoped to that exact action page.
+    """
+    # The phone operator must still be in a normal PFC player session. This is
+    # authorization for one scanned-player action, not a login or delegation.
+    if not request.session.get('player_codename'):
+        return JsonResponse({'ok': False, 'error': 'Please log in before scanning a player QR card.'}, status=401)
+
+    scanned_codename = request.session.pop('qr_resolved_codename', None)
+    request.session.modified = True
+    if not scanned_codename:
+        return JsonResponse({'ok': False, 'error': 'No QR scan found. Please scan the player card again.'}, status=400)
+
+    try:
+        scanned_pc = PlayerCodename.objects.select_related('player__team').get(
+            codename=scanned_codename.upper()
+        )
+    except PlayerCodename.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'The scanned player could not be resolved.'}, status=404)
+
+    scanned_player = scanned_pc.player
+    candidates = []
+    if scanned_player.team_id:
+        candidates.extend(_resolve_tournament_matches(scanned_player.team))
+    candidates.extend(_resolve_friendly_games(scanned_player, scanned_player.team))
+
+    if not candidates:
+        return JsonResponse({
+            'ok': False,
+            'error': f'{scanned_player.name} has no current actionable match or game.',
+        }, status=404)
+
+    candidates.sort(key=lambda candidate: candidate['priority'])
+    best = candidates[0]
+
+    from pfc_core.qr_action_auth import issue_qr_action_token
+    token = issue_qr_action_token(request, scanned_player, best['url'])
+    separator = '&' if '?' in best['url'] else '?'
+    action_url = f"{best['url']}{separator}{urlencode({'qr_action': token})}"
+
+    return JsonResponse({
+        'ok': True,
+        'player_name': scanned_player.name,
+        'next_url': action_url,
+        'label': best.get('label', ''),
+        'match_type': best.get('match_type', ''),
+    })
+
 
 def resolve_next_url(request):
     """

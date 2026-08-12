@@ -428,6 +428,226 @@ def session_status(request, token):
     })
 
 
+# ── QR start session (JSON) ────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_POST
+def qr_start_session(request):
+    """
+    POST /invites/qr-start-session/
+
+    Body (JSON): { "target_size": int, "proposed_name": str (optional),
+                   "include_creator": bool (default true) }
+
+    Creates a TeamBuildSession for the QR direct-build flow (no invites sent).
+    Returns the session token so the client can use qr_add_player.
+    """
+    import json as _json
+    creator = _get_current_player(request)
+    if not creator:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    try:
+        data = _json.loads(request.body)
+    except (_json.JSONDecodeError, ValueError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    target_size     = int(data.get("target_size", 3))
+    proposed_name   = str(data.get("proposed_name", ""))[:100]
+    include_creator = bool(data.get("include_creator", True))
+
+    if target_size < 2 or target_size > 6:
+        return JsonResponse({"error": "target_size must be between 2 and 6"}, status=400)
+
+    session = TeamBuildSession.objects.create(
+        creator=creator,
+        build_type=TeamBuildSession.BUILD_TYPE_NORMAL,
+        target_size=target_size,
+        proposed_team_name=proposed_name,
+        include_creator=include_creator,
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "session_token": str(session.token),
+        "session_id":    session.pk,
+        "target_size":   target_size,
+        "include_creator": include_creator,
+    })
+
+
+# ── QR add player (JSON) ─────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_POST
+def qr_add_player(request):
+    """
+    POST /invites/qr-add-player/
+
+    Body (JSON): { "session_token": "<TeamBuildSession UUID>" }
+
+    Called immediately after a successful QR scan (which stores the resolved
+    codename in the session via the existing /matches/api/qr-resolve/ endpoint).
+
+    This is the DIRECT addition path — no invite is created, no acceptance is
+    required.  The QR scan itself is the player's authorization to join.
+
+    Two sub-cases:
+      A. Team not yet created (session still open):
+         → Add the scanned player to session.accepted_players.
+         → If quorum is now reached, create_team() is called immediately.
+      B. Team already created:
+         → Move the scanned player directly onto the existing team
+           (player.team = team; player.save()).
+
+    Safeguards:
+      - Requester must be the session creator.
+      - Scanned player must be a valid existing PFC player.
+      - Cannot add yourself.
+      - Duplicate check: player already in session / team is rejected.
+    """
+    import json as _json
+    requester = _get_current_player(request)
+    if not requester:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    try:
+        data = _json.loads(request.body)
+    except (_json.JSONDecodeError, ValueError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    session_token = data.get("session_token", "").strip()
+    if not session_token:
+        return JsonResponse({"error": "session_token is required"}, status=400)
+
+    session = TeamBuildSession.objects.filter(token=session_token).first()
+    if not session:
+        return JsonResponse({"error": "Team build session not found"}, status=404)
+
+    # Only the session creator can add players via QR
+    if session.creator_id != requester.pk:
+        return JsonResponse({"error": "Only the team creator can add players via QR scan"}, status=403)
+
+    if session.status != TeamBuildSession.SESSION_OPEN:
+        return JsonResponse({"error": "This team build session is no longer open"}, status=400)
+
+    # Read and pop the QR-resolved codename from the session (cannot be replayed)
+    codename = request.session.pop("qr_resolved_codename", None)
+    if not codename:
+        return JsonResponse(
+            {"error": "No QR scan found in session. Please scan a player QR card first."},
+            status=400,
+        )
+
+    # Resolve the player from the codename (server-side only)
+    try:
+        from friendly_games.models import PlayerCodename
+        pc = PlayerCodename.objects.select_related("player__team").get(
+            codename=codename.upper()
+        )
+    except PlayerCodename.DoesNotExist:
+        return JsonResponse({"error": "Player not found"}, status=404)
+
+    player = pc.player
+
+    # Cannot add yourself
+    if player.pk == requester.pk:
+        return JsonResponse(
+            {"error": "You are already the team creator and do not need to be added."},
+            status=400,
+        )
+
+    # ── Sub-case B: team already exists ─────────────────────────────────────────────────────────────────────────────────
+    if session.created_team_id:
+        team = session.created_team
+        # Duplicate check
+        if player.team_id == team.pk:
+            return JsonResponse(
+                {"error": f"{player.name} is already a member of this team."},
+                status=400,
+            )
+        # Move player onto the existing team (same logic as create_team)
+        player.team = team
+        player.save(update_fields=["team"])
+        return JsonResponse({
+            "ok": True,
+            "added": True,
+            "player_id":   player.pk,
+            "player_name": player.name,
+            "team_id":     team.pk,
+            "team_name":   team.name,
+            "team_pin":    team.pin,
+            "team_created": False,
+        })
+
+    # ── Sub-case A: team not yet created ───────────────────────────────────────────────────────────────────────────────────
+    # Duplicate check
+    if session.accepted_players.filter(pk=player.pk).exists():
+        return JsonResponse(
+            {"error": f"{player.name} has already been added to this session."},
+            status=400,
+        )
+
+    # Add directly to accepted_players (no invite created, no acceptance step)
+    session.accepted_players.add(player)
+
+    # Check if quorum is now reached and create the team if so
+    team_created = False
+    team = None
+    tournament_registered = False
+    if session.is_ready and session.status == TeamBuildSession.SESSION_OPEN:
+        team = session.create_team()
+        if team:
+            team_created = True
+            if session.is_tournament_type and session.tournament_id:
+                _, tournament_registered = TournamentTeam.objects.get_or_create(
+                    tournament_id=session.tournament_id,
+                    team=team,
+                    defaults={"is_active": True},
+                )
+            # Notify all accepted players + creator via channel layer
+            all_pids = list(
+                session.accepted_players.values_list("pk", flat=True)
+            ) + [session.creator_id]
+            for pid in set(all_pids):
+                _push(
+                    f"player_{pid}",
+                    "session.ready",
+                    {
+                        "session_id":            session.pk,
+                        "team_id":               team.pk,
+                        "team_name":             team.name,
+                        "team_pin":              team.pin,
+                        "tournament_registered": tournament_registered,
+                    },
+                )
+    else:
+        # Notify creator of updated progress
+        _push(
+            f"player_{session.creator_id}",
+            "session.update",
+            {
+                "session_id":     session.pk,
+                "accepted_count": session.accepted_count,
+                "target_size":    session.target_size,
+            },
+        )
+
+    return JsonResponse({
+        "ok": True,
+        "added": True,
+        "player_id":             player.pk,
+        "player_name":           player.name,
+        "team_id":               team.pk if team else None,
+        "team_name":             team.name if team else None,
+        "team_pin":              team.pin if team else None,
+        "team_created":          team_created,
+        "tournament_registered": tournament_registered,
+        "accepted_count":        session.accepted_count,
+        "target_size":           session.target_size,
+    })
+
+
 # ── Player search (JSON) ──────────────────────────────────────────────────────
 
 @require_GET

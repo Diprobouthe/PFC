@@ -16,6 +16,7 @@ import logging
 
 from .models import LiveScoreboard, ScoreUpdate, ScorekeeperRating, MatchPlayer
 from friendly_games.models import PlayerCodename, FriendlyGamePlayer
+from pfc_core.qr_action_auth import get_qr_action_player, issue_qr_action_token
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 logger = logging.getLogger(__name__)
@@ -85,7 +86,28 @@ def _resolve_scorekeeper_names(score_history_qs):
     return mapping
 
 
-def _broadcast_score(scoreboard):
+def _score_update_payload(score_update):
+    """Serialize one stored ScoreUpdate for all live-score clients."""
+    if not score_update:
+        return None
+    display_name = ''
+    try:
+        display_name = PlayerCodename.objects.select_related('player').get(
+            codename=score_update.scorekeeper_codename
+        ).player.name
+    except PlayerCodename.DoesNotExist:
+        pass
+    return {
+        'id': score_update.id,
+        'team1_score': score_update.team1_score,
+        'team2_score': score_update.team2_score,
+        'ts': timezone.localtime(score_update.timestamp).strftime('%H:%M:%S'),
+        'by': display_name,
+        'type': score_update.update_type,
+    }
+
+
+def _broadcast_score(scoreboard, score_update=None):
     """Push a score.updated event to all clients watching this scoreboard."""
     channel_layer = get_channel_layer()
     if channel_layer is None:
@@ -98,6 +120,8 @@ def _broadcast_score(scoreboard):
         "team2_score": scoreboard.team2_score,
         "last_updated_by": scoreboard.last_updated_by or "",
         "is_active": scoreboard.is_active,
+        # Optional metadata for clients that render score progression live.
+        "score_update": _score_update_payload(score_update),
     }
     try:
         async_to_sync(channel_layer.group_send)(group, payload)
@@ -144,6 +168,17 @@ def scoreboard_detail(request, scoreboard_id):
     from pfc_core.session_utils import SessionManager
     
     scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
+
+    # A scanned-player proof is valid only for this rendered score page. Issue
+    # a separate child proof for the existing AJAX update endpoint.
+    qr_score_action_token = ''
+    qr_action_player = get_qr_action_player(request)
+    if qr_action_player:
+        qr_score_action_token = issue_qr_action_token(
+            request,
+            qr_action_player,
+            reverse('update_scoreboard', kwargs={'scoreboard_id': scoreboard.id}),
+        )
     
     # Get full score history (ordered oldest-first for progression display)
     score_history = list(scoreboard.score_updates.order_by('timestamp'))
@@ -234,6 +269,7 @@ def scoreboard_detail(request, scoreboard_id):
         'court_complex': court_complex,
         # Codename → player name map (privacy: templates must use this, never raw codename)
         'scorekeeper_names': scorekeeper_names,
+        'qr_score_action_token': qr_score_action_token,
     }
     
     return render(request, 'matches/scoreboard_detail.html', context)
@@ -253,6 +289,12 @@ def update_scoreboard(request, scoreboard_id):
         team1_score = int(data.get('team1_score', 0))
         team2_score = int(data.get('team2_score', 0))
         scorekeeper_codename = data.get('codename', '').strip().upper()
+        qr_action_player = get_qr_action_player(request)
+        if qr_action_player:
+            try:
+                scorekeeper_codename = PlayerCodename.objects.get(player=qr_action_player).codename
+            except PlayerCodename.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Scanned player authorization is no longer valid.'}, status=403)
         
         # Validate inputs
         if not scorekeeper_codename:
@@ -305,13 +347,14 @@ def update_scoreboard(request, scoreboard_id):
         scoreboard.update_scores(team1_score, team2_score, scorekeeper_codename)
         
         # Create score update record
-        ScoreUpdate.objects.create(
+        score_update = ScoreUpdate.objects.create(
             scoreboard=scoreboard,
             team1_score=team1_score,
             team2_score=team2_score,
             scorekeeper_codename=scorekeeper_codename,
             update_type=update_type
         )
+        score_update_data = _score_update_payload(score_update)
         
         # Prepare response
         response_data = {
@@ -321,6 +364,7 @@ def update_scoreboard(request, scoreboard_id):
             'last_updated_by': scoreboard.last_updated_by,
             'is_active': scoreboard.is_active,
             'codename_exists': codename_exists,
+            'score_update': score_update_data,
         }
         
         # Inform players when a score reaches 13 (game likely complete)
@@ -328,8 +372,8 @@ def update_scoreboard(request, scoreboard_id):
             response_data['message'] = 'Score reached 13 — ready to submit final result.'
 
         # Broadcast updated score to all spectators and players watching this scoreboard
-        _broadcast_score(scoreboard)
-
+        _broadcast_score(scoreboard, score_update=score_update)
+        
         return JsonResponse(response_data)
         
     except ValueError as e:
@@ -357,6 +401,12 @@ def reset_scoreboard(request, scoreboard_id):
         # Parse JSON data
         data = json.loads(request.body)
         scorekeeper_codename = data.get('codename', '').strip().upper()
+        qr_action_player = get_qr_action_player(request)
+        if qr_action_player:
+            try:
+                scorekeeper_codename = PlayerCodename.objects.get(player=qr_action_player).codename
+            except PlayerCodename.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Scanned player authorization is no longer valid.'}, status=403)
         
         if not scorekeeper_codename:
             return JsonResponse({
@@ -384,7 +434,7 @@ def reset_scoreboard(request, scoreboard_id):
         scoreboard.reset_scores(scorekeeper_codename)
         
         # Create score update record
-        ScoreUpdate.objects.create(
+        score_update = ScoreUpdate.objects.create(
             scoreboard=scoreboard,
             team1_score=0,
             team2_score=0,
@@ -393,7 +443,7 @@ def reset_scoreboard(request, scoreboard_id):
         )
         
         # Broadcast reset to all spectators and players watching this scoreboard
-        _broadcast_score(scoreboard)
+        _broadcast_score(scoreboard, score_update=score_update)
 
         return JsonResponse({
             'success': True,

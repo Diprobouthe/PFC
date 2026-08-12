@@ -273,6 +273,7 @@
     <!-- Main activation form -->
     <form method="post" id="maForm">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
 
         <!-- ① PIN — hidden, auto-filled from team record -->
         <input type="hidden" name="pin" value="{{ team_pin }}">
@@ -413,6 +414,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+{% if qr_action_token %}
+<script>
+  // The QR proof is intentionally one-page only; a reload has no proof.
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 
 {# ── QR activation: initiating team scans opponent's card on their own phone ─────────── #}
 {% if is_initiating %}

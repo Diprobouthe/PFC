@@ -210,6 +210,7 @@
     <!-- QR path: submitter can scan an eligible opponent's QR Card to validate on their behalf -->
     <form method="post" id="validateForm" style="margin-top:14px;">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
         <input type="hidden" name="validation_action" id="validation_action_input" value="">
 
         <div style="margin-bottom:12px;">
@@ -234,6 +235,7 @@
     <!-- Normal path: the person holding the phone is the validator -->
     <form method="post" id="validateForm">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
         <input type="hidden" name="validation_action" id="validation_action_input" value="">
 
         {% if not session_codename %}
@@ -271,6 +273,13 @@ function submitValidation(action) {
     document.getElementById('validateForm').submit();
 }
 </script>
+{% if qr_action_token %}
+<script>
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 <!-- QR Scanner — sets validator_codename from scanned QR -->
 <script>window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";</script>
 {% include "partials/qr_scanner_modal.html" %}

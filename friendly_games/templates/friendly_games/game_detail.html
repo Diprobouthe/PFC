@@ -378,7 +378,7 @@
 
             {# Simple server-side logic: view passes is_creator and is_joined in context #}
             {% if is_creator %}
-                <a href="{% url 'friendly_games:start_match' game.id %}" class="fg-btn-primary fg-btn-start">
+                <a href="{% url 'friendly_games:start_match' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-start">
                     <i class="fas fa-play-circle"></i> Start Match
                 </a>
             {% elif is_joined %}
@@ -406,11 +406,11 @@
             </div>
             {% endif %}
             {% if game.live_scoreboard %}
-            <a href="{% url 'scoreboard_detail' game.live_scoreboard.id %}" class="fg-btn-primary fg-btn-live">
+            <a href="{% url 'scoreboard_detail' game.live_scoreboard.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-live">
                 <i class="fas fa-chart-line"></i> Live Score
             </a>
             {% endif %}
-            <a href="{% url 'friendly_games:submit_score' game.id %}" class="fg-btn-primary fg-btn-score" style="font-size:1rem; padding:12px 24px;">
+            <a href="{% url 'friendly_games:submit_score' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-score" style="font-size:1rem; padding:12px 24px;">
                 <i class="fas fa-clipboard-check"></i> Submit Final Score
             </a>
 
@@ -422,7 +422,7 @@
                 <strong>Black {{ game.black_team_score }} – White {{ game.white_team_score }}</strong>.<br>
                 {{ game.result.get_other_team|title }} team must validate.
             </div>
-            <a href="{% url 'friendly_games:validate_result' game.id %}" class="fg-btn-primary fg-btn-validate">
+            <a href="{% url 'friendly_games:validate_result' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-validate">
                 <i class="fas fa-check-circle"></i> Validate Result
             </a>
             {% endif %}
@@ -542,11 +542,31 @@ function copyCode() {
 
         function handleStateChange(data) {
             if (_redirecting) return;
-            if (data.next_url && data.next_url !== CURRENT_PATH) {
+            // Reuse the exact session-aware Smart decision resolver that the
+            // PFC Smart button uses. The websocket only triggers this once;
+            // this is not polling and does not change Live Score behavior.
+            fetch('/my-matches/next-url/', {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(resolved) {
+                if (_redirecting) return;
+                var destination = resolved.next_url || data.state_url || data.next_url;
+                if (!destination) return;
                 _redirecting = true;
-                window.location.href = data.next_url;
-                return;
-            }
+                var separator = destination.indexOf('?') === -1 ? '?' : '&';
+                if (destination === CURRENT_PATH) destination += separator + 'ws_state=' + Date.now();
+                window.location.href = destination;
+            })
+            .catch(function() {
+                // If the resolver is unavailable, use the authoritative state URL
+                // carried by the same existing websocket event.
+                if (!data.state_url) return;
+                _redirecting = true;
+                var separator = data.state_url.indexOf('?') === -1 ? '?' : '&';
+                window.location.href = data.state_url + separator + 'ws_state=' + Date.now();
+            });
         }
 
         const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
@@ -568,4 +588,11 @@ function copyCode() {
     })();
     {% endif %}
 </script>
+{% if qr_action_token %}
+<script>
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 {% endblock %}

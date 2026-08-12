@@ -35,7 +35,8 @@
                                    data-supports-triples="{{ scenario.supports_triples|yesno:'true,false' }}"
                                    data-max-singles="{{ scenario.max_singles_players }}"
                                    data-max-doubles="{{ scenario.max_doubles_players }}"
-                                   data-max-triples="{{ scenario.max_triples_players }}">
+                                   data-max-triples="{{ scenario.max_triples_players }}"
+                                   data-scenario-mode="{{ scenario.scenario_mode }}">
                             <label class="form-check-label fw-bold" for="scenario_{{ scenario.id }}">
                                 {{ scenario.display_name }}
                             </label>
@@ -130,6 +131,21 @@
                         </label>
                     </div>
                 </div>
+            </div>
+        </div>
+        {# VS Mode summary — shown instead of the generic format selector for VS scenarios #}
+        <div id="vs-format-summary" class="alert alert-primary py-3 px-4" style="display:none;">
+            <div class="fw-bold mb-1"><i class="bi bi-shield-fill-check me-2"></i>VS Mode — Standard Encounter Format</div>
+            <div class="text-muted small mb-2">This encounter automatically includes all three formats:</div>
+            <div class="d-flex flex-wrap gap-3">
+                <span class="badge bg-primary fs-6 px-3 py-2">6 &times; T&ecirc;te-&agrave;-t&ecirc;te</span>
+                <span class="badge bg-success fs-6 px-3 py-2">3 &times; Doublettes</span>
+                <span class="badge bg-warning text-dark fs-6 px-3 py-2">2 &times; Triplettes</span>
+            </div>
+            <div class="mt-2 text-muted small">
+                <i class="bi bi-people-fill me-1"></i>
+                A VS tournament is an encounter between <strong>exactly two teams</strong>.
+                Register the two participating teams after creation.
             </div>
         </div>
         <div id="shuffle-note" class="mt-3 text-muted small">
@@ -248,14 +264,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const formatHint   = document.getElementById('format-hint');
         const formatCols   = document.querySelectorAll('.format-col');
         const shuffleNote  = document.getElementById('shuffle-note');
+        const vsSummary    = document.getElementById('vs-format-summary');
 
         if (!radio) {
             // No scenario selected yet — hide all cards, show hint
             formatCols.forEach(col => col.style.display = 'none');
             if (formatHint) formatHint.style.display = 'block';
+            if (vsSummary) vsSummary.style.display = 'none';
             return;
         }
         if (formatHint) formatHint.style.display = 'none';
+
+        // VS Mode: bypass the generic format selector entirely
+        if (radio.dataset.scenarioMode === 'vs_mode') {
+            formatCols.forEach(col => {
+                col.style.display = 'none';
+                const r = col.querySelector('input[type="radio"]');
+                if (r) r.checked = false;
+                col.querySelector('.format-option').classList.remove('selected');
+            });
+            if (vsSummary) vsSummary.style.display = 'block';
+            if (shuffleNote) shuffleNote.style.display = 'none';
+            return;
+        }
+        if (vsSummary) vsSummary.style.display = 'none';
 
         const supports = {
             singles: radio.dataset.supportssingles === 'true',

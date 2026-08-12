@@ -13,6 +13,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('my-matches/', smart_router.resolve_decision_url, name='my_active_matches'),
     path('my-matches/next-url/', smart_router.resolve_next_url, name='pfc_next_url'),
+    path('my-matches/qr-next-action/', smart_router.resolve_scanned_player_next_url, name='pfc_qr_next_action'),
     path('my-matches/list/', smart_router.my_matches_list, name='my_matches_list'),
     path('my-matches/old/', my_matches_view.my_active_matches, name='my_active_matches_old'),
     path('admin/', admin.site.urls),

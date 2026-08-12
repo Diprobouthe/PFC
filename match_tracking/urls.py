@@ -18,4 +18,6 @@ urlpatterns = [
     path('<str:match_type>/<int:pk>/undo/', views.undo_last_shot, name='undo_last_shot'),
     # Export PDF:                           /track/match/<match_id>/pdf/
     path('<str:match_type>/<int:pk>/pdf/', views.export_pdf, name='export_pdf'),
+    # End tracking session:                  /track/match/<match_id>/end-session/
+    path('<str:match_type>/<int:pk>/end-session/', views.end_tracking_session, name='end_tracking_session'),
 ]

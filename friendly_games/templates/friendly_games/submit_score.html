@@ -215,6 +215,7 @@
 
     <form method="post" id="scoreForm">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
 
         {# Hidden: codename (session-managed, never shown) #}
         <input type="hidden" name="submitter_codename" value="{{ session_codename|default:'' }}">
@@ -338,4 +339,11 @@ document.getElementById('scoreForm').addEventListener('submit', function(e) {
 {% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_id="fscore" timer_sound=False timer_start_epoch=game.timer_started_at|date:"U" %}
 {% endif %}
 </script>
+{% if qr_action_token %}
+<script>
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+</script>
+{% endif %}
 {% endblock %}

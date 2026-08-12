@@ -650,6 +650,11 @@ class FriendlyGameResult(models.Model):
             self.game.status = 'COMPLETED'
             self.game.completed_at = _result_now
             self.game.save()
+            try:
+                from match_tracking.services import end_tracking_sessions
+                end_tracking_sessions('game', self.game.id, 'match_completed')
+            except Exception:
+                pass  # Tracking cleanup must never block Friendly Game completion.
             
             # Update game validation status based on THREE-TIER system
             self._update_three_tier_validation_status()
