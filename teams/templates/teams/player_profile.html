@@ -402,14 +402,19 @@ a.mh-card::after {
         <div class="pp-hero-info">
             <div class="pp-hero-name">{{ player.name }}</div>
             <div class="pp-hero-meta">
-                {% if player.profile %}{{ player.profile.get_level_display.0 }} &middot; {{ player.profile.value|floatformat:2 }}{% endif %}
-                &middot; Joined {{ player.created_at|date:"M Y" }}
+                {% if player.profile and show_public_statistics %}{{ player.profile.get_level_display.0 }} &middot; {{ player.profile.value|floatformat:2 }} &middot;{% endif %}
+                Joined {{ player.created_at|date:"M Y" }}
             </div>
             <div class="pp-hero-badges">
                 <span class="pp-badge">{{ player.team.name }}</span>
                 {% if is_own_profile and player.team.pin %}<span class="pp-badge pin">PIN: {{ player.team.pin }}</span>{% endif %}
                 {% if player.profile.get_preferred_position_display %}
                     <span class="pp-badge">{{ player.profile.get_preferred_position_display }}</span>
+                {% endif %}
+                {% if player.profile.boule_brand or player.profile.boule_diameter_mm or player.profile.boule_weight_g %}
+                    <span class="pp-badge"><i class="fas fa-circle" style="font-size:.55rem;"></i>
+                        {% if player.profile.boule_brand %}{{ player.profile.boule_brand }}{% endif %}{% if player.profile.boule_diameter_mm %}{% if player.profile.boule_brand %} · {% endif %}{{ player.profile.boule_diameter_mm }} mm{% endif %}{% if player.profile.boule_weight_g %}{% if player.profile.boule_brand or player.profile.boule_diameter_mm %} · {% endif %}{{ player.profile.boule_weight_g }} g{% endif %}
+                    </span>
                 {% endif %}
             </div>
         </div>
@@ -432,6 +437,7 @@ a.mh-card::after {
     </div>
 
     <!-- ===== QUICK STATS ===== -->
+    {% if show_public_statistics %}
     <div class="pp-stats-strip">
         <div class="pp-stat-box">
             <span class="pp-stat-val">{{ overall_stats.matches_played }}</span>
@@ -450,15 +456,20 @@ a.mh-card::after {
             <span class="pp-stat-lbl">Win Rate</span>
         </div>
     </div>
+    {% else %}
+    <div class="mh-empty" style="margin:14px 0;"><i class="fas fa-lock"></i> This player keeps their statistics private.</div>
+    {% endif %}
 
     <!-- ===== TABS ===== -->
     <div class="pp-section" style="padding-bottom:0 !important;">
         <div class="pp-tabs">
             <a class="pp-tab active" data-pp-tab="pp-overall" href="#">Overall</a>
+            {% if show_public_statistics %}
             <a class="pp-tab" data-pp-tab="pp-tournament" href="#">Tournament</a>
             <a class="pp-tab" data-pp-tab="pp-friendly" href="#">Friendly</a>
             {% load shot_tracker_tags %}
             <a class="pp-tab" data-pp-tab="pp-shooting" href="#">Shot Tracker</a>
+            {% endif %}
         </div>
 
         <div class="tab-content" style="padding: 14px !important;">
@@ -466,6 +477,7 @@ a.mh-card::after {
             <!-- ===== OVERALL TAB ===== -->
             <div class="tab-pane fade show active" id="pp-overall">
 
+                {% if show_public_statistics %}
                 <!-- Game distribution -->
                 <div class="pp-stats-grid" style="margin-bottom:14px !important;">
                     <div class="pp-stats-item">
@@ -479,7 +491,7 @@ a.mh-card::after {
                 </div>
 
                 <!-- Rating Progression Chart -->
-                {% if rating_chart_data.has_data %}
+                {% if show_public_statistics and rating_chart_data.has_data %}
                 <div class="pp-section" style="margin-bottom:14px !important;">
                     <div class="pp-section-hdr">Rating Progression</div>
                     <div class="pp-section-body">
@@ -574,6 +586,7 @@ a.mh-card::after {
                 </div>
                 {% endif %}
 
+                {% endif %}
                 <!-- Match History (All Games) -->
                 <div class="pp-section">
                     <div class="pp-section-hdr">Match History</div>
@@ -669,6 +682,7 @@ a.mh-card::after {
                 </div>
             </div><!-- /pp-overall -->
 
+            {% if show_public_statistics %}
             <!-- ===== TOURNAMENT TAB ===== -->
             <div class="tab-pane fade" id="pp-tournament">
                 <div class="pp-stats-grid" style="margin-top:8px !important;">
@@ -804,6 +818,7 @@ a.mh-card::after {
                 {% shot_stats_summary %}
             </div>
             {% endif %}
+            {% endif %}
 
         </div><!-- /tab-content -->
     </div><!-- /pp-section tabs -->
@@ -813,7 +828,7 @@ a.mh-card::after {
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script>
-{% if rating_chart_data.has_data %}
+{% if show_public_statistics and rating_chart_data.has_data %}
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('ratingProgressionChart');
     if (ctx) {

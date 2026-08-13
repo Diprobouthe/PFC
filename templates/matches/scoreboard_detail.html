@@ -342,7 +342,7 @@
                 </a>
             {% elif scoreboard.tournament_match %}
                 {% if my_team_id %}
-                    <a href="{% url 'match_submit_result' match_id my_team_id %}" class="btn btn-success btn-sm">
+                    <a href="{% url 'match_submit_result' match_id my_team_id %}{% if qr_submit_action_token %}?qr_action={{ qr_submit_action_token|urlencode }}{% endif %}" class="btn btn-success btn-sm">
                         <i class="fas fa-flag-checkered"></i> Submit Score
                     </a>
                 {% else %}

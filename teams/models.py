@@ -196,6 +196,15 @@ class PlayerProfile(models.Model):
         null=True
     )
     
+    # Public profile privacy and boule details
+    hide_public_statistics = models.BooleanField(
+        default=False,
+        help_text="Hide rating and statistical summaries from other users while preserving personal access."
+    )
+    boule_brand = models.CharField(max_length=80, blank=True, default='')
+    boule_diameter_mm = models.PositiveSmallIntegerField(blank=True, null=True)
+    boule_weight_g = models.PositiveSmallIntegerField(blank=True, null=True)
+
     # Media
     profile_picture = models.ImageField(
         upload_to=player_profile_picture_path,

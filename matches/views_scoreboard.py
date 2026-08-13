@@ -222,11 +222,25 @@ def scoreboard_detail(request, scoreboard_id):
         team2_name = scoreboard.get_team2_name()
         court_complex = scoreboard.friendly_game.court_complex
     
-    # Resolve which team the current session belongs to (for single submit button)
+    # Resolve which team the current session belongs to (for single submit button).
+    # A short-lived Matches-page QR proof has precedence over the phone holder's
+    # normal session, so the scanned participant can complete the existing
+    # score → submit-result handoff on this one browser session.
     my_team_id = None
     if scoreboard.tournament_match:
+        if qr_action_player:
+            try:
+                from matches.models import MatchPlayer
+                qr_match_player = MatchPlayer.objects.filter(
+                    match=scoreboard.tournament_match,
+                    player=qr_action_player,
+                ).select_related('team').first()
+                if qr_match_player:
+                    my_team_id = qr_match_player.team_id
+            except Exception:
+                pass
         codename = request.session.get('player_codename')
-        if codename:
+        if my_team_id is None and codename:
             try:
                 from matches.models import MatchPlayer
                 player_obj = PlayerCodename.objects.get(codename=codename.upper()).player
@@ -249,6 +263,21 @@ def scoreboard_detail(request, scoreboard_id):
                 except Exception:
                     pass
 
+    # The score page has a child proof for AJAX score updates. When a
+    # tournament participant is QR-authorized, issue a second child proof for
+    # the existing Submit Result page so the same temporary authorization
+    # survives this final handoff without exposing a player codename or PIN.
+    qr_submit_action_token = ''
+    if scoreboard.tournament_match and qr_action_player and my_team_id:
+        qr_submit_action_token = issue_qr_action_token(
+            request,
+            qr_action_player,
+            reverse('match_submit_result', kwargs={
+                'match_id': scoreboard.tournament_match_id,
+                'team_id': my_team_id,
+            }),
+        )
+
     context = {
         'scoreboard': scoreboard,
         'recent_updates': recent_updates,
@@ -270,6 +299,7 @@ def scoreboard_detail(request, scoreboard_id):
         # Codename → player name map (privacy: templates must use this, never raw codename)
         'scorekeeper_names': scorekeeper_names,
         'qr_score_action_token': qr_score_action_token,
+        'qr_submit_action_token': qr_submit_action_token,
     }
     
     return render(request, 'matches/scoreboard_detail.html', context)

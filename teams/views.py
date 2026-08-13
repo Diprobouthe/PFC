@@ -622,7 +622,10 @@ def player_leaderboard(request):
     order = request.GET.get('order', 'desc')
     
     # Start with all players that have profiles
-    players = Player.objects.filter(profile__isnull=False).select_related('team', 'profile')
+    players = Player.objects.filter(
+        profile__isnull=False,
+        profile__hide_public_statistics=False,
+    ).select_related('team', 'profile')
     
     # Apply filters
     if team_id:
@@ -696,7 +699,8 @@ def player_leaderboard(request):
         order_prefix = '-' if order == 'desc' else ''
         sort_field = f"{order_prefix}profile__{sort_by}"
         players_with_stats = list(Player.objects.filter(
-            profile__isnull=False
+            profile__isnull=False,
+            profile__hide_public_statistics=False,
         ).select_related('team', 'profile').order_by(sort_field))
         
         # Still need to add accurate stats for display
@@ -1281,6 +1285,10 @@ def player_profile(request, player_id):
         except Exception:
             is_own_profile = False
 
+    show_public_statistics = is_own_profile or not (
+        getattr(player, 'profile', None) and player.profile.hide_public_statistics
+    )
+
     context = {
         'player': player,
         'matches': tournament_matches,  # Tournament matches for match history table
@@ -1295,6 +1303,7 @@ def player_profile(request, player_id):
         'rating_chart_data': rating_chart_data,  # NEW: Rating progression chart data
         'tracker_enabled': True,  # Enable shooting practice tracker tab
         'is_own_profile': is_own_profile,  # True only when viewing your own profile
+        'show_public_statistics': show_public_statistics,
     }
     
     return render(request, 'teams/player_profile.html', context)
@@ -1423,7 +1432,8 @@ def friendly_games_leaderboard(request):
         base_query = FriendlyGamePlayer.objects.filter(
             game__validation_status="FULLY_VALIDATED",
             game__status="COMPLETED",
-            codename_verified=True
+            codename_verified=True,
+            player__profile__hide_public_statistics=False,
         )
         
         # Apply position filter
@@ -1517,7 +1527,8 @@ def calculate_friendly_game_trophies():
         base_query = FriendlyGamePlayer.objects.filter(
             game__validation_status="FULLY_VALIDATED",
             game__status="COMPLETED",
-            codename_verified=True
+            codename_verified=True,
+            player__profile__hide_public_statistics=False,
         )
         
         # Most Active Players (Star Trophies)
@@ -1607,7 +1618,8 @@ def calculate_position_leaderboards():
         base_query = FriendlyGamePlayer.objects.filter(
             game__validation_status="FULLY_VALIDATED",
             game__status="COMPLETED",
-            codename_verified=True
+            codename_verified=True,
+            player__profile__hide_public_statistics=False,
         )
         
         # Position-specific leaderboards
@@ -2173,6 +2185,35 @@ def edit_player_profile(request):
                 messages.success(request, 'Position preference saved!')
             else:
                 messages.error(request, 'Invalid position selected.')
+            return redirect('edit_player_profile')
+
+        # --- Public statistics privacy ---
+        if action == 'update_statistics_privacy':
+            player_profile.hide_public_statistics = request.POST.get('hide_public_statistics') == 'on'
+            player_profile.save(update_fields=['hide_public_statistics', 'updated_at'])
+            messages.success(request, 'Statistics privacy preference saved!')
+            return redirect('edit_player_profile')
+
+        # --- Boule details ---
+        if action == 'update_boules':
+            brand = request.POST.get('boule_brand', '').strip()
+            diameter = request.POST.get('boule_diameter_mm', '').strip()
+            weight = request.POST.get('boule_weight_g', '').strip()
+            try:
+                diameter_value = int(diameter) if diameter else None
+                weight_value = int(weight) if weight else None
+                if diameter_value is not None and not 1 <= diameter_value <= 999:
+                    raise ValueError
+                if weight_value is not None and not 1 <= weight_value <= 9999:
+                    raise ValueError
+            except ValueError:
+                messages.error(request, 'Diameter and weight must be valid whole numbers.')
+                return redirect('edit_player_profile')
+            player_profile.boule_brand = brand[:80]
+            player_profile.boule_diameter_mm = diameter_value
+            player_profile.boule_weight_g = weight_value
+            player_profile.save(update_fields=['boule_brand', 'boule_diameter_mm', 'boule_weight_g', 'updated_at'])
+            messages.success(request, 'Boule details saved!')
             return redirect('edit_player_profile')
 
         # --- Team transfer via PIN ---
