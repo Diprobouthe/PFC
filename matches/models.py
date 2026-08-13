@@ -221,6 +221,9 @@ class Match(models.Model):
         This method is designed to be non-breaking - if it fails, it won't affect match completion.
         """
         try:
+            # Independent Games never advances a Knockout bracket.
+            if self.tournament.format == "independent_games":
+                return
             # Only trigger for knockout tournaments
             if self.tournament.format == "knockout":
                 print(f"Triggering knockout automation check for tournament {self.tournament.name}")

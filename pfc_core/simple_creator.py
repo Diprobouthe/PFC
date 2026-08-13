@@ -83,6 +83,7 @@ def get_available_scenarios():
                     'draft_type': scenario.draft_type,
                     'num_rounds': scenario.num_rounds,
                     'matches_per_team': getattr(scenario, 'matches_per_team', 3),
+                    'vs_default_num_matches': getattr(scenario, 'vs_default_num_matches', 11),
                     # Supported formats — drives which format cards are shown in the creator
                     'supports_singles': getattr(scenario, 'supports_singles', False),
                     'supports_doubles': getattr(scenario, 'supports_doubles', True),
@@ -124,8 +125,19 @@ def create_simple_tournament(request):
         # For VS mode, format_type is not required (the full structure is always created)
         scenario_data_check = get_available_scenarios().get(scenario_key, {})
         is_vs_scenario = scenario_data_check.get('scenario_mode') == 'vs_mode'
+        num_vs_matches = int(scenario_data_check.get('vs_default_num_matches', 11) or 11)
         if is_vs_scenario:
-            format_type = 'doubles'  # harmless placeholder; not used in VS creation
+            # VS is an Independent Games encounter. The administrator chooses
+            # only the number of open-format matches the two teams will play.
+            try:
+                num_vs_matches = int(request.POST.get('num_vs_matches', num_vs_matches))
+            except (TypeError, ValueError):
+                messages.error(request, 'Number of VS matches must be a whole number.')
+                return redirect('simple_creator_home')
+            if num_vs_matches < 1:
+                messages.error(request, 'A VS tournament must contain at least one match.')
+                return redirect('simple_creator_home')
+            format_type = 'vs'  # explicit non-generic VS creation sentinel
         if not all([scenario_key, num_courts]) or (not is_vs_scenario and not format_type):
             messages.error(request, 'Please fill all required fields')
             return redirect('simple_creator_home')
@@ -188,11 +200,13 @@ def create_simple_tournament(request):
         # Get timer and pregame countdown from scenario
         timer_minutes = scenario.get('pregame_countdown_minutes', None)  # match time limit
         pregame_countdown = None
+        scenario_certifying_entity = None
         if USE_DYNAMIC_SCENARIOS and 'id' in scenario:
             try:
                 scenario_obj = TournamentScenario.objects.get(id=scenario['id'])
                 timer_minutes = scenario_obj.default_time_limit_minutes
                 pregame_countdown = scenario_obj.pregame_countdown_minutes  # may be None
+                scenario_certifying_entity = scenario_obj.certifying_entity
             except TournamentScenario.DoesNotExist:
                 pass
 
@@ -206,14 +220,20 @@ def create_simple_tournament(request):
             'singles': 'tete_a_tete',
             'doubles': 'doublets',
             'triples': 'triplets',
+            'vs': 'mixed',
         }
         _play_fmt = _play_fmt_map.get(format_type, 'doublets')
         tournament_kwargs = dict(
             name=tournament_name,
-            description=f"Simple {scenario['name']} tournament ({scenario_mode.replace('_', ' ').title()}) with {num_courts} courts",
+            description=(
+                f"VS encounter: exactly two teams, {num_vs_matches} open-format matches, "
+                f"and {num_courts} courts"
+                if is_vs_mode else
+                f"Simple {scenario['name']} tournament ({scenario_mode.replace('_', ' ').title()}) with {num_courts} courts"
+            ),
             start_date=start_datetime,
             end_date=end_datetime,
-            format="multi_stage",
+            format="independent_games" if is_vs_mode else "multi_stage",
             play_format=_play_fmt,
             has_tete_a_tete=(format_type == 'singles'),
             has_doublets=(format_type == 'doubles'),
@@ -221,19 +241,29 @@ def create_simple_tournament(request):
             is_active=True,
             automation_status="idle",
             default_time_limit_minutes=timer_minutes,
+            certifying_entity=scenario_certifying_entity,
         )
         if pregame_countdown is not None:
             tournament_kwargs['pregame_countdown_minutes'] = pregame_countdown
 
         if is_vs_mode:
-            # VS Mode: Team vs Team encounter with fixed 6 Tête-à-tête + 3 Doubles + 2 Triples.
-            # format_type is irrelevant for VS — the full structure is always created.
-            # Exactly two teams must be registered before the encounter can begin.
+            # VS Mode is an encounter between exactly two teams.  All pending
+            # matches begin without a format; their equal-sized lineups decide
+            # whether they become Tête-à-tête, Doublettes, or Triplettes.
             tournament_kwargs.update(
                 is_melee=False,
                 melee_teams_generated=False,
-                max_participants=2,  # VS is always exactly two teams
-                play_format='doublets',  # placeholder; sub-games use their own match_type
+                max_participants=2,  # VS is always exactly two registered teams
+                play_format='mixed',
+                has_tete_a_tete=True,
+                has_doublets=True,
+                has_triplets=True,
+                allowed_match_types={
+                    'vs_mode': True,
+                    'vs_num_matches': num_vs_matches,
+                    'allowed_match_types': ['tete_a_tete', 'doublet', 'triplet'],
+                    'allow_mixed': False,
+                },
             )
         elif is_melee_mode:
             # Mêlée and Super Mêlée: individual player registration, dynamic team generation
@@ -289,22 +319,25 @@ def create_simple_tournament(request):
             tournament.delete()
             raise
         
-        # Create tournament stage
-        stage = Stage.objects.create(
-            tournament=tournament,
-            name="Main Stage",
-            stage_number=1,
-            format=scenario['tournament_type'],
-            num_qualifiers=1,
-            is_complete=False
-        )
-        
-        if scenario['tournament_type'] == 'swiss':
-            stage.num_rounds_in_stage = scenario['num_rounds']
-        else:  # round_robin
-            stage.num_rounds_in_stage = scenario['num_rounds']
-            stage.num_matches_per_team = scenario['matches_per_team']
-        stage.save()
+        # VS is not a staged tournament.  Its N independent pending Matches
+        # are created only when the second team registers, so it must never
+        # receive a generic Stage, Round, or bracket-generation configuration.
+        if not is_vs_mode:
+            stage = Stage.objects.create(
+                tournament=tournament,
+                name="Main Stage",
+                stage_number=1,
+                format=scenario['tournament_type'],
+                num_qualifiers=1,
+                is_complete=False
+            )
+
+            if scenario['tournament_type'] == 'swiss':
+                stage.num_rounds_in_stage = scenario['num_rounds']
+            else:  # round_robin
+                stage.num_rounds_in_stage = scenario['num_rounds']
+                stage.num_matches_per_team = scenario['matches_per_team']
+            stage.save()
         
         # No real court assignment needed for virtual courts
         
@@ -329,7 +362,7 @@ def create_simple_tournament(request):
             'tournament_name': tournament.name,
             'scenario': scenario['name'],
             'scenario_mode': scenario_mode,
-            'format': 'VS Mode (6 Tête-à-tête · 3 Doublettes · 2 Triplettes)' if is_vs_mode else format_type.title(),
+            'format': f'VS Mode ({num_vs_matches} matches — format chosen at start)' if is_vs_mode else format_type.title(),
             'court_complex': scenario_obj.default_court_complex.name,
             'selected_courts': real_courts,
             'num_courts': num_courts,
@@ -466,6 +499,14 @@ def start_tournament(request, tournament_id):
 
         else:
             # ---- Normal Team Tournament path ----
+            if tournament.format == 'independent_games':
+                messages.info(
+                    request,
+                    'VS Independent Games does not use generic tournament generation. '
+                    'Its pending matches are created when the second team registers.'
+                )
+                return redirect('manage_tournament', tournament_id=tournament_id)
+
             from matches.models import Match
             if Match.objects.filter(tournament=tournament).exists():
                 messages.error(request, 'Tournament has already been started (matches exist)')

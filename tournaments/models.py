@@ -19,6 +19,7 @@ class Tournament(models.Model):
         ("smart_swiss", "Smart Swiss System"),
         ("wtf", "WTF (πετΑ Index)"),
         ("multi_stage", "Multi-Stage"),
+        ("independent_games", "Independent Games (VS)"),
     ]
     
     PLAY_FORMATS = [
@@ -140,6 +141,8 @@ class Tournament(models.Model):
         return self.name
     
     def save(self, *args, **kwargs):
+        # Independent Games is a non-staged VS format. All ordinary formats
+        # retain their existing multi-stage behavior unchanged.
         self.is_multi_stage = (self.format == "multi_stage")
         if sum([self.has_triplets, self.has_doublets, self.has_tete_a_tete]) > 1:
             self.play_format = "mixed"
@@ -172,6 +175,16 @@ class Tournament(models.Model):
         from matches.models import Match # Import locally
         import random
         import math
+
+        # Independent Games matches are directly created as pending Match
+        # records when the second VS team registers. They have no generator.
+        if self.format == "independent_games":
+            logger.info(
+                "Skipping generic generation for Independent Games tournament %s; "
+                "its pending matches are registration-created.",
+                self.pk,
+            )
+            return 0
         
         if self.is_multi_stage:
             first_stage = self.stages.order_by("stage_number").first()
@@ -667,6 +680,10 @@ class Tournament(models.Model):
         Advances qualifying teams to the next stage and generates matches.
         Returns: (advanced: bool, matches_created: int, tournament_complete: bool)
         """
+        if self.format == "independent_games":
+            # Independent Games has no stages or qualifying progression. Its
+            # encounter completes only after its pending matches finish.
+            return False, 0, self.is_tournament_complete()
         if self.format != "multi_stage":
             return False, 0, False
             

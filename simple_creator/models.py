@@ -58,19 +58,34 @@ class TournamentScenario(models.Model):
         help_text="Type of tournament this scenario creates"
     )
 
-    # VS Mode configuration — only used when scenario_mode='vs_mode'.
-    # Defines the game composition and point values for each sub-game format.
-    # Standard preset: 6 Tête-à-tête (2 pts), 3 Doubles (3 pts), 2 Triples (5 pts).
+    # Legacy fixed-composition data retained for historical VS scenarios only.
+    # New VS scenarios use the Independent Games generator and do not read it.
     vs_config = models.JSONField(
         null=True,
         blank=True,
         default=None,
         help_text=(
-            'VS Mode game composition and point values. '
-            'Example: {"games": [{"format": "tete_a_tete", "count": 6, "points_per_win": 2}, '
-            '{"format": "doublets", "count": 3, "points_per_win": 3}, '
-            '{"format": "triplets", "count": 2, "points_per_win": 5}]}'
+            'Legacy fixed VS composition retained for historical records. '
+            'New VS scenarios use Independent Games and the Number of Games setting instead.'
         )
+    )
+    vs_default_num_matches = models.PositiveIntegerField(
+        default=11,
+        help_text=(
+            'Default Number of Games for an Independent Games / VS Scenario. '
+            'The creator may choose a different value of at least one game.'
+        ),
+    )
+
+    # Optional existing certification configuration.  The created Tournament
+    # receives this entity and uses the current certification processor.
+    certifying_entity = models.ForeignKey(
+        'cert_ratings.CertifyingEntity',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='scenarios',
+        help_text='Optional Certifying Entity for tournaments created from this Scenario.',
     )
 
     # Pre-game court countdown (maps to Tournament.pregame_countdown_minutes)
@@ -87,6 +102,7 @@ class TournamentScenario(models.Model):
         ('knockout', 'Knockout'),
         ('wtf', 'WTF (πετΑ Index)'),
         ('smart_swiss', 'Smart Swiss'),
+        ('independent_games', 'Independent Games (VS only)'),
     ])
     num_rounds = models.IntegerField(default=3)
     matches_per_team = models.IntegerField(default=3)
@@ -105,6 +121,17 @@ class TournamentScenario(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
     
+    def save(self, *args, **kwargs):
+        # VS has no generic algorithm and always permits all three normal
+        # pétanque formats. The individual Match remains format-neutral until
+        # equal lineups are selected at activation.
+        if self.scenario_mode == 'vs_mode':
+            self.tournament_type = 'independent_games'
+            self.supports_singles = True
+            self.supports_doubles = True
+            self.supports_triples = True
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.display_name} ({'Free' if self.is_free else 'Voucher Required'})"
     
@@ -174,10 +201,11 @@ class SimpleTournament(models.Model):
     """Simple tournament created through the user interface"""
     tournament = models.OneToOneField(Tournament, on_delete=models.CASCADE)
     scenario = models.ForeignKey(TournamentScenario, on_delete=models.CASCADE)
-    format_type = models.CharField(max_length=10, choices=[
+    format_type = models.CharField(max_length=20, choices=[
         ('singles', 'Singles / Tête-à-tête'),
         ('doubles', 'Doubles'),
         ('triples', 'Triples'),
+        ('vs', 'VS / Independent Games'),
     ])
     
     # Court configuration - either real or virtual

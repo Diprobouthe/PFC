@@ -302,26 +302,37 @@ def _create_vs_tournament(scenario, form_data, start_date, end_date, tournament_
 
     A VS tournament:
       - Is NOT a Mêlée (is_melee=False)
-      - Has play_format='vs_mode'
+      - Uses the Independent Games format
       - Contains exactly two registered teams
-      - Automatically creates a VSEncounter and all 11 sub-games
-        (6 Tête-à-tête + 3 Doublettes + 2 Triplettes) from the scenario's
-        vs_config (falls back to DEFAULT_VS_CONFIG)
+      - Creates its configured number of format-neutral pending matches only
+        after those two teams are registered
 
-    The format selector is bypassed — the full VS structure is fixed.
+    The generic format selector is bypassed. Individual Match formats are
+    determined only by equal lineups when each Match starts.
     """
-    from tournaments.models import VSEncounter
-    from tournaments.vs_utils import generate_vs_sub_games
-
     num_courts = form_data['num_courts']
+    num_vs_matches = int(form_data.get('num_vs_matches', scenario.vs_default_num_matches) or 11)
 
     tournament = Tournament.objects.create(
         name=tournament_name,
-        description=f"VS Mode encounter — {scenario.display_name}",
+        description=(
+            f"VS Independent Games encounter — {scenario.display_name}; "
+            f"{num_vs_matches} open-format matches"
+        ),
         start_date=start_date,
         end_date=end_date,
-        format="multi_stage",
-        play_format="vs_mode",
+        format="independent_games",
+        play_format="mixed",
+        has_tete_a_tete=True,
+        has_doublets=True,
+        has_triplets=True,
+        allowed_match_types={
+            "vs_mode": True,
+            "vs_num_matches": max(1, num_vs_matches),
+            "allowed_match_types": ["tete_a_tete", "doublet", "triplet"],
+            "allow_mixed": False,
+        },
+        certifying_entity=scenario.certifying_entity,
         is_active=True,
         max_participants=2,  # VS is always exactly two teams
         is_melee=False,
@@ -338,7 +349,7 @@ def _create_vs_tournament(scenario, form_data, start_date, end_date, tournament_
     simple_tournament = SimpleTournament.objects.create(
         tournament=tournament,
         scenario=scenario,
-        format_type='doubles',  # closest valid choice; VS is identified by scenario_mode
+        format_type='vs',
         uses_virtual_courts=False,
         num_courts=num_courts,
         court_complex=scenario.default_court_complex,
@@ -350,21 +361,9 @@ def _create_vs_tournament(scenario, form_data, start_date, end_date, tournament_
     if voucher_object:
         voucher_object.use_voucher(tournament)
 
-    # Create a single Stage so the tournament admin/detail pages work
-    Stage.objects.create(
-        tournament=tournament,
-        stage_number=1,
-        name="VS Encounter",
-        format="round_robin",
-        num_qualifiers=0,
-        num_rounds_in_stage=1,
-        is_complete=False,
-    )
-
-    # NOTE: The VSEncounter and its 11 sub-games are created when the two teams
-    # are registered and activate their lineups.  At creation time we do not yet
-    # know which two teams will participate, so we leave the encounter creation
-    # to the team-registration flow (tournaments/views.py tournament_register*).
+    # NOTE: The VSEncounter and its Independent Games matches are created when
+    # the two teams register. At creation time we do not yet know both teams,
+    # so direct pending-match generation stays in the shared registration flow.
     # The tournament is returned ready for team registration.
 
     return simple_tournament

@@ -554,6 +554,13 @@ def match_activate(request, match_id, team_id):
                 match.match_type = _detected_type
                 match.team1_player_count = _c1
                 match.team2_player_count = _c2
+                if match.vs_encounter_id:
+                    from tournaments.vs_utils import apply_vs_match_format
+                    try:
+                        apply_vs_match_format(match, _detected_type, _c1, _c2)
+                    except ValueError as exc:
+                        messages.error(request, str(exc))
+                        return redirect("match_activate", match_id=match.id, team_id=team.id)
                 match.save()
 
                 # Create Team A activation (initiator)
@@ -684,10 +691,24 @@ def match_activate(request, match_id, team_id):
                         "is_validating": is_validating,
                     })
                 
-                # Store match type information for statistics
+                # Store match type information for statistics. In VS, the
+                # detected equal lineup also determines the leaderboard value.
                 match.match_type = detected_type
                 match.team1_player_count = count1
                 match.team2_player_count = count2
+                if match.vs_encounter_id:
+                    from tournaments.vs_utils import apply_vs_match_format
+                    try:
+                        apply_vs_match_format(match, detected_type, count1, count2)
+                    except ValueError as exc:
+                        messages.error(request, str(exc))
+                        return render(request, "matches/match_activate.html", {
+                            "match": match,
+                            "team": team,
+                            "form": form,
+                            "is_initiating": is_initiating,
+                            "is_validating": is_validating,
+                        })
                 match.save()
                 
                 # Update match_format for all players in this match
@@ -1162,7 +1183,15 @@ def match_validate_result(request, match_id, team_id):
                 # Check if tournament should advance to next stage/round after match completion
                 try:
                     tournament = match.tournament
-                    if tournament.format == "multi_stage":
+                    if tournament.format == "independent_games":
+                        # Independent Games consists only of registration-created
+                        # matches. Results update VS points but never create a
+                        # stage, round, bracket, pairing, or final.
+                        logger.info(
+                            "Skipping generic progression for Independent Games tournament %s",
+                            tournament.id,
+                        )
+                    elif tournament.format == "multi_stage":
                         advanced, matches_created, tournament_complete = tournament.advance_to_next_stage()
                         if advanced:
                             logger.info(f"Tournament {tournament.name} advanced to next stage, created {matches_created} matches")

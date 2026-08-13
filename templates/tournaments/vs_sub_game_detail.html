@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}VS Sub-Game — {{ match.match_type|title }}{% endblock %}
+{% block title %}VS Match — {{ team1.name }} vs {{ team2.name }}{% endblock %}
 
 {% block content %}
 <div class="container py-4" style="max-width: 640px;">
@@ -8,11 +8,15 @@
   <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body text-center">
       <h4 class="fw-bold mb-1">
-        {% if match.match_type == 'tete_a_tete' %}Tête-à-tête
-        {% elif match.match_type == 'doublet' %}Doubles
-        {% else %}Triples{% endif %}
-        &nbsp;·&nbsp;
-        <span class="text-success">{{ match.vs_points_value }} pt{% if match.vs_points_value != 1 %}s{% endif %}</span>
+        {% if match.match_type == 'tete_a_tete' %}
+          Tête-à-tête <span class="text-success">· 2 pts</span>
+        {% elif match.match_type == 'doublet' %}
+          Doublettes <span class="text-success">· 3 pts</span>
+        {% elif match.match_type == 'triplet' %}
+          Triplettes <span class="text-success">· 5 pts</span>
+        {% else %}
+          Format chosen at match start
+        {% endif %}
       </h4>
       <p class="text-muted mb-0">
         <a href="{% url 'vs_encounter_detail' encounter.id %}" class="text-decoration-none">
@@ -31,6 +35,12 @@
           {{ match.get_status_display }}
         </span>
       </div>
+
+      {% if not match.match_type and match.status == 'pending' %}
+      <p class="small text-muted mt-2 mb-0">
+        Each team selects 1, 2, or 3 players. Both lineups must contain the same number of players.
+      </p>
+      {% endif %}
 
       {# Result (if completed) #}
       {% if match.status == 'completed' %}
@@ -82,7 +92,7 @@
           <hr>
           <form id="lineup-form" class="mt-2">
             {% csrf_token %}
-            <p class="small text-muted mb-2">Select your players for this sub-game:</p>
+            <p class="small text-muted mb-2">Select 1, 2, or 3 players. The opponent must select the same number.</p>
             <div id="player-checkboxes" class="mb-3">
               {# Populated via JS below #}
               <p class="text-muted small">Loading players…</p>
@@ -140,6 +150,11 @@
     <a href="{% url 'vs_encounter_detail' encounter.id %}" class="btn btn-outline-secondary btn-sm">
       &larr; Back to Encounter
     </a>
+    {% if match.status == 'active' or match.status == 'pending_verification' or match.status == 'waiting_validation' %}
+    <a href="{% url 'match_detail' match.id %}" class="btn btn-primary btn-sm">
+      Open Match
+    </a>
+    {% endif %}
   </div>
 
 </div>

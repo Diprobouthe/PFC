@@ -208,7 +208,9 @@
         <span class="td-badge td-badge-melee"><i class="fas fa-users"></i> Mêlée</span>
       {% endif %}
 
-      <span class="td-badge td-badge-format">{{ tournament.get_format_display }}</span>
+      <span class="td-badge td-badge-format">
+        {% if is_vs_mode %}VS Encounter{% else %}{{ tournament.get_format_display }}{% endif %}
+      </span>
 
       {% if tournament.start_date %}
         <span style="opacity:.75"><i class="fas fa-calendar-alt" style="margin-right:4px"></i>{{ tournament.start_date|date:"d M Y" }}</span>
@@ -235,9 +237,15 @@
       </a>
     {% endif %}
 
+    {% if is_vs_mode and vs_encounter %}
+    <a href="{% url 'vs_encounter_detail' vs_encounter.id %}" class="td-action-btn td-btn-matches">
+      <span>VS Encounter</span>
+    </a>
+    {% else %}
     <a href="{% url 'tournament_matches' tournament.id %}" class="td-action-btn td-btn-matches">
       <span>Matches</span>
     </a>
+    {% endif %}
   </div>
 
   <!-- ── Secondary actions (Mêlée-specific) ─────────────────────── -->
@@ -308,8 +316,8 @@
           <span><span class="badge bg-info">{{ tournament.get_automation_status_display }}</span></span>
         </div>
         <div class="td-meta-item">
-          <label>Multi-Stage</label>
-          <span>{% if tournament.is_multi_stage %}Yes{% else %}No{% endif %}</span>
+          <label>{% if is_vs_mode %}VS Structure{% else %}Multi-Stage{% endif %}</label>
+          <span>{% if is_vs_mode %}Independent matches{% elif tournament.is_multi_stage %}Yes{% else %}No{% endif %}</span>
         </div>
         {% if tournament.start_date %}
         <div class="td-meta-item">

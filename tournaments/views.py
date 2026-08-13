@@ -50,10 +50,14 @@ def tournament_detail(request, tournament_id):
     # Ensure leaderboard is created and updated
     update_tournament_leaderboard(tournament)
     
+    is_vs_mode = bool((tournament.allowed_match_types or {}).get('vs_mode'))
+    vs_encounter = tournament.vs_encounters.first() if is_vs_mode else None
     context = {
         'tournament': tournament,
         'rounds': rounds,
         'teams': teams,
+        'is_vs_mode': is_vs_mode,
+        'vs_encounter': vs_encounter,
     }
     return render(request, 'tournaments/tournament_detail.html', context)
 
@@ -161,6 +165,17 @@ def tournament_archive(request, tournament_id):
 def generate_matches(request, tournament_id):
     """View for generating matches based on tournament format (staff only)"""
     tournament = get_object_or_404(Tournament, id=tournament_id)
+
+    # Independent Games is intentionally non-algorithmic. Its pending matches
+    # are created by the second-team registration service, never by a generic
+    # Knockout, Round Robin, Swiss, or staged generation path.
+    if tournament.format == 'independent_games':
+        messages.info(
+            request,
+            'Independent Games matches are created automatically when the second team registers. '
+            'Generic match generation is not used for VS.'
+        )
+        return redirect('tournament_detail', tournament_id=tournament.id)
     
     # For Mêlée tournaments, ensure teams have been generated first
     if tournament.is_melee and not tournament.melee_teams_generated:
@@ -1012,6 +1027,102 @@ def _get_team_from_pin(request, tournament):
         return None
 
 
+def _activate_locked_vs_match(match_id):
+    """Activate a VS match after both teams have locked equal valid lineups.
+
+    The existing generic activation state is preserved: MatchActivation and
+    MatchPlayer records are created, then the established court-assignment and
+    match-state notification helpers are used.  This helper is VS-only.
+    """
+    from django.db import transaction
+    from matches.models import MatchActivation, MatchPlayer
+    from matches.utils import auto_assign_court, detect_match_type, validate_match_type
+    from courts.timezone_utils import get_court_local_now
+    from pfc_events.signals import notify_match_state_changed
+    from tournaments.vs_utils import apply_vs_match_format
+    from .models import VSLineup
+
+    with transaction.atomic():
+        match = Match.objects.select_for_update().select_related(
+            'tournament', 'team1', 'team2'
+        ).get(pk=match_id)
+        if match.status != 'pending':
+            return False, 'This VS match has already been started.'
+        if not (match.vs_lineup_team1_locked and match.vs_lineup_team2_locked):
+            return False, 'Both teams must lock a lineup before the match can start.'
+
+        lineup1 = VSLineup.objects.prefetch_related('players').filter(
+            match=match, team=match.team1
+        ).first()
+        lineup2 = VSLineup.objects.prefetch_related('players').filter(
+            match=match, team=match.team2
+        ).first()
+        team1_players = list(lineup1.players.all()) if lineup1 else []
+        team2_players = list(lineup2.players.all()) if lineup2 else []
+        match_type, count1, count2 = detect_match_type(team1_players, team2_players)
+        is_valid, error_message = validate_match_type(
+            match_type, count1, count2, match.tournament
+        )
+        if not is_valid:
+            return False, error_message
+        try:
+            apply_vs_match_format(match, match_type, count1, count2)
+        except ValueError as exc:
+            return False, str(exc)
+
+        match.match_type = match_type
+        match.team1_player_count = count1
+        match.team2_player_count = count2
+        match.save(update_fields=[
+            'match_type', 'team1_player_count', 'team2_player_count',
+            'vs_points_value', 'updated_at',
+        ])
+
+        for team, players, is_initiator in (
+            (match.team1, team1_players, True),
+            (match.team2, team2_players, False),
+        ):
+            MatchActivation.objects.get_or_create(
+                match=match,
+                team=team,
+                defaults={'pin_used': team.pin or '', 'is_initiator': is_initiator},
+            )
+            for player in players:
+                MatchPlayer.objects.update_or_create(
+                    match=match,
+                    player=player,
+                    defaults={
+                        'team': team,
+                        'role': 'flex',
+                        'match_format': match_type,
+                    },
+                )
+        MatchPlayer.objects.filter(match=match).update(match_format=match_type)
+
+        court = auto_assign_court(match)
+        if court:
+            court_complex = court.courtcomplex_set.first()
+            match.status = 'active'
+            match.start_time = (
+                get_court_local_now(court_complex) if court_complex else timezone.now()
+            )
+            match.waiting_for_court = False
+        else:
+            # This is the established state consumed by the court-waiting
+            # assignment command once both teams have activated.
+            match.status = 'pending_verification'
+            match.waiting_for_court = True
+        match.save(update_fields=['status', 'start_time', 'waiting_for_court', 'updated_at'])
+        notify_match_state_changed(match.id, match.status)
+
+    if court:
+        # Keep court-presence registration consistent with normal activation.
+        from matches.views import auto_register_players_to_billboard
+        auto_register_players_to_billboard(match)
+        return True, 'Both lineups are locked. The VS match is active.'
+    return True, 'Both lineups are locked. The match is waiting for a court.'
+
+
 def vs_lineup_submit(request, match_id):
     """
     POST: Submit (and lock) a team's lineup for a VS sub-game.
@@ -1059,6 +1170,7 @@ def vs_lineup_submit(request, match_id):
     is_team1 = (requesting_team.pk == encounter.team1_id)
     opponent_team_id = encounter.team2_id if is_team1 else encounter.team1_id
 
+    activation_message = None
     if request.method == "POST":
         try:
             body = json.loads(request.body)
@@ -1068,35 +1180,82 @@ def vs_lineup_submit(request, match_id):
         player_ids = body.get("player_ids", [])
         if not isinstance(player_ids, list):
             return JsonResponse({"ok": False, "error": "player_ids must be a list"}, status=400)
+        if len(player_ids) != len(set(player_ids)):
+            return JsonResponse({"ok": False, "error": "A player can only be selected once."}, status=400)
+        if not 1 <= len(player_ids) <= 3:
+            return JsonResponse({
+                "ok": False,
+                "error": "A VS lineup must contain 1, 2, or 3 players."
+            }, status=400)
 
-        # Check if lineup already locked
-        existing = VSLineup.objects.filter(match=match, team=requesting_team).first()
-        if existing and existing.is_locked:
-            return JsonResponse({"ok": False, "error": "Lineup already locked and cannot be changed."}, status=400)
+        # Locking and the opponent-count check share one transaction.  This
+        # prevents two simultaneous requests from creating a locked mixed
+        # format such as 1v2.
+        from django.db import transaction
+        with transaction.atomic():
+            locked_match = Match.objects.select_for_update().get(pk=match.pk)
+            if locked_match.status != 'pending':
+                return JsonResponse({
+                    "ok": False,
+                    "error": "This VS match has already been started."
+                }, status=400)
 
-        # Validate players belong to the team
-        players = Player.objects.filter(id__in=player_ids, team=requesting_team)
-        if len(player_ids) > 0 and players.count() != len(player_ids):
-            return JsonResponse({"ok": False, "error": "One or more player IDs are invalid or do not belong to your team."}, status=400)
+            existing = VSLineup.objects.filter(
+                match=locked_match, team=requesting_team
+            ).first()
+            if existing and existing.is_locked:
+                return JsonResponse({
+                    "ok": False,
+                    "error": "Lineup already locked and cannot be changed."
+                }, status=400)
 
-        # Create or update lineup and lock it
-        lineup, _ = VSLineup.objects.get_or_create(
-            match=match,
-            team=requesting_team,
-            defaults={"is_locked": False},
-        )
-        lineup.players.set(players)
-        lineup.is_locked = True
-        lineup.save(update_fields=["is_locked"])
+            players = list(Player.objects.filter(
+                id__in=player_ids, team=requesting_team
+            ))
+            if len(players) != len(player_ids):
+                return JsonResponse({
+                    "ok": False,
+                    "error": "One or more player IDs are invalid or do not belong to your team."
+                }, status=400)
 
-        # Update the lock flags on the Match record
-        if is_team1:
-            Match.objects.filter(pk=match.pk).update(vs_lineup_team1_locked=True)
-        else:
-            Match.objects.filter(pk=match.pk).update(vs_lineup_team2_locked=True)
+            opponent_lineup = VSLineup.objects.prefetch_related('players').filter(
+                match=locked_match, team_id=opponent_team_id, is_locked=True
+            ).first()
+            if opponent_lineup and opponent_lineup.players.count() != len(players):
+                return JsonResponse({
+                    "ok": False,
+                    "error": (
+                        "Both VS teams must select the same number of players "
+                        "for this match."
+                    ),
+                }, status=400)
 
-        # Refresh match to get updated lock state
-        match.refresh_from_db(fields=["vs_lineup_team1_locked", "vs_lineup_team2_locked"])
+            lineup, _ = VSLineup.objects.get_or_create(
+                match=locked_match,
+                team=requesting_team,
+                defaults={"is_locked": False},
+            )
+            lineup.players.set(players)
+            lineup.is_locked = True
+            lineup.save(update_fields=["is_locked"])
+
+            if is_team1:
+                locked_match.vs_lineup_team1_locked = True
+            else:
+                locked_match.vs_lineup_team2_locked = True
+            locked_match.save(update_fields=[
+                'vs_lineup_team1_locked', 'vs_lineup_team2_locked', 'updated_at'
+            ])
+            match = locked_match
+
+        # When the second side locks an equal lineup, create the normal match
+        # activation records and preserve the existing court-assignment flow.
+        if match.vs_lineup_team1_locked and match.vs_lineup_team2_locked:
+            activated, activation_message = _activate_locked_vs_match(match.id)
+            if not activated:
+                return JsonResponse({"ok": False, "error": activation_message}, status=400)
+
+        match.refresh_from_db()
 
     # Build response (GET or after POST)
     match.refresh_from_db(fields=["vs_lineup_team1_locked", "vs_lineup_team2_locked"])
@@ -1139,6 +1298,10 @@ def vs_lineup_submit(request, match_id):
         "own_players": own_players,
         "opponent_players": opponent_players,   # empty until both locked
         "opponent_status": opponent_status,
+        "match_status": match.status,
+        "match_type": match.match_type,
+        "vs_points_value": match.vs_points_value,
+        "activation_message": activation_message,
     })
 
 

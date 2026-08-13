@@ -317,6 +317,13 @@ def check_round_completion(tournament_id):
             tournament = Tournament.objects.select_for_update().get(id=tournament_id)
             logger.info(f"🔍 DEBUG: Tournament {tournament.id} found - Format: {tournament.format}, Status: {tournament.automation_status}")
 
+            if tournament.format == "independent_games":
+                logger.info(
+                    "Skipping round-completion automation for Independent Games tournament %s",
+                    tournament.id,
+                )
+                return
+
             # Avoid race conditions or redundant checks
             if tournament.automation_status != "idle":
                 logger.warning(f"Automation for tournament {tournament.id} is already running or completed. Skipping check.")

@@ -92,8 +92,8 @@ class SimpleTournamentCreationForm(forms.Form):
             except ValueError:
                 raise ValidationError("Invalid number of courts.")
         
-        # VS Mode scenarios do not use the generic format selector — the full
-        # 6 Tête-à-tête + 3 Doubles + 2 Triples structure is fixed.
+        # VS Mode scenarios do not use the generic format selector. They use
+        # Independent Games, and each Match determines its format at activation.
         # Inject a sentinel value so the view can detect VS mode.
         if getattr(scenario, 'scenario_mode', None) == 'vs_mode':
             cleaned_data['format_type'] = 'vs'

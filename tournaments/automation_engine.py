@@ -19,6 +19,16 @@ class TournamentEngine:
     def process_automation(self):
         """Main automation entry point with comprehensive safeguards"""
         from django.db import transaction
+
+        # Independent Games is a native non-algorithmic format. Scheduled
+        # automation leaves its direct matches to the normal match lifecycle
+        # and VS point aggregation.
+        if self.tournament.format == "independent_games":
+            logger.info(
+                "Skipping generic automation for Independent Games tournament %s",
+                self.tournament.id,
+            )
+            return True
         
         try:
             with transaction.atomic():

@@ -1,15 +1,10 @@
 """
 VS Mode utility functions for the PFC petanque platform.
 
-This module is the single source of truth for:
-  - VS Mode configuration defaults and validation
-  - Sub-game generation from a VSEncounter
-  - Point accumulation after a sub-game completes
-  - TournamentTeam.vs_points update
-
-These utilities are intentionally isolated from all existing Mêlée, Super Mêlée,
-Regular Teams, and Friendly Game flows.  Nothing in this file touches those code
-paths.
+VS is isolated from all other tournament flows.  A VS tournament registers
+exactly two teams, then creates a configurable number of pending matches.
+Each match receives its actual format and VS point value only when both teams
+have selected equal-sized lineups at match start.
 """
 
 from __future__ import annotations
@@ -24,161 +19,128 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("tournaments.vs_mode")
 
+
 # ---------------------------------------------------------------------------
-# Default VS Mode configuration
+# VS configuration and format scoring
 # ---------------------------------------------------------------------------
 
-DEFAULT_VS_CONFIG = {
-    "games": [
-        {"format": "tete_a_tete", "count": 6, "points_per_win": 2},
-        {"format": "doublets",    "count": 3, "points_per_win": 3},
-        {"format": "triplets",    "count": 2, "points_per_win": 5},
-    ]
-}
+DEFAULT_VS_NUM_MATCHES = 11
 
-# Map VS config format names → Match.MATCH_TYPE_CHOICES keys
-_FORMAT_TO_MATCH_TYPE = {
-    "tete_a_tete": "tete_a_tete",
-    "doublets":    "doublet",
-    "triplets":    "triplet",
+# Match.MATCH_TYPE_CHOICES value -> VS leaderboard points awarded to a win.
+VS_POINTS_BY_MATCH_TYPE = {
+    "tete_a_tete": 2,
+    "doublet": 3,
+    "triplet": 5,
 }
 
 
-# ---------------------------------------------------------------------------
-# Configuration helpers
-# ---------------------------------------------------------------------------
+def is_vs_tournament(tournament) -> bool:
+    """Return whether a tournament uses the VS Independent Games flow.
 
-def get_vs_config(scenario) -> dict:
+    The explicit format is authoritative for new records. The JSON marker is
+    retained only so historical VS tournaments remain compatible after upgrade.
     """
-    Return the resolved VS config dict for a TournamentScenario.
+    if getattr(tournament, "format", None) == "independent_games":
+        return True
+    config = getattr(tournament, "allowed_match_types", None) or {}
+    return bool(config.get("vs_mode"))
 
-    Falls back to DEFAULT_VS_CONFIG if the scenario has no vs_config set or
-    if it is set to None / empty.
+
+def get_vs_num_matches(tournament, default: int = DEFAULT_VS_NUM_MATCHES) -> int:
+    """Read a validated pending-match count from the tournament's VS config."""
+    config = getattr(tournament, "allowed_match_types", None) or {}
+    try:
+        num_matches = int(config.get("vs_num_matches", default))
+    except (TypeError, ValueError):
+        return default
+    return num_matches if num_matches >= 1 else default
+
+
+def get_vs_points_for_match_type(match_type: str | None) -> int | None:
+    """Return the VS point value for a completed match format, if supported."""
+    return VS_POINTS_BY_MATCH_TYPE.get(match_type)
+
+
+def apply_vs_match_format(match, match_type: str, team1_count: int, team2_count: int) -> None:
+    """Set a VS match's final format and point value after lineup validation.
+
+    VS accepts only equal 1v1, 2v2, or 3v3 lineups.  The caller is responsible
+    for saving the ``Match`` alongside any other activation state.
     """
-    if scenario is None:
-        return DEFAULT_VS_CONFIG
-
-    cfg = getattr(scenario, "vs_config", None)
-    if not cfg or not isinstance(cfg, dict) or "games" not in cfg:
-        return DEFAULT_VS_CONFIG
-
-    return cfg
-
-
-def validate_vs_config(cfg: dict) -> list[str]:
-    """
-    Validate a VS config dict.  Returns a list of error strings (empty = valid).
-    """
-    errors: list[str] = []
-    if not isinstance(cfg, dict):
-        return ["vs_config must be a JSON object"]
-
-    games = cfg.get("games")
-    if not isinstance(games, list) or not games:
-        errors.append("vs_config.games must be a non-empty list")
-        return errors
-
-    valid_formats = set(_FORMAT_TO_MATCH_TYPE.keys())
-    for i, entry in enumerate(games):
-        if not isinstance(entry, dict):
-            errors.append(f"games[{i}] must be an object")
-            continue
-        fmt = entry.get("format")
-        if fmt not in valid_formats:
-            errors.append(
-                f"games[{i}].format '{fmt}' is not valid; "
-                f"must be one of {sorted(valid_formats)}"
-            )
-        count = entry.get("count")
-        if not isinstance(count, int) or count < 1:
-            errors.append(f"games[{i}].count must be a positive integer")
-        pts = entry.get("points_per_win")
-        if not isinstance(pts, int) or pts < 1:
-            errors.append(f"games[{i}].points_per_win must be a positive integer")
-
-    return errors
+    if not getattr(match, "vs_encounter_id", None):
+        return
+    if team1_count != team2_count:
+        raise ValueError("VS matches require the same number of players on both teams.")
+    points_value = get_vs_points_for_match_type(match_type)
+    if points_value is None:
+        raise ValueError("VS matches must be 1v1, 2v2, or 3v3.")
+    match.vs_points_value = points_value
 
 
 # ---------------------------------------------------------------------------
-# Sub-game generation
+# Pending-match generation
 # ---------------------------------------------------------------------------
 
 @transaction.atomic
-def generate_vs_sub_games(encounter: "VSEncounter") -> list:
-    """
-    Create all Match sub-games for a VSEncounter.
+def generate_vs_pending_matches(
+    encounter: "VSEncounter", num_matches: int | None = None
+) -> list:
+    """Create the open-format pending matches for a VS encounter.
 
-    Sub-games are created in the order defined by vs_config (Tête-à-tête first,
-    then Doubles, then Triples).  Each sub-game is linked back to the encounter
-    via Match.vs_encounter and carries the point value for that format in
-    Match.vs_points_value.
-
-    Returns the list of newly created Match objects.
-
-    Raises ValueError if the encounter's tournament has no associated
-    TournamentScenario (via SimpleTournament) or if the config is invalid.
+    The generator intentionally does not preselect ``match_type`` or
+    ``vs_points_value``.  Those fields are populated at match activation once
+    equal 1v1, 2v2, or 3v3 lineups are known.  Repeated calls are idempotent:
+    an encounter that already has matches is returned unchanged.
     """
     from matches.models import Match  # local import to avoid circular deps
 
-    # Resolve the scenario and config
-    tournament = encounter.tournament
-    scenario = _get_scenario_for_tournament(tournament)
-    cfg = get_vs_config(scenario)
+    if num_matches is None:
+        num_matches = get_vs_num_matches(encounter.tournament)
+    try:
+        num_matches = int(num_matches)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("The VS number of matches must be a positive integer.") from exc
+    if num_matches < 1:
+        raise ValueError("The VS number of matches must be at least 1.")
 
-    errors = validate_vs_config(cfg)
-    if errors:
-        raise ValueError(f"Invalid VS config: {'; '.join(errors)}")
+    existing_matches = list(
+        Match.objects.select_for_update()
+        .filter(vs_encounter=encounter)
+        .order_by("id")
+    )
+    if existing_matches:
+        return existing_matches
 
     created_matches: list[Match] = []
+    for _ in range(num_matches):
+        match = Match.objects.create(
+            tournament=encounter.tournament,
+            team1=encounter.team1,
+            team2=encounter.team2,
+            status="pending",
+            match_type=None,
+            vs_encounter=encounter,
+            vs_points_value=None,
+            vs_lineup_team1_locked=False,
+            vs_lineup_team2_locked=False,
+            time_limit_minutes=getattr(encounter.tournament, "default_time_limit_minutes", None),
+        )
+        created_matches.append(match)
 
-    for game_def in cfg["games"]:
-        fmt = game_def["format"]
-        count = game_def["count"]
-        pts = game_def["points_per_win"]
-        match_type = _FORMAT_TO_MATCH_TYPE[fmt]
-
-        for _ in range(count):
-            match = Match.objects.create(
-                tournament=tournament,
-                team1=encounter.team1,
-                team2=encounter.team2,
-                status="pending",
-                match_type=match_type,
-                vs_encounter=encounter,
-                vs_points_value=pts,
-                vs_lineup_team1_locked=False,
-                vs_lineup_team2_locked=False,
-                time_limit_minutes=getattr(tournament, "default_time_limit_minutes", None),
-            )
-            created_matches.append(match)
-            logger.info(
-                "VS sub-game created: match_id=%s  encounter_id=%s  "
-                "format=%s  pts=%s  %s vs %s",
-                match.pk,
-                encounter.pk,
-                fmt,
-                pts,
-                encounter.team1.name,
-                encounter.team2.name,
-            )
-
+    logger.info(
+        "Created %d open-format VS matches: encounter_id=%s %s vs %s",
+        len(created_matches),
+        encounter.pk,
+        encounter.team1.name,
+        encounter.team2.name,
+    )
     return created_matches
 
 
-def _get_scenario_for_tournament(tournament):
-    """
-    Try to retrieve the TournamentScenario linked to a Tournament via
-    SimpleTournament.  Returns None if no link exists (config will fall back
-    to DEFAULT_VS_CONFIG).
-    """
-    try:
-        from simple_creator.models import SimpleTournament
-        st = SimpleTournament.objects.select_related("scenario").get(
-            tournament=tournament
-        )
-        return st.scenario
-    except Exception:
-        return None
+# Compatibility wrapper for historical code paths.  It now creates the
+# tournament's configurable open-format VS matches rather than a fixed mix.
+def generate_vs_sub_games(encounter: "VSEncounter") -> list:
+    return generate_vs_pending_matches(encounter)
 
 
 # ---------------------------------------------------------------------------
@@ -187,14 +149,12 @@ def _get_scenario_for_tournament(tournament):
 
 @transaction.atomic
 def update_vs_encounter_points(encounter: "VSEncounter") -> None:
-    """
-    Recalculate and save team1_points / team2_points for a VSEncounter by
-    summing vs_points_value from all completed sub-games.
+    """Recalculate the two teams' VS totals from completed encounter matches.
 
-    Also marks encounter.is_complete=True when every sub-game is done, and
-    updates TournamentTeam.vs_points for both teams.
-
-    This function is idempotent — safe to call multiple times.
+    A pending open-format match has a null ``vs_points_value`` and therefore
+    contributes nothing.  At activation, its format is determined and its
+    value is set to 2, 3, or 5.  This function consequently remains safe for
+    both live encounters and historical completed VS matches.
     """
     from matches.models import Match
 
@@ -213,7 +173,7 @@ def update_vs_encounter_points(encounter: "VSEncounter") -> None:
             team1_pts += pts_value
         elif match.winner_id == encounter.team2_id:
             team2_pts += pts_value
-        # draws award 0 points to either side
+        # Draws award no VS points.
 
     encounter.team1_points = team1_pts
     encounter.team2_points = team2_pts
@@ -230,16 +190,13 @@ def update_vs_encounter_points(encounter: "VSEncounter") -> None:
         all_complete,
     )
 
-    # Propagate to TournamentTeam.vs_points for both teams
+    # Propagate to TournamentTeam.vs_points for both teams.
     _update_tournament_team_vs_points(encounter.tournament, encounter.team1)
     _update_tournament_team_vs_points(encounter.tournament, encounter.team2)
 
 
 def _update_tournament_team_vs_points(tournament, team) -> None:
-    """
-    Recompute and save TournamentTeam.vs_points for one team in a tournament
-    by summing all VSEncounter points where the team participated.
-    """
+    """Recompute one registered team's VS total across its encounters."""
     from tournaments.models import TournamentTeam, VSEncounter
 
     total = 0
@@ -256,7 +213,7 @@ def _update_tournament_team_vs_points(tournament, team) -> None:
         vs_points=total
     )
     logger.debug(
-        "TournamentTeam vs_points updated: tournament=%s  team=%s  total=%d",
+        "TournamentTeam vs_points updated: tournament=%s team=%s total=%d",
         tournament.pk,
         team.name,
         total,
@@ -264,7 +221,7 @@ def _update_tournament_team_vs_points(tournament, team) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Lazy Q import (avoids circular import at module level)
+# Lazy Q import (avoids a module-level circular import)
 # ---------------------------------------------------------------------------
 
 def models_Q(*args, **kwargs):

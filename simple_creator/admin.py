@@ -41,19 +41,27 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
             'description': 'Court complex is REQUIRED for all tournaments using this scenario.'
         }),
         ('Scenario Mode', {
-            'fields': ('scenario_mode', 'vs_config'),
+            'fields': ('scenario_mode', 'vs_default_num_matches'),
             'description': (
-                'Determines what type of tournament is created. '
-                'For VS Mode, set scenario_mode to “vs_mode” and optionally configure vs_config. '
-                'Leave vs_config blank to use the standard preset: '
-                '6 Tête-à-tête (2 pts), 3 Doubles (3 pts), 2 Triples (5 pts). '
-                'Example vs_config: {"games": [{"format": "tete_a_tete", "count": 6, "points_per_win": 2}, '
-                '{"format": "doublets", "count": 3, "points_per_win": 3}, '
-                '{"format": "triplets", "count": 2, "points_per_win": 5}]}'
+                'VS Mode uses the Independent Games generator: exactly two teams and a configurable '
+                'Number of Games. Each game is created as an independent pending Match and its format '
+                'is chosen only when equal lineups are selected. Historical fixed-composition data is '
+                'preserved internally but is not part of new VS configuration.'
             )
         }),
         ('Tournament Configuration', {
-            'fields': ('tournament_type', 'num_rounds', 'matches_per_team', 'draft_type')
+            'fields': ('tournament_type', 'num_rounds', 'matches_per_team', 'draft_type'),
+            'description': (
+                'Choose Independent Games only for VS Mode. It creates no stages, rounds, brackets, '
+                'pairings, or progression algorithm.'
+            )
+        }),
+        ('Certification', {
+            'fields': ('certifying_entity',),
+            'description': (
+                'Optional: the selected existing Certifying Entity is assigned to every tournament '
+                'created from this Scenario. Leave blank for no certification.'
+            )
         }),
         ('Timing Configuration', {
             'fields': ('default_time_limit_minutes', 'pregame_countdown_minutes'),
