@@ -163,7 +163,7 @@ class TournamentScenarioForm(forms.ModelForm):
     class Meta:
         model = TournamentScenario
         fields = [
-            'name', 'display_name', 'description', 'is_free', 'requires_voucher',
+            'name', 'display_name', 'description', 'image', 'is_free', 'requires_voucher',
             'max_doubles_players', 'max_triples_players', 'max_courts', 'recommended_courts',
             'tournament_type', 'num_rounds', 'matches_per_team', 'draft_type', 'stages'
         ]
@@ -171,6 +171,7 @@ class TournamentScenarioForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'display_name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'image': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
             'max_doubles_players': forms.NumberInput(attrs={'class': 'form-control'}),
             'max_triples_players': forms.NumberInput(attrs={'class': 'form-control'}),
             'max_courts': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 10}),

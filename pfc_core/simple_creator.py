@@ -77,6 +77,7 @@ def get_available_scenarios():
                     'id': scenario.id,
                     'name': scenario.display_name,
                     'description': scenario.description,
+                    'image_url': scenario.image.url if scenario.image else '',
                     'is_free': scenario.is_free,
                     'scenario_mode': getattr(scenario, 'scenario_mode', 'melee'),
                     'tournament_type': scenario.tournament_type,

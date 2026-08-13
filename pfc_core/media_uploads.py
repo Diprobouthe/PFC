@@ -150,3 +150,14 @@ def temp_upload_path(instance, filename):
     """
     ext = _clean_ext(filename, default='.jpg')
     return f"temp/{uuid.uuid4().hex}{ext}"
+
+
+# ---------------------------------------------------------------------------
+# Tournament Scenario images  →  scenario_images/scenario_<id>.<ext>
+# ---------------------------------------------------------------------------
+
+def scenario_image_path(instance, filename):
+    """Deterministic path for TournamentScenario.image."""
+    ext = _clean_ext(filename, default='.jpg')
+    name = f"scenario_{_id_or_uuid(instance)}{ext}"
+    return f"scenario_images/{name}"

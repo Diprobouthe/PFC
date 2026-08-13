@@ -3,6 +3,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from tournaments.models import Tournament
 from courts.models import CourtComplex
+from pfc_core.media_uploads import scenario_image_path
 
 
 class TournamentScenario(models.Model):
@@ -10,6 +11,12 @@ class TournamentScenario(models.Model):
     name = models.CharField(max_length=50, unique=True)
     display_name = models.CharField(max_length=100)
     description = models.TextField()
+    image = models.ImageField(
+        upload_to=scenario_image_path,
+        null=True,
+        blank=True,
+        help_text='Optional image displayed on this Scenario card in the Simple Tournament Creator.',
+    )
     is_free = models.BooleanField(default=False)
     requires_voucher = models.BooleanField(default=True)
     # Supported formats — controls which format cards appear in the user-facing creator.

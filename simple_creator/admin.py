@@ -19,7 +19,11 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'display_name', 'description')
+            'fields': ('name', 'display_name', 'description', 'image'),
+            'description': (
+                'The optional Scenario image is displayed in the Simple Tournament Creator card. '
+                'Leave it blank to keep the current text-only card layout.'
+            )
         }),
         ('Access Control', {
             'fields': ('is_free', 'requires_voucher')

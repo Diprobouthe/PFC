@@ -70,13 +70,20 @@
                                     data-max-doubles="{{ scenario.max_doubles|default:0 }}"
                                     data-max-triples="{{ scenario.max_triples|default:0 }}"
                                     data-vs-default-num-matches="{{ scenario.vs_default_num_matches|default:11 }}"
-                                    data-desc="{{ scenario.description|escapejs }}"
+                                    data-image-url="{{ scenario.image_url|default:'' }}"
                                     data-is-free="{% if scenario.is_free %}true{% else %}false{% endif %}"
                                     data-mode="{{ scenario.scenario_mode|default:'melee' }}"
                                 >{{ scenario.name }}</option>
                                 {% endfor %}
                             </select>
                             <span style="position:absolute;right:1rem;top:50%;transform:translateY(-50%);pointer-events:none;color:#6c757d">&#9662;</span>
+                        </div>
+                        <!-- Keep Scenario text as literal template content so browser data attributes
+                             never expose escaped newline sequences such as \\u000D\\u000A. -->
+                        <div id="scenario-description-data" hidden>
+                            {% for key, scenario in scenarios.items %}
+                            <template id="scenario-desc-{{ key }}">{{ scenario.description }}</template>
+                            {% endfor %}
                         </div>
 
                         <!-- Detail panel (hidden until selection) -->
@@ -86,8 +93,11 @@
                                     <span id="sdp-name" style="font-weight:600;font-size:.95rem"></span>
                                     <span id="sdp-badge" style="font-size:.75rem;padding:.25em .7em;border-radius:20px;font-weight:600"></span>
                                 </div>
+                                <div id="sdp-image-wrap" style="display:none;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+                                    <img id="sdp-image" src="" alt="" style="display:block;width:100%;max-height:210px;object-fit:cover" loading="lazy">
+                                </div>
                                 <div style="padding:.9rem 1.1rem">
-                                    <p id="sdp-desc" style="color:#64748b;font-size:.88rem;margin-bottom:.75rem"></p>
+                                    <div id="sdp-desc" style="color:#64748b;font-size:.88rem;margin-bottom:.75rem;white-space:pre-line;line-height:1.55"></div>
                                     <div id="sdp-chips" style="display:flex;flex-wrap:wrap;gap:.4rem"></div>
                                 </div>
                             </div>
@@ -257,6 +267,13 @@
             const sdpBadge   = document.getElementById('sdp-badge');
             const sdpDesc    = document.getElementById('sdp-desc');
             const sdpChips   = document.getElementById('sdp-chips');
+            const sdpImageWrap = document.getElementById('sdp-image-wrap');
+            const sdpImage = document.getElementById('sdp-image');
+
+            function scenarioDescription(key) {
+                const descriptionTemplate = document.getElementById('scenario-desc-' + key);
+                return descriptionTemplate ? descriptionTemplate.content.textContent : '';
+            }
 
             function chip(icon, text) {
                 return '<span style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:20px;padding:.25rem .65rem;font-size:.78rem;color:#334155"><i class="bi bi-' + icon + '" style="color:#2563eb"></i>' + text + '</span>';
@@ -295,7 +312,18 @@
                 sdpBadge.textContent = isFree ? 'Free' : 'Voucher Required';
                 sdpBadge.style.background = isFree ? '#d1fae5' : '#fef3c7';
                 sdpBadge.style.color      = isFree ? '#065f46' : '#92400e';
-                sdpDesc.textContent = d.desc;
+                sdpDesc.textContent = scenarioDescription(opt.value);
+                if (sdpImageWrap && sdpImage) {
+                    if (d.imageUrl) {
+                        sdpImage.src = d.imageUrl;
+                        sdpImage.alt = opt.textContent.trim() + ' scenario image';
+                        sdpImageWrap.style.display = 'block';
+                    } else {
+                        sdpImage.removeAttribute('src');
+                        sdpImage.alt = '';
+                        sdpImageWrap.style.display = 'none';
+                    }
+                }
 
                 const modeLabel = {'super_melee':'Super M\u00eal\u00e9e','team':'Teams','melee':'M\u00eal\u00e9e','vs_mode':'VS Mode'}[d.mode] || d.mode;
                 sdpChips.innerHTML =
