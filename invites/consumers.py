@@ -49,6 +49,11 @@ class InviteConsumer(AsyncWebsocketConsumer):
     # ── Auth helper ──────────────────────────────────────────────────────────
 
     @database_sync_to_async
+    def _get_session_codename(self):
+        """Read the lazily-loaded Django session outside the async event loop."""
+        return self.scope.get("session", {}).get("player_codename")
+
+    @database_sync_to_async
     def _resolve_session_player_id(self, codename):
         """
         Look up the Player PK for the given codename string.
@@ -73,8 +78,7 @@ class InviteConsumer(AsyncWebsocketConsumer):
         # it to the player_id in the URL.  Reject mismatches and anonymous
         # connections to prevent one player from subscribing to another's
         # notification stream.
-        session = self.scope.get("session", {})
-        codename = session.get("player_codename")
+        codename = await self._get_session_codename()
 
         if not codename:
             # No active player session — reject silently.
