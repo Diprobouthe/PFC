@@ -3,6 +3,7 @@ import string
 import logging
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from datetime import timedelta
 from teams.models import Player
 from courts.models import Court, CourtComplex
@@ -66,20 +67,20 @@ class FriendlyGame(models.Model):
     Enhanced with match numbers for joining and validation tracking.
     """
     GAME_STATUS_CHOICES = [
-        ('DRAFT', 'Draft'),
-        ('WAITING_FOR_PLAYERS', 'Waiting for Players'),
-        ('READY', 'Ready to Play'),
-        ('ACTIVE', 'In Progress'),
-        ('PENDING_VALIDATION', 'Pending Validation'),
-        ('COMPLETED', 'Completed'),
-        ('CANCELLED', 'Cancelled'),
-        ('EXPIRED', 'Expired'),
+        ('DRAFT', _('Draft')),
+        ('WAITING_FOR_PLAYERS', _('Waiting for Players')),
+        ('READY', _('Ready to Play')),
+        ('ACTIVE', _('In Progress')),
+        ('PENDING_VALIDATION', _('Pending Validation')),
+        ('COMPLETED', _('Completed')),
+        ('CANCELLED', _('Cancelled')),
+        ('EXPIRED', _('Expired')),
     ]
     
     VALIDATION_CHOICES = [
-        ('NOT_VALIDATED', 'Not Validated'),
-        ('PARTIALLY_VALIDATED', 'Partially Validated'), 
-        ('FULLY_VALIDATED', 'Fully Validated'),
+        ('NOT_VALIDATED', _('Not Validated')),
+        ('PARTIALLY_VALIDATED', _('Partially Validated')), 
+        ('FULLY_VALIDATED', _('Fully Validated')),
     ]
     
     name = models.CharField(max_length=100, help_text="Friendly game name/description")
@@ -386,14 +387,14 @@ class FriendlyGamePlayer(models.Model):
     Statistics only recorded when codename is verified.
     """
     TEAM_CHOICES = [
-        ('BLACK', 'Black Team'),
-        ('WHITE', 'White Team'),
+        ('BLACK', _('Black Team')),
+        ('WHITE', _('White Team')),
     ]
     
     POSITION_CHOICES = [
-        ('TIRER', 'Tirer'),
-        ('POINTEUR', 'Pointeur'),
-        ('MILIEU', 'Milieu'),
+        ('TIRER', _('Tirer')),
+        ('POINTEUR', _('Pointeur')),
+        ('MILIEU', _('Milieu')),
     ]
     
     game = models.ForeignKey(FriendlyGame, on_delete=models.CASCADE, related_name='players')
@@ -519,8 +520,8 @@ class FriendlyGameResult(models.Model):
     Enables two-step validation process: submit → validate → complete.
     """
     VALIDATION_ACTION_CHOICES = [
-        ('agree', 'Agree with Result'),
-        ('disagree', 'Disagree with Result'),
+        ('agree', _('Agree with Result')),
+        ('disagree', _('Disagree with Result')),
     ]
     
     game = models.OneToOneField(
@@ -532,14 +533,14 @@ class FriendlyGameResult(models.Model):
     # Team that submitted the result (BLACK or WHITE)
     submitted_by_team = models.CharField(
         max_length=10,
-        choices=[('BLACK', 'Black Team'), ('WHITE', 'White Team')],
+        choices=[('BLACK', _('Black Team')), ('WHITE', _('White Team'))],
         help_text="Which team submitted the result"
     )
     
     # Team that validated the result (BLACK or WHITE)
     validated_by_team = models.CharField(
         max_length=10,
-        choices=[('BLACK', 'Black Team'), ('WHITE', 'White Team')],
+        choices=[('BLACK', _('Black Team')), ('WHITE', _('White Team'))],
         null=True,
         blank=True,
         help_text="Which team validated the result"

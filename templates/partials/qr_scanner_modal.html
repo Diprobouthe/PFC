@@ -8,6 +8,12 @@
               detail: { player_name, player_id, team_name, profile_picture_url }
      Requires: window.QR_RESOLVE_URL set by the including template before this partial
 -->
+{% load i18n %}
+{% translate "Point camera at a PFC Player QR Card…" as i18n_qr_point_camera %}
+{% translate "Camera access denied. Please allow camera access." as i18n_qr_camera_denied %}
+{% translate "Configuration error: resolve URL not set." as i18n_qr_configuration_error %}
+{% translate "Verifying QR code…" as i18n_qr_verifying %}
+{% translate "Invalid QR code" as i18n_qr_invalid %}
 <style>
 #qrScanModal {
     display: none;
@@ -169,22 +175,22 @@
 
         <!-- ── Scan panel ── -->
         <div id="qrScanPanel">
-            <div class="qr-modal-title"><i class="fas fa-qrcode"></i> Scan Player QR Card</div>
+            <div class="qr-modal-title"><i class="fas fa-qrcode"></i> {% translate "Scan Player QR" %}</div>
             <div class="qr-modal-video-wrap">
                 <video id="qrVideo" autoplay playsinline muted></video>
                 <div class="qr-scan-overlay">
                     <div class="qr-scan-frame"></div>
                 </div>
             </div>
-            <div class="qr-modal-status" id="qrStatus">Point camera at a PFC Player QR Card…</div>
+            <div class="qr-modal-status" id="qrStatus">{% translate "Point camera at a PFC Player QR Card…" %}</div>
             <button type="button" class="qr-modal-close" onclick="closeQrScanner()">
-                <i class="fas fa-times"></i> Cancel
+                <i class="fas fa-times"></i> {% translate "Cancel" %}
             </button>
         </div>
 
         <!-- ── Confirmation panel (hidden until scan succeeds) ── -->
         <div id="qrConfirmPanel">
-            <div class="qr-modal-title"><i class="fas fa-user-check"></i> Confirm Player</div>
+            <div class="qr-modal-title"><i class="fas fa-user-check"></i> {% translate "Confirm Player" %}</div>
             <!-- Avatar: real photo or default initial -->
             <img id="qrConfirmPhoto" class="qr-confirm-avatar" src="" alt="" style="display:none;">
             <div id="qrConfirmAvatarDefault" class="qr-confirm-avatar-default" style="display:none;">
@@ -192,12 +198,12 @@
             </div>
             <div class="qr-confirm-name" id="qrConfirmName">—</div>
             <div class="qr-confirm-team" id="qrConfirmTeamName"></div>
-            <div class="qr-confirm-question">Is this the correct player?</div>
+            <div class="qr-confirm-question">{% translate "Is this the correct player?" %}</div>
             <button type="button" class="qr-confirm-btn confirm" id="qrConfirmYes">
-                <i class="fas fa-check-circle"></i> Confirm / Add Player
+                <i class="fas fa-check-circle"></i> {% translate "Confirm Player" %}
             </button>
             <button type="button" class="qr-confirm-btn cancel" onclick="closeQrScanner()">
-                <i class="fas fa-times"></i> Cancel
+                <i class="fas fa-times"></i> {% translate "Cancel" %}
             </button>
         </div>
 
@@ -207,6 +213,13 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 (function() {
+    var QR_I18N = {
+        pointCamera: '{{ i18n_qr_point_camera|escapejs }}',
+        cameraDenied: '{{ i18n_qr_camera_denied|escapejs }}',
+        configurationError: '{{ i18n_qr_configuration_error|escapejs }}',
+        verifying: '{{ i18n_qr_verifying|escapejs }}',
+        invalid: '{{ i18n_qr_invalid|escapejs }}'
+    };
     var _stream = null;
     var _canvas = null;
     var _ctx = null;
@@ -219,7 +232,7 @@
         _resolved = false;
         _pendingData = null;
         _showScanPanel();
-        document.getElementById('qrStatus').textContent = 'Point camera at a PFC Player QR Card\u2026';
+        document.getElementById('qrStatus').textContent = QR_I18N.pointCamera;
         document.getElementById('qrStatus').className = 'qr-modal-status';
         document.getElementById('qrScanModal').classList.add('active');
         _startCamera();
@@ -288,7 +301,7 @@
             _scanning = true;
             _tick();
         }).catch(function(err) {
-            document.getElementById('qrStatus').textContent = 'Camera access denied. Please allow camera access.';
+            document.getElementById('qrStatus').textContent = QR_I18N.cameraDenied;
             document.getElementById('qrStatus').className = 'qr-modal-status error';
         });
     }
@@ -328,11 +341,11 @@
     function _resolveToken(token) {
         var resolveUrl = window.QR_RESOLVE_URL;
         if (!resolveUrl) {
-            document.getElementById('qrStatus').textContent = 'Configuration error: resolve URL not set.';
+            document.getElementById('qrStatus').textContent = QR_I18N.configurationError;
             document.getElementById('qrStatus').className = 'qr-modal-status error';
             return;
         }
-        document.getElementById('qrStatus').textContent = 'Verifying QR code\u2026';
+        document.getElementById('qrStatus').textContent = QR_I18N.verifying;
         document.getElementById('qrStatus').className = 'qr-modal-status';
 
         fetch(resolveUrl, {
@@ -352,12 +365,12 @@
                 _pendingData = data;
                 _showConfirmPanel(data);
             } else {
-                document.getElementById('qrStatus').textContent = '\u2717 ' + (data.error || 'Invalid QR code');
+                document.getElementById('qrStatus').textContent = '\u2717 ' + (data.error || QR_I18N.invalid);
                 document.getElementById('qrStatus').className = 'qr-modal-status error';
                 setTimeout(function() {
                     _resolved = false;
                     _scanning = true;
-                    document.getElementById('qrStatus').textContent = 'Point camera at a PFC Player QR Card\u2026';
+                    document.getElementById('qrStatus').textContent = QR_I18N.pointCamera;
                     document.getElementById('qrStatus').className = 'qr-modal-status';
                     _tick();
                 }, 2000);
@@ -369,7 +382,7 @@
             setTimeout(function() {
                 _resolved = false;
                 _scanning = true;
-                document.getElementById('qrStatus').textContent = 'Point camera at a PFC Player QR Card\u2026';
+                document.getElementById('qrStatus').textContent = QR_I18N.pointCamera;
                 document.getElementById('qrStatus').className = 'qr-modal-status';
                 _tick();
             }, 2000);

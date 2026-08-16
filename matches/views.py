@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.db.models import Q, Exists, OuterRef
 from django.urls import reverse
 from datetime import timedelta
@@ -443,7 +444,7 @@ def match_activate(request, match_id, team_id):
     team = get_object_or_404(Team, id=team_id)
     tournament = match.tournament
     if team != match.team1 and team != match.team2:
-        messages.error(request, "This team is not part of this match.")
+        messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
     # Priority 1: resolve from player codename → MatchPlayer → match team
@@ -738,7 +739,7 @@ def match_activate(request, match_id, team_id):
                 match.status = "pending_verification"
                 match.save()
                 notify_match_state_changed(match.id, match.status)
-                messages.success(request, "Match initiated successfully. Waiting for the other team to validate.")
+                messages.success(request, _("Match initiated successfully. Waiting for the other team to validate."))
                 return redirect("match_detail", match_id=match.id)
             elif is_validating:
                 # Try to assign court FIRST before changing match status
@@ -759,7 +760,7 @@ def match_activate(request, match_id, team_id):
                     auto_register_players_to_billboard(match)
 
                     status_message = get_court_assignment_status(match)
-                    messages.success(request, f"Match validated and activated! {status_message}")
+                    messages.success(request, _("Match validated and activated! %(status)s") % {'status': status_message})
                 else:
                     # No court available — keep match in waiting state.
                     # Show a clear, specific message so it is never confused with
@@ -772,9 +773,10 @@ def match_activate(request, match_id, team_id):
                     )
                     messages.warning(
                         request,
-                        "Match validated successfully. "
-                        "No court is currently available — the match will start "
-                        "automatically as soon as a court becomes free."
+                        _(
+                            "Match validated successfully. No court is currently available — "
+                            "the match will start automatically as soon as a court becomes free."
+                        )
                     )
 
                 return redirect("match_detail", match_id=match.id)
@@ -839,9 +841,9 @@ def match_activate(request, match_id, team_id):
         "required_count": required_count,
         "qr_action_token": get_qr_action_token(request),
         "pos_choices": [
-            ('pointer', 'Pointer'),
-            ('milieu', 'Milieu'),
-            ('tirer', 'Shooter'),
+            ('pointer', _('Pointer')),
+            ('milieu', _('Milieu')),
+            ('tirer', _('Shooter')),
         ],
     }
     return render(request, "matches/match_activate.html", context)
@@ -850,7 +852,7 @@ def match_submit_result(request, match_id, team_id):
     match = get_object_or_404(Match, id=match_id)
     team = get_object_or_404(Team, id=team_id)
     if team != match.team1 and team != match.team2:
-        messages.error(request, "This team is not part of this match.")
+        messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
     _session_team = None
@@ -875,7 +877,7 @@ def match_submit_result(request, match_id, team_id):
             except Team.DoesNotExist:
                 pass
     if _session_team is not None and _session_team != team:
-        messages.error(request, "You are not authorised to submit results for this team.")
+        messages.error(request, _("You are not authorised to submit results for this team."))
         return redirect("match_detail", match_id=match.id)
     # ───────────────────────────────────────────────────────────────
     if match.status != "active":
@@ -971,7 +973,7 @@ def match_validate_result(request, match_id, team_id):
     match = get_object_or_404(Match, id=match_id)
     team = get_object_or_404(Team, id=team_id)
     if team != match.team1 and team != match.team2:
-        messages.error(request, "This team is not part of this match.")
+        messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
     _session_team_v = None
@@ -1005,7 +1007,7 @@ def match_validate_result(request, match_id, team_id):
         # (submitter navigating to opponent's URL for QR validation).
         _other_team = match.team2 if team == match.team1 else match.team1
         if _session_team_v != _other_team:
-            messages.error(request, "You are not authorised to validate results for this team.")
+            messages.error(request, _("You are not authorised to validate results for this team."))
             return redirect("match_detail", match_id=match.id)
     # ───────────────────────────────────────────────────────────────
     if match.status != "waiting_validation":

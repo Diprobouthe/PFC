@@ -1,10 +1,26 @@
 {% load static %}
+{% load i18n %}
+{% get_current_language as CURRENT_LANGUAGE %}
+{% translate "No score updates recorded yet." as i18n_no_score_updates %}
+{% translate "Not a participant" as i18n_not_participant %}
+{% translate "Network error" as i18n_network_error %}
+{% translate "No score change to submit" as i18n_no_score_change %}
+{% translate "Score submitted" as i18n_score_submitted %}
+{% translate "Update failed" as i18n_update_failed %}
+{% translate "Official score changed elsewhere; pending edits were reset" as i18n_score_changed_elsewhere %}
+{% translate "No codename available" as i18n_no_codename %}
+{% translate "Undo failed" as i18n_undo_failed %}
+{% translate "Failed" as i18n_failed %}
+{% translate "End this Match Tracking session? QR permissions and active shooting/pointing sessions will be closed." as i18n_end_tracking_confirm %}
+{% translate "Could not end tracking" as i18n_end_tracking_failed %}
+{% translate "Match completed" as i18n_match_completed %}
+{% translate "read-only history" as i18n_read_only_history %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ CURRENT_LANGUAGE }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Match Tracking — PFC</title>
+<title>{% translate "Match Tracking" %} — PFC</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 {% if request.session.player_codename %}
@@ -193,7 +209,7 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     </a>
     <div class="mt-topbar-title">{{ game_label }}</div>
     <span class="mt-topbar-status {% if game_status in 'active,ACTIVE,READY,pending_verification' %}mt-status-active{% elif game_status in 'completed,COMPLETED' %}mt-status-complete{% else %}mt-status-inactive{% endif %}">
-        {{ game_status|upper }}
+        {% if game_status in 'active,ACTIVE,READY,pending_verification' %}{% translate "Active" %}{% elif game_status in 'completed,COMPLETED' %}{% translate "Completed" %}{% else %}{{ game_status|upper }}{% endif %}
     </span>
 </div>
 
@@ -225,8 +241,8 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
         <button class="mt-score-btn white-minus" id="btn-t2-minus" disabled onclick="adjustScore('t2',-1)" title="{{ team2_name }} −1">
             <i class="fas fa-minus"></i>
         </button>
-        <button class="mt-score-btn mt-score-submit" id="btn-submit-score" disabled onclick="submitPendingScore()" title="Submit one completed end">
-            <i class="fas fa-check"></i> Submit Score
+        <button class="mt-score-btn mt-score-submit" id="btn-submit-score" disabled onclick="submitPendingScore()" title="{% translate 'Submit one completed end' %}">
+            <i class="fas fa-check"></i> {% translate "Submit Score" %}
         </button>
     </div>
     <div class="mt-score-pending" id="score-pending"></div>
@@ -240,14 +256,14 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
     <!-- QR Scan button -->
     <button class="mt-qr-btn" onclick="openQrScanner()">
-        <i class="fas fa-qrcode"></i> Scan Player QR
+        <i class="fas fa-qrcode"></i> {% translate "Scan Player QR" %}
     </button>
 </div>
 
 <!-- ── Auth notice (shown when not logged in and no QR scanned yet) ──────── -->
 <div class="mt-auth-notice" id="auth-notice">
     <i class="fas fa-lock"></i>
-    <span>Scan a player QR code to enable controls.</span>
+    <span>{% translate "Scan a player QR code to enable controls." %}</span>
 </div>
 
 <!-- ── Players section ─────────────────────────────────────────────────── -->
@@ -291,47 +307,47 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 <!-- ── Mode switch (Shooting / Pointing) ──────────────────────────────────── -->
 <div class="mt-mode-switch" id="mode-switch">
     <button class="mt-mode-btn active-shooting" id="mode-btn-shooting" disabled onclick="switchMode('shooting')">
-        <i class="fas fa-crosshairs" style="margin-right:5px"></i>Shooting
+        <i class="fas fa-crosshairs" style="margin-right:5px"></i>{% translate "Shooting" %}
     </button>
     <button class="mt-mode-btn" id="mode-btn-pointing" disabled onclick="switchMode('pointing')">
-        <i class="fas fa-bullseye" style="margin-right:5px"></i>Pointing
+        <i class="fas fa-bullseye" style="margin-right:5px"></i>{% translate "Pointing" %}
     </button>
 </div>
 
 <!-- ── Shooting controls ────────────────────────────────────────────────────── -->
 <div class="mt-shot-section" id="panel-shooting">
     <div class="mt-shot-grid">
-        <button class="shot-btn shot-btn-carreau" id="shot-carreau" disabled onclick="recordShot('carreau')" aria-label="Carreau">
+        <button class="shot-btn shot-btn-carreau" id="shot-carreau" disabled onclick="recordShot('carreau')" aria-label="{% translate 'Carreau' %}">
             <span class="shot-icon">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
             </span>
-            Carreau
+            {% translate "Carreau" %}
         </button>
-        <button class="shot-btn shot-btn-petit-carreau" id="shot-petit_carreau" disabled onclick="recordShot('petit_carreau')" aria-label="Petit Carreau">
+        <button class="shot-btn shot-btn-petit-carreau" id="shot-petit_carreau" disabled onclick="recordShot('petit_carreau')" aria-label="{% translate 'Petit Carreau' %}">
             <span class="shot-icon">
                 <svg viewBox="0 0 24 24">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77V2z" fill="currentColor"/>
                     <path d="M12 2v15.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="currentColor" stroke-width="1.5"/>
                 </svg>
             </span>
-            Petit Carreau
+            {% translate "Petit Carreau" %}
         </button>
-        <button class="shot-btn shot-btn-hit" id="shot-hit" disabled onclick="recordShot('hit')" aria-label="Hit">
+        <button class="shot-btn shot-btn-hit" id="shot-hit" disabled onclick="recordShot('hit')" aria-label="{% translate 'Hit' %}">
             <span class="shot-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="20 6 9 17 4 12"/>
                 </svg>
             </span>
-            Hit
+            {% translate "Hit" %}
         </button>
-        <button class="shot-btn shot-btn-miss" id="shot-miss" disabled onclick="recordShot('miss')" aria-label="Miss">
+        <button class="shot-btn shot-btn-miss" id="shot-miss" disabled onclick="recordShot('miss')" aria-label="{% translate 'Miss' %}">
             <span class="shot-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
             </span>
-            Miss
+            {% translate "Miss" %}
         </button>
     </div>
     <div class="mt-shot-feedback" id="shot-feedback"></div>
@@ -340,46 +356,46 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 <!-- ── Pointing controls ────────────────────────────────────────────────────── -->
 <div class="mt-shot-section" id="panel-pointing" style="display:none">
     <div class="mt-shot-grid">
-        <button class="shot-btn shot-btn-perfect" id="shot-perfect" disabled onclick="recordShot('perfect')" aria-label="Perfect">
+        <button class="shot-btn shot-btn-perfect" id="shot-perfect" disabled onclick="recordShot('perfect')" aria-label="{% translate 'Perfect' %}">
             <span class="shot-icon">🟢</span>
-            Perfect
+            {% translate "Perfect" %}
         </button>
-        <button class="shot-btn shot-btn-good" id="shot-good" disabled onclick="recordShot('good')" aria-label="Good">
+        <button class="shot-btn shot-btn-good" id="shot-good" disabled onclick="recordShot('good')" aria-label="{% translate 'Good' %}">
             <span class="shot-icon">🟡</span>
-            Good
+            {% translate "Good" %}
         </button>
-        <button class="shot-btn shot-btn-fair" id="shot-fair" disabled onclick="recordShot('fair')" aria-label="Fair">
+        <button class="shot-btn shot-btn-fair" id="shot-fair" disabled onclick="recordShot('fair')" aria-label="{% translate 'Fair' %}">
             <span class="shot-icon">🔴</span>
-            Fair
+            {% translate "Fair" %}
         </button>
-        <button class="shot-btn shot-btn-far" id="shot-far" disabled onclick="recordShot('far')" aria-label="Far">
+        <button class="shot-btn shot-btn-far" id="shot-far" disabled onclick="recordShot('far')" aria-label="{% translate 'Far' %}">
             <span class="shot-icon">⚫</span>
-            Far
+            {% translate "Far" %}
         </button>
     </div>
 </div>
 
 <!-- ── Undo + Export actions ──────────────────────────────────────────────── -->
 <div style="display:flex;gap:8px;margin:8px 0 4px;">
-    <button id="btn-undo" class="mt-undo-btn" disabled onclick="undoLastShot()" title="Remove the most recently recorded shot">
-        <i class="fas fa-undo"></i> Undo Last Shot
+    <button id="btn-undo" class="mt-undo-btn" disabled onclick="undoLastShot()" title="{% translate 'Remove the most recently recorded shot' %}">
+        <i class="fas fa-undo"></i> {% translate "Undo Last Shot" %}
     </button>
-    <a id="btn-export-pdf" class="mt-export-btn" href="#" onclick="exportPDF(); return false;" title="Export match analysis to PDF">
-        <i class="fas fa-file-pdf"></i> Export PDF
+    <a id="btn-export-pdf" class="mt-export-btn" href="#" onclick="exportPDF(); return false;" title="{% translate 'Export match analysis to PDF' %}">
+        <i class="fas fa-file-pdf"></i> {% translate "Export PDF" %}
     </a>
-    <button id="btn-end-session" class="mt-end-session-btn" onclick="endTrackingSession()" title="End this tracking period and revoke all QR authorizations">
-        <i class="fas fa-stop-circle"></i> End Session
+    <button id="btn-end-session" class="mt-end-session-btn" onclick="endTrackingSession()" title="{% translate 'End this tracking period and revoke all QR authorizations' %}">
+        <i class="fas fa-stop-circle"></i> {% translate "End Session" %}
     </button>
 </div>
 
 <!-- ── Stats tables (Shooting + Pointing) ──────────────────────────────────── -->
 <div class="mt-stats-section">
     <!-- Shooting stats -->
-    <div class="mt-stats-label shooting-label"><i class="fas fa-crosshairs" style="margin-right:4px"></i>Shooting</div>
+    <div class="mt-stats-label shooting-label"><i class="fas fa-crosshairs" style="margin-right:4px"></i>{% translate "Shooting" %}</div>
     <table class="mt-stats-table" id="stats-table-shooting">
         <thead>
             <tr>
-                <th style="text-align:left">Player</th>
+                <th style="text-align:left">{% translate "Player" %}</th>
                 <th>Acc%</th>
                 <th>N</th>
                 <th><span title="Carreau">★</span></th>
@@ -404,11 +420,11 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     </table>
 
     <!-- Pointing stats -->
-    <div class="mt-stats-label pointing-label"><i class="fas fa-bullseye" style="margin-right:4px"></i>Pointing</div>
+    <div class="mt-stats-label pointing-label"><i class="fas fa-bullseye" style="margin-right:4px"></i>{% translate "Pointing" %}</div>
     <table class="mt-stats-table" id="stats-table-pointing">
         <thead>
             <tr>
-                <th style="text-align:left">Player</th>
+                <th style="text-align:left">{% translate "Player" %}</th>
                 <th>Acc%</th>
                 <th>N</th>
                 <th><span title="Perfect">🟢</span></th>
@@ -435,7 +451,7 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
 <!-- ── Score Progression (collapsed) ──────────────────────────────────── -->
 <div class="mt-collapse-header" id="history-header" onclick="toggleCollapse('history')">
-    <span><i class="fas fa-chart-line" style="margin-right:6px"></i>Score Progression</span>
+    <span><i class="fas fa-chart-line" style="margin-right:6px"></i>{% translate "Score Progression" %}</span>
     <i class="fas fa-chevron-down chevron"></i>
 </div>
 <div class="mt-collapse-body" id="history-body">
@@ -443,7 +459,7 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
         {% if score_history_json != '[]' %}
         <!-- Rendered by JS from score_history_json -->
         {% else %}
-        <div class="mt-history-empty">No score updates recorded yet.</div>
+        <div class="mt-history-empty">{% translate "No score updates recorded yet." %}</div>
         {% endif %}
     </div>
 </div>
@@ -459,6 +475,22 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
 /* ── Constants injected from Django ──────────────────────────────────── */
 var MATCH_TYPE   = '{{ match_type }}';
+var TRACKING_I18N = {
+    noScoreUpdates: '{{ i18n_no_score_updates|escapejs }}',
+    notParticipant: '{{ i18n_not_participant|escapejs }}',
+    networkError: '{{ i18n_network_error|escapejs }}',
+    noScoreChange: '{{ i18n_no_score_change|escapejs }}',
+    scoreSubmitted: '{{ i18n_score_submitted|escapejs }}',
+    updateFailed: '{{ i18n_update_failed|escapejs }}',
+    scoreChangedElsewhere: '{{ i18n_score_changed_elsewhere|escapejs }}',
+    noCodename: '{{ i18n_no_codename|escapejs }}',
+    undoFailed: '{{ i18n_undo_failed|escapejs }}',
+    failed: '{{ i18n_failed|escapejs }}',
+    endTrackingConfirm: '{{ i18n_end_tracking_confirm|escapejs }}',
+    endTrackingFailed: '{{ i18n_end_tracking_failed|escapejs }}',
+    matchCompleted: '{{ i18n_match_completed|escapejs }}',
+    readOnlyHistory: '{{ i18n_read_only_history|escapejs }}'
+};
 var MATCH_PK     = {{ pk }};
 var SCOREBOARD_ID = {% if scoreboard_id %}{{ scoreboard_id }}{% else %}null{% endif %};
 var SCORE_UPDATE_URL = {% if score_update_url %}'{{ score_update_url }}'{% else %}null{% endif %};
@@ -512,7 +544,7 @@ if (TIMER_START_EPOCH && TIMER_TOTAL_SEC) {
     var list = document.getElementById('history-list');
     if (!list) return;
     if (!SCORE_HISTORY || SCORE_HISTORY.length === 0) {
-        list.innerHTML = '<div class="mt-history-empty">No score updates recorded yet.</div>';
+        list.innerHTML = '<div class="mt-history-empty">' + TRACKING_I18N.noScoreUpdates + '</div>';
         return;
     }
     var html = '';
@@ -562,11 +594,11 @@ document.addEventListener('qrPlayerResolved', function(e) {
             if (!res.codename) authMsg += ' (view only — rescan to enable shots)';
             _showScoreFeedback(authMsg, 'ok');
         } else {
-            _showScoreFeedback('\u2717 ' + (res.error || 'Not a participant'), 'err');
+            _showScoreFeedback('\u2717 ' + (res.error || TRACKING_I18N.notParticipant), 'err');
         }
     })
     .catch(function() {
-        _showScoreFeedback('\u2717 Network error', 'err');
+        _showScoreFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err');
     });
 });
 
@@ -712,7 +744,7 @@ window.adjustScore = function(team, delta) {
 window.submitPendingScore = function() {
     if (!SCORE_UPDATE_URL || !scoreAuthCodename || _matchEnded) return;
     if (currentT1 === officialT1 && currentT2 === officialT2) {
-        _showScoreFeedback('No score change to submit', 'err');
+        _showScoreFeedback(TRACKING_I18N.noScoreChange, 'err');
         return;
     }
     fetch(SCORE_UPDATE_URL, {
@@ -724,12 +756,12 @@ window.submitPendingScore = function() {
     .then(function(res) {
         if (res.success) {
             _applyOfficialScore(res.team1_score, res.team2_score, res.score_update || null);
-            _showScoreFeedback('\u2713 Score submitted: ' + res.team1_score + '–' + res.team2_score, 'ok');
+            _showScoreFeedback('\u2713 ' + TRACKING_I18N.scoreSubmitted + ': ' + res.team1_score + '–' + res.team2_score, 'ok');
         } else {
-            _showScoreFeedback('\u2717 ' + (res.error || 'Update failed'), 'err');
+            _showScoreFeedback('\u2717 ' + (res.error || TRACKING_I18N.updateFailed), 'err');
         }
     })
-    .catch(function() { _showScoreFeedback('\u2717 Network error', 'err'); });
+    .catch(function() { _showScoreFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err'); });
 };
 
 function _appendHistoryRow(update) {
@@ -759,7 +791,7 @@ function _applyOfficialScore(t1, t2, update) {
     _renderPendingScore();
     _appendHistoryRow(update);
     if (hadPendingChanges && (!update || update.by !== scoreAuthName)) {
-        _showScoreFeedback('Official score changed elsewhere; pending edits were reset', 'err');
+        _showScoreFeedback(TRACKING_I18N.scoreChangedElsewhere, 'err');
     }
 }
 
@@ -777,7 +809,7 @@ window.undoLastShot = function() {
     if (!selectedPlayerId) return;
     var auth = authorizedPlayers[selectedPlayerId];
     if (!auth || !auth.codename) {
-        _showShotFeedback('\u2717 No codename available', 'err');
+        _showShotFeedback('\u2717 ' + TRACKING_I18N.noCodename, 'err');
         return;
     }
     fetch('/track/' + MATCH_TYPE + '/' + MATCH_PK + '/undo/', {
@@ -791,10 +823,10 @@ window.undoLastShot = function() {
             _showShotFeedback('\u21a9 Undone: ' + (res.undone_outcome || '').replace('_',' '), 'ok');
             _updateStatsDisplay(selectedPlayerId, res.stats);
         } else {
-            _showShotFeedback('\u2717 ' + (res.error || 'Undo failed'), 'err');
+            _showShotFeedback('\u2717 ' + (res.error || TRACKING_I18N.undoFailed), 'err');
         }
     })
-    .catch(function() { _showShotFeedback('\u2717 Network error', 'err'); });
+    .catch(function() { _showShotFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err'); });
 };
 
 window.recordShot = function(outcome) {
@@ -805,7 +837,7 @@ window.recordShot = function(outcome) {
     // Determine codename for this player
     var codename = auth.codename || (selectedPlayerId === AUTO_AUTH_ID ? LOGGED_IN_CODENAME : null);
     if (!codename) {
-        _showShotFeedback('\u2717 No codename available', 'err');
+        _showShotFeedback('\u2717 ' + TRACKING_I18N.noCodename, 'err');
         return;
     }
 
@@ -836,7 +868,7 @@ function _doRecordShot(outcome, codename, mode) {
             _showShotFeedback('\u2717 ' + (res.error || 'Failed'), 'err');
         }
     })
-    .catch(function() { _showShotFeedback('\u2717 Network error', 'err'); });
+    .catch(function() { _showShotFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err'); });
 }
 
 function _showShotFeedback(msg, cls) {
@@ -973,7 +1005,7 @@ function _pollMatchStatus() {
 
 window.endTrackingSession = function() {
     if (_matchEnded) return;
-    if (!window.confirm('End this Match Tracking session? QR permissions and active shooting/pointing sessions will be closed.')) return;
+    if (!window.confirm(TRACKING_I18N.endTrackingConfirm)) return;
     fetch(END_SESSION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
@@ -982,13 +1014,13 @@ window.endTrackingSession = function() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (!res.ok) {
-            _showShotFeedback('\u2717 ' + (res.error || 'Could not end tracking'), 'err');
+            _showShotFeedback('\u2717 ' + (res.error || TRACKING_I18N.endTrackingFailed), 'err');
             return;
         }
         _matchEnded = true;
         _lockAllControls('tracking ended', 'Tracking session ended — read-only history. Reopen and scan again only to start a separate tracking period.');
     })
-    .catch(function() { _showShotFeedback('\u2717 Network error', 'err'); });
+    .catch(function() { _showShotFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err'); });
 };
 
 function _lockAllControls(status, noticeText) {
@@ -1016,7 +1048,7 @@ function _lockAllControls(status, noticeText) {
         notice.style.background = '#f0fdf4';
         notice.style.borderColor = '#86efac';
         notice.style.color = '#166534';
-        notice.innerHTML = '<i class="fas fa-check-circle"></i> <span>' + (noticeText || ('Match completed (' + status + ') — read-only history')) + '</span>';
+        notice.innerHTML = '<i class="fas fa-check-circle"></i> <span>' + (noticeText || (TRACKING_I18N.matchCompleted + ' (' + status + ') — ' + TRACKING_I18N.readOnlyHistory)) + '</span>';
         notice.style.display = 'flex';
     }
     // Clear selected player

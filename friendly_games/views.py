@@ -3,6 +3,7 @@ from django.contrib import messages
 from .views_submit_score_list import submit_score_list
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.db.models import Q
 import json
 import logging
@@ -287,14 +288,23 @@ def create_game(request):
             
             # Create success message with creator validation info
             total_players = len(black_player_ids) + len(white_player_ids)
-            success_msg = f'Friendly game "{game.name}" created successfully with {total_players} players!'
+            success_msg = _('Friendly game "%(game_name)s" created successfully with %(total_players)s players!') % {
+                'game_name': game.name,
+                'total_players': total_players,
+            }
             
             if creator_player:
-                success_msg += f' Creator validated as {creator_player.name}.'
+                success_msg += ' ' + _('Creator validated as %(player_name)s.') % {
+                    'player_name': creator_player.name,
+                }
             elif creator_codename:
-                success_msg += f' Creator codename "{creator_codename}" not found - no validation.'
+                success_msg += ' ' + _('Creator codename "%(codename)s" not found - no validation.') % {
+                    'codename': creator_codename,
+                }
             
-            success_msg += f' Match Number: {game.match_number}'
+            success_msg += ' ' + _('Match Number: %(match_number)s') % {
+                'match_number': game.match_number,
+            }
             
             messages.success(request, success_msg)
             return redirect('friendly_games:game_detail', game_id=game.id)

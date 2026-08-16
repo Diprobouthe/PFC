@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% load shot_tracker_tags %}
+{% load shot_tracker_tags i18n %}
 
-{% block title %}Match · PFC{% endblock %}
+{% block title %}{% translate "Match" %} · PFC{% endblock %}
 
 {% block content %}
 <style>
@@ -314,11 +314,11 @@
             {% elif match.status == 'active' %}md-badge-active
             {% elif match.status == 'waiting_validation' %}md-badge-waiting
             {% else %}md-badge-completed{% endif %}">
-            {% if match.status == 'pending' %}Pending
-            {% elif match.status == 'pending_verification' %}Waiting 2nd Team
-            {% elif match.status == 'active' %}Active
-            {% elif match.status == 'waiting_validation' %}Validate Score
-            {% elif match.status == 'completed' %}Completed
+            {% if match.status == 'pending' %}{% translate "Pending" %}
+            {% elif match.status == 'pending_verification' %}{% translate "Waiting for second team" %}
+            {% elif match.status == 'active' %}{% translate "Active" %}
+            {% elif match.status == 'waiting_validation' %}{% translate "Validate Result" %}
+            {% elif match.status == 'completed' %}{% translate "Completed" %}
             {% else %}{{ match.get_status_display }}{% endif %}
         </span>
     </div>
@@ -335,7 +335,7 @@
     {% if match.status == 'pending' %}
 
     <!-- Activation status -->
-    <div class="md-label">Activation Status</div>
+    <div class="md-label">{% translate "Activation Status" %}</div>
     <div class="md-activation-strip">
         {% if my_team %}
         <div class="md-act-slot {% if my_team_activated %}done{% else %}waiting{% endif %}">
@@ -364,7 +364,7 @@
     {% elif match.status == 'pending_verification' %}
 
     <!-- Activation status -->
-    <div class="md-label">Activation Status</div>
+    <div class="md-label">{% translate "Activation Status" %}</div>
     <div class="md-activation-strip">
         {% for t in activated_teams %}
         <div class="md-act-slot done">
@@ -394,11 +394,11 @@
     <!-- Pre-game countdown (first 3 min after activation) -->
     {% if pregame_seconds_remaining and pregame_seconds_remaining > 0 %}
     <div class="md-pregame" id="pregameBlock">
-        <div class="md-pregame-title">Find your court &amp; teammates</div>
+        <div class="md-pregame-title">{% translate "Find your court and teammates" %}</div>
         <div class="md-pregame-timer" id="pregameTimer">
             {{ pregame_seconds_remaining|floatformat:0 }}
         </div>
-        <div class="md-pregame-sub">Match starts automatically when timer ends</div>
+        <div class="md-pregame-sub">{% translate "Match starts automatically when timer ends" %}</div>
     </div>
     {% endif %}
 
@@ -412,12 +412,12 @@
     {% elif match.waiting_for_court %}
     <div class="md-court-wait">
         <i class="fas fa-hourglass-half"></i>
-        Waiting for a court to become available
+        {% translate "Waiting for a court to become available" %}
     </div>
     {% endif %}
 
     <!-- Teams + players -->
-    <div class="md-label">Players</div>
+    <div class="md-label">{% translate "Players" %}</div>
     <div class="md-teams">
         <div class="md-team-col">
             <div class="md-team-name {% if my_team == match.team1 %}my-team{% endif %}">{{ match.team1.name }}</div>
@@ -453,7 +453,7 @@
     {% if not pregame_seconds_remaining or pregame_seconds_remaining <= 0 %}
     {% if match.time_limit_minutes and not match.is_time_expired %}
     <div class="md-timer-block">
-        <div class="md-label" style="text-align:center;">Time Remaining</div>
+        <div class="md-label" style="text-align:center;">{% translate "Time Remaining" %}</div>
         <div class="md-timer-display" id="matchTimerDisplay">{{ match.time_remaining_display }}</div>
         <div class="md-timer-bar">
             <div class="md-timer-bar-fill" id="matchTimerBar" style="width:100%;"></div>
@@ -468,7 +468,7 @@
 
     <!-- Live scoreboard (if exists) -->
     {% if match.live_scoreboard %}
-    <div class="md-label">Live Score</div>
+    <div class="md-label">{% translate "Score" %}</div>
     <div class="md-score-block">
         <div>
             <div class="md-score-num">{{ match.live_scoreboard.team1_score }}</div>
@@ -488,7 +488,7 @@
     {% elif match.status == 'waiting_validation' %}
 
     <!-- Score -->
-    <div class="md-label">Submitted Score</div>
+    <div class="md-label">{% translate "Submitted Score" %}</div>
     <div class="md-score-block">
         <div>
             <div class="md-score-num">{{ match.team1_score }}</div>
@@ -503,7 +503,7 @@
 
     {% if result %}
     <div class="md-court-strip" style="font-size:0.75rem;">
-        <i class="fas fa-user"></i> Submitted by {{ result.submitted_by.name }}
+        <i class="fas fa-user"></i> {% translate "Submitted by" %} {{ result.submitted_by.name }}
     </div>
     {% endif %}
 
@@ -517,7 +517,7 @@
     {% endif %}
 
     <!-- Players -->
-    <div class="md-label">Players</div>
+    <div class="md-label">{% translate "Players" %}</div>
     <div class="md-teams">
         <div class="md-team-col">
             <div class="md-team-name {% if my_team == match.team1 %}my-team{% endif %}">{{ match.team1.name }}</div>
@@ -559,7 +559,7 @@
     {% endif %}
 
     <!-- Final score -->
-    <div class="md-label">Final Score</div>
+    <div class="md-label">{% translate "Final Score" %}</div>
     <div class="md-score-block">
         <div>
             <div class="md-score-num" style="{% if match.winner == match.team1 %}color:#198754;{% elif match.winner == match.team2 %}color:#adb5bd;{% endif %}">{{ match.team1_score }}</div>
@@ -581,7 +581,7 @@
     {% endif %}
 
     <!-- Players -->
-    <div class="md-label">Players</div>
+    <div class="md-label">{% translate "Players" %}</div>
     <div class="md-teams">
         <div class="md-team-col">
             <div class="md-team-name">{{ match.team1.name }}</div>
@@ -623,7 +623,7 @@
     {% if match.status == 'pending' %}
         {% if my_team and not my_team_activated %}
         <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-activate">
-            <i class="fas fa-play"></i> Activate as {{ my_team.name }}
+            <i class="fas fa-play"></i> {% translate "Start Match" %} — {{ my_team.name }}
         </a>
         {% elif my_team and my_team_activated %}
         <button class="md-primary-btn md-btn-waiting" disabled>
@@ -639,7 +639,7 @@
     {% elif match.status == 'pending_verification' %}
         {% if my_team and my_team not in activated_teams %}
         <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate">
-            <i class="fas fa-check-circle"></i> Validate as {{ my_team.name }}
+            <i class="fas fa-check-circle"></i> {% translate "Start Match" %} — {{ my_team.name }}
         </a>
         {% elif my_team and my_team in activated_teams %}
         {# Already activated — show waiting state + QR option to confirm opponent #}
@@ -652,32 +652,32 @@
         {% else %}
         {# No session — prompt team login; do not expose both-team buttons #}
         <button class="md-primary-btn md-btn-waiting" disabled>
-            <i class="fas fa-lock"></i> Login as a team to validate
+            <i class="fas fa-lock"></i> {% translate "Login as a team to validate" %}
         </button>
         {% endif %}
 
     {% elif match.status == 'active' %}
         {% if my_team %}
         <a href="{% url 'match_submit_result' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-submit">
-            <i class="fas fa-flag-checkered"></i> Submit Score
+            <i class="fas fa-flag-checkered"></i> {% translate "Submit Result" %}
         </a>
         {% else %}
         {# No session — prompt team login; do not expose both-team buttons #}
         <button class="md-primary-btn md-btn-waiting" disabled>
-            <i class="fas fa-lock"></i> Login as a team to submit
+            <i class="fas fa-lock"></i> {% translate "Login as a team to submit" %}
         </button>
         {% endif %}
 
     {% elif match.status == 'waiting_validation' %}
         {% if my_team and result and result.submitted_by != my_team %}
         <a href="{% url 'match_validate_result' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate2">
-            <i class="fas fa-check-double"></i> Validate Score
+            <i class="fas fa-check-double"></i> {% translate "Validate Result" %}
         </a>
         {% elif my_team and result and result.submitted_by == my_team %}
         {# Submitter: offer QR validation so they can scan the opponent's card on the same phone #}
         {% if opponent_team %}
         <a href="{% url 'match_validate_result' match.id opponent_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate2">
-            <i class="fas fa-qrcode"></i> Validate via Opponent QR
+            <i class="fas fa-qrcode"></i> {% translate "Validate Result" %} — QR
         </a>
         {% else %}
         <button class="md-primary-btn md-btn-waiting" disabled>
@@ -687,13 +687,13 @@
         {% else %}
         {# No session — prompt team login; do not expose both-team buttons #}
         <button class="md-primary-btn md-btn-waiting" disabled>
-            <i class="fas fa-lock"></i> Login as a team to validate score
+            <i class="fas fa-lock"></i> {% translate "Login as a team to validate score" %}
         </button>
         {% endif %}
 
     {% elif match.status == 'completed' %}
         <a href="{% url 'match_list' %}" class="md-primary-btn" style="background:#6c757d;color:#fff;">
-            <i class="fas fa-list"></i> All Matches
+            <i class="fas fa-list"></i> {% translate "Matches" %}
         </a>
     {% endif %}
 

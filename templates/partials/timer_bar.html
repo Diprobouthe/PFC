@@ -12,18 +12,19 @@ Required context:
 Usage:
   {% include "partials/timer_bar.html" with timer_seconds=match.time_remaining_seconds timer_total=600 timer_expired=match.is_time_expired timer_limit=match.time_limit_minutes timer_id="submit" %}
 {% endcomment %}
+{% load i18n %}
 
 {% with tid=timer_id|default:"bar" %}
 <div class="alert {% if timer_expired %}alert-danger{% else %}alert-info{% endif %} py-2 px-3 mb-3 d-flex align-items-center justify-content-between" id="timer-bar-{{ tid }}" style="border-radius: 8px;">
     {% if timer_expired %}
         <span>
             <i class="bi bi-alarm-fill"></i>
-            <strong>Time Expired</strong> — cosone rules apply
+            <strong>{% translate "Time Expired" %}</strong> — {% translate "cosone rules apply" %}
         </span>
     {% else %}
         <span>
             <i class="bi bi-clock-fill"></i>
-            <strong>Time Left:</strong>
+            <strong>{% translate "Time Left:" %}</strong>
             <span id="timer-display-{{ tid }}" class="fw-bold ms-1" style="font-size: 1.1em;">--:--</span>
         </span>
         <div class="progress flex-grow-1 mx-3" style="height: 8px; max-width: 200px;">

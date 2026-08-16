@@ -1,7 +1,7 @@
-{% extends "base.html" %}
-{% load shot_tracker_tags %}
+{% extends 'base.html' %}
+{% load shot_tracker_tags i18n %}
 
-{% block title %}{{ player.name }} - Player Profile{% endblock %}
+{% block title %}{{ player.name }} - {% translate "Player Profile" %}{% endblock %}
 
 {% block content %}
 <style>
@@ -453,22 +453,22 @@ a.mh-card::after {
         </div>
         <div class="pp-stat-box">
             <span class="pp-stat-val">{{ overall_stats.win_rate|floatformat:1 }}%</span>
-            <span class="pp-stat-lbl">Win Rate</span>
+            <span class="pp-stat-lbl">{% translate "Win Rate" %}</span>
         </div>
     </div>
     {% else %}
-    <div class="mh-empty" style="margin:14px 0;"><i class="fas fa-lock"></i> This player keeps their statistics private.</div>
+    <div class="mh-empty" style="margin:14px 0;"><i class="fas fa-lock"></i> {% translate "This player keeps their statistics private." %}</div>
     {% endif %}
 
     <!-- ===== TABS ===== -->
     <div class="pp-section" style="padding-bottom:0 !important;">
         <div class="pp-tabs">
-            <a class="pp-tab active" data-pp-tab="pp-overall" href="#">Overall</a>
+            <a class="pp-tab active" data-pp-tab="pp-overall" href="#">{% translate "Overall" %}</a>
             {% if show_public_statistics %}
-            <a class="pp-tab" data-pp-tab="pp-tournament" href="#">Tournament</a>
-            <a class="pp-tab" data-pp-tab="pp-friendly" href="#">Friendly</a>
+            <a class="pp-tab" data-pp-tab="pp-tournament" href="#">{% translate "Tournament" %}</a>
+            <a class="pp-tab" data-pp-tab="pp-friendly" href="#">{% translate "Friendly" %}</a>
             {% load shot_tracker_tags %}
-            <a class="pp-tab" data-pp-tab="pp-shooting" href="#">Shot Tracker</a>
+            <a class="pp-tab" data-pp-tab="pp-shooting" href="#">{% translate "Shot Tracker" %}</a>
             {% endif %}
         </div>
 
@@ -482,35 +482,35 @@ a.mh-card::after {
                 <div class="pp-stats-grid" style="margin-bottom:14px !important;">
                     <div class="pp-stats-item">
                         <strong>{{ accurate_stats.matches_played|default:0 }}</strong>
-                        <small>Tournament games</small>
+                        <small>{% translate "Tournament games" %}</small>
                     </div>
                     <div class="pp-stats-item">
                         <strong>{{ friendly_stats.total_games|default:0 }}</strong>
-                        <small>Friendly games</small>
+                        <small>{% translate "Friendly games" %}</small>
                     </div>
                 </div>
 
                 <!-- Rating Progression Chart -->
                 {% if show_public_statistics and rating_chart_data.has_data %}
                 <div class="pp-section" style="margin-bottom:14px !important;">
-                    <div class="pp-section-hdr">Rating Progression</div>
+                    <div class="pp-section-hdr">{% translate "Rating Progression" %}</div>
                     <div class="pp-section-body">
                         <div class="pp-chart-stats">
                             <div class="pp-chart-stat">
                                 <span class="pp-chart-stat-val">{{ rating_chart_data.starting_rating|floatformat:0 }}</span>
-                                <span class="pp-chart-stat-lbl">Start</span>
+                                <span class="pp-chart-stat-lbl">{% translate "Start" %}</span>
                             </div>
                             <div class="pp-chart-stat">
                                 <span class="pp-chart-stat-val">{{ rating_chart_data.current_rating|floatformat:1 }}</span>
-                                <span class="pp-chart-stat-lbl">Current</span>
+                                <span class="pp-chart-stat-lbl">{% translate "Current" %}</span>
                             </div>
                             <div class="pp-chart-stat">
                                 <span class="pp-chart-stat-val" style="color:{% if rating_chart_data.total_change >= 0 %}#2e7d32{% else %}#c62828{% endif %} !important;">{% if rating_chart_data.total_change >= 0 %}+{% endif %}{{ rating_chart_data.total_change|floatformat:1 }}</span>
-                                <span class="pp-chart-stat-lbl">Change</span>
+                                <span class="pp-chart-stat-lbl">{% translate "Change" %}</span>
                             </div>
                             <div class="pp-chart-stat">
                                 <span class="pp-chart-stat-val">{{ rating_chart_data.total_matches }}</span>
-                                <span class="pp-chart-stat-lbl">Rated</span>
+                                <span class="pp-chart-stat-lbl">{% translate "Rated" %}</span>
                             </div>
                         </div>
                         <div style="position:relative !important; height:260px !important;">
@@ -523,12 +523,12 @@ a.mh-card::after {
                 <!-- Skill Comparison -->
                 {% if bell_curve_data.has_data %}
                 <div class="pp-section" style="margin-bottom:14px !important;">
-                    <div class="pp-section-hdr">Skill Comparison</div>
+                    <div class="pp-section-hdr">{% translate "Skill Comparison" %}</div>
                     <div class="pp-section-body">
                         <div class="pp-percentile-callout">
                             <span class="pct-num">{{ bell_curve_data.percentile }}%</span>
-                            <span class="pct-label">of players have a lower rating than you</span>
-                            <span class="pct-sub">Compared to {{ bell_curve_data.total_players }} players in the community</span>
+                            <span class="pct-label">{% translate "of players have a lower rating than you" %}</span>
+                            <span class="pct-sub">{% blocktranslate with total=bell_curve_data.total_players %}Compared to {{ total }} players in the community{% endblocktranslate %}</span>
                         </div>
                         <div class="skill-histogram" style="text-align:center !important;">
                             <svg width="100%" height="200" viewBox="0 0 800 220"
@@ -567,19 +567,19 @@ a.mh-card::after {
                         <div class="pp-skill-stats">
                             <div class="pp-skill-stat">
                                 <strong>{{ bell_curve_data.current_rating|floatformat:1 }}</strong>
-                                <small>Your Rating</small>
+                                <small>{% translate "Your Rating" %}</small>
                             </div>
                             <div class="pp-skill-stat">
                                 <strong>{{ bell_curve_data.avg_rating }}</strong>
-                                <small>Community Avg</small>
+                                <small>{% translate "Community Average" %}</small>
                             </div>
                             <div class="pp-skill-stat">
                                 <strong>{{ bell_curve_data.percentile }}%</strong>
-                                <small>Percentile</small>
+                                <small>{% translate "Percentile" %}</small>
                             </div>
                             <div class="pp-skill-stat">
                                 <strong>{{ bell_curve_data.total_players }}</strong>
-                                <small>Players</small>
+                                <small>{% translate "Players" %}</small>
                             </div>
                         </div>
                     </div>
@@ -589,7 +589,7 @@ a.mh-card::after {
                 {% endif %}
                 <!-- Match History (All Games) -->
                 <div class="pp-section">
-                    <div class="pp-section-hdr">Match History</div>
+                    <div class="pp-section-hdr">{% translate "Match History" %}</div>
                     <div class="pp-section-body">
                         <div class="mh-list">
                             {% for match in matches %}

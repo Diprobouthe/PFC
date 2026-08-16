@@ -1,5 +1,6 @@
-{% extends "base.html" %}
-{% block title %}VS Encounter — {{ team1.name }} vs {{ team2.name }}{% endblock %}
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% translate "VS Encounter" %} — {{ team1.name }} vs {{ team2.name }}{% endblock %}
 
 {% block content %}
 <div class="container py-4">
@@ -28,15 +29,15 @@
       </div>
 
       {% if encounter.is_complete %}
-        <span class="badge bg-success mt-2">Encounter Complete</span>
+        <span class="badge bg-success mt-2">{% translate "Encounter Complete" %}</span>
       {% else %}
-        <span class="badge bg-warning text-dark mt-2">In Progress</span>
+        <span class="badge bg-warning text-dark mt-2">{% translate "In Progress" %}</span>
       {% endif %}
     </div>
   </div>
 
   {# ── VS matches ── #}
-  <h5 class="mb-3">Matches</h5>
+  <h5 class="mb-3">{% translate "Matches" %}</h5>
   <div class="list-group">
     {% for sg in sub_game_data %}
     {% with match=sg.match %}
@@ -51,36 +52,36 @@
         {% elif match.match_type == 'triplet' %}
           <span class="badge bg-warning text-dark me-2">Triplettes</span>
         {% else %}
-          <span class="badge bg-secondary me-2">Format TBD</span>
+          <span class="badge bg-secondary me-2">{% translate "Format TBD" %}</span>
         {% endif %}
         {% if match.vs_points_value %}
           <strong>{{ match.vs_points_value }} pt{% if match.vs_points_value != 1 %}s{% endif %}</strong>
         {% else %}
-          <small class="text-muted">Points set at start</small>
+          <small class="text-muted">{% translate "Points set at start" %}</small>
         {% endif %}
       </div>
 
       <div class="text-center">
         {% if match.status == 'completed' %}
           {% if match.winner %}
-            <span class="text-success fw-bold">{{ match.winner.name }} won</span>
+            <span class="text-success fw-bold">{{ match.winner.name }} {% translate "won" %}</span>
           {% else %}
-            <span class="text-muted">Draw</span>
+            <span class="text-muted">{% translate "Draw" %}</span>
           {% endif %}
           <br>
           <small class="text-muted">{{ match.team1_score }} – {{ match.team2_score }}</small>
         {% elif match.status == 'active' %}
-          <span class="badge bg-primary">Match active</span>
+          <span class="badge bg-primary">{% translate "Match active" %}</span>
         {% elif match.status == 'pending_verification' %}
-          <span class="badge bg-warning text-dark">Waiting for a court</span>
+          <span class="badge bg-warning text-dark">{% translate "Waiting for a court" %}</span>
         {% elif sg.both_locked %}
-          <span class="badge bg-success">Lineups confirmed — starting match</span>
+          <span class="badge bg-success">{% translate "Lineups confirmed — starting match" %}</span>
         {% elif sg.own_locked and not sg.opp_locked %}
-          <span class="badge bg-warning text-dark">Waiting for opponent lineup</span>
+          <span class="badge bg-warning text-dark">{% translate "Waiting for opponent lineup" %}</span>
         {% elif sg.opp_locked and not sg.own_locked %}
-          <span class="badge bg-info text-dark">Opponent submitted — submit yours</span>
+          <span class="badge bg-info text-dark">{% translate "Opponent submitted — submit yours" %}</span>
         {% else %}
-          <span class="badge bg-secondary">Awaiting lineups</span>
+          <span class="badge bg-secondary">{% translate "Awaiting lineups" %}</span>
         {% endif %}
       </div>
 
@@ -96,14 +97,14 @@
     </a>
     {% endwith %}
     {% empty %}
-    <div class="list-group-item text-muted">Matches will be created when the second VS team registers.</div>
+    <div class="list-group-item text-muted">{% translate "Matches will be created when the second VS team registers." %}</div>
     {% endfor %}
   </div>
 
   {# ── Back link ── #}
   <div class="mt-4">
     <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-outline-secondary btn-sm">
-      &larr; Back to Tournament
+      &larr; {% translate "Back to Tournament" %}
     </a>
   </div>
 

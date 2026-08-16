@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import get_language
 from datetime import datetime, timedelta
 from tournaments.models import Tournament
 from courts.models import CourtComplex
@@ -139,12 +140,56 @@ class TournamentScenario(models.Model):
             self.supports_triples = True
         super().save(*args, **kwargs)
 
+    def get_display_translation(self, language_code=None):
+        """Return the current-language presentation copy, with safe legacy fallback."""
+        language_code = (language_code or get_language() or 'en').split('-')[0]
+        translation = self.display_translations.filter(language_code=language_code).first()
+        return translation
+
+    def get_localized_display_name(self, language_code=None):
+        translation = self.get_display_translation(language_code)
+        return (translation.display_name if translation and translation.display_name else self.display_name)
+
+    def get_localized_description(self, language_code=None):
+        translation = self.get_display_translation(language_code)
+        return (translation.description if translation and translation.description else self.description)
+
     def __str__(self):
         return f"{self.display_name} ({'Free' if self.is_free else 'Voucher Required'})"
     
     def get_court_range(self):
         """Get the valid range of courts for this scenario"""
         return range(1, self.max_courts + 1)
+
+
+class TournamentScenarioTranslation(models.Model):
+    """Optional user-facing presentation copy for one Scenario and language."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('el', 'Greek / Ελληνικά'),
+    ]
+
+    scenario = models.ForeignKey(
+        TournamentScenario,
+        on_delete=models.CASCADE,
+        related_name='display_translations',
+    )
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    display_name = models.CharField(max_length=100, blank=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['scenario', 'language_code'],
+                name='unique_scenario_display_translation_language',
+            )
+        ]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f"{self.scenario.display_name} — {self.get_language_code_display()}"
 
 
 class ScenarioStage(models.Model):

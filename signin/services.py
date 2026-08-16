@@ -2,6 +2,7 @@
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from tournaments.models import (
     Tournament,
@@ -19,7 +20,7 @@ from tournaments.vs_utils import (
 from .models import TeamTournamentSignin
 
 
-VS_TWO_TEAM_MESSAGE = "A VS tournament accepts exactly two teams."
+VS_TWO_TEAM_MESSAGE = _("A VS tournament accepts exactly two teams.")
 
 
 @transaction.atomic

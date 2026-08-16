@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n %}
 
-{% block title %}PFC MARKET - Player Rankings{% endblock %}
+{% block title %}{% translate "PFC Market" %} - {% translate "Player Rankings" %}{% endblock %}
 
 {% block content %}
 <style>
@@ -250,31 +250,31 @@
 
     <!-- Header -->
     <div style="margin-bottom:16px;">
-        <h1 style="font-size:clamp(22px,5vw,36px);font-weight:900;letter-spacing:-.02em;margin:0 0 2px;">PFC MARKET</h1>
-        <p style="color:#64748b;font-size:14px;margin:0;">Live player rankings and performance trends</p>
+        <h1 style="font-size:clamp(22px,5vw,36px);font-weight:900;letter-spacing:-.02em;margin:0 0 2px;">{% translate "PFC Market" %}</h1>
+        <p style="color:#64748b;font-size:14px;margin:0;">{% translate "Live player rankings and performance trends" %}</p>
     </div>
 
     <!-- Stats strip -->
     <div class="mkt-stats">
         <div class="mkt-stat-box">
-            <div class="mkt-stat-label">Players</div>
+            <div class="mkt-stat-label">{% translate "Players" %}</div>
             <div class="mkt-stat-value">{{ stats.total_players }}</div>
         </div>
         <div class="mkt-stat-box">
-            <div class="mkt-stat-label" style="color:#16a34a;">Gainers</div>
+            <div class="mkt-stat-label" style="color:#16a34a;">{% translate "Gainers" %}</div>
             <div class="mkt-stat-value" style="color:#16a34a;">↑ {{ stats.gainers }}</div>
         </div>
         <div class="mkt-stat-box">
-            <div class="mkt-stat-label" style="color:#dc2626;">Losers</div>
+            <div class="mkt-stat-label" style="color:#dc2626;">{% translate "Losers" %}</div>
             <div class="mkt-stat-value" style="color:#dc2626;">↓ {{ stats.losers }}</div>
         </div>
         <div class="mkt-stat-box">
-            <div class="mkt-stat-label">Avg Rating</div>
+            <div class="mkt-stat-label">{% translate "Average Rating" %}</div>
             <div class="mkt-stat-value" style="color:#1d4ed8;">{{ stats.avg_rating|floatformat:2 }}</div>
         </div>
         {% if stats.top_gainer %}
         <div class="mkt-stat-box wide">
-            <div class="mkt-stat-label" style="color:#16a34a;">Top Gainer</div>
+            <div class="mkt-stat-label" style="color:#16a34a;">{% translate "Top Gainer" %}</div>
             <div class="mkt-stat-value" style="color:#16a34a;font-size:15px;">
                 {{ stats.top_gainer.player.name }} (+{{ stats.top_gainer.trend_change|floatformat:2 }})
             </div>
@@ -286,28 +286,28 @@
     <div class="mkt-controls">
         <div class="mkt-search-wrap">
             <span class="mkt-search-icon"><i class="bi bi-search"></i></span>
-            <input type="text" id="mktSearch" placeholder="Search player…" autocomplete="off" aria-label="Search players">
+            <input type="text" id="mktSearch" placeholder="{% translate 'Search player…' %}" autocomplete="off" aria-label="{% translate 'Search players' %}">
         </div>
         <div class="mkt-sort-btns">
-            <a href="?sort=rating" class="mkt-sort-btn {% if sort_by == 'rating' %}active{% endif %}">🏆 Rating</a>
-            <a href="?sort=trend" class="mkt-sort-btn {% if sort_by == 'trend' %}active{% endif %}">📊 Trend</a>
+            <a href="?sort=rating" class="mkt-sort-btn {% if sort_by == 'rating' %}active{% endif %}">🏆 {% translate "Rating" %}</a>
+            <a href="?sort=trend" class="mkt-sort-btn {% if sort_by == 'trend' %}active{% endif %}">📊 {% translate "Trend" %}</a>
         </div>
     </div>
 
     <!-- Rankings table -->
     <div class="mkt-card">
         <div class="mkt-card-header">
-            <span>Player Rankings</span>
-            <span class="mkt-badge" id="mktCount">{{ stats.total_players }} Players</span>
+            <span>{% translate "Player Rankings" %}</span>
+            <span class="mkt-badge" id="mktCount">{% blocktranslate count counter=stats.total_players %}{{ counter }} Player{% plural %}{{ counter }} Players{% endblocktranslate %}</span>
         </div>
         <div style="overflow-x:auto;">
             <table class="mkt-table" id="mktTable">
                 <thead>
                     <tr>
                         <th style="text-align:center;">#</th>
-                        <th>Player</th>
-                        <th>Rating</th>
-                        <th>Change</th>
+                        <th>{% translate "Player" %}</th>
+                        <th>{% translate "Rating" %}</th>
+                        <th>{% translate "Change" %}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -343,17 +343,17 @@
                         <td>
                             <a href="{% url 'player_profile' data.player.id %}" class="mkt-action-btn">
                                 <i class="bi bi-person-badge"></i>
-                                <span class="btn-label">Profile</span>
+                                <span class="btn-label">{% translate "Profile" %}</span>
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" style="padding:24px;text-align:center;color:#94a3b8;">No players found.</td>
+                        <td colspan="5" style="padding:24px;text-align:center;color:#94a3b8;">{% translate "No players found." %}</td>
                     </tr>
                     {% endfor %}
                     <tr class="mkt-no-results" id="mktNoResults">
-                        <td colspan="5">No players match your search.</td>
+                        <td colspan="5">{% translate "No players match your search." %}</td>
                     </tr>
                 </tbody>
             </table>
@@ -363,7 +363,7 @@
     <!-- Back -->
     <div style="text-align:center;margin-top:20px;">
         <a href="{% url 'home' %}" style="color:#64748b;font-size:13px;text-decoration:none;">
-            ← Back to Home
+            ← {% translate "Back to Home" %}
         </a>
     </div>
 

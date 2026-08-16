@@ -75,8 +75,8 @@ def get_available_scenarios():
             for scenario in TournamentScenario.objects.all():
                 scenarios[scenario.name] = {
                     'id': scenario.id,
-                    'name': scenario.display_name,
-                    'description': scenario.description,
+                    'name': scenario.get_localized_display_name(),
+                    'description': scenario.get_localized_description(),
                     'image_url': scenario.image.url if scenario.image else '',
                     'is_free': scenario.is_free,
                     'scenario_mode': getattr(scenario, 'scenario_mode', 'melee'),

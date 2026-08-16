@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load i18n %}
 {% block title %}Submit Score{% endblock %}
 
 {% block content %}
@@ -263,7 +264,7 @@
         <!-- Submitting-as info -->
         {% if session_codename %}
         <div class="ss-submitting-as">
-            Submitting as <strong>{{ session_codename }}</strong>
+            {% translate "Submitting as" %} <strong>{{ session_codename }}</strong>
         </div>
         {% endif %}
 
@@ -271,22 +272,22 @@
         {% if not auto_team %}
         <div class="ss-team-select" id="teamSelector">
             <button type="button" class="ss-team-btn active-black" id="btnBlack"
-                    onclick="selectTeam('BLACK')">⚫ Black</button>
+                    onclick="selectTeam('BLACK')">⚫ {% translate "Black" %}</button>
             <button type="button" class="ss-team-btn" id="btnWhite"
-                    onclick="selectTeam('WHITE')">⚪ White</button>
+                    onclick="selectTeam('WHITE')">⚪ {% translate "White" %}</button>
         </div>
         <input type="hidden" name="submitting_team" id="submitting_team_input" value="BLACK">
         {% endif %}
 
         <!-- Submit -->
         <button type="submit" class="ss-submit">
-            Submit Score
+            {% translate "Submit Score" %}
         </button>
 
     </form>
 
     <a href="{% url 'friendly_games:game_detail' game.id %}" class="ss-back">
-        ← Back to game
+        ← {% translate "Back to game" %}
     </a>
 
 </div><!-- /.ss-wrap -->

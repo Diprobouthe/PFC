@@ -1,6 +1,20 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import TournamentScenario, VoucherCode, SimpleTournament, ScenarioStage
+from .models import (
+    TournamentScenario,
+    TournamentScenarioTranslation,
+    VoucherCode,
+    SimpleTournament,
+    ScenarioStage,
+)
+
+
+class ScenarioDisplayTranslationInline(admin.TabularInline):
+    model = TournamentScenarioTranslation
+    extra = 0
+    fields = ['language_code', 'display_name', 'description']
+    verbose_name = 'Display translation'
+    verbose_name_plural = 'Display translations'
 
 
 class ScenarioStageInline(admin.TabularInline):
@@ -77,7 +91,7 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
         })
     )
     
-    inlines = [ScenarioStageInline]
+    inlines = [ScenarioDisplayTranslationInline, ScenarioStageInline]
 
 
 @admin.register(VoucherCode)

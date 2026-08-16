@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Tournaments — PFC{% endblock %}
+{% block title %}{% translate "Tournaments" %} — PFC{% endblock %}
 
 {% block content %}
 <style>
@@ -178,7 +179,7 @@
 <div class="tdir-wrap">
 
     <div class="tdir-title">
-        <i class="fas fa-trophy me-2" style="color:#1a3a8f;font-size:1.1rem;"></i>Tournaments
+        <i class="fas fa-trophy me-2" style="color:#1a3a8f;font-size:1.1rem;"></i>{% translate "Tournaments" %}
     </div>
 
     <!-- Search -->
@@ -188,13 +189,13 @@
             name="q"
             id="tdir-q"
             value="{{ query }}"
-            placeholder="Search tournaments…"
+            placeholder="{% translate 'Search tournaments…' %}"
             autocomplete="off"
             autocorrect="off"
             spellcheck="false"
         >
         {% if query %}
-            <button type="button" class="tdir-clear-btn" onclick="document.getElementById('tdir-q').value='';document.getElementById('tdir-search-form').submit();" title="Clear search">
+            <button type="button" class="tdir-clear-btn" onclick="document.getElementById('tdir-q').value='';document.getElementById('tdir-search-form').submit();" title="{% translate 'Clear search' %}">
                 <i class="fas fa-times"></i>
             </button>
         {% else %}
@@ -206,7 +207,7 @@
     <div class="tdir-section">
         <div class="tdir-section-label">
             <i class="fas fa-circle me-1" style="color:#2e7d32;font-size:.55rem;vertical-align:middle;"></i>
-            Active &amp; Current
+            {% translate "Active & Current" %}
             {% if active_tournaments %}<span style="font-weight:400;color:#9aa3b5;margin-left:4px;">({{ active_tournaments|length }})</span>{% endif %}
         </div>
 

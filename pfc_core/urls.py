@@ -9,6 +9,9 @@ from . import my_matches_view
 from . import smart_router
 
 urlpatterns = [
+    # Standard Django language-cookie endpoint. Existing PFC URLs remain
+    # unchanged; no language-prefixed routes are introduced.
+    path('i18n/', include('django.conf.urls.i18n')),
     path('', views.home, name='home'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('my-matches/', smart_router.resolve_decision_url, name='my_active_matches'),

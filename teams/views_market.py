@@ -5,6 +5,7 @@ Shows all players ranked by rating with trend indicators based on recent 3-day w
 from django.shortcuts import render
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext as _, ngettext
 from datetime import timedelta
 from .models import PlayerProfile
 import json
@@ -23,12 +24,13 @@ def calculate_player_trend(profile, window_days=3):
         'window_label': str  (e.g. '3d' or '2 games')
     }
     """
+    day_label = ngettext('%(count)s day', '%(count)s days', window_days) % {'count': window_days}
     empty = {
         'direction': 'neutral',
         'change': 0.0,
         'percentage': 0.0,
         'games_analyzed': 0,
-        'window_label': f'{window_days}d'
+        'window_label': day_label
     }
 
     if not profile.rating_history:
@@ -52,12 +54,12 @@ def calculate_player_trend(profile, window_days=3):
             except Exception:
                 pass
 
-    window_label = f'{window_days}d'
+    window_label = day_label
 
     # --- Fallback: last 2 games if window is empty ---
     if not recent_games:
         recent_games = history[-2:] if len(history) >= 2 else history[-1:]
-        window_label = f'{len(recent_games)} game{"s" if len(recent_games) != 1 else ""}'
+        window_label = ngettext('%(count)s game', '%(count)s games', len(recent_games)) % {'count': len(recent_games)}
 
     # Sum changes
     total_change = sum(g.get('change', 0) for g in recent_games)
@@ -104,7 +106,7 @@ def pfc_market(request):
             'trend_percentage': trend['percentage'],
             'games_analyzed': trend['games_analyzed'],
             'window_label': trend['window_label'],
-            'team': profile.player.team.name if profile.player.team else 'No Team',
+            'team': profile.player.team.name if profile.player.team else _('No Team'),
             'rank': 0  # Will be set after sorting
         })
     

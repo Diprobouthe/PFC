@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Activate Match · PFC{% endblock %}
+{% block title %}{% translate "Start Match" %} · PFC{% endblock %}
 
 {% block content %}
 <style>
@@ -251,7 +252,7 @@
     <div class="ma-topbar">
         <span class="ma-vs">{{ match.team1.name }} vs {{ match.team2.name }}</span>
         <span class="ma-status-badge">
-            {% if is_validating %}Validating{% else %}Initiating{% endif %}
+            {% if is_validating %}{% translate "Validating" %}{% else %}{% translate "Starting" %}{% endif %}
         </span>
     </div>
 
@@ -264,7 +265,7 @@
     <!-- If validating: show other team's lineup -->
     {% if is_validating and first_team_match_players %}
     <div class="ma-other-team-strip">
-        <strong>Other team:</strong>
+        <strong>{% translate "Other team:" %}</strong>
         {% for p in first_team_match_players %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
         ({{ first_team_match_players|length }} player{{ first_team_match_players|length|pluralize }})
     </div>
@@ -280,11 +281,11 @@
 
         <!-- ② Player selection -->
         <div class="ma-role-label">
-            Select Players
+            {% translate "Select Players" %}
             {% if auto_preselect %}
-            <span class="ma-auto-notice"><i class="fas fa-magic"></i> Auto-selected ({{ required_count }} required)</span>
+            <span class="ma-auto-notice"><i class="fas fa-magic"></i> {% translate "Auto-selected" %} ({{ required_count }} {% translate "required" %})</span>
             {% elif required_count %}
-            <span class="ma-auto-notice" style="color:#6c757d;">Select {{ required_count }} player{{ required_count|pluralize }}</span>
+            <span class="ma-auto-notice" style="color:#6c757d;">{% blocktranslate count counter=required_count %}Select {{ counter }} player{% plural %}Select {{ counter }} players{% endblocktranslate %}</span>
             {% endif %}
         </div>
 
@@ -302,7 +303,7 @@
             </div>
             <span class="ma-player-name">{{ player.name }}</span>
             {% if auto_preselect %}
-            <span class="ma-player-auto-badge">Auto</span>
+            <span class="ma-player-auto-badge">{% translate "Auto" %}</span>
             {% endif %}
         </div>
         <!-- Position chips — shown when player is selected -->
@@ -321,7 +322,7 @@
 
         <!-- Fallback: if team_players_with_pos is empty, render original form players -->
         {% if not team_players_with_pos %}
-        <div class="ma-role-label">Select Players</div>
+        <div class="ma-role-label">{% translate "Select Players" %}</div>
         {% for player in form.players %}
         <div class="ma-player-card" id="card-{{ player.data.value }}" onclick="togglePlayer({{ player.data.value }})">
             <input type="checkbox" name="players" value="{{ player.data.value }}" id="chk-{{ player.data.value }}">
@@ -332,9 +333,9 @@
         </div>
         <div class="ma-pos-area" id="pos-{{ player.data.value }}">
             <div class="ma-pos-chips">
-                <label class="ma-pos-chip" onclick="selectPos({{ player.data.value }}, 'pointer', this)"><input type="radio" name="role_{{ player.data.value }}" value="pointer"> Pointer</label>
-                <label class="ma-pos-chip active" onclick="selectPos({{ player.data.value }}, 'milieu', this)"><input type="radio" name="role_{{ player.data.value }}" value="milieu" checked> Milieu</label>
-                <label class="ma-pos-chip" onclick="selectPos({{ player.data.value }}, 'tirer', this)"><input type="radio" name="role_{{ player.data.value }}" value="tirer"> Shooter</label>
+                <label class="ma-pos-chip" onclick="selectPos({{ player.data.value }}, 'pointer', this)"><input type="radio" name="role_{{ player.data.value }}" value="pointer"> {% translate "Pointer" %}</label>
+                <label class="ma-pos-chip active" onclick="selectPos({{ player.data.value }}, 'milieu', this)"><input type="radio" name="role_{{ player.data.value }}" value="milieu" checked> {% translate "Milieu" %}</label>
+                <label class="ma-pos-chip" onclick="selectPos({{ player.data.value }}, 'tirer', this)"><input type="radio" name="role_{{ player.data.value }}" value="tirer"> {% translate "Shooter" %}</label>
             </div>
         </div>
         {% endfor %}
@@ -351,20 +352,20 @@
     </a>
     <button type="submit" form="maForm" class="ma-confirm-btn" id="confirmBtn">
         <i class="fas fa-play me-2"></i>
-        {% if is_validating %}Validate &amp; Activate{% else %}Activate Match{% endif %}
+        {% if is_validating %}{% translate "Validate and Start Match" %}{% else %}{% translate "Start Match" %}{% endif %}
     </button>
     {# QR button: shown to the initiating team so they can scan the opponent's card on their own phone #}
     {% if is_initiating %}
-    <button type="button" class="ma-qr-btn" id="maQrBtn" title="Activate opponent via QR scan">&#x1F4F7;</button>
+    <button type="button" class="ma-qr-btn" id="maQrBtn" title="{% translate 'Start opponent via QR scan' %}">&#x1F4F7;</button>
     {% endif %}
 </div>
 
 <script>
 // Position choices injected from view
 const POS_CHOICES = [
-    ['pointer', 'Pointer'],
-    ['milieu', 'Milieu'],
-    ['tirer', 'Shooter'],
+    ['pointer', '{% translate "Pointer" %}'],
+    ['milieu', '{% translate "Milieu" %}'],
+    ['tirer', '{% translate "Shooter" %}'],
 ];
 
 function togglePlayer(pid) {

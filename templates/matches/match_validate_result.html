@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
+{% load i18n %}
+{% translate "Confirm — Agree" as i18n_confirm_agree %}
+{% translate "Confirm — Disagree" as i18n_confirm_disagree %}
+{% translate "Confirm that you agree with the submitted score? The match will be marked as completed." as i18n_confirm_agree_message %}
+{% translate "Confirm that you disagree with the submitted score? The result will be cleared for resubmission." as i18n_confirm_disagree_message %}
 
-{% block title %}Validate Score · PFC{% endblock %}
+{% block title %}{% translate "Validate Result" %} · PFC{% endblock %}
 
 {% block content %}
 <style>
@@ -264,12 +269,12 @@
     {% if match.court or match.round %}
     <div class="vr-info-strip">
         {% if match.court %}<i class="fas fa-map-marker-alt"></i> {{ match.court.name }}{% if match.court.court_complex %} · {{ match.court.court_complex.name }}{% endif %}{% endif %}
-        {% if match.round %}{% if match.court %} &nbsp;·&nbsp; {% endif %}<i class="fas fa-trophy"></i> Round {{ match.round }}{% endif %}
+        {% if match.round %}{% if match.court %} &nbsp;·&nbsp; {% endif %}<i class="fas fa-trophy"></i> {% translate "Round" %} {{ match.round }}{% endif %}
     </div>
     {% endif %}
 
     <!-- Submitted score -->
-    <div class="vr-label">Submitted Score</div>
+    <div class="vr-label">{% translate "Submitted Score" %}</div>
     <div class="vr-score-block">
         <div class="vr-score-row">
             <div class="vr-score-col">
@@ -287,14 +292,14 @@
             </div>
         </div>
         <div class="vr-submitted-by">
-            Submitted by {{ result.submitted_by.name }}
+            {% translate "Submitted by" %} {{ result.submitted_by.name }}
         </div>
     </div>
 
     <!-- Photo evidence (if any) -->
     {% if result.photo_evidence %}
     <div class="vr-photo">
-        <img src="{{ result.photo_evidence.url }}" alt="Match Evidence">
+        <img src="{{ result.photo_evidence.url }}" alt="{% translate 'Match Evidence' %}">
     </div>
     {% endif %}
 
@@ -304,7 +309,7 @@
     {% endif %}
 
     <!-- Agree / Disagree -->
-    <div class="vr-label">Your Decision</div>
+    <div class="vr-label">{% translate "Your Decision" %}</div>
 
     {% if form.errors %}
     <div class="vr-error">
@@ -316,7 +321,7 @@
     {% if is_own_team %}
     <!-- Submitting team: cannot self-validate, but can scan opponent QR -->
     <div style="background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:14px;padding:16px;margin-bottom:12px;text-align:center;color:#6b7280;font-size:0.88rem;">
-        You submitted this result.<br>Waiting for the other team to validate.
+        {% translate "You submitted this result." %}<br>{% translate "Waiting for the other team to validate." %}
     </div>
     <form method="post" id="vrForm">
         {% csrf_token %}
@@ -324,7 +329,7 @@
         <input type="hidden" name="pin" value="">
         <div style="margin-bottom:14px;">
             <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
-                <i class="fas fa-qrcode"></i> Validate via Opponent QR Card
+                <i class="fas fa-qrcode"></i> {% translate "Validate Result" %} — QR
             </button>
             <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
         </div>
@@ -334,12 +339,12 @@
                 <div class="vr-choice-btn agree" id="agreeBtn" onclick="selectChoice('agree')">
                     <input type="radio" name="validation_action" value="agree" id="vrAgree" class="vr-choice-radio">
                     <div class="vr-choice-icon"><i class="fas fa-thumbs-up"></i></div>
-                    <div>Agree</div>
+                    <div>{% translate "Agree" %}</div>
                 </div>
                 <div class="vr-choice-btn disagree" id="disagreeBtn" onclick="selectChoice('disagree')">
                     <input type="radio" name="validation_action" value="disagree" id="vrDisagree" class="vr-choice-radio">
                     <div class="vr-choice-icon"><i class="fas fa-thumbs-down"></i></div>
-                    <div>Disagree</div>
+                    <div>{% translate "Disagree" %}</div>
                 </div>
             </div>
         </div>
@@ -349,9 +354,9 @@
     <!-- QR identity: always visible so anyone holding the phone can scan a player card from this team -->
     <div style="margin-bottom:14px;">
         <button type="button" onclick="openQrScanner()" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;border:2px solid #0f766e;color:#0f766e;font-size:15px;font-weight:700;background:#f0fdfa;cursor:pointer;width:100%;">
-            <i class="fas fa-qrcode"></i> Validate via QR Card
+            <i class="fas fa-qrcode"></i> {% translate "Validate Result" %} — QR
         </button>
-        <p style="font-size:0.78rem;color:#6b7280;margin:4px 0 0;text-align:center;">Scan a QR card from a player of <strong>{{ team.name }}</strong> to confirm their identity, then choose Agree or Disagree.</p>
+        <p style="font-size:0.78rem;color:#6b7280;margin:4px 0 0;text-align:center;">{% blocktranslate with team_name=team.name %}Scan a QR card from a player of {{ team_name }} to confirm their identity, then choose Agree or Disagree.{% endblocktranslate %}</p>
         <div id="qrIdentityConfirm" style="display:none;margin-top:8px;font-size:13px;color:#059669;font-weight:600;text-align:center;"></div>
     </div>
     <form method="post" id="vrForm">
@@ -364,13 +369,13 @@
             <div class="vr-choice-btn agree" id="agreeBtn" onclick="selectChoice('agree')">
                 <input type="radio" name="validation_action" value="agree" id="vrAgree" class="vr-choice-radio">
                 <div class="vr-choice-icon"><i class="fas fa-thumbs-up"></i></div>
-                <div>Agree</div>
+                <div>{% translate "Agree" %}</div>
             </div>
             <!-- Disagree -->
             <div class="vr-choice-btn disagree" id="disagreeBtn" onclick="selectChoice('disagree')">
                 <input type="radio" name="validation_action" value="disagree" id="vrDisagree" class="vr-choice-radio">
                 <div class="vr-choice-icon"><i class="fas fa-thumbs-down"></i></div>
-                <div>Disagree</div>
+                <div>{% translate "Disagree" %}</div>
             </div>
         </div>
     </form>
@@ -382,12 +387,18 @@
 <div class="vr-sticky-bar">
     <a href="{% url 'match_detail' match.id %}" class="vr-back-btn"><i class="fas fa-arrow-left"></i></a>
     <button type="button" id="vrConfirmBtn" class="vr-confirm-btn" onclick="confirmChoice()">
-        <i class="fas fa-check"></i> <span id="vrConfirmLabel">Select a decision</span>
+        <i class="fas fa-check"></i> <span id="vrConfirmLabel">{% translate "Select a decision" %}</span>
     </button>
 </div>
 
 <script>
 let selectedChoice = null;
+const validationI18n = {
+    confirmAgree: '{{ i18n_confirm_agree|escapejs }}',
+    confirmDisagree: '{{ i18n_confirm_disagree|escapejs }}',
+    agreeMessage: '{{ i18n_confirm_agree_message|escapejs }}',
+    disagreeMessage: '{{ i18n_confirm_disagree_message|escapejs }}',
+};
 
 function selectChoice(choice) {
     selectedChoice = choice;
@@ -403,15 +414,15 @@ function selectChoice(choice) {
     const btn = document.getElementById('vrConfirmBtn');
     const label = document.getElementById('vrConfirmLabel');
     btn.className = 'vr-confirm-btn ready ' + choice + '-ready';
-    label.textContent = choice === 'agree' ? 'Confirm — Agree' : 'Confirm — Disagree';
+    label.textContent = choice === 'agree' ? validationI18n.confirmAgree : validationI18n.confirmDisagree;
 }
 
 function confirmChoice() {
     if (!selectedChoice) return;
 
     const msg = selectedChoice === 'agree'
-        ? 'Confirm you AGREE with the submitted score?\nThe match will be marked as completed.'
-        : 'Confirm you DISAGREE with the submitted score?\nThe result will be cleared for resubmission.';
+        ? validationI18n.agreeMessage
+        : validationI18n.disagreeMessage;
 
     if (confirm(msg)) {
         document.getElementById('vrForm').submit();

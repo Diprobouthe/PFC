@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
-{% block title %}#{{ game.match_number }} · Friendly Game{% endblock %}
+{% load i18n %}
+{% block title %}#{{ game.match_number }} · {% translate "Friendly Game" %}{% endblock %}
 
 {% block content %}
 <style>
@@ -313,7 +314,7 @@
     <!-- TOP BAR -->
     <div class="fg-topbar">
         <div class="fg-match-num">
-            CODE&nbsp;<span>#{{ game.match_number|default:"—" }}</span>
+            {% translate "Code" %}&nbsp;<span>#{{ game.match_number|default:"—" }}</span>
         </div>
         <span class="fg-status-badge
             {% if game.status == 'WAITING_FOR_PLAYERS' %}bg-primary text-white
@@ -328,20 +329,20 @@
     <!-- TEAMS STRIP -->
     <div class="fg-teams">
         <div class="fg-team fg-team-black">
-            <div class="fg-team-label">⚫ Black</div>
+            <div class="fg-team-label">⚫ {% translate "Black" %}</div>
             {% for player in players %}{% if player.team == 'BLACK' %}
             <div class="fg-team-player">
                 {{ player.player.name }}
-                <span class="fg-team-pos">{{ player.position }}</span>
+                <span class="fg-team-pos">{{ player.get_position_display }}</span>
             </div>
             {% endif %}{% endfor %}
         </div>
         <div class="fg-team fg-team-white">
-            <div class="fg-team-label">⚪ White</div>
+            <div class="fg-team-label">⚪ {% translate "White" %}</div>
             {% for player in players %}{% if player.team == 'WHITE' %}
             <div class="fg-team-player">
                 {{ player.player.name }}
-                <span class="fg-team-pos">{{ player.position }}</span>
+                <span class="fg-team-pos">{{ player.get_position_display }}</span>
             </div>
             {% endif %}{% endfor %}
         </div>
@@ -379,20 +380,20 @@
             {# Simple server-side logic: view passes is_creator and is_joined in context #}
             {% if is_creator %}
                 <a href="{% url 'friendly_games:start_match' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-start">
-                    <i class="fas fa-play-circle"></i> Start Match
+                    <i class="fas fa-play-circle"></i> {% translate "Start Match" %}
                 </a>
             {% elif is_joined %}
                 <form method="POST" action="{% url 'friendly_games:leave_game' game.id %}" style="width:100%;">
                     {% csrf_token %}
                     <button type="submit" class="fg-btn-primary" style="background:#dc3545;color:#fff;box-shadow:0 4px 16px rgba(220,53,69,0.35);">
-                        <i class="fas fa-sign-out-alt"></i> Leave Game
+                        <i class="fas fa-sign-out-alt"></i> {% translate "Leave Game" %}
                     </button>
                 </form>
-                <p style="font-size:0.78rem;color:#6c757d;text-align:center;margin-top:4px;">Joined the wrong side? Leave and re-join on the correct team.</p>
+                <p style="font-size:0.78rem;color:#6c757d;text-align:center;margin-top:4px;">{% translate "Joined the wrong side? Leave and re-join on the correct team." %}</p>
             {% else %}
                 {# Not in the game yet — show Join button #}
                 <a href="{% url 'friendly_games:join_game' %}?match_number={{ game.match_number }}" class="fg-btn-primary fg-btn-start" style="background:#0d6efd;box-shadow:0 4px 16px rgba(13,110,253,0.35);">
-                    <i class="fas fa-user-plus"></i> Join Game
+                    <i class="fas fa-user-plus"></i> {% translate "Join Game" %}
                 </a>
             {% endif %}
 
@@ -407,23 +408,23 @@
             {% endif %}
             {% if game.live_scoreboard %}
             <a href="{% url 'scoreboard_detail' game.live_scoreboard.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-live">
-                <i class="fas fa-chart-line"></i> Live Score
+                <i class="fas fa-chart-line"></i> {% translate "Live Score" %}
             </a>
             {% endif %}
             <a href="{% url 'friendly_games:submit_score' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-score" style="font-size:1rem; padding:12px 24px;">
-                <i class="fas fa-clipboard-check"></i> Submit Final Score
+                <i class="fas fa-clipboard-check"></i> {% translate "Submit Final Score" %}
             </a>
 
         {% elif game.status == 'PENDING_VALIDATION' %}
             <!-- ── PENDING: VALIDATE ── -->
             {% if game.result %}
             <div class="fg-pending-notice">
-                <strong>{{ game.result.submitted_by_team|title }} team</strong> submitted
-                <strong>Black {{ game.black_team_score }} – White {{ game.white_team_score }}</strong>.<br>
-                {{ game.result.get_other_team|title }} team must validate.
+                <strong>{% if game.result.submitted_by_team == 'BLACK' %}{% translate "Black Team" %}{% else %}{% translate "White Team" %}{% endif %}</strong> {% translate "submitted" %}
+                <strong>{% translate "Black" %} {{ game.black_team_score }} – {% translate "White" %} {{ game.white_team_score }}</strong>.<br>
+                {% if game.result.get_other_team == 'BLACK' %}{% translate "Black Team" %}{% else %}{% translate "White Team" %}{% endif %} {% translate "must validate." %}
             </div>
             <a href="{% url 'friendly_games:validate_result' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-validate">
-                <i class="fas fa-check-circle"></i> Validate Result
+                <i class="fas fa-check-circle"></i> {% translate "Validate Result" %}
             </a>
             {% endif %}
 
@@ -432,27 +433,27 @@
             {% if game.live_scoreboard %}
             <div class="text-center" style="margin-bottom:6px;">
                 <a href="{% url 'score_history' game.live_scoreboard.id %}" style="font-size:0.78rem;color:#6c757d;">
-                    <i class="fas fa-history"></i> Score Progression History
+                    <i class="fas fa-history"></i> {% translate "Score Progression History" %}
                 </a>
             </div>
             {% endif %}
             <div class="fg-final-score">
                 <div class="fg-score-block">
                     <div class="fg-score-num" style="color:#212529;">{{ game.black_team_score }}</div>
-                    <div class="fg-score-label">Black</div>
-                    {% if game.black_team_score > game.white_team_score %}<div class="fg-score-winner">Winner</div>{% endif %}
+                    <div class="fg-score-label">{% translate "Black" %}</div>
+                    {% if game.black_team_score > game.white_team_score %}<div class="fg-score-winner">{% translate "Winner" %}</div>{% endif %}
                 </div>
                 <div class="fg-score-sep">–</div>
                 <div class="fg-score-block">
                     <div class="fg-score-num" style="color:#6c757d;">{{ game.white_team_score }}</div>
-                    <div class="fg-score-label">White</div>
-                    {% if game.white_team_score > game.black_team_score %}<div class="fg-score-winner">Winner</div>{% endif %}
+                    <div class="fg-score-label">{% translate "White" %}</div>
+                    {% if game.white_team_score > game.black_team_score %}<div class="fg-score-winner">{% translate "Winner" %}</div>{% endif %}
                 </div>
             </div>
             <form method="POST" action="{% url 'friendly_games:rematch' game.id %}" style="width:100%;">
                 {% csrf_token %}
                 <button type="submit" class="fg-btn-primary fg-btn-rematch">
-                    <i class="fas fa-redo"></i> Rematch
+                    <i class="fas fa-redo"></i> {% translate "Rematch" %}
                 </button>
             </form>
         {% endif %}
@@ -462,7 +463,7 @@
     <!-- BOTTOM BAR -->
     <div class="fg-bottom">
         <a href="{% url 'home' %}" class="fg-btn-ghost">
-            <i class="fas fa-home"></i> Home
+            <i class="fas fa-home"></i> {% translate "Home" %}
         </a>
         <a href="{% url 'friendly_games:create_game' %}" class="fg-btn-ghost">
             <i class="fas fa-plus"></i> New Game

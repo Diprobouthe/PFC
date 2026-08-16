@@ -1,8 +1,17 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n %}
 {% load court_tz_tags %}
+{% translate "TIME UP" as i18n_time_up %}
+{% translate "Login required" as i18n_login_required %}
+{% translate "Updated" as i18n_updated %}
+{% translate "Ended" as i18n_ended %}
+{% translate "Error" as i18n_error %}
+{% translate "Network error" as i18n_network_error %}
+{% translate "Reset to 0–0?" as i18n_reset_confirm %}
+{% translate "Reset" as i18n_reset %}
+{% translate "Live" as i18n_live %}
 
-{% block title %}Live Scoreboard - {{ scoreboard.get_match_name }}{% endblock %}
+{% block title %}{% translate "Live Score" %} - {{ scoreboard.get_match_name }}{% endblock %}
 
 {% block content %}
 <style>
@@ -191,17 +200,17 @@
 
     <!-- Toolbar: back / fullscreen / status -->
     <div class="panel-toolbar">
-        <a href="{% url 'live_scores_list' %}"><i class="fas fa-arrow-left"></i> Back</a>
+        <a href="{% url 'live_scores_list' %}"><i class="fas fa-arrow-left"></i> {% translate "Back" %}</a>
         <span class="status-pill {% if scoreboard.is_active %}live{% else %}ended{% endif %}">
-            {% if scoreboard.is_active %}Live{% else %}Ended{% endif %}
+            {% if scoreboard.is_active %}{% translate "Live" %}{% else %}{% translate "Ended" %}{% endif %}
         </span>
-        <a href="{% url 'scoreboard_embed' scoreboard.id %}" target="_blank"><i class="fas fa-expand"></i> Full</a>
+        <a href="{% url 'scoreboard_embed' scoreboard.id %}" target="_blank"><i class="fas fa-expand"></i> {% translate "Full Screen" %}</a>
     </div>
     <!-- History shortcut (always visible if there are events) -->
     {% if score_history %}
     <div class="text-center mb-2">
         <a href="{% url 'score_history' scoreboard.id %}" style="font-size:0.75rem;color:#6c757d;">
-            <i class="fas fa-history"></i> View full score history ({{ score_history|length }} event{{ score_history|length|pluralize }})
+            <i class="fas fa-history"></i> {% translate "Score History" %} ({{ score_history|length }})
         </a>
     </div>
     {% endif %}
@@ -210,18 +219,18 @@
     {% if scoreboard.tournament_match and scoreboard.tournament_match.court %}
     <div class="court-banner">
         <i class="fas fa-map-marker-alt"></i>
-        Court <strong>{{ scoreboard.tournament_match.court.number }}</strong>
+        {% translate "Court" context "petanque playing area score banner" %} <strong>{{ scoreboard.tournament_match.court.number }}</strong>
         {% if scoreboard.tournament_match.court.name %}&nbsp;&middot;&nbsp;{{ scoreboard.tournament_match.court.name }}{% endif %}
         {% if scoreboard.tournament_match.court.court_complex %}<span class="court-complex">{{ scoreboard.tournament_match.court.court_complex.name }}</span>{% endif %}
     </div>
     {% elif scoreboard.tournament_match and scoreboard.tournament_match.waiting_for_court %}
     <div class="court-banner-waiting">
-        <i class="fas fa-hourglass-half"></i> Waiting for a court to become available
+        <i class="fas fa-hourglass-half"></i> {% translate "Waiting for a court to become available" %}
     </div>
     {% elif scoreboard.friendly_game and scoreboard.friendly_game.court %}
     <div class="court-banner">
         <i class="fas fa-map-marker-alt"></i>
-        Court <strong>{{ scoreboard.friendly_game.court.number }}</strong>
+        {% translate "Court" context "petanque playing area score banner" %} <strong>{{ scoreboard.friendly_game.court.number }}</strong>
         {% if scoreboard.friendly_game.court.name %}&nbsp;&middot;&nbsp;{{ scoreboard.friendly_game.court.name }}{% endif %}
         {% if scoreboard.friendly_game.court_complex %}<span class="court-complex">{{ scoreboard.friendly_game.court_complex.name }}</span>{% endif %}
     </div>
@@ -244,7 +253,7 @@
                     <i class="fas fa-clock"></i>
                     <span id="timer-text">
                         {% if remaining == 0 %}
-                            TIME UP
+                            {% translate "TIME UP" %}
                         {% else %}
                             {{ scoreboard.friendly_game.time_remaining_display }}
                         {% endif %}
@@ -266,7 +275,7 @@
                     <i class="fas fa-clock"></i>
                     <span id="timer-text">
                         {% if remaining == 0 %}
-                            TIME UP
+                            {% translate "TIME UP" %}
                         {% else %}
                             {{ scoreboard.tournament_match.time_remaining_display }}
                         {% endif %}
@@ -320,16 +329,16 @@
             </div>
 
             <button type="submit" class="btn btn-primary btn-update">
-                <i class="fas fa-check"></i> Update
+                <i class="fas fa-check"></i> {% translate "Update" %}
             </button>
         </form>
 
         <div class="text-center mt-1">
-            <button type="button" class="btn-reset" id="reset-scores-btn">Reset 0–0</button>
+            <button type="button" class="btn-reset" id="reset-scores-btn">{% translate "Reset 0–0" %}</button>
         </div>
     {% else %}
         <div class="text-center text-muted py-2" style="font-size:0.85rem;">
-            <i class="fas fa-lock"></i> Scoring ended
+            <i class="fas fa-lock"></i> {% translate "Scoring ended" %}
         </div>
     {% endif %}
 
@@ -338,17 +347,17 @@
         <div class="text-center mt-2">
             {% if scoreboard.friendly_game %}
                 <a href="{% url 'friendly_games:submit_score' match_id %}" class="btn btn-outline-success btn-sm">
-                    <i class="fas fa-trophy"></i> Submit Official Score
+                    <i class="fas fa-trophy"></i> {% translate "Submit Result" %}
                 </a>
             {% elif scoreboard.tournament_match %}
                 {% if my_team_id %}
                     <a href="{% url 'match_submit_result' match_id my_team_id %}{% if qr_submit_action_token %}?qr_action={{ qr_submit_action_token|urlencode }}{% endif %}" class="btn btn-success btn-sm">
-                        <i class="fas fa-flag-checkered"></i> Submit Score
+                        <i class="fas fa-flag-checkered"></i> {% translate "Submit Result" %}
                     </a>
                 {% else %}
                     {# No session — show a neutral prompt without exposing team IDs #}
                     <a href="{% url 'match_detail' match_id %}" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-flag-checkered"></i> Submit Score
+                        <i class="fas fa-flag-checkered"></i> {% translate "Submit Result" %}
                     </a>
                 {% endif %}
             {% endif %}
@@ -359,17 +368,17 @@
     <div class="text-center mt-2" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
         <a href="{% url 'score_history' scoreboard.id %}"
            style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
-            <i class="fas fa-history" style="margin-right:4px;"></i>Score History
+            <i class="fas fa-history" style="margin-right:4px;"></i>{% translate "Score History" %}
         </a>
         {% if scoreboard.friendly_game %}
             <a href="{% url 'match_tracking:tracking_page' 'game' scoreboard.friendly_game.id %}"
                style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
-                <i class="fas fa-chart-line" style="margin-right:4px;"></i>Game Analysis
+                <i class="fas fa-chart-line" style="margin-right:4px;"></i>{% translate "Game Analysis" %}
             </a>
         {% elif scoreboard.tournament_match %}
             <a href="{% url 'match_tracking:tracking_page' 'match' scoreboard.tournament_match.id %}"
                style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
-                <i class="fas fa-chart-line" style="margin-right:4px;"></i>Match Analysis
+                <i class="fas fa-chart-line" style="margin-right:4px;"></i>{% translate "Game Analysis" %}
             </a>
         {% endif %}
     </div>
@@ -378,19 +387,19 @@
     {% if score_history %}
     <div class="mt-4" id="score-history-section">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <span style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6c757d;">Score Progression</span>
+            <span style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6c757d;">{% translate "Score Progression" %}</span>
             <span style="font-size:0.72rem;color:#adb5bd;">{{ score_history|length }} event{{ score_history|length|pluralize }}</span>
         </div>
         <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
             <thead>
                 <tr style="border-bottom:2px solid #dee2e6;">
-                    <th style="padding:4px 6px;text-align:left;color:#6c757d;font-weight:600;">Time</th>
+                    <th style="padding:4px 6px;text-align:left;color:#6c757d;font-weight:600;">{% translate "Time" %}</th>
                     <th style="padding:4px 6px;text-align:center;color:#0d6efd;font-weight:600;">{{ scoreboard.get_team1_name }}</th>
                     <th style="padding:4px 6px;text-align:center;color:#6c757d;font-weight:600;">–</th>
                     <th style="padding:4px 6px;text-align:center;color:#198754;font-weight:600;">{{ scoreboard.get_team2_name }}</th>
-                    <th style="padding:4px 6px;text-align:left;color:#6c757d;font-weight:600;">By</th>
-                    <th style="padding:4px 6px;text-align:center;color:#6c757d;font-weight:600;">Type</th>
+                    <th style="padding:4px 6px;text-align:left;color:#6c757d;font-weight:600;">{% translate "By" %}</th>
+                    <th style="padding:4px 6px;text-align:center;color:#6c757d;font-weight:600;">{% translate "Type" %}</th>
                 </tr>
             </thead>
             <tbody>
@@ -426,6 +435,17 @@
 <script>
 (function(){
     var qrScoreActionToken = "{{ qr_score_action_token|escapejs }}";
+    var scoreI18n = window.pfcScoreI18n = {
+        timeUp: '{{ i18n_time_up|escapejs }}',
+        loginRequired: '{{ i18n_login_required|escapejs }}',
+        updated: '{{ i18n_updated|escapejs }}',
+        ended: '{{ i18n_ended|escapejs }}',
+        error: '{{ i18n_error|escapejs }}',
+        networkError: '{{ i18n_network_error|escapejs }}',
+        resetConfirm: '{{ i18n_reset_confirm|escapejs }}',
+        reset: '{{ i18n_reset|escapejs }}',
+        live: '{{ i18n_live|escapejs }}'
+    };
     if (qrScoreActionToken && window.history && window.history.replaceState) {
         // One-page proof: remove it from the URL so a reload has no authority.
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -446,7 +466,7 @@
                 if (txt) {
                     txt.textContent = rem > 0
                         ? (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s
-                        : 'TIME UP';
+                        : scoreI18n.timeUp;
                 }
                 timerBar.className = 'timer-inline ' + (
                     rem === 0 ? 'timer-expired' :
@@ -481,7 +501,7 @@
             var codename = document.getElementById('codename').value.trim().toUpperCase();
             var s1 = parseInt(document.getElementById('team1-score-select').value);
             var s2 = parseInt(document.getElementById('team2-score-select').value);
-            if (!codename && !qrScoreActionToken) { showToast('Login required', false); return; }
+            if (!codename && !qrScoreActionToken) { showToast(scoreI18n.loginRequired, false); return; }
 
             fetch('{% url "update_scoreboard" scoreboard.id %}', {
                 method: 'POST',
@@ -495,17 +515,17 @@
             .then(function(d){
                 if (d.success) {
                     syncDisplay(d.team1_score, d.team2_score);
-                    showToast('Updated', true);
+                    showToast(scoreI18n.updated, true);
                     // If scoring ended, update status pill in-place (no reload)
                     if (!d.is_active) {
                         var pill = document.querySelector('.status-pill');
-                        if (pill) { pill.textContent = 'Ended'; pill.className = 'status-pill ended'; }
+                        if (pill) { pill.textContent = window.pfcScoreI18n.ended; pill.className = 'status-pill ended'; }
                     }
                 } else {
-                    showToast(d.error || 'Error', false);
+                    showToast(d.error || scoreI18n.error, false);
                 }
             })
-            .catch(function(){ showToast('Network error', false); });
+            .catch(function(){ showToast(scoreI18n.networkError, false); });
         });
     }
 
@@ -514,8 +534,8 @@
     if (resetBtn) {
         resetBtn.addEventListener('click', function() {
             var codename = document.getElementById('codename').value.trim().toUpperCase();
-            if (!codename && !qrScoreActionToken) { showToast('Login required', false); return; }
-            if (!confirm('Reset to 0–0?')) return;
+            if (!codename && !qrScoreActionToken) { showToast(scoreI18n.loginRequired, false); return; }
+            if (!confirm(scoreI18n.resetConfirm)) return;
 
             fetch('{% url "reset_scoreboard" scoreboard.id %}', {
                 method: 'POST',
@@ -531,13 +551,13 @@
                     syncDisplay(0, 0);
                     document.getElementById('team1-score-select').value = 0;
                     document.getElementById('team2-score-select').value = 0;
-                    showToast('Reset', true);
+                    showToast(scoreI18n.reset, true);
                     // No reload — WS push will confirm state to all viewers
                 } else {
-                    showToast(d.error || 'Error', false);
+                    showToast(d.error || scoreI18n.error, false);
                 }
             })
-            .catch(function(){ showToast('Network error', false); });
+            .catch(function(){ showToast(scoreI18n.networkError, false); });
         });
     }
 })();
@@ -598,10 +618,10 @@
             // Update status pill
             if (pill) {
                 if (data.is_active) {
-                    pill.textContent = 'Live';
+                    pill.textContent = window.pfcScoreI18n.live;
                     pill.className = 'status-pill live';
                 } else {
-                    pill.textContent = 'Ended';
+                    pill.textContent = window.pfcScoreI18n.ended;
                     pill.className = 'status-pill ended';
                 }
             }

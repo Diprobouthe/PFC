@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n %}
 
-{% block title %}Court Complexes - Petanque Platform{% endblock %}
+{% block title %}{% translate "Court Complex" context "petanque venue complex" %} - Petanque Platform{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row mb-4">
         <div class="col">
-            <h1 class="display-4"><i class="fas fa-building me-3"></i>Court Complexes</h1>
-            <p class="lead">Discover petanque facilities with detailed information and user reviews</p>
+            <h1 class="display-4"><i class="fas fa-building me-3"></i>{% translate "Court Complex" context "petanque venue complex" %}</h1>
+            <p class="lead">{% translate "Discover petanque facilities with detailed information and user reviews" %}</p>
         </div>
     </div>
 
@@ -51,11 +51,11 @@
                             
                             <div class="row text-center">
                                 <div class="col-6">
-                                    <small class="text-muted">Courts</small><br>
+                                    <small class="text-muted">{% translate "Courts" context "petanque playing areas venue count" %}</small><br>
                                     <strong>{{ complex.courts.count }}</strong>
                                 </div>
                                 <div class="col-6">
-                                    <small class="text-muted">Access</small><br>
+                                    <small class="text-muted">{% translate "Access" %}</small><br>
                                     <span class="text-warning">
                                         {% for i in "12345" %}
                                             {% if forloop.counter <= complex.public_accessibility %}
@@ -70,7 +70,7 @@
                         </div>
                         
                         <a href="{% url 'court_complex_detail' complex.id %}" class="btn btn-primary mt-auto">
-                            <i class="fas fa-info-circle me-1"></i> View Details
+                            <i class="fas fa-info-circle me-1"></i> {% translate "View Details" %}
                         </a>
                     </div>
                 </div>
@@ -82,8 +82,8 @@
             <div class="col-12">
                 <div class="alert alert-info text-center">
                     <i class="fas fa-info-circle fa-2x mb-3"></i>
-                    <h4>No Court Complexes Yet</h4>
-                    <p>Court complexes will be added soon to help you discover the best petanque facilities.</p>
+                    <h4>{% translate "No Court Complexes Yet" context "petanque venue complex empty state" %}</h4>
+                    <p>{% translate "Court complexes will be added soon to help you discover the best petanque facilities." %}</p>
                 </div>
             </div>
         </div>

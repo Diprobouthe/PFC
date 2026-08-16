@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Submit Score · PFC{% endblock %}
+{% block title %}{% translate "Submit Result" %} · PFC{% endblock %}
 
 {% block content %}
 <style>
@@ -272,7 +273,7 @@
     <!-- Match timer (if timed) -->
     {% if match.time_limit_minutes and match.status == 'active' and not match.is_time_expired %}
     <div class="sr-timer">
-        <div class="sr-label" style="text-align:center;">Time Remaining</div>
+        <div class="sr-label" style="text-align:center;">{% translate "Time Remaining" %}</div>
         <div class="sr-timer-display" id="srTimerDisplay">{{ match.time_remaining_display }}</div>
         <div class="sr-timer-bar">
             <div class="sr-timer-bar-fill" id="srTimerBar" style="width:100%;"></div>
@@ -284,12 +285,12 @@
     {% if match.court or match.round %}
     <div class="sr-info-strip">
         {% if match.court %}<i class="fas fa-map-marker-alt"></i> {{ match.court.name }}{% if match.court.court_complex %} · {{ match.court.court_complex.name }}{% endif %}{% endif %}
-        {% if match.round %}{% if match.court %} &nbsp;·&nbsp; {% endif %}<i class="fas fa-trophy"></i> Round {{ match.round }}{% endif %}
+        {% if match.round %}{% if match.court %} &nbsp;·&nbsp; {% endif %}<i class="fas fa-trophy"></i> {% translate "Round" %} {{ match.round }}{% endif %}
     </div>
     {% endif %}
 
     <!-- Score selectors -->
-    <div class="sr-label">Final Score</div>
+    <div class="sr-label">{% translate "Final Score" %}</div>
 
     {% if form.errors %}
     <div class="sr-error">
@@ -332,17 +333,17 @@
 
         <!-- Optional fields (collapsed by default) -->
         <div class="sr-optional-toggle" onclick="toggleOptional(this)">
-            <span><i class="fas fa-paperclip" style="margin-right:6px;"></i> Photo &amp; Notes (optional)</span>
+            <span><i class="fas fa-paperclip" style="margin-right:6px;"></i>{% translate "Photo and Notes" %} ({% translate "optional" %})</span>
             <i class="fas fa-chevron-down" id="optChevron"></i>
         </div>
         <div class="sr-optional-body" id="optBody">
             <div>
-                <div class="sr-field-label">Photo Evidence</div>
+                <div class="sr-field-label">{% translate "Photo Evidence" %}</div>
                 <input type="file" name="photo_evidence" class="sr-input" accept="image/*">
             </div>
             <div>
-                <div class="sr-field-label">Notes</div>
-                <textarea name="notes" class="sr-input" rows="2" placeholder="Optional notes…">{{ form.notes.value|default:'' }}</textarea>
+                <div class="sr-field-label">{% translate "Notes" %}</div>
+                <textarea name="notes" class="sr-input" rows="2" placeholder="{% translate 'Optional notes…' %}">{{ form.notes.value|default:'' }}</textarea>
             </div>
         </div>
 
@@ -353,12 +354,12 @@
         {% if scoreboard_id %}
         <a href="{% url 'score_history' scoreboard_id %}"
            style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
-            <i class="fas fa-history" style="margin-right:4px;"></i>Score History
+            <i class="fas fa-history" style="margin-right:4px;"></i>{% translate "Score History" %}
         </a>
         {% endif %}
         <a href="{% url 'match_tracking:tracking_page' 'match' match.id %}"
            style="font-size:0.78rem;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:6px;padding:4px 10px;display:inline-block;">
-            <i class="fas fa-chart-line" style="margin-right:4px;"></i>Match Analysis
+            <i class="fas fa-chart-line" style="margin-right:4px;"></i>{% translate "Game Analysis" %}
         </a>
     </div>
 
@@ -368,7 +369,7 @@
 <div class="sr-sticky-bar">
     <a href="{% url 'match_detail' match.id %}" class="sr-back-btn"><i class="fas fa-arrow-left"></i></a>
     <button type="submit" form="srForm" class="sr-primary-btn">
-        <i class="fas fa-flag-checkered"></i> Submit Score
+        <i class="fas fa-flag-checkered"></i> {% translate "Submit Result" %}
     </button>
 </div>
 

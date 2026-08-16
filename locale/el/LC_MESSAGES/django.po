@@ -1,0 +1,1865 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PFC controlled interface\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-16 10:34+0000\n"
+"PO-Revision-Date: 2026-08-15 05:14+0000\n"
+"Last-Translator: PFC Translation Team\n"
+"Language-Team: Greek\n"
+"Language: el\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: courts/templates/courts/court_complex_list.html:4
+#: courts/templates/courts/court_complex_list.html:10 templates/home.html:501
+msgctxt "petanque venue complex"
+msgid "Court Complex"
+msgstr "Εγκαταστάσεις"
+
+#: courts/templates/courts/court_complex_list.html:11
+msgid "Discover petanque facilities with detailed information and user reviews"
+msgstr ""
+"Ανακαλύψτε εγκαταστάσεις πετάνκ με αναλυτικές πληροφορίες και αξιολογήσεις "
+"χρηστών"
+
+#: courts/templates/courts/court_complex_list.html:54
+msgctxt "petanque playing areas venue count"
+msgid "Courts"
+msgstr "Γήπεδα"
+
+#: courts/templates/courts/court_complex_list.html:58
+msgid "Access"
+msgstr "Πρόσβαση"
+
+#: courts/templates/courts/court_complex_list.html:73
+msgid "View Details"
+msgstr "Προβολή λεπτομερειών"
+
+#: courts/templates/courts/court_complex_list.html:85
+msgctxt "petanque venue complex empty state"
+msgid "No Court Complexes Yet"
+msgstr "Δεν υπάρχουν ακόμη εγκαταστάσεις"
+
+#: courts/templates/courts/court_complex_list.html:86
+msgid ""
+"Court complexes will be added soon to help you discover the best petanque "
+"facilities."
+msgstr ""
+
+#: friendly_games/models.py:70
+msgid "Draft"
+msgstr "Πρόχειρο"
+
+#: friendly_games/models.py:71
+#: templates/matches/partials/friendly_games_table.html:13
+msgid "Waiting for Players"
+msgstr "Αναμονή παικτών"
+
+#: friendly_games/models.py:72
+msgid "Ready to Play"
+msgstr "Έτοιμο για παιχνίδι"
+
+#: friendly_games/models.py:73
+#: templates/tournaments/vs_encounter_detail.html:34
+msgid "In Progress"
+msgstr "Σε εξέλιξη"
+
+#: friendly_games/models.py:74
+msgid "Pending Validation"
+msgstr "Σε αναμονή επιβεβαίωσης"
+
+#: friendly_games/models.py:75
+#: match_tracking/templates/match_tracking/tracking_page.html:212
+#: matches/models.py:18 templates/matches/match_detail.html:321
+msgid "Completed"
+msgstr "Ολοκληρώθηκε"
+
+#: friendly_games/models.py:76 matches/models.py:19
+msgid "Cancelled"
+msgstr "Ακυρώθηκε"
+
+#: friendly_games/models.py:77 matches/models.py:302
+#: templates/partials/timer_badge.html:19
+msgid "Expired"
+msgstr "Έληξε"
+
+#: friendly_games/models.py:81
+msgid "Not Validated"
+msgstr "Μη επιβεβαιωμένο"
+
+#: friendly_games/models.py:82
+msgid "Partially Validated"
+msgstr "Μερικώς επιβεβαιωμένο"
+
+#: friendly_games/models.py:83
+msgid "Fully Validated"
+msgstr "Πλήρως επιβεβαιωμένο"
+
+#: friendly_games/models.py:390 friendly_games/models.py:536
+#: friendly_games/models.py:543
+#: friendly_games/templates/friendly_games/game_detail.html:422
+#: friendly_games/templates/friendly_games/game_detail.html:424
+#: friendly_games/templates/friendly_games/submit_score_list.html:54
+#: friendly_games/templates/friendly_games/submit_score_list.html:118
+#: templates/matches/match_list.html:588
+#: templates/matches/partials/friendly_games_table.html:150
+#: templates/matches/partials/friendly_games_table.html:159
+msgid "Black Team"
+msgstr "Μαύρη ομάδα"
+
+#: friendly_games/models.py:391 friendly_games/models.py:536
+#: friendly_games/models.py:543
+#: friendly_games/templates/friendly_games/game_detail.html:422
+#: friendly_games/templates/friendly_games/game_detail.html:424
+#: friendly_games/templates/friendly_games/submit_score_list.html:54
+#: friendly_games/templates/friendly_games/submit_score_list.html:118
+#: templates/matches/match_list.html:588
+#: templates/matches/partials/friendly_games_table.html:152
+#: templates/matches/partials/friendly_games_table.html:157
+msgid "White Team"
+msgstr "Λευκή ομάδα"
+
+#: friendly_games/models.py:395
+msgid "Tirer"
+msgstr "Σουτέρ"
+
+#: friendly_games/models.py:396
+msgid "Pointeur"
+msgstr "Ποντέρ"
+
+#: friendly_games/models.py:397 matches/views.py:845
+#: templates/matches/match_activate.html:337
+#: templates/matches/match_activate.html:367
+msgid "Milieu"
+msgstr "Μέσος"
+
+#: friendly_games/models.py:523
+#, fuzzy
+#| msgid "Submit Result"
+msgid "Agree with Result"
+msgstr "Υποβολή αποτελέσματος"
+
+#: friendly_games/models.py:524
+msgid "Disagree with Result"
+msgstr ""
+
+#: friendly_games/templates/friendly_games/game_detail.html:4
+#: templates/pfc_core/my_matches.html:82 templates/pfc_core/my_matches.html:129
+msgid "Friendly Game"
+msgstr "Φιλικός αγώνας"
+
+#: friendly_games/templates/friendly_games/game_detail.html:317
+msgid "Code"
+msgstr "Κωδικός"
+
+#: friendly_games/templates/friendly_games/game_detail.html:332
+#: friendly_games/templates/friendly_games/game_detail.html:423
+#: friendly_games/templates/friendly_games/game_detail.html:443
+#: friendly_games/templates/friendly_games/submit_score.html:275
+msgid "Black"
+msgstr "Μαύρη"
+
+#: friendly_games/templates/friendly_games/game_detail.html:341
+#: friendly_games/templates/friendly_games/game_detail.html:423
+#: friendly_games/templates/friendly_games/game_detail.html:449
+#: friendly_games/templates/friendly_games/submit_score.html:277
+msgid "White"
+msgstr "Λευκή"
+
+#: friendly_games/templates/friendly_games/game_detail.html:383
+#: templates/matches/match_activate.html:4
+#: templates/matches/match_activate.html:355
+#: templates/matches/match_detail.html:626
+#: templates/matches/match_detail.html:642
+msgid "Start Match"
+msgstr "Έναρξη αγώνα"
+
+#: friendly_games/templates/friendly_games/game_detail.html:389
+msgid "Leave Game"
+msgstr "Αποχώρηση από τον αγώνα"
+
+#: friendly_games/templates/friendly_games/game_detail.html:392
+msgid "Joined the wrong side? Leave and re-join on the correct team."
+msgstr "Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
+
+#: friendly_games/templates/friendly_games/game_detail.html:396
+#: friendly_games/templates/friendly_games/submit_score_list.html:27
+#: templates/home.html:398
+msgid "Join Game"
+msgstr "Συμμετοχή σε αγώνα"
+
+#: friendly_games/templates/friendly_games/game_detail.html:411
+#: templates/matches/scoreboard_detail.html:14
+msgid "Live Score"
+msgstr "Ζωντανό σκορ"
+
+#: friendly_games/templates/friendly_games/game_detail.html:415
+msgid "Submit Final Score"
+msgstr "Υποβολή τελικού σκορ"
+
+#: friendly_games/templates/friendly_games/game_detail.html:422
+msgid "submitted"
+msgstr "υπέβαλε"
+
+#: friendly_games/templates/friendly_games/game_detail.html:424
+msgid "must validate."
+msgstr "πρέπει να επιβεβαιώσει."
+
+#: friendly_games/templates/friendly_games/game_detail.html:427
+#: templates/matches/match_detail.html:320
+#: templates/matches/match_detail.html:674
+#: templates/matches/match_detail.html:680
+#: templates/matches/match_validate_result.html:8
+#: templates/matches/match_validate_result.html:332
+#: templates/matches/match_validate_result.html:357
+msgid "Validate Result"
+msgstr "Επιβεβαίωση αποτελέσματος"
+
+#: friendly_games/templates/friendly_games/game_detail.html:436
+msgid "Score Progression History"
+msgstr "Ιστορικό εξέλιξης σκορ"
+
+#: friendly_games/templates/friendly_games/game_detail.html:444
+#: friendly_games/templates/friendly_games/game_detail.html:450
+msgid "Winner"
+msgstr "Νικητής"
+
+#: friendly_games/templates/friendly_games/game_detail.html:456
+msgid "Rematch"
+msgstr "Επαναληπτικός αγώνας"
+
+#: friendly_games/templates/friendly_games/game_detail.html:466
+#: templates/base.html:224 templates/home.html:4
+#: templates/pfc_core/my_matches.html:155
+msgid "Home"
+msgstr "Αρχική"
+
+#: friendly_games/templates/friendly_games/submit_score.html:267
+msgid "Submitting as"
+msgstr "Υποβολή ως"
+
+#: friendly_games/templates/friendly_games/submit_score.html:284
+#: friendly_games/templates/friendly_games/submit_score_list.html:76
+#: match_tracking/templates/match_tracking/tracking_page.html:245
+#: templates/home.html:401 templates/home.html:432
+msgid "Submit Score"
+msgstr "Υποβολή σκορ"
+
+#: friendly_games/templates/friendly_games/submit_score.html:290
+msgid "Back to game"
+msgstr "Πίσω στον αγώνα"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:4
+#: friendly_games/templates/friendly_games/submit_score_list.html:13
+msgid "Submit Friendly Game Scores"
+msgstr "Υποβολή σκορ φιλικών αγώνων"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:21
+msgid "No Active Games"
+msgstr "Δεν υπάρχουν ενεργοί αγώνες"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:22
+msgid "You don't have any active friendly games that need score submission."
+msgstr "Δεν έχετε ενεργούς φιλικούς αγώνες που χρειάζονται υποβολή σκορ."
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:24
+msgid "Create New Game"
+msgstr "Δημιουργία νέου αγώνα"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:36
+#, python-format
+msgid "Game Needing Score (%(counter)s)"
+msgid_plural "Games Needing Scores (%(counter)s)"
+msgstr[0] "Αγώνας που χρειάζεται σκορ (%(counter)s)"
+msgstr[1] "Αγώνες που χρειάζονται σκορ (%(counter)s)"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:38
+msgid "These games are in progress and need final scores to be submitted."
+msgstr "Αυτοί οι αγώνες είναι σε εξέλιξη και χρειάζονται υποβολή τελικού σκορ."
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:52
+msgid "Your team:"
+msgstr "Η ομάδα σας:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:62
+msgid "Black Team:"
+msgstr "Μαύρη ομάδα:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:67
+msgid "White Team:"
+msgstr "Λευκή ομάδα:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:79
+#: friendly_games/templates/friendly_games/submit_score_list.html:127
+msgid "View Game"
+msgstr "Προβολή αγώνα"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:93
+#, python-format
+msgid "Game Waiting for Validation (%(counter)s)"
+msgid_plural "Games Waiting for Validation (%(counter)s)"
+msgstr[0] "Αγώνας σε αναμονή επιβεβαίωσης (%(counter)s)"
+msgstr[1] "Αγώνες σε αναμονή επιβεβαίωσης (%(counter)s)"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:95
+msgid ""
+"Scores have been submitted for these games and are waiting for the other "
+"team to validate."
+msgstr "Τα σκορ υποβλήθηκαν και αναμένουν επιβεβαίωση από την άλλη ομάδα."
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:114
+msgid "Submitted Score:"
+msgstr "Υποβληθέν σκορ:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:115
+msgid "Black:"
+msgstr "Μαύρο:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:116
+msgid "White:"
+msgstr "Λευκό:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:118
+msgid "Submitted by:"
+msgstr "Υποβλήθηκε από:"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:124
+#: templates/matches/match_list.html:326 templates/matches/match_list.html:449
+#: templates/matches/match_list.html:506 templates/matches/match_list.html:601
+#: templates/matches/partials/friendly_games_table.html:163
+msgid "Validate"
+msgstr "Επιβεβαίωση"
+
+#: friendly_games/templates/friendly_games/submit_score_list.html:142
+#: teams/templates/teams/pfc_market.html:366
+#: templates/pfc_core/my_matches.html:34
+msgid "Back to Home"
+msgstr "Πίσω στην αρχική"
+
+#: friendly_games/views.py:291
+#, python-format
+msgid ""
+"Friendly game \"%(game_name)s\" created successfully with %(total_players)s "
+"players!"
+msgstr "Ο φιλικός αγώνας \"%(game_name)s\" δημιουργήθηκε επιτυχώς με %(total_players)s παίκτες!"
+
+#: friendly_games/views.py:297
+#, python-format
+msgid "Creator validated as %(player_name)s."
+msgstr "Ο δημιουργός επιβεβαιώθηκε ως %(player_name)s."
+
+#: friendly_games/views.py:301
+#, python-format
+msgid "Creator codename \"%(codename)s\" not found - no validation."
+msgstr "Ο κωδικός δημιουργού \"%(codename)s\" δεν βρέθηκε — δεν έγινε επιβεβαίωση."
+
+#: friendly_games/views.py:305
+#, python-format
+msgid "Match Number: %(match_number)s"
+msgstr "Αριθμός αγώνα: %(match_number)s"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:4
+#: match_tracking/templates/match_tracking/tracking_page.html:462
+msgid "No score updates recorded yet."
+msgstr "Δεν έχουν καταγραφεί ακόμη ενημερώσεις σκορ."
+
+#: match_tracking/templates/match_tracking/tracking_page.html:5
+msgid "Not a participant"
+msgstr "Δεν είστε συμμετέχων"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:6
+#: templates/matches/scoreboard_detail.html:9
+msgid "Network error"
+msgstr "Σφάλμα δικτύου"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:7
+msgid "No score change to submit"
+msgstr "Δεν υπάρχει αλλαγή σκορ για υποβολή"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:8
+msgid "Score submitted"
+msgstr "Το σκορ υποβλήθηκε"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:9
+msgid "Update failed"
+msgstr "Η ενημέρωση απέτυχε"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:10
+msgid "Official score changed elsewhere; pending edits were reset"
+msgstr "Το επίσημο σκορ άλλαξε αλλού· οι εκκρεμείς αλλαγές επαναφέρθηκαν"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:11
+msgid "No codename available"
+msgstr "Δεν υπάρχει διαθέσιμο κωδικό όνομα"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:12
+msgid "Undo failed"
+msgstr "Η αναίρεση απέτυχε"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:13
+msgid "Failed"
+msgstr "Απέτυχε"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:14
+msgid ""
+"End this Match Tracking session? QR permissions and active shooting/pointing "
+"sessions will be closed."
+msgstr "Να τερματιστεί αυτή η συνεδρία παρακολούθησης αγώνα; Οι άδειες QR και οι ενεργές συνεδρίες βολών/πόντων θα κλείσουν."
+
+#: match_tracking/templates/match_tracking/tracking_page.html:15
+msgid "Could not end tracking"
+msgstr "Δεν ήταν δυνατός ο τερματισμός της παρακολούθησης"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:16
+msgid "Match completed"
+msgstr "Ο αγώνας ολοκληρώθηκε"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:17
+msgid "read-only history"
+msgstr "ιστορικό μόνο για ανάγνωση"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:23
+msgid "Match Tracking"
+msgstr "Παρακολούθηση αγώνα"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:212
+#: matches/models.py:16 templates/matches/match_detail.html:319
+#: templates/matches/match_list.html:317 templates/matches/match_list.html:352
+#: templates/matches/match_list.html:503 templates/matches/match_list.html:559
+msgid "Active"
+msgstr "Ενεργός"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:244
+msgid "Submit one completed end"
+msgstr "Υποβολή ενός ολοκληρωμένου γύρου"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:259
+#: signin/templates/signin/tournament_signin.html:128 templates/home.html:360
+#: templates/home.html:366 templates/partials/qr_scanner_modal.html:178
+msgid "Scan Player QR"
+msgstr "Σάρωση QR παίκτη"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:266
+msgid "Scan a player QR code to enable controls."
+msgstr "Σαρώστε τον κωδικό QR ενός παίκτη για να ενεργοποιηθούν τα χειριστήρια."
+
+#: match_tracking/templates/match_tracking/tracking_page.html:310
+#: match_tracking/templates/match_tracking/tracking_page.html:394
+msgid "Shooting"
+msgstr "Βολές"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:313
+#: match_tracking/templates/match_tracking/tracking_page.html:423
+msgid "Pointing"
+msgstr "Πλασέ"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:320
+#: match_tracking/templates/match_tracking/tracking_page.html:324
+msgid "Carreau"
+msgstr "Καρό"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:326
+#: match_tracking/templates/match_tracking/tracking_page.html:333
+msgid "Petit Carreau"
+msgstr "Μικρό καρό"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:335
+#: match_tracking/templates/match_tracking/tracking_page.html:341
+msgid "Hit"
+msgstr "Χτύπημα"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:343
+#: match_tracking/templates/match_tracking/tracking_page.html:350
+msgid "Miss"
+msgstr "Αστοχία"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:359
+#: match_tracking/templates/match_tracking/tracking_page.html:361
+msgid "Perfect"
+msgstr "Τέλειο"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:363
+#: match_tracking/templates/match_tracking/tracking_page.html:365
+msgid "Good"
+msgstr "Καλό"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:367
+#: match_tracking/templates/match_tracking/tracking_page.html:369
+msgid "Fair"
+msgstr "Μέτριο"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:371
+#: match_tracking/templates/match_tracking/tracking_page.html:373
+msgid "Far"
+msgstr "Μακρινό"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:380
+msgid "Remove the most recently recorded shot"
+msgstr "Αφαίρεση της πιο πρόσφατα καταγεγραμμένης προσπάθειας"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:381
+msgid "Undo Last Shot"
+msgstr "Αναίρεση τελευταίας προσπάθειας"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:383
+msgid "Export match analysis to PDF"
+msgstr "Εξαγωγή ανάλυσης αγώνα σε PDF"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:384
+msgid "Export PDF"
+msgstr "Εξαγωγή PDF"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:386
+msgid "End this tracking period and revoke all QR authorizations"
+msgstr "Τερματισμός της περιόδου παρακολούθησης και ανάκληση όλων των αδειών QR"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:387
+msgid "End Session"
+msgstr "Τερματισμός συνεδρίας"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:398
+#: match_tracking/templates/match_tracking/tracking_page.html:427
+#: teams/templates/teams/pfc_market.html:308 templates/home.html:295
+msgid "Player"
+msgstr "Παίκτης"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:454
+#: templates/matches/scoreboard_detail.html:390
+msgid "Score Progression"
+msgstr "Εξέλιξη σκορ"
+
+#: matches/models.py:14 matches/models.py:299
+#: templates/matches/match_detail.html:317
+#: templates/matches/match_list.html:320 templates/matches/match_list.html:389
+msgid "Pending"
+msgstr "Σε αναμονή"
+
+#: matches/models.py:15
+msgid "Pending Verification"
+msgstr "Σε αναμονή επιβεβαίωσης"
+
+#: matches/models.py:17
+msgid "Waiting Validation"
+msgstr "Αναμονή επιβεβαίωσης"
+
+#: matches/models.py:23 matches/utils.py:121
+msgid "Doublet (2 players)"
+msgstr "Δυάδα (2 παίκτες)"
+
+#: matches/models.py:24 matches/utils.py:122
+msgid "Triplet (3 players)"
+msgstr "Τριάδα (3 παίκτες)"
+
+#: matches/models.py:25 matches/utils.py:123
+msgid "Tête-à-tête (1 player)"
+msgstr "Τετ-α-τετ (1 παίκτης)"
+
+#: matches/models.py:26
+msgid "Mixed Format"
+msgstr "Μεικτή μορφή"
+
+#: matches/models.py:27
+msgid "Unknown Format"
+msgstr "Άγνωστη μορφή"
+
+#: matches/models.py:300
+msgid "Accepted"
+msgstr "Αποδεκτό"
+
+#: matches/models.py:301
+msgid "Rejected"
+msgstr "Απορρίφθηκε"
+
+#: matches/utils.py:67
+msgid ""
+"Mixed matches are not allowed in this tournament. Both teams must have the "
+"same number of players. Team 1 has {} players, Team 2 has {} players."
+msgstr ""
+
+#: matches/utils.py:77
+msgid ""
+"Doublet matches (2 players per team) are not allowed in this tournament. "
+"Please select {} players per team."
+msgstr ""
+
+#: matches/utils.py:80
+msgid ""
+"Triplet matches (3 players per team) are not allowed in this tournament. "
+"Please select {} players per team."
+msgstr ""
+
+#: matches/utils.py:83
+msgid ""
+"Tête-à-tête matches (1 player per team) are not allowed in this tournament. "
+"Please select {} players per team."
+msgstr ""
+
+#: matches/utils.py:85
+msgid ""
+"This match format ({}) is not allowed in this tournament. Allowed formats: {}"
+msgstr ""
+
+#: matches/utils.py:124
+msgid "Mixed format"
+msgstr ""
+
+#: matches/utils.py:125
+msgid "Unknown format"
+msgstr ""
+
+#: matches/utils.py:232
+#, python-format
+msgid "The court %(court_name)s has been assigned to your match."
+msgstr "Το γήπεδο %(court_name)s ανατέθηκε στον αγώνα σας."
+
+#: matches/utils.py:236
+msgid "Your match is waiting for a court to become available."
+msgstr "Ο αγώνας σας περιμένει να γίνει διαθέσιμο γήπεδο."
+
+#: matches/utils.py:238
+msgid "No court has been assigned to your match yet."
+msgstr "Δεν έχει ανατεθεί ακόμη γήπεδο στον αγώνα σας."
+
+#: matches/views.py:447 matches/views.py:855 matches/views.py:976
+msgid "This team is not part of this match."
+msgstr "Αυτή η ομάδα δεν συμμετέχει σε αυτόν τον αγώνα."
+
+#: matches/views.py:742
+msgid "Match initiated successfully. Waiting for the other team to validate."
+msgstr "Ο αγώνας ξεκίνησε επιτυχώς. Αναμονή για επιβεβαίωση από την άλλη ομάδα."
+
+#: matches/views.py:763
+#, python-format
+msgid "Match validated and activated! %(status)s"
+msgstr "Ο αγώνας επιβεβαιώθηκε και ενεργοποιήθηκε! %(status)s"
+
+#: matches/views.py:777
+msgid ""
+"Match validated successfully. No court is currently available — the match "
+"will start automatically as soon as a court becomes free."
+msgstr "Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπάρχει διαθέσιμο γήπεδο· θα ξεκινήσει αυτόματα μόλις ελευθερωθεί γήπεδο."
+
+#: matches/views.py:844 teams/templates/teams/player_leaderboard.html:410
+#: templates/matches/match_activate.html:336
+#: templates/matches/match_activate.html:366
+#: templates/matches/scoreboard_embed.html:248
+#: templates/matches/scoreboard_embed.html:265
+#: templates/matches/scoreboard_embed.html:296
+#: templates/matches/scoreboard_embed.html:313
+msgid "Pointer"
+msgstr "Πλασέ"
+
+#: matches/views.py:846 templates/matches/match_activate.html:338
+#: templates/matches/match_activate.html:368
+msgid "Shooter"
+msgstr "Σουτέρ"
+
+#: matches/views.py:880
+msgid "You are not authorised to submit results for this team."
+msgstr "Δεν έχετε άδεια να υποβάλετε αποτέλεσμα για αυτή την ομάδα."
+
+#: matches/views.py:1010
+msgid "You are not authorised to validate results for this team."
+msgstr "Δεν έχετε άδεια να επιβεβαιώσετε αποτέλεσμα για αυτή την ομάδα."
+
+#: pfc_core/smart_router.py:283
+#, python-format
+msgid "Join Friendly Game #%(match_number)s"
+msgstr "Συμμετοχή σε φιλικό αγώνα #%(match_number)s"
+
+#: pfc_core/smart_router.py:315
+msgid "Validate Friendly Game Result"
+msgstr "Επιβεβαίωση αποτελέσματος φιλικού αγώνα"
+
+#: pfc_core/smart_router.py:334
+msgid "Active Friendly Game — Live Score"
+msgstr "Ενεργός φιλικός αγώνας — ζωντανό σκορ"
+
+#: pfc_core/smart_router.py:343
+msgid "Waiting for Opponent Validation"
+msgstr "Αναμονή επιβεβαίωσης αντιπάλου"
+
+#: pfc_core/smart_router.py:351
+msgid "Friendly Game — Waiting for Players"
+msgstr "Φιλικός αγώνας — αναμονή παικτών"
+
+#: pfc_core/smart_router.py:389
+msgid "Waiting for Score Validation"
+msgstr "Αναμονή επιβεβαίωσης σκορ"
+
+#: pfc_core/smart_router.py:399
+msgid "Submit Match Score"
+msgstr "Υποβολή σκορ αγώνα"
+
+#: pfc_core/smart_router.py:420
+msgid "Match Starting — Find Your Court"
+msgstr "Ο αγώνας ξεκινά — βρείτε το γήπεδό σας"
+
+#: pfc_core/smart_router.py:433
+msgid "Active Match — Live Score"
+msgstr "Ενεργός αγώνας — ζωντανό σκορ"
+
+#: pfc_core/smart_router.py:443 pfc_core/smart_router.py:453
+msgid "Active Match — Submit Score"
+msgstr "Ενεργός αγώνας — υποβολή σκορ"
+
+#: pfc_core/smart_router.py:467
+msgid "Waiting for Opponent to Validate"
+msgstr "Αναμονή επιβεβαίωσης από τον αντίπαλο"
+
+#: pfc_core/smart_router.py:477
+msgid "Validate Match Score"
+msgstr "Επιβεβαίωση σκορ αγώνα"
+
+#: pfc_core/smart_router.py:486
+msgid "Match Waiting Validation"
+msgstr "Αγώνας σε αναμονή επιβεβαίωσης"
+
+#: pfc_core/smart_router.py:498
+msgid "Waiting for Opponent Activation"
+msgstr "Αναμονή ενεργοποίησης αντιπάλου"
+
+#: pfc_core/smart_router.py:507
+msgid "Select Players & Activate Match"
+msgstr "Επιλογή παικτών και ενεργοποίηση αγώνα"
+
+#: pfc_core/smart_router.py:517
+msgid "Select Players & Start Match"
+msgstr "Επιλογή παικτών και έναρξη αγώνα"
+
+#: pfc_core/smart_router.py:589
+msgid "Please log in before scanning a player QR card."
+msgstr "Συνδεθείτε πριν σαρώσετε μια κάρτα QR παίκτη."
+
+#: pfc_core/smart_router.py:594
+msgid "No QR scan found. Please scan the player card again."
+msgstr "Δεν βρέθηκε σάρωση QR. Σαρώστε ξανά την κάρτα παίκτη."
+
+#: pfc_core/smart_router.py:601
+msgid "The scanned player could not be resolved."
+msgstr "Δεν ήταν δυνατός ο προσδιορισμός του σαρωμένου παίκτη."
+
+#: pfc_core/smart_router.py:612
+#, python-format
+msgid "%(player_name)s has no current actionable match or game."
+msgstr "Ο παίκτης %(player_name)s δεν έχει τρέχοντα αγώνα με διαθέσιμη ενέργεια."
+
+#: pfc_core/smart_router.py:664 templates/home.html:298
+msgid "No team"
+msgstr "Χωρίς ομάδα"
+
+#: pfc_core/smart_router.py:680 templates/matches/match_list.html:360
+msgid "No active matches"
+msgstr "Δεν υπάρχουν ενεργοί αγώνες"
+
+#: signin/services.py:23
+msgid "A VS tournament accepts exactly two teams."
+msgstr "Ένα τουρνουά VS δέχεται ακριβώς δύο ομάδες."
+
+#: signin/templates/signin/tournament_signin.html:4
+#: signin/templates/signin/tournament_signin.html:10 templates/home.html:441
+#: templates/pfc_core/my_matches.html:48
+msgid "Join Tournament"
+msgstr "Εγγραφή σε τουρνουά"
+
+#: signin/templates/signin/tournament_signin.html:98
+#: signin/templates/signin/tournament_signin.html:106
+#: signin/templates/signin/tournament_signin.html:111
+msgid "Register My Team"
+msgstr "Εγγραφή της ομάδας μου"
+
+#: signin/templates/signin/tournament_signin.html:121
+msgid "Register Other Team"
+msgstr "Εγγραφή άλλης ομάδας"
+
+#: signin/templates/signin/tournament_signin.html:139
+msgid "Advanced Registration Options"
+msgstr "Προηγμένες επιλογές εγγραφής"
+
+#: signin/templates/signin/tournament_signin.html:144
+msgid "Enter Team PIN"
+msgstr "Εισαγωγή PIN ομάδας"
+
+#: signin/templates/signin/tournament_signin.html:152
+msgid "Register"
+msgstr "Εγγραφή"
+
+#: teams/templates/teams/pfc_market.html:4
+#: teams/templates/teams/pfc_market.html:253 templates/home.html:498
+msgid "PFC Market"
+msgstr "Αγορά PFC"
+
+#: teams/templates/teams/pfc_market.html:4
+#: teams/templates/teams/pfc_market.html:300
+msgid "Player Rankings"
+msgstr "Κατάταξη παικτών"
+
+#: teams/templates/teams/pfc_market.html:254
+msgid "Live player rankings and performance trends"
+msgstr "Ζωντανές κατατάξεις παικτών και τάσεις απόδοσης"
+
+#: teams/templates/teams/pfc_market.html:260
+#: teams/templates/teams/player_profile.html:582 templates/home.html:447
+#: templates/matches/match_detail.html:420
+#: templates/matches/match_detail.html:520
+#: templates/matches/match_detail.html:584 templates/teams/team_list.html:54
+msgid "Players"
+msgstr "Παίκτες"
+
+#: teams/templates/teams/pfc_market.html:264
+msgid "Gainers"
+msgstr "Άνοδος"
+
+#: teams/templates/teams/pfc_market.html:268
+msgid "Losers"
+msgstr "Πτώση"
+
+#: teams/templates/teams/pfc_market.html:272
+msgid "Average Rating"
+msgstr "Μέση αξιολόγηση"
+
+#: teams/templates/teams/pfc_market.html:277
+msgid "Top Gainer"
+msgstr "Μεγαλύτερη άνοδος"
+
+#: teams/templates/teams/pfc_market.html:289
+msgid "Search player…"
+msgstr "Αναζήτηση παίκτη…"
+
+#: teams/templates/teams/pfc_market.html:289
+msgid "Search players"
+msgstr "Αναζήτηση παικτών"
+
+#: teams/templates/teams/pfc_market.html:292
+#: teams/templates/teams/pfc_market.html:309
+msgid "Rating"
+msgstr "Αξιολόγηση"
+
+#: teams/templates/teams/pfc_market.html:293
+msgid "Trend"
+msgstr "Τάση"
+
+#: teams/templates/teams/pfc_market.html:301
+#, python-format
+msgid "%(counter)s Player"
+msgid_plural "%(counter)s Players"
+msgstr[0] "%(counter)s παίκτης"
+msgstr[1] "%(counter)s παίκτες"
+
+#: teams/templates/teams/pfc_market.html:310
+#: teams/templates/teams/player_profile.html:509
+msgid "Change"
+msgstr "Μεταβολή"
+
+#: teams/templates/teams/pfc_market.html:346
+msgid "Profile"
+msgstr "Προφίλ"
+
+#: teams/templates/teams/pfc_market.html:352
+msgid "No players found."
+msgstr "Δεν βρέθηκαν παίκτες."
+
+#: teams/templates/teams/pfc_market.html:356
+msgid "No players match your search."
+msgstr "Κανένας παίκτης δεν ταιριάζει με την αναζήτησή σας."
+
+#: teams/templates/teams/player_profile.html:4
+msgid "Player Profile"
+msgstr "Προφίλ παίκτη"
+
+#: teams/templates/teams/player_profile.html:456
+msgid "Win Rate"
+msgstr "Ποσοστό νικών"
+
+#: teams/templates/teams/player_profile.html:460
+msgid "This player keeps their statistics private."
+msgstr "Αυτός ο παίκτης διατηρεί τα στατιστικά του ιδιωτικά."
+
+#: teams/templates/teams/player_profile.html:466
+msgid "Overall"
+msgstr "Συνολικά"
+
+#: teams/templates/teams/player_profile.html:468
+#: templates/matches/match_list.html:301
+msgid "Tournament"
+msgstr "Τουρνουά"
+
+#: teams/templates/teams/player_profile.html:469
+#: templates/matches/match_list.html:306
+msgid "Friendly"
+msgstr "Φιλικός αγώνας"
+
+#: teams/templates/teams/player_profile.html:471
+msgid "Shot Tracker"
+msgstr "Παρακολούθηση προσπαθειών"
+
+#: teams/templates/teams/player_profile.html:485
+msgid "Tournament games"
+msgstr "Αγώνες τουρνουά"
+
+#: teams/templates/teams/player_profile.html:489
+msgid "Friendly games"
+msgstr "Φιλικοί αγώνες"
+
+#: teams/templates/teams/player_profile.html:496
+msgid "Rating Progression"
+msgstr "Εξέλιξη αξιολόγησης"
+
+#: teams/templates/teams/player_profile.html:501
+msgid "Start"
+msgstr "Αρχή"
+
+#: teams/templates/teams/player_profile.html:505
+msgid "Current"
+msgstr "Τρέχον"
+
+#: teams/templates/teams/player_profile.html:513
+msgid "Rated"
+msgstr "Με αξιολόγηση"
+
+#: teams/templates/teams/player_profile.html:526
+msgid "Skill Comparison"
+msgstr "Σύγκριση επιπέδου"
+
+#: teams/templates/teams/player_profile.html:530
+msgid "of players have a lower rating than you"
+msgstr "των παικτών έχουν χαμηλότερη αξιολόγηση από εσάς"
+
+#: teams/templates/teams/player_profile.html:531
+#, python-format
+msgid "Compared to %(total)s players in the community"
+msgstr "Σε σύγκριση με %(total)s παίκτες της κοινότητας"
+
+#: teams/templates/teams/player_profile.html:570
+msgid "Your Rating"
+msgstr "Η αξιολόγησή σας"
+
+#: teams/templates/teams/player_profile.html:574
+msgid "Community Average"
+msgstr "Μέσος όρος κοινότητας"
+
+#: teams/templates/teams/player_profile.html:578
+msgid "Percentile"
+msgstr "Εκατοστημόριο"
+
+#: teams/templates/teams/player_profile.html:592
+#, fuzzy
+#| msgid "Score History"
+msgid "Match History"
+msgstr "Ιστορικό σκορ"
+
+#: teams/views_market.py:27
+#, python-format
+msgid "%(count)s day"
+msgid_plural "%(count)s days"
+msgstr[0] "%(count)s ημέρα"
+msgstr[1] "%(count)s ημέρες"
+
+#: teams/views_market.py:62
+#, python-format
+msgid "%(count)s game"
+msgid_plural "%(count)s games"
+msgstr[0] "%(count)s αγώνας"
+msgstr[1] "%(count)s αγώνες"
+
+#: teams/views_market.py:109
+#, fuzzy
+#| msgid "No Teams:"
+msgid "No Team"
+msgstr "Χωρίς ομάδες:"
+
+#: templates/base.html:231 templates/home.html:350 templates/home.html:354
+#: templates/pfc_core/my_matches.html:4 templates/pfc_core/my_matches.html:12
+msgid "My Matches"
+msgstr "Οι αγώνες μου"
+
+#: templates/base.html:239
+msgid "Invitations"
+msgstr "Προσκλήσεις"
+
+#: templates/base.html:256
+msgid "Language"
+msgstr "Γλώσσα"
+
+#: templates/base.html:266
+msgid "Live Scores"
+msgstr "Ζωντανά σκορ"
+
+#: templates/base.html:278
+msgid "Player Session"
+msgstr "Συνεδρία παίκτη"
+
+#: templates/base.html:279
+msgid "Logged in as:"
+msgstr "Συνδεδεμένος ως:"
+
+#: templates/base.html:283
+msgid "View Profile"
+msgstr "Προβολή προφίλ"
+
+#: templates/base.html:288
+msgid "Logout Player"
+msgstr "Αποσύνδεση παίκτη"
+
+#: templates/base.html:295
+msgid "Sign In"
+msgstr "Σύνδεση"
+
+#: templates/base.html:308
+msgid "Team Session"
+msgstr "Συνεδρία ομάδας"
+
+#: templates/base.html:309
+msgid "Team:"
+msgstr "Ομάδα:"
+
+#: templates/base.html:310
+msgid "PIN:"
+msgstr "PIN:"
+
+#: templates/base.html:314
+msgid "Logout Team"
+msgstr "Αποσύνδεση ομάδας"
+
+#: templates/base.html:321
+msgid "Admin"
+msgstr "Διαχείριση"
+
+#: templates/base.html:338
+msgid "Close"
+msgstr "Κλείσιμο"
+
+#: templates/base.html:353
+msgid "Organizing petanque, connecting community"
+msgstr "Οργανώνουμε το pétanque, συνδέουμε την κοινότητα"
+
+#: templates/base.html:356
+msgid "Quick Links"
+msgstr "Γρήγοροι σύνδεσμοι"
+
+#: templates/base.html:358 templates/home.html:418
+#: templates/tournaments/tournament_list.html:4
+#: templates/tournaments/tournament_list.html:182
+msgid "Tournaments"
+msgstr "Τουρνουά"
+
+#: templates/base.html:359 templates/home.html:473
+#: templates/matches/match_detail.html:696 templates/matches/match_list.html:4
+#: templates/tournaments/vs_encounter_detail.html:40
+msgid "Matches"
+msgstr "Αγώνες"
+
+#: templates/base.html:360 templates/home.html:495
+#: templates/teams/team_list.html:4 templates/teams/team_list.html:11
+msgid "Teams"
+msgstr "Ομάδες"
+
+#: templates/base.html:361
+msgctxt "petanque playing areas navigation"
+msgid "Courts"
+msgstr "Γήπεδα"
+
+#: templates/base.html:365
+msgid "Players & Admin"
+msgstr "Παίκτες και διαχείριση"
+
+#: templates/base.html:367
+msgid "Player Leaderboard"
+msgstr "Κατάταξη παικτών"
+
+#: templates/base.html:368
+msgid "Admin Portal"
+msgstr "Πύλη διαχείρισης"
+
+#: templates/base.html:404
+msgid "New invite from"
+msgstr "Νέα πρόσκληση από"
+
+#: templates/base.html:405
+msgid "someone"
+msgstr "κάποιον"
+
+#: templates/base.html:406
+msgid "Tap to view"
+msgstr "Πατήστε για προβολή"
+
+#: templates/courts/court_list.html:4 templates/courts/court_list.html:10
+msgctxt "petanque playing areas page"
+msgid "Courts"
+msgstr "Γήπεδα"
+
+#: templates/courts/court_list.html:14
+msgctxt "petanque playing areas list"
+msgid "Available Courts"
+msgstr "Διαθέσιμα γήπεδα"
+
+#: templates/courts/court_list.html:27
+msgid "Location:"
+msgstr "Τοποθεσία:"
+
+#: templates/courts/court_list.html:32
+msgid "Occupied"
+msgstr "Κατειλημμένο"
+
+#: templates/courts/court_list.html:36
+msgid "Available"
+msgstr "Διαθέσιμο"
+
+#: templates/courts/court_list.html:42
+msgid "Details"
+msgstr "Λεπτομέρειες"
+
+#: templates/courts/court_list.html:50
+msgctxt "petanque playing areas empty state"
+msgid "No courts are available."
+msgstr "Δεν υπάρχουν διαθέσιμα γήπεδα."
+
+#: templates/home.html:301
+msgid "Team session"
+msgstr "Συνεδρία ομάδας"
+
+#: templates/home.html:303
+msgid "Sign in"
+msgstr "Σύνδεση"
+
+#: templates/home.html:304
+msgid "Tap to log in"
+msgstr "Πατήστε για σύνδεση"
+
+#: templates/home.html:313
+msgctxt "petanque playing areas home"
+msgid "Courts"
+msgstr "Γήπεδα"
+
+#: templates/home.html:315
+#, python-format
+msgid "%(counter)s player"
+msgid_plural "%(counter)s players"
+msgstr[0] "%(counter)s παίκτης"
+msgstr[1] "%(counter)s παίκτες"
+
+#: templates/home.html:316
+msgid "at courts now"
+msgstr "στα γήπεδα τώρα"
+
+#: templates/home.html:318
+msgid "No players"
+msgstr "Δεν υπάρχουν παίκτες"
+
+#: templates/home.html:319
+msgid "at courts"
+msgstr "στα γήπεδα"
+
+#: templates/home.html:330
+msgid "Weather"
+msgstr "Καιρός"
+
+#: templates/home.html:336
+msgid "Unavailable"
+msgstr "Μη διαθέσιμο"
+
+#: templates/home.html:348
+msgid "Tap the ball to start"
+msgstr "Πατήστε τη μπάλα για έναρξη"
+
+#: templates/home.html:355
+msgid "Your active game, tournament or friendly"
+msgstr "Ο ενεργός αγώνας, το τουρνουά ή ο φιλικός αγώνας σας"
+
+#: templates/home.html:376
+msgid "More options"
+msgstr "Περισσότερες επιλογές"
+
+#: templates/home.html:387
+msgid "Friendly Games"
+msgstr "Φιλικοί αγώνες"
+
+#: templates/home.html:395 templates/pfc_core/my_matches.html:45
+msgid "Create Friendly"
+msgstr "Δημιουργία φιλικού αγώνα"
+
+#: templates/home.html:404
+msgid "Statistics"
+msgstr "Στατιστικά"
+
+#: templates/home.html:429
+msgid "Find Match"
+msgstr "Εύρεση αγώνα"
+
+#: templates/home.html:438
+msgid "Create Tournament"
+msgstr "Δημιουργία τουρνουά"
+
+#: templates/home.html:444
+msgid "View Tournaments"
+msgstr "Προβολή τουρνουά"
+
+#: templates/home.html:461
+msgid "Practice & Matches"
+msgstr "Προπόνηση και αγώνες"
+
+#: templates/home.html:470
+msgid "Start Practice"
+msgstr "Έναρξη προπόνησης"
+
+#: templates/home.html:487
+msgid "Teams, Market & More"
+msgstr "Ομάδες, Αγορά και άλλα"
+
+#: templates/home.html:505
+msgid "AI Umpire"
+msgstr "Διαιτητής AI"
+
+#: templates/home.html:540
+msgid "QR scanner is unavailable. Please reload and try again."
+msgstr "Ο σαρωτής QR δεν είναι διαθέσιμος. Επαναφορτώστε και δοκιμάστε ξανά."
+
+#: templates/home.html:541
+msgid "Finding"
+msgstr "Αναζήτηση"
+
+#: templates/home.html:542
+msgid "next action…"
+msgstr "επόμενης ενέργειας…"
+
+#: templates/home.html:543
+msgid "No current action was found."
+msgstr "Δεν βρέθηκε τρέχουσα ενέργεια."
+
+#: templates/home.html:544
+msgid "Unable to resolve the player action."
+msgstr "Δεν ήταν δυνατός ο προσδιορισμός της ενέργειας του παίκτη."
+
+#: templates/matches/match_activate.html:255
+msgid "Validating"
+msgstr "Επιβεβαίωση"
+
+#: templates/matches/match_activate.html:255
+msgid "Starting"
+msgstr "Έναρξη"
+
+#: templates/matches/match_activate.html:268
+msgid "Other team:"
+msgstr "Άλλη ομάδα:"
+
+#: templates/matches/match_activate.html:284
+#: templates/matches/match_activate.html:325
+msgid "Select Players"
+msgstr "Επιλέξτε παίκτες"
+
+#: templates/matches/match_activate.html:286
+msgid "Auto-selected"
+msgstr "Επιλέχθηκαν αυτόματα"
+
+#: templates/matches/match_activate.html:286
+msgid "required"
+msgstr "απαιτούνται"
+
+#: templates/matches/match_activate.html:288
+#, python-format
+msgid "Select %(counter)s player"
+msgid_plural "Select %(counter)s players"
+msgstr[0] "Επιλέξτε %(counter)s παίκτη"
+msgstr[1] "Επιλέξτε %(counter)s παίκτες"
+
+#: templates/matches/match_activate.html:306
+msgid "Auto"
+msgstr "Αυτόματα"
+
+#: templates/matches/match_activate.html:355
+msgid "Validate and Start Match"
+msgstr "Επιβεβαίωση και έναρξη αγώνα"
+
+#: templates/matches/match_activate.html:359
+msgid "Start opponent via QR scan"
+msgstr "Εκκίνηση αντιπάλου μέσω σάρωσης QR"
+
+#: templates/matches/match_detail.html:4
+msgid "Match"
+msgstr "Αγώνας"
+
+#: templates/matches/match_detail.html:318
+msgid "Waiting for second team"
+msgstr "Αναμονή για δεύτερη ομάδα"
+
+#: templates/matches/match_detail.html:338
+#: templates/matches/match_detail.html:367
+msgid "Activation Status"
+msgstr "Κατάσταση έναρξης"
+
+#: templates/matches/match_detail.html:397
+msgid "Find your court and teammates"
+msgstr "Βρείτε το γήπεδο και τους συμπαίκτες σας"
+
+#: templates/matches/match_detail.html:401
+msgid "Match starts automatically when timer ends"
+msgstr "Ο αγώνας ξεκινά αυτόματα όταν ολοκληρωθεί ο χρόνος"
+
+#: templates/matches/match_detail.html:415
+#: templates/matches/scoreboard_detail.html:228
+msgid "Waiting for a court to become available"
+msgstr "Αναμονή έως ότου γίνει διαθέσιμο ένα γήπεδο"
+
+#: templates/matches/match_detail.html:456
+#: templates/matches/match_submit_result.html:276
+#: templates/partials/timer_card.html:29
+msgid "Time Remaining"
+msgstr "Υπολειπόμενος χρόνος"
+
+#: templates/matches/match_detail.html:471
+msgid "Score"
+msgstr "Σκορ"
+
+#: templates/matches/match_detail.html:491
+#: templates/matches/match_validate_result.html:277
+msgid "Submitted Score"
+msgstr "Υποβληθέν σκορ"
+
+#: templates/matches/match_detail.html:506
+#: templates/matches/match_list.html:587
+#: templates/matches/match_validate_result.html:295
+msgid "Submitted by"
+msgstr "Υποβλήθηκε από"
+
+#: templates/matches/match_detail.html:562
+#: templates/matches/match_submit_result.html:293
+msgid "Final Score"
+msgstr "Τελικό σκορ"
+
+#: templates/matches/match_detail.html:655
+msgid "Login as a team to validate"
+msgstr "Συνδεθείτε ως ομάδα για επιβεβαίωση."
+
+#: templates/matches/match_detail.html:662
+#: templates/matches/match_submit_result.html:4
+#: templates/matches/match_submit_result.html:372
+#: templates/matches/scoreboard_detail.html:350
+#: templates/matches/scoreboard_detail.html:355
+#: templates/matches/scoreboard_detail.html:360
+msgid "Submit Result"
+msgstr "Υποβολή αποτελέσματος"
+
+#: templates/matches/match_detail.html:667
+msgid "Login as a team to submit"
+msgstr "Συνδεθείτε ως ομάδα για υποβολή."
+
+#: templates/matches/match_detail.html:690
+msgid "Login as a team to validate score"
+msgstr "Συνδεθείτε ως ομάδα για επιβεβαίωση του σκορ."
+
+#: templates/matches/match_list.html:292
+msgid "All Matches"
+msgstr "Όλοι οι αγώνες"
+
+#: templates/matches/match_list.html:294
+#, python-format
+msgid "%(total)s total"
+msgstr "%(total)s συνολικά"
+
+#: templates/matches/match_list.html:323
+msgid "Partial"
+msgstr "Μερικό"
+
+#: templates/matches/match_list.html:329 templates/matches/match_list.html:479
+#: templates/matches/match_list.html:509 templates/matches/match_list.html:630
+msgid "Done"
+msgstr "Ολοκληρώθηκε"
+
+#: templates/matches/match_list.html:343 templates/matches/match_list.html:383
+#: templates/matches/match_submit_result.html:288
+#: templates/matches/match_validate_result.html:272
+#: templates/pfc_core/my_matches.html:127
+msgid "Round"
+msgstr "Γύρος"
+
+#: templates/matches/match_list.html:345 templates/matches/match_list.html:555
+msgid "Started"
+msgstr "Ξεκίνησε"
+
+#: templates/matches/match_list.html:385
+msgid "minute limit"
+msgstr "λεπτά όριο"
+
+#: templates/matches/match_list.html:397
+msgid "No pending matches"
+msgstr "Δεν υπάρχουν εκκρεμείς αγώνες"
+
+#: templates/matches/match_list.html:413
+msgid "Activated by"
+msgstr "Ενεργοποιήθηκε από"
+
+#: templates/matches/match_list.html:417 templates/matches/match_list.html:500
+#: templates/matches/match_list.html:527
+msgid "Waiting"
+msgstr "Αναμονή"
+
+#: templates/matches/match_list.html:425
+msgid "No partially activated matches"
+msgstr "Δεν υπάρχουν μερικώς ενεργοποιημένοι αγώνες"
+
+#: templates/matches/match_list.html:457 templates/matches/match_list.html:608
+msgid "Nothing awaiting validation"
+msgstr "Δεν υπάρχει κάτι για επιβεβαίωση"
+
+#: templates/matches/match_list.html:487
+msgid "No completed matches"
+msgstr "Δεν υπάρχουν ολοκληρωμένοι αγώνες"
+
+#: templates/matches/match_list.html:522 templates/matches/match_list.html:554
+#: templates/matches/match_list.html:580 templates/matches/match_list.html:621
+msgid "Game"
+msgstr "Αγώνας"
+
+#: templates/matches/match_list.html:523
+msgid "Created"
+msgstr "Δημιουργήθηκε"
+
+#: templates/matches/match_list.html:524
+msgid "Expires"
+msgstr "Λήγει"
+
+#: templates/matches/match_list.html:535
+msgid "No games waiting for players"
+msgstr "Δεν υπάρχουν αγώνες σε αναμονή παικτών"
+
+#: templates/matches/match_list.html:538
+msgid "Create Game"
+msgstr "Δημιουργία αγώνα"
+
+#: templates/matches/match_list.html:567
+msgid "No active friendly games"
+msgstr "Δεν υπάρχουν ενεργοί φιλικοί αγώνες"
+
+#: templates/matches/match_list.html:596
+#: templates/matches/partials/friendly_games_table.html:59
+#: templates/matches/partials/friendly_games_table.html:98
+#: templates/matches/partials/friendly_games_table.html:164
+#: templates/matches/partials/friendly_games_table.html:199
+msgid "View"
+msgstr ""
+
+#: templates/matches/match_list.html:638
+msgid "No completed friendly games"
+msgstr "Δεν υπάρχουν ολοκληρωμένοι φιλικοί αγώνες"
+
+#: templates/matches/match_submit_result.html:336
+msgid "Photo and Notes"
+msgstr "Φωτογραφία και σημειώσεις"
+
+#: templates/matches/match_submit_result.html:336
+msgid "optional"
+msgstr "προαιρετικό"
+
+#: templates/matches/match_submit_result.html:341
+msgid "Photo Evidence"
+msgstr "Φωτογραφικό αποδεικτικό"
+
+#: templates/matches/match_submit_result.html:345
+msgid "Notes"
+msgstr "Σημειώσεις"
+
+#: templates/matches/match_submit_result.html:346
+msgid "Optional notes…"
+msgstr "Προαιρετικές σημειώσεις…"
+
+#: templates/matches/match_submit_result.html:357
+#: templates/matches/scoreboard_detail.html:213
+#: templates/matches/scoreboard_detail.html:371
+msgid "Score History"
+msgstr "Ιστορικό σκορ"
+
+#: templates/matches/match_submit_result.html:362
+#: templates/matches/scoreboard_detail.html:376
+#: templates/matches/scoreboard_detail.html:381
+msgid "Game Analysis"
+msgstr "Ανάλυση αγώνα"
+
+#: templates/matches/match_validate_result.html:3
+msgid "Confirm — Agree"
+msgstr "Επιβεβαίωση — Συμφωνώ"
+
+#: templates/matches/match_validate_result.html:4
+msgid "Confirm — Disagree"
+msgstr "Επιβεβαίωση — Διαφωνώ"
+
+#: templates/matches/match_validate_result.html:5
+msgid ""
+"Confirm that you agree with the submitted score? The match will be marked as "
+"completed."
+msgstr "Επιβεβαιώνετε ότι συμφωνείτε με το υποβληθέν σκορ; Ο αγώνας θα σημειωθεί ως ολοκληρωμένος."
+
+#: templates/matches/match_validate_result.html:6
+msgid ""
+"Confirm that you disagree with the submitted score? The result will be "
+"cleared for resubmission."
+msgstr "Επιβεβαιώνετε ότι διαφωνείτε με το υποβληθέν σκορ; Το αποτέλεσμα θα εκκαθαριστεί για νέα υποβολή."
+
+#: templates/matches/match_validate_result.html:302
+msgid "Match Evidence"
+msgstr "Αποδεικτικό αγώνα"
+
+#: templates/matches/match_validate_result.html:312
+msgid "Your Decision"
+msgstr "Η απόφασή σας"
+
+#: templates/matches/match_validate_result.html:324
+msgid "You submitted this result."
+msgstr "Υποβάλατε αυτό το αποτέλεσμα."
+
+#: templates/matches/match_validate_result.html:324
+msgid "Waiting for the other team to validate."
+msgstr "Αναμονή για επιβεβαίωση από την άλλη ομάδα."
+
+#: templates/matches/match_validate_result.html:342
+#: templates/matches/match_validate_result.html:372
+msgid "Agree"
+msgstr "Συμφωνώ"
+
+#: templates/matches/match_validate_result.html:347
+#: templates/matches/match_validate_result.html:378
+msgid "Disagree"
+msgstr "Διαφωνώ"
+
+#: templates/matches/match_validate_result.html:359
+#, python-format
+msgid ""
+"Scan a QR card from a player of %(team_name)s to confirm their identity, "
+"then choose Agree or Disagree."
+msgstr "Σαρώστε την κάρτα QR ενός παίκτη της ομάδας %(team_name)s για επιβεβαίωση ταυτότητας και επιλέξτε Συμφωνώ ή Διαφωνώ."
+
+#: templates/matches/match_validate_result.html:390
+msgid "Select a decision"
+msgstr "Επιλέξτε απόφαση"
+
+#: templates/matches/partials/friendly_games_table.html:7
+msgid "Friendly Games Logo"
+msgstr "Λογότυπο φιλικών αγώνων"
+
+#: templates/matches/partials/friendly_games_table.html:7
+msgid "Friendly Games Overview"
+msgstr "Επισκόπηση φιλικών αγώνων"
+
+#: templates/matches/partials/friendly_games_table.html:140
+msgid "Unknown"
+msgstr "Άγνωστο"
+
+#: templates/matches/scoreboard_detail.html:4
+#: templates/matches/scoreboard_detail.html:256
+#: templates/matches/scoreboard_detail.html:278
+msgid "TIME UP"
+msgstr "Ο ΧΡΟΝΟΣ ΕΛΗΞΕ"
+
+#: templates/matches/scoreboard_detail.html:5
+msgid "Login required"
+msgstr "Απαιτείται σύνδεση"
+
+#: templates/matches/scoreboard_detail.html:6
+msgid "Updated"
+msgstr "Ενημερώθηκε"
+
+#: templates/matches/scoreboard_detail.html:7
+#: templates/matches/scoreboard_detail.html:205
+msgid "Ended"
+msgstr "Ολοκληρώθηκε"
+
+#: templates/matches/scoreboard_detail.html:8
+msgid "Error"
+msgstr "Σφάλμα"
+
+#: templates/matches/scoreboard_detail.html:10
+msgid "Reset to 0–0?"
+msgstr "Επαναφορά σε 0–0;"
+
+#: templates/matches/scoreboard_detail.html:11
+msgid "Reset"
+msgstr "Επαναφορά"
+
+#: templates/matches/scoreboard_detail.html:12
+#: templates/matches/scoreboard_detail.html:205
+msgid "Live"
+msgstr "Ζωντανά"
+
+#: templates/matches/scoreboard_detail.html:203
+msgid "Back"
+msgstr "Πίσω"
+
+#: templates/matches/scoreboard_detail.html:207
+msgid "Full Screen"
+msgstr "Πλήρης οθόνη"
+
+#: templates/matches/scoreboard_detail.html:222
+#: templates/matches/scoreboard_detail.html:233
+#, fuzzy
+#| msgctxt "petanque playing areas venue count"
+#| msgid "Courts"
+msgctxt "petanque playing area score banner"
+msgid "Court"
+msgstr "Γήπεδα"
+
+#: templates/matches/scoreboard_detail.html:332
+msgid "Update"
+msgstr "Ενημέρωση"
+
+#: templates/matches/scoreboard_detail.html:337
+msgid "Reset 0–0"
+msgstr "Επαναφορά 0–0"
+
+#: templates/matches/scoreboard_detail.html:341
+msgid "Scoring ended"
+msgstr "Η καταχώριση σκορ ολοκληρώθηκε"
+
+#: templates/matches/scoreboard_detail.html:397
+msgid "Time"
+msgstr "Ώρα"
+
+#: templates/matches/scoreboard_detail.html:401
+msgid "By"
+msgstr "Από"
+
+#: templates/matches/scoreboard_detail.html:402
+msgid "Type"
+msgstr "Τύπος"
+
+#: templates/partials/qr_scanner_modal.html:12
+#: templates/partials/qr_scanner_modal.html:185
+msgid "Point camera at a PFC Player QR Card…"
+msgstr "Στρέψτε την κάμερα σε μια κάρτα QR παίκτη PFC…"
+
+#: templates/partials/qr_scanner_modal.html:13
+msgid "Camera access denied. Please allow camera access."
+msgstr "Η πρόσβαση στην κάμερα δεν επιτράπηκε. Επιτρέψτε την πρόσβαση στην κάμερα."
+
+#: templates/partials/qr_scanner_modal.html:14
+msgid "Configuration error: resolve URL not set."
+msgstr "Σφάλμα ρυθμίσεων: δεν έχει οριστεί URL επίλυσης."
+
+#: templates/partials/qr_scanner_modal.html:15
+msgid "Verifying QR code…"
+msgstr "Επαλήθευση κωδικού QR…"
+
+#: templates/partials/qr_scanner_modal.html:16
+msgid "Invalid QR code"
+msgstr "Μη έγκυρος κωδικός QR"
+
+#: templates/partials/qr_scanner_modal.html:187
+#: templates/partials/qr_scanner_modal.html:206
+msgid "Cancel"
+msgstr "Ακύρωση"
+
+#: templates/partials/qr_scanner_modal.html:193
+#: templates/partials/qr_scanner_modal.html:203
+msgid "Confirm Player"
+msgstr "Επιβεβαίωση παίκτη"
+
+#: templates/partials/qr_scanner_modal.html:201
+msgid "Is this the correct player?"
+msgstr "Είναι αυτός ο σωστός παίκτης;"
+
+#: templates/partials/timer_bar.html:22 templates/partials/timer_card.html:22
+msgid "Time Expired"
+msgstr "Ο χρόνος έληξε"
+
+#: templates/partials/timer_bar.html:22
+msgid "cosone rules apply"
+msgstr "ισχύουν οι κανόνες cosone"
+
+#: templates/partials/timer_bar.html:27
+msgid "Time Left:"
+msgstr "Υπολειπόμενος χρόνος:"
+
+#: templates/partials/timer_card.html:25
+msgid "You may continue playing or play a"
+msgstr "Μπορείτε να συνεχίσετε ή να παίξετε έναν"
+
+#: templates/partials/timer_card.html:25
+msgid "additional round"
+msgstr "επιπλέον γύρο"
+
+#: templates/partials/timer_card.html:44
+msgid "Match time limit:"
+msgstr "Χρονικό όριο αγώνα:"
+
+#: templates/partials/timer_card.html:44
+msgid "minutes"
+msgstr "λεπτά"
+
+#: templates/pfc_core/my_matches.html:14
+msgid "Your current participations and pending matches"
+msgstr "Οι τρέχουσες συμμετοχές και οι εκκρεμείς αγώνες σας"
+
+#: templates/pfc_core/my_matches.html:21
+msgid "Not Logged In:"
+msgstr "Δεν έχετε συνδεθεί:"
+
+#: templates/pfc_core/my_matches.html:21
+msgid "Please log in with your player codename to see your active matches."
+msgstr "Συνδεθείτε με τον κωδικό παίκτη σας για να δείτε τους ενεργούς αγώνες σας."
+
+#: templates/pfc_core/my_matches.html:24
+msgid "Login with Codename"
+msgstr "Σύνδεση με κωδικό παίκτη"
+
+#: templates/pfc_core/my_matches.html:31
+msgid "No Teams:"
+msgstr "Χωρίς ομάδες:"
+
+#: templates/pfc_core/my_matches.html:31
+msgid ""
+"You're not currently a member of any team. Join or create a team to "
+"participate in matches!"
+msgstr "Δεν είστε μέλος κάποιας ομάδας. Συμμετάσχετε ή δημιουργήστε ομάδα για να παίξετε σε αγώνες!"
+
+#: templates/pfc_core/my_matches.html:41
+msgid "All Clear!"
+msgstr "Όλα καθαρά!"
+
+#: templates/pfc_core/my_matches.html:41
+msgid "You have no pending or active matches at the moment."
+msgstr "Δεν έχετε εκκρεμείς ή ενεργούς αγώνες αυτή τη στιγμή."
+
+#: templates/pfc_core/my_matches.html:56
+#, python-format
+msgid "%(counter)s Active Match"
+msgid_plural "%(counter)s Active Matches"
+msgstr[0] "%(counter)s ενεργός αγώνας"
+msgstr[1] "%(counter)s ενεργοί αγώνες"
+
+#: templates/pfc_core/my_matches.html:56
+msgid "found for"
+msgstr "βρέθηκαν για"
+
+#: templates/pfc_core/my_matches.html:65
+msgid "Recommended:"
+msgstr "Προτεινόμενο:"
+
+#: templates/pfc_core/my_matches.html:75
+msgid "Status:"
+msgstr "Κατάσταση:"
+
+#: templates/pfc_core/my_matches.html:79
+msgid "Tournament:"
+msgstr "Τουρνουά:"
+
+#: templates/pfc_core/my_matches.html:80
+msgid "Round:"
+msgstr ""
+
+#: templates/pfc_core/my_matches.html:82
+msgid "Type:"
+msgstr ""
+
+#: templates/pfc_core/my_matches.html:87
+msgctxt "petanque playing area label"
+msgid "Court:"
+msgstr "Γήπεδο:"
+
+#: templates/pfc_core/my_matches.html:90
+msgid "Scheduled:"
+msgstr "Προγραμματισμένο:"
+
+#: templates/pfc_core/my_matches.html:97
+msgid "Go to Match"
+msgstr "Μετάβαση στον αγώνα"
+
+#: templates/pfc_core/my_matches.html:105
+msgid "All Active Matches"
+msgstr "Όλοι οι ενεργοί αγώνες"
+
+#: templates/pfc_core/my_matches.html:142
+msgid "View Match"
+msgstr "Προβολή αγώνα"
+
+#: templates/teams/team_list.html:12
+msgid "Discover our petanque teams"
+msgstr ""
+
+#: templates/teams/team_list.html:60
+msgid "Games"
+msgstr ""
+
+#: templates/teams/team_list.html:66
+msgid "Wins"
+msgstr ""
+
+#: templates/teams/team_list.html:109
+msgid "View Team Profile"
+msgstr ""
+
+#: templates/teams/team_list.html:119
+msgid "No teams found"
+msgstr ""
+
+#: templates/tournaments/tournament_list.html:192
+msgid "Search tournaments…"
+msgstr "Αναζήτηση τουρνουά…"
+
+#: templates/tournaments/tournament_list.html:198
+msgid "Clear search"
+msgstr ""
+
+#: templates/tournaments/tournament_list.html:210
+msgid "Active & Current"
+msgstr "Ενεργά και τρέχοντα"
+
+#: templates/tournaments/vs_encounter_detail.html:3
+msgid "VS Encounter"
+msgstr "Αναμέτρηση VS"
+
+#: templates/tournaments/vs_encounter_detail.html:32
+msgid "Encounter Complete"
+msgstr "Η αναμέτρηση ολοκληρώθηκε"
+
+#: templates/tournaments/vs_encounter_detail.html:55
+msgid "Format TBD"
+msgstr "Το format θα οριστεί"
+
+#: templates/tournaments/vs_encounter_detail.html:60
+msgid "Points set at start"
+msgstr "Οι πόντοι ορίζονται στην έναρξη"
+
+#: templates/tournaments/vs_encounter_detail.html:67
+msgid "won"
+msgstr "κέρδισε"
+
+#: templates/tournaments/vs_encounter_detail.html:69
+msgid "Draw"
+msgstr "Ισοπαλία"
+
+#: templates/tournaments/vs_encounter_detail.html:74
+msgid "Match active"
+msgstr "Ο αγώνας είναι ενεργός"
+
+#: templates/tournaments/vs_encounter_detail.html:76
+msgid "Waiting for a court"
+msgstr "Αναμονή για γήπεδο"
+
+#: templates/tournaments/vs_encounter_detail.html:78
+msgid "Lineups confirmed — starting match"
+msgstr "Οι συνθέσεις επιβεβαιώθηκαν — έναρξη αγώνα"
+
+#: templates/tournaments/vs_encounter_detail.html:80
+msgid "Waiting for opponent lineup"
+msgstr "Αναμονή για τη σύνθεση του αντιπάλου"
+
+#: templates/tournaments/vs_encounter_detail.html:82
+msgid "Opponent submitted — submit yours"
+msgstr "Ο αντίπαλος υπέβαλε σύνθεση — υποβάλετε τη δική σας"
+
+#: templates/tournaments/vs_encounter_detail.html:84
+msgid "Awaiting lineups"
+msgstr "Αναμονή για συνθέσεις"
+
+#: templates/tournaments/vs_encounter_detail.html:100
+msgid "Matches will be created when the second VS team registers."
+msgstr "Οι αγώνες θα δημιουργηθούν όταν εγγραφεί η δεύτερη ομάδα VS."
+
+#: templates/tournaments/vs_encounter_detail.html:107
+msgid "Back to Tournament"
+msgstr "Πίσω στο τουρνουά"

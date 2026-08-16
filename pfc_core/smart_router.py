@@ -43,6 +43,7 @@ from urllib.parse import urlencode
 
 from matches.models import Match, MatchActivation, MatchResult, LiveScoreboard
 from django.utils import timezone as _tz
+from django.utils.translation import gettext as _
 from friendly_games.models import (
     PlayerCodename, FriendlyGame, FriendlyGamePlayer, FriendlyGameResult
 )
@@ -279,7 +280,7 @@ def _resolve_nearby_friendly_games(request, player):
     return {
         'priority': PRIORITY_FRIENDLY_NEARBY_JOIN,
         'url': f'{join_url}?match_number={best_game.match_number}',
-        'label': f'Join Friendly Game #{best_game.match_number}',
+        'label': _("Join Friendly Game #%(match_number)s") % {'match_number': best_game.match_number},
         'match_type': 'friendly_nearby',
     }
 
@@ -311,7 +312,7 @@ def _resolve_friendly_games(player, player_team):
                         'priority': PRIORITY_FRIENDLY_NEEDS_VALIDATION,
                         'url': reverse('friendly_games:validate_result',
                                        kwargs={'game_id': game.id}),
-                        'label': 'Validate Friendly Game Result',
+                        'label': _("Validate Friendly Game Result"),
                         'match_type': 'friendly',
                     })
                     continue
@@ -330,7 +331,7 @@ def _resolve_friendly_games(player, player_team):
             candidates.append({
                 'priority': PRIORITY_FRIENDLY_ACTIVE,
                 'url': active_url,
-                'label': 'Active Friendly Game — Live Score',
+                'label': _("Active Friendly Game — Live Score"),
                 'match_type': 'friendly',
             })
         elif game.status == 'PENDING_VALIDATION':
@@ -339,7 +340,7 @@ def _resolve_friendly_games(player, player_team):
                 'priority': PRIORITY_FRIENDLY_WAITING,
                 'url': reverse('friendly_games:game_detail',
                                kwargs={'game_id': game.id}),
-                'label': 'Waiting for Opponent Validation',
+                'label': _("Waiting for Opponent Validation"),
                 'match_type': 'friendly',
             })
         elif game.status in ['READY', 'WAITING_FOR_PLAYERS']:
@@ -347,7 +348,7 @@ def _resolve_friendly_games(player, player_team):
                 'priority': PRIORITY_FRIENDLY_SETUP,
                 'url': reverse('friendly_games:game_detail',
                                kwargs={'game_id': game.id}),
-                'label': 'Friendly Game — Waiting for Players',
+                'label': _("Friendly Game — Waiting for Players"),
                 'match_type': 'friendly',
             })
 
@@ -385,7 +386,7 @@ def _resolve_tournament_matches(player_team):
                         'priority': PRIORITY_TOURNAMENT_WAITING_OPPONENT,
                         'url': reverse('match_detail',
                                        kwargs={'match_id': match.id}),
-                        'label': 'Waiting for Score Validation',
+                        'label': _("Waiting for Score Validation"),
                         'match_type': 'tournament',
                     })
                 else:
@@ -395,7 +396,7 @@ def _resolve_tournament_matches(player_team):
                         'url': reverse('match_submit_result',
                                        kwargs={'match_id': match.id,
                                                'team_id': team_id}),
-                        'label': 'Submit Match Score',
+                        'label': _("Submit Match Score"),
                         'match_type': 'tournament',
                     })
             except MatchResult.DoesNotExist:
@@ -416,7 +417,7 @@ def _resolve_tournament_matches(player_team):
                         'priority': PRIORITY_TOURNAMENT_ACTIVE_SUBMIT,
                         'url': reverse('match_detail',
                                        kwargs={'match_id': match.id}),
-                        'label': 'Match Starting — Find Your Court',
+                        'label': _("Match Starting — Find Your Court"),
                         'match_type': 'tournament',
                     })
                 else:
@@ -429,7 +430,7 @@ def _resolve_tournament_matches(player_team):
                                 'priority': PRIORITY_TOURNAMENT_ACTIVE_SUBMIT,
                                 'url': reverse('scoreboard_detail',
                                                kwargs={'scoreboard_id': scoreboard.id}),
-                                'label': 'Active Match — Live Score',
+                                'label': _("Active Match — Live Score"),
                                 'match_type': 'tournament',
                             })
                         else:
@@ -439,7 +440,7 @@ def _resolve_tournament_matches(player_team):
                                 'priority': PRIORITY_TOURNAMENT_ACTIVE_SUBMIT,
                                 'url': reverse('match_detail',
                                                kwargs={'match_id': match.id}),
-                                'label': 'Active Match — Submit Score',
+                                'label': _("Active Match — Submit Score"),
                                 'match_type': 'tournament',
                             })
                     except LiveScoreboard.DoesNotExist:
@@ -449,7 +450,7 @@ def _resolve_tournament_matches(player_team):
                             'priority': PRIORITY_TOURNAMENT_ACTIVE_SUBMIT,
                             'url': reverse('match_detail',
                                            kwargs={'match_id': match.id}),
-                            'label': 'Active Match — Submit Score',
+                            'label': _("Active Match — Submit Score"),
                             'match_type': 'tournament',
                         })
 
@@ -463,7 +464,7 @@ def _resolve_tournament_matches(player_team):
                         'priority': PRIORITY_TOURNAMENT_WAITING_OPPONENT,
                         'url': reverse('match_detail',
                                        kwargs={'match_id': match.id}),
-                        'label': 'Waiting for Opponent to Validate',
+                        'label': _("Waiting for Opponent to Validate"),
                         'match_type': 'tournament',
                     })
                 else:
@@ -473,7 +474,7 @@ def _resolve_tournament_matches(player_team):
                         'url': reverse('match_validate_result',
                                        kwargs={'match_id': match.id,
                                                'team_id': team_id}),
-                        'label': 'Validate Match Score',
+                        'label': _("Validate Match Score"),
                         'match_type': 'tournament',
                     })
             except MatchResult.DoesNotExist:
@@ -482,7 +483,7 @@ def _resolve_tournament_matches(player_team):
                     'priority': PRIORITY_TOURNAMENT_WAITING_VALIDATE,
                     'url': reverse('match_detail',
                                    kwargs={'match_id': match.id}),
-                    'label': 'Match Waiting Validation',
+                    'label': _("Match Waiting Validation"),
                     'match_type': 'tournament',
                 })
 
@@ -494,7 +495,7 @@ def _resolve_tournament_matches(player_team):
                     'priority': PRIORITY_TOURNAMENT_WAITING_OPPONENT,
                     'url': reverse('match_detail',
                                    kwargs={'match_id': match.id}),
-                    'label': 'Waiting for Opponent Activation',
+                    'label': _("Waiting for Opponent Activation"),
                     'match_type': 'tournament',
                 })
             else:
@@ -503,7 +504,7 @@ def _resolve_tournament_matches(player_team):
                     'url': reverse('match_activate',
                                    kwargs={'match_id': match.id,
                                            'team_id': team_id}),
-                    'label': 'Select Players & Activate Match',
+                    'label': _("Select Players & Activate Match"),
                     'match_type': 'tournament',
                 })
 
@@ -513,7 +514,7 @@ def _resolve_tournament_matches(player_team):
                 'url': reverse('match_activate',
                                kwargs={'match_id': match.id,
                                        'team_id': team_id}),
-                'label': 'Select Players & Start Match',
+                'label': _("Select Players & Start Match"),
                 'match_type': 'tournament',
             })
 
@@ -585,19 +586,19 @@ def resolve_scanned_player_next_url(request):
     # The phone operator must still be in a normal PFC player session. This is
     # authorization for one scanned-player action, not a login or delegation.
     if not request.session.get('player_codename'):
-        return JsonResponse({'ok': False, 'error': 'Please log in before scanning a player QR card.'}, status=401)
+        return JsonResponse({'ok': False, 'error': _("Please log in before scanning a player QR card.")}, status=401)
 
     scanned_codename = request.session.pop('qr_resolved_codename', None)
     request.session.modified = True
     if not scanned_codename:
-        return JsonResponse({'ok': False, 'error': 'No QR scan found. Please scan the player card again.'}, status=400)
+        return JsonResponse({'ok': False, 'error': _("No QR scan found. Please scan the player card again.")}, status=400)
 
     try:
         scanned_pc = PlayerCodename.objects.select_related('player__team').get(
             codename=scanned_codename.upper()
         )
     except PlayerCodename.DoesNotExist:
-        return JsonResponse({'ok': False, 'error': 'The scanned player could not be resolved.'}, status=404)
+        return JsonResponse({'ok': False, 'error': _("The scanned player could not be resolved.")}, status=404)
 
     scanned_player = scanned_pc.player
     candidates = []
@@ -608,7 +609,7 @@ def resolve_scanned_player_next_url(request):
     if not candidates:
         return JsonResponse({
             'ok': False,
-            'error': f'{scanned_player.name} has no current actionable match or game.',
+            'error': _("%(player_name)s has no current actionable match or game.") % {'player_name': scanned_player.name},
         }, status=404)
 
     candidates.sort(key=lambda candidate: candidate['priority'])
@@ -660,7 +661,7 @@ def resolve_next_url(request):
 
     player_team = player.team
     if not player_team:
-        return _JsonResponse({'authenticated': True, 'next_url': None, 'label': 'No team', 'priority': None})
+        return _JsonResponse({'authenticated': True, 'next_url': None, 'label': _("No team"), 'priority': None})
 
     candidates = []
     candidates.extend(_resolve_tournament_matches(player_team))
@@ -676,7 +677,7 @@ def resolve_next_url(request):
             candidates.append(nearby)
 
     if not candidates:
-        return _JsonResponse({'authenticated': True, 'next_url': None, 'label': 'No active matches', 'priority': None})
+        return _JsonResponse({'authenticated': True, 'next_url': None, 'label': _("No active matches"), 'priority': None})
 
     candidates.sort(key=lambda c: c['priority'])
     best = candidates[0]

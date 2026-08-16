@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n %}
 
-{% block title %}My Active Matches - PFC{% endblock %}
+{% block title %}{% translate "My Matches" %} - PFC{% endblock %}
 
 {% block content %}
 <div class="container py-4">
@@ -9,43 +9,43 @@
     <div class="mb-4">
         <h1 class="display-5 mb-2">
             <i class="fas fa-user-circle text-primary me-3"></i>
-            My Active Matches
+            {% translate "My Matches" %}
         </h1>
-        <p class="lead text-muted">Your current participations and pending matches</p>
+        <p class="lead text-muted">{% translate "Your current participations and pending matches" %}</p>
     </div>
 
     {% if no_login %}
         <!-- Not Logged In -->
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>Not Logged In:</strong> Please log in with your player codename to see your active matches.
+            <strong>{% translate "Not Logged In:" %}</strong> {% translate "Please log in with your player codename to see your active matches." %}
         </div>
         <a href="{% url 'codename_login' %}" class="btn btn-primary">
-            <i class="fas fa-sign-in-alt me-2"></i>Login with Codename
+            <i class="fas fa-sign-in-alt me-2"></i>{% translate "Login with Codename" %}
         </a>
     
     {% elif no_teams %}
         <!-- No Teams -->
         <div class="alert alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>No Teams:</strong> You're not currently a member of any team. Join or create a team to participate in matches!
+            <strong>{% translate "No Teams:" %}</strong> {% translate "You're not currently a member of any team. Join or create a team to participate in matches!" %}
         </div>
         <a href="/" class="btn btn-primary">
-            <i class="fas fa-home me-2"></i>Back to Home
+            <i class="fas fa-home me-2"></i>{% translate "Back to Home" %}
         </a>
     
     {% elif not matches %}
         <!-- No Active Matches -->
         <div class="alert alert-success">
             <i class="fas fa-check-circle me-2"></i>
-            <strong>All Clear!</strong> You have no pending or active matches at the moment.
+            <strong>{% translate "All Clear!" %}</strong> {% translate "You have no pending or active matches at the moment." %}
         </div>
         <div class="mt-4">
             <a href="/friendly-games/create/" class="btn btn-primary me-2">
-                <i class="fas fa-plus me-2"></i>Create Friendly Game
+                <i class="fas fa-plus me-2"></i>{% translate "Create Friendly" %}
             </a>
             <a href="{% url 'tournament_signin_list' %}" class="btn btn-secondary">
-                <i class="fas fa-trophy me-2"></i>Join Tournament
+                <i class="fas fa-trophy me-2"></i>{% translate "Join Tournament" %}
             </a>
         </div>
     
@@ -53,7 +53,7 @@
         <!-- Matches Found -->
         <div class="alert alert-primary mb-4">
             <i class="fas fa-list me-2"></i>
-            <strong>{{ total_count }} Active Match{{ total_count|pluralize:"es" }}</strong> found for {{ player.name }}
+            <strong>{% blocktranslate count counter=total_count %}{{ counter }} Active Match{% plural %}{{ counter }} Active Matches{% endblocktranslate %}</strong> {% translate "found for" %} {{ player.name }}
         </div>
 
         {% if recommended_match %}
@@ -62,7 +62,7 @@
             <div class="card-header bg-{{ recommended_match.priority_class }} text-white">
                 <h5 class="mb-0">
                     <i class="fas fa-star me-2"></i>
-                    Recommended: {{ recommended_match.priority_label }}
+                    {% translate "Recommended:" %} {{ recommended_match.priority_label }}
                 </h5>
             </div>
             <div class="card-body">
@@ -72,29 +72,29 @@
                 
                 <div class="row mt-3">
                     <div class="col-md-6">
-                        <p class="mb-1"><strong>Status:</strong> 
+                        <p class="mb-1"><strong>{% translate "Status:" %}</strong> 
                             <span class="badge bg-{{ recommended_match.priority_class }}">{{ recommended_match.status }}</span>
                         </p>
                         {% if recommended_match.tournament %}
-                        <p class="mb-1"><strong>Tournament:</strong> {{ recommended_match.tournament.name }}</p>
-                        <p class="mb-1"><strong>Round:</strong> {{ recommended_match.round_number }}</p>
+                        <p class="mb-1"><strong>{% translate "Tournament:" %}</strong> {{ recommended_match.tournament.name }}</p>
+                        <p class="mb-1"><strong>{% translate "Round:" %}</strong> {{ recommended_match.round_number }}</p>
                         {% else %}
-                        <p class="mb-1"><strong>Type:</strong> Friendly Game</p>
+                        <p class="mb-1"><strong>{% translate "Type:" %}</strong> {% translate "Friendly Game" %}</p>
                         {% endif %}
                     </div>
                     <div class="col-md-6">
                         {% if recommended_match.court %}
-                        <p class="mb-1"><strong>Court:</strong> {{ recommended_match.court.name }}</p>
+                        <p class="mb-1"><strong>{% translate "Court:" context "petanque playing area label" %}</strong> {{ recommended_match.court.name }}</p>
                         {% endif %}
                         {% if recommended_match.scheduled_time %}
-                        <p class="mb-1"><strong>Scheduled:</strong> {{ recommended_match.scheduled_time }}</p>
+                        <p class="mb-1"><strong>{% translate "Scheduled:" %}</strong> {{ recommended_match.scheduled_time }}</p>
                         {% endif %}
                     </div>
                 </div>
 
                 <div class="mt-3">
                     <a href="/matches/detail/{{ recommended_match.id }}/" class="btn btn-{{ recommended_match.priority_class }} btn-lg">
-                        <i class="fas fa-arrow-right me-2"></i>Go to Match
+                        <i class="fas fa-arrow-right me-2"></i>{% translate "Go to Match" %}
                     </a>
                 </div>
             </div>
@@ -102,7 +102,7 @@
         {% endif %}
 
         <!-- All Matches List -->
-        <h3 class="mb-3">All Active Matches</h3>
+        <h3 class="mb-3">{% translate "All Active Matches" %}</h3>
         
         {% for match in matches %}
         <div class="card mb-3 {% if match == recommended_match %}border-{{ match.priority_class }}{% endif %}">
@@ -124,9 +124,9 @@
 
                         <div class="text-muted small">
                             {% if match.tournament %}
-                                <i class="fas fa-trophy me-1"></i>{{ match.tournament.name }} - Round {{ match.round_number }}
+                                <i class="fas fa-trophy me-1"></i>{{ match.tournament.name }} - {% translate "Round" %} {{ match.round_number }}
                             {% else %}
-                                <i class="fas fa-handshake me-1"></i>Friendly Game
+                                <i class="fas fa-handshake me-1"></i>{% translate "Friendly Game" %}
                             {% endif %}
                             
                             {% if match.court %}
@@ -139,7 +139,7 @@
 
                     <div>
                         <a href="/matches/detail/{{ match.id }}/" class="btn btn-outline-primary">
-                            View Match →
+                            {% translate "View Match" %} →
                         </a>
                     </div>
                 </div>
@@ -152,7 +152,7 @@
     <!-- Back Button -->
     <div class="mt-4">
         <a href="/" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Back to Home
+            <i class="fas fa-arrow-left me-2"></i>{% translate "Home" %}
         </a>
     </div>
 </div>

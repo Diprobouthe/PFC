@@ -1,15 +1,16 @@
 {% load static court_tz_tags %}
+{% load i18n %}
 <!-- Friendly Games Table -->
 <div class="p-3">
     <div class="row">
         <div class="col-12">
-            <h5 class="text-success mb-3"><img src="{% static 'pfcFGlogo.svg' %}" alt="Friendly Games Logo" style="height: 20px; width: auto; margin-right: 8px;"> Friendly Games Overview</h5>
+            <h5 class="text-success mb-3"><img src="{% static 'pfcFGlogo.svg' %}" alt="{% translate 'Friendly Games Logo' %}" style="height: 20px; width: auto; margin-right: 8px;"> {% translate "Friendly Games Overview" %}</h5>
             
             <!-- Sub-tabs for friendly games -->
             <ul class="nav nav-pills nav-fill mb-3" id="friendlyGamesTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="friendly-waiting-tab" data-bs-toggle="pill" data-bs-target="#friendly-waiting" type="button" role="tab" aria-controls="friendly-waiting" aria-selected="true">
-                        <span class="text-warning">⏳ Waiting for Players</span>
+                        <span class="text-warning">⏳ {% translate "Waiting for Players" %}</span>
                         <span class="badge bg-warning text-dark ms-1">{{ friendly_waiting|length }}</span>
                     </button>
                 </li>
@@ -55,7 +56,7 @@
                                         </td>
                                         <td>{{ game.created_at|court_localtime:game.court_complex|date:"M d, H:i" }}</td>
                                         <td>
-                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">{% translate "View" %}</a>
                                         </td>
                                         <td>
                                             <small class="text-muted">{{ game.expires_at|court_localtime:game.court_complex|date:"M d, H:i" }}</small>
@@ -94,7 +95,7 @@
                                         </td>
                                         <td>{{ game.started_at|court_localtime:game.court_complex|date:"M d, H:i" }}</td>
                                         <td>
-                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-success">View</a>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-success">{% translate "View" %}</a>
                                         </td>
                                         <td>
                                             <small class="text-muted">{{ game.started_at|court_timesince:game.court_complex }} ago</small>
@@ -136,7 +137,7 @@
                                             {% if game.result.submitted_at %}
                                                 {{ game.result.submitted_at|court_localtime:game.court_complex|date:"M d, H:i" }}
                                             {% else %}
-                                                <small class="text-muted">Unknown</small>
+                                                <small class="text-muted">{% translate "Unknown" %}</small>
                                             {% endif %}
                                         </td>
                                         <td>
@@ -146,21 +147,21 @@
                                         </td>
                                         <td>
                                             {% if game.result.submitted_by_team == 'BLACK' %}
-                                                <span class="badge bg-dark">Black Team</span>
+                                                <span class="badge bg-dark">{% translate "Black Team" %}</span>
                                             {% else %}
-                                                <span class="badge bg-light text-dark">White Team</span>
+                                                <span class="badge bg-light text-dark">{% translate "White Team" %}</span>
                                             {% endif %}
                                         </td>
                                         <td>
                                             {% if game.result.submitted_by_team == 'BLACK' %}
-                                                <span class="badge bg-light text-dark">White Team</span>
+                                                <span class="badge bg-light text-dark">{% translate "White Team" %}</span>
                                             {% else %}
-                                                <span class="badge bg-dark">Black Team</span>
+                                                <span class="badge bg-dark">{% translate "Black Team" %}</span>
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-sm btn-warning">Validate</a>
-                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                                            <a href="{% url 'friendly_games:validate_result' game.id %}" class="btn btn-sm btn-warning">{% translate "Validate" %}</a>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-primary">{% translate "View" %}</a>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -195,7 +196,7 @@
                                         </td>
                                         <td>{{ game.completed_at|court_localtime:game.court_complex|date:"M d, H:i" }}</td>
                                         <td>
-                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-secondary">View</a>
+                                            <a href="{% url 'friendly_games:game_detail' game.id %}" class="btn btn-sm btn-outline-secondary">{% translate "View" %}</a>
                                         </td>
                                         <td>
                                             <span class="badge bg-dark">{{ game.black_team_score }}</span>

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
 {% block title %}Player Leaderboard{% endblock %}
 
@@ -406,7 +407,7 @@
             <span class="tab-count">{{ players|length }}</span>
         </button>
         <button class="lb-tab-btn" id="ltab-pointer" onclick="showLTab('pointer')">
-            Pointer
+            {% translate "Pointer" %}
             <span class="tab-count">{{ position_leaderboards.Pointer|length }}</span>
         </button>
         <button class="lb-tab-btn" id="ltab-milieu" onclick="showLTab('milieu')">
@@ -444,11 +445,6 @@
                         <div class="lb-team">{{ player.team.name }}</div>
                         <div class="lb-badges">
                             {% if player.is_captain %}<span class="lb-badge badge-captain">Captain</span>{% endif %}
-                            {% if player.profile.skill_level == 1 %}<span class="lb-badge skill-1">Beginner</span>
-                            {% elif player.profile.skill_level == 2 %}<span class="lb-badge skill-2">Intermediate</span>
-                            {% elif player.profile.skill_level == 3 %}<span class="lb-badge skill-3">Advanced</span>
-                            {% elif player.profile.skill_level == 4 %}<span class="lb-badge skill-4">Expert</span>
-                            {% elif player.profile.skill_level == 5 %}<span class="lb-badge skill-5">Professional</span>{% endif %}
                         </div>
                     </div>
                     <div class="lb-stats">

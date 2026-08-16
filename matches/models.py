@@ -1,6 +1,7 @@
 from pfc_core.media_uploads import match_evidence_photo_path
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from courts.models import Court
 from teams.models import Player
 
@@ -10,20 +11,20 @@ from .models_participant import TeamMatchParticipant
 class Match(models.Model):
     """Match model for storing match information"""
     STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("pending_verification", "Pending Verification"),
-        ("active", "Active"),
-        ("waiting_validation", "Waiting Validation"),
-        ("completed", "Completed"),
-        ("cancelled", "Cancelled"),
+        ("pending", _("Pending")),
+        ("pending_verification", _("Pending Verification")),
+        ("active", _("Active")),
+        ("waiting_validation", _("Waiting Validation")),
+        ("completed", _("Completed")),
+        ("cancelled", _("Cancelled")),
     ]
     
     MATCH_TYPE_CHOICES = [
-        ("doublet", "Doublet (2 players)"),
-        ("triplet", "Triplet (3 players)"),
-        ("tete_a_tete", "Tête-à-tête (1 player)"),
-        ("mixed", "Mixed Format"),
-        ("unknown", "Unknown Format"),
+        ("doublet", _("Doublet (2 players)")),
+        ("triplet", _("Triplet (3 players)")),
+        ("tete_a_tete", _("Tête-à-tête (1 player)")),
+        ("mixed", _("Mixed Format")),
+        ("unknown", _("Unknown Format")),
     ]
     
     tournament = models.ForeignKey("tournaments.Tournament", related_name="matches", on_delete=models.CASCADE)
@@ -295,10 +296,10 @@ class MatchResult(models.Model):
 class NextOpponentRequest(models.Model):
     """Model for tracking next opponent requests"""
     STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("accepted", "Accepted"),
-        ("rejected", "Rejected"),
-        ("expired", "Expired"),
+        ("pending", _("Pending")),
+        ("accepted", _("Accepted")),
+        ("rejected", _("Rejected")),
+        ("expired", _("Expired")),
     ]
     
     tournament = models.ForeignKey("tournaments.Tournament", related_name="opponent_requests", on_delete=models.CASCADE)

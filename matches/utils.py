@@ -229,8 +229,10 @@ def get_court_assignment_status(match):
         String: Status message
     """
     if match.court:
-        return f"Court {match.court.name} has been assigned to your match."
+        return _("The court %(court_name)s has been assigned to your match.") % {
+            'court_name': match.court.name,
+        }
     elif match.waiting_for_court:
-        return "Your match is waiting for a court to become available."
+        return _("Your match is waiting for a court to become available.")
     else:
-        return "No court has been assigned to your match yet."
+        return _("No court has been assigned to your match yet.")

@@ -1,14 +1,15 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}Teams - Petanque Platform{% endblock %}
+{% block title %}{% translate "Teams" %} - Petanque Platform{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
             <h1 class="mb-4">
-                <i class="fas fa-users"></i> Teams
-                <small class="text-muted">Discover our petanque teams</small>
+                <i class="fas fa-users"></i> {% translate "Teams" %}
+                <small class="text-muted">{% translate "Discover our petanque teams" %}</small>
             </h1>
             
             {% if teams_with_profiles %}
@@ -50,19 +51,19 @@
                                         <div class="col-3">
                                             <div class="stat-item">
                                                 <h6 class="text-primary mb-0">{{ team_data.player_count }}</h6>
-                                                <small class="text-muted">Players</small>
+                                                <small class="text-muted">{% translate "Players" %}</small>
                                             </div>
                                         </div>
                                         <div class="col-3">
                                             <div class="stat-item">
                                                 <h6 class="text-info mb-0">{{ team_data.matches_played }}</h6>
-                                                <small class="text-muted">Games</small>
+                                                <small class="text-muted">{% translate "Games" %}</small>
                                             </div>
                                         </div>
                                         <div class="col-3">
                                             <div class="stat-item">
                                                 <h6 class="text-success mb-0">{{ team_data.matches_won }}</h6>
-                                                <small class="text-muted">Wins</small>
+                                                <small class="text-muted">{% translate "Wins" %}</small>
                                             </div>
                                         </div>
                                         <div class="col-3">
@@ -105,7 +106,7 @@
                                 
                                 <div class="card-footer bg-transparent">
                                     <a href="{% url 'team_detail' team_data.team.id %}" class="btn btn-primary w-100">
-                                        <i class="fas fa-eye"></i> View Team Profile
+                                        <i class="fas fa-eye"></i> {% translate "View Team Profile" %}
                                     </a>
                                 </div>
                             </div>
@@ -115,7 +116,7 @@
             {% else %}
                 <div class="text-center py-5">
                     <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                    <h3 class="text-muted">No teams found</h3>
+                    <h3 class="text-muted">{% translate "No teams found" %}</h3>
                     <p class="text-muted">Teams will appear here once they create their profiles.</p>
                     {% if user.is_staff %}
                         <a href="{% url 'team_create' %}" class="btn btn-primary">
