@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import path
 from django.http import HttpResponse
+from django.db.models import Q
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile
 
 class PlayerInline(admin.TabularInline):
@@ -246,6 +247,24 @@ class PlayerAdmin(admin.ModelAdmin):
     list_filter = ('team', 'is_captain')
     search_fields = ('name', 'team__name')
     inlines = [PlayerProfileInline]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Offer active Teams for Player assignment without hiding historical records."""
+        if db_field.name == 'team':
+            team_queryset = Team.objects.filter(is_archived=False)
+            player_id = request.resolver_match.kwargs.get('object_id')
+            if player_id:
+                current_team_id = Player.objects.filter(pk=player_id).values_list(
+                    'team_id', flat=True
+                ).first()
+                # Preserve a current archived Team only so unrelated edits to a
+                # historical Player record do not invalidate its required Team FK.
+                if current_team_id:
+                    team_queryset = Team.objects.filter(
+                        Q(is_archived=False) | Q(pk=current_team_id)
+                    )
+            kwargs['queryset'] = team_queryset.order_by('name')
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def has_profile(self, obj):
         return hasattr(obj, 'profile')

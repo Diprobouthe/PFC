@@ -256,79 +256,22 @@ class TournamentEngine:
         return False
     
     def advance_to_next_stage(self):
-        """Advance teams to next stage with comprehensive safeguards"""
-        try:
-            with transaction.atomic():
-                logger.info(f"🔄 Advancing from stage {self.current_stage.stage_number}")
-                
-                # Safeguard 1: Verify current stage is actually complete
-                if not self.is_current_stage_complete():
-                    logger.warning(f"⚠️ Stage {self.current_stage.stage_number} is not complete - cannot advance")
-                    return False
-                
-                # Get next stage
-                next_stage = self.get_next_stage()
-                if not next_stage:
-                    logger.info(f"🏁 No next stage found - tournament should be complete")
-                    return self.complete_tournament()
-                
-                # Safeguard 2: Check if next stage already has active teams
-                existing_teams = TournamentTeam.objects.filter(
-                    tournament=self.tournament,
-                    current_stage_number=next_stage.stage_number,
-                    is_active=True
-                ).count()
-                
-                if existing_teams > 0:
-                    logger.warning(f"🔒 Stage {next_stage.stage_number} already has {existing_teams} active teams - skipping advancement")
-                    return True
-                
-                # Get qualifiers from current stage
-                qualifiers = self.get_stage_qualifiers(self.current_stage)
-                num_qualifiers = len(qualifiers)
-                
-                # Safeguard 3: Verify we have the expected number of qualifiers
-                expected_qualifiers = self.current_stage.num_qualifiers
-                if num_qualifiers != expected_qualifiers:
-                    logger.warning(f"⚠️ Expected {expected_qualifiers} qualifiers but got {num_qualifiers}")
-                    # Continue with what we have, but log the discrepancy
-                
-                logger.info(f"📊 Stage {self.current_stage.stage_number} qualifiers ({num_qualifiers}): {[q.team.name for q in qualifiers]}")
-                
-                # Safeguard 4: Ensure we have enough teams for next stage
-                if num_qualifiers < 2:
-                    logger.error(f"❌ Not enough qualifiers ({num_qualifiers}) for next stage")
-                    return self.complete_tournament()
-                
-                # Deactivate non-qualifying teams
-                non_qualifiers = TournamentTeam.objects.filter(
-                    tournament=self.tournament,
-                    current_stage_number=self.current_stage.stage_number,
-                    is_active=True
-                ).exclude(id__in=[q.id for q in qualifiers])
-                
-                for team_tt in non_qualifiers:
-                    team_tt.is_active = False
-                    team_tt.save()
-                    logger.info(f"❌ Eliminated: {team_tt.team.name}")
-                
-                # Advance qualifiers to next stage
-                for team_tt in qualifiers:
-                    team_tt.current_stage_number = next_stage.stage_number
-                    team_tt.save()
-                    logger.info(f"✅ Advanced: {team_tt.team.name} to stage {next_stage.stage_number}")
-                
-                # Update tournament current stage tracking
-                self.current_stage = next_stage
-                
-                # Generate first round of next stage
-                next_round_number = self._get_next_overall_round_number()
-                return self.generate_stage_round(next_stage, qualifiers, next_round_number)
-                
-        except Exception as e:
-            logger.exception(f"Error advancing to next stage: {e}")
-            raise
-    
+        """Delegate to Tournament's authoritative stage handoff."""
+        advanced, matches_created, tournament_complete = self.tournament.advance_to_next_stage(
+            _allow_processing=True,
+        )
+        if advanced:
+            self.current_stage = self.get_current_stage()
+            logger.info(
+                "Tournament %s advanced through authoritative handoff (%s matches)",
+                self.tournament.id,
+                matches_created,
+            )
+            return True
+        if tournament_complete:
+            return self.complete_tournament()
+        return False
+
     def _get_next_overall_round_number(self):
         """Get the next overall round number for the tournament"""
         current_round = self.tournament.current_round_number or 0

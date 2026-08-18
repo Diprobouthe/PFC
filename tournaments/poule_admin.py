@@ -79,51 +79,51 @@ class ActiveStageListFilter(admin.SimpleListFilter):
 
 class PouleTeamInline(admin.TabularInline):
     model = PouleTeam
-    extra = 3
     fields = ('team', 'position')
-    autocomplete_fields = ['team']
     ordering = ('position', 'team__name')
     verbose_name = "Team in this Poule"
     verbose_name_plural = "Teams in this Poule"
 
+    def get_extra(self, request, obj=None, **kwargs):
+        """Show team-assignment rows only after the Poule has a Tournament context."""
+        return 3 if obj else 0
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """
-        Scope the team dropdown to teams registered in the poule's tournament.
-        Falls back to all non-archived teams if the poule is new (no pk yet).
+        Limit the Pool team selector strictly to teams already registered through
+        TournamentTeam for this Pool's Stage Tournament.  This deliberately
+        does not apply public-team visibility, Full Profile, temporary-team,
+        or other profile eligibility filters: TournamentTeam is the source of
+        truth for Pool assignment.
         """
         if db_field.name == 'team':
             from teams.models import Team
             from tournaments.models import TournamentTeam
 
-            # Try to resolve the parent poule from the URL
             poule_id = request.resolver_match.kwargs.get('object_id')
             if poule_id:
                 try:
                     poule = Poule.objects.select_related('stage__tournament').get(pk=poule_id)
-                    tournament = poule.stage.tournament
                     registered_team_ids = TournamentTeam.objects.filter(
-                        tournament=tournament,
+                        tournament=poule.stage.tournament,
                     ).values_list('team_id', flat=True)
-                    # Strict visibility rule: not archived, not temp, full profile only.
+                    assigned_elsewhere_ids = PouleTeam.objects.filter(
+                        poule__stage=poule.stage,
+                    ).exclude(
+                        poule=poule,
+                    ).values_list('team_id', flat=True)
                     kwargs['queryset'] = Team.objects.filter(
                         pk__in=registered_team_ids,
-                        is_archived=False,
-                        is_tournament_temp=False,
-                        profile__profile_type='full',
+                    ).exclude(
+                        pk__in=assigned_elsewhere_ids,
                     ).order_by('name')
                 except Poule.DoesNotExist:
-                    kwargs['queryset'] = Team.objects.filter(
-                        is_archived=False,
-                        is_tournament_temp=False,
-                        profile__profile_type='full',
-                    ).order_by('name')
+                    kwargs['queryset'] = Team.objects.none()
             else:
-                # New poule — strict visibility rule: not archived, not temp, full profile only.
-                kwargs['queryset'] = Team.objects.filter(
-                    is_archived=False,
-                    is_tournament_temp=False,
-                    profile__profile_type='full',
-                ).order_by('name')
+                # A new Poule has no saved Stage/Tournament context yet.  Do
+                # not expose a whole-PFC-team selector; save the Poule first,
+                # then assign its Tournament-registered teams on the change form.
+                kwargs['queryset'] = Team.objects.none()
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
@@ -137,6 +137,7 @@ class PouleAdmin(ActiveTournamentMixin, admin.ModelAdmin):
         'stage_link',
         'tournament_link',
         'team_count',
+        'max_qualifiers',
         'court_list',
         'match_count',
         'generate_button',
@@ -153,12 +154,13 @@ class PouleAdmin(ActiveTournamentMixin, admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('stage', 'name'),
+            'fields': ('stage', 'name', 'max_qualifiers'),
             'description': (
                 '<strong>Step 1:</strong> Search and select the Stage '
                 '(must have format = "Poules/Groups"). '
                 'Only active (non-archived) tournaments are shown. '
-                'Give the poule a name, e.g. "Group A".'
+                'Give the poule a name, e.g. "Group A", then set the maximum '
+                'number of teams that can qualify from this individual Pool.'
             ),
         }),
         ('Court Assignment', {

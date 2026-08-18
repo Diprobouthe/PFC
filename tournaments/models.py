@@ -675,74 +675,152 @@ class Tournament(models.Model):
             return restored_count
         return 0
 
-    def advance_to_next_stage(self):
+    def advance_to_next_stage(self, *, _allow_processing=False):
         """
-        Advances qualifying teams to the next stage and generates matches.
-        Returns: (advanced: bool, matches_created: int, tournament_complete: bool)
+        Advance a completed Multi-Stage Stage through one authoritative,
+        format-independent qualifier handoff.
+
+        The completed Stage determines qualified TournamentTeams.  The already
+        configured next Stage determines how those teams play.
         """
         if self.format == "independent_games":
-            # Independent Games has no stages or qualifying progression. Its
-            # encounter completes only after its pending matches finish.
             return False, 0, self.is_tournament_complete()
         if self.format != "multi_stage":
             return False, 0, False
-            
-        if self.automation_status != "idle":
-            logger.warning(f"Tournament {self.name} automation is not idle (status: {self.automation_status})")
+        if self.automation_status != "idle" and not (
+            _allow_processing and self.automation_status == "processing"
+        ):
+            logger.warning(
+                "Tournament %s automation is not idle (status: %s)",
+                self.name,
+                self.automation_status,
+            )
             return False, 0, False
-            
+
+        from django.db import transaction
+        from matches.models import Match
+
         try:
-            self.automation_status = "processing"
-            self.save()
-            
-            # Get current stage
-            current_stage = self._get_current_stage()
-            if not current_stage:
-                logger.error(f"No current stage found for multi-stage tournament {self.name}")
+            with transaction.atomic():
+                self.automation_status = "processing"
+                self.save(update_fields=["automation_status"])
+
+                current_stage = self._get_current_stage()
+                if not current_stage or not self._is_stage_complete(current_stage):
+                    self.automation_status = "idle"
+                    self.save(update_fields=["automation_status"])
+                    return False, 0, False
+
+                next_stage = self.stages.filter(
+                    stage_number=current_stage.stage_number + 1
+                ).first()
+                if not next_stage:
+                    current_stage.progression_message = (
+                        "No next Stage is configured. Configure a next Stage before progression."
+                    )
+                    current_stage.save(update_fields=["progression_message"])
+                    self.automation_status = "idle"
+                    self.save(update_fields=["automation_status"])
+                    logger.warning(
+                        "Stage %s completed but Tournament %s has no configured next Stage",
+                        current_stage.stage_number,
+                        self.id,
+                    )
+                    return False, 0, False
+
+                if next_stage.format == "poule":
+                    current_stage.progression_message = (
+                        "Pool → Pool progression is not currently supported."
+                    )
+                    current_stage.save(update_fields=["progression_message"])
+                    self.automation_status = "idle"
+                    self.save(update_fields=["automation_status"])
+                    logger.warning(
+                        "Blocked unsupported Pool-to-Pool progression for Tournament %s",
+                        self.id,
+                    )
+                    return False, 0, False
+
+                next_stage_matches_exist = Match.objects.filter(
+                    tournament=self,
+                    round__stage=next_stage,
+                ).exists()
+                next_stage_has_teams = self.tournamentteam_set.filter(
+                    is_active=True,
+                    current_stage_number=next_stage.stage_number,
+                ).exists()
+                if next_stage_matches_exist or next_stage_has_teams:
+                    # Idempotency: once the next Stage is initialized, never
+                    # move teams or generate its matches a second time.
+                    self.automation_status = "idle"
+                    self.save(update_fields=["automation_status"])
+                    logger.info(
+                        "Next Stage %s is already initialized for Tournament %s; skipping repeat progression",
+                        next_stage.stage_number,
+                        self.id,
+                    )
+                    return True, 0, False
+
+                qualifiers = self.resolve_stage_qualifiers(current_stage)
+                if len(qualifiers) < 2:
+                    current_stage.progression_message = (
+                        "Fewer than two teams qualified; next Stage was not generated."
+                    )
+                    current_stage.save(update_fields=["progression_message"])
+                    self.automation_status = "idle"
+                    self.save(update_fields=["automation_status"])
+                    logger.warning(
+                        "Stage %s in Tournament %s produced fewer than two qualifiers",
+                        current_stage.stage_number,
+                        self.id,
+                    )
+                    return False, 0, False
+
+                qualifier_ids = [qualifier.id for qualifier in qualifiers]
+                current_stage_teams = self.tournamentteam_set.filter(
+                    is_active=True,
+                    current_stage_number=current_stage.stage_number,
+                )
+                current_stage_teams.exclude(id__in=qualifier_ids).update(is_active=False)
+                self.tournamentteam_set.filter(id__in=qualifier_ids).update(
+                    current_stage_number=next_stage.stage_number,
+                    is_active=True,
+                )
+
+                current_stage.is_complete = True
+                current_stage.progression_message = (
+                    f"Advanced {len(qualifiers)} qualified teams to Stage {next_stage.stage_number}."
+                )
+                current_stage.save(update_fields=["is_complete", "progression_message"])
+
+                matches_created = next_stage.generate_stage_matches()
+                if matches_created <= 0:
+                    # The team movement is part of the configured handoff.  Do
+                    # not invent a fallback format or direct winner pairing.
+                    current_stage.progression_message = (
+                        f"Qualified teams moved to Stage {next_stage.stage_number}, "
+                        "but its configured generator created no matches."
+                    )
+                    current_stage.save(update_fields=["progression_message"])
+                    self.automation_status = "idle"
+                    self.save(update_fields=["automation_status"])
+                    return False, 0, False
+
+                self.current_round_number = next_stage.rounds.order_by("-number").first().number
                 self.automation_status = "idle"
-                self.save()
-                return False, 0, False
-                
-            # Check if current stage is complete
-            if not self._is_stage_complete(current_stage):
-                logger.info(f"Stage {current_stage.stage_number} is not yet complete")
-                self.automation_status = "idle"
-                self.save()
-                return False, 0, False
-                
-            # Get winners from current stage
-            winners = self._get_stage_winners(current_stage)
-            if len(winners) < 2:
-                logger.warning(f"Not enough winners ({len(winners)}) to create next stage")
-                # Tournament might be complete
-                self.automation_status = "completed"
-                self.save()
-                
-                # Assign tournament badges
-                try:
-                    from .completion import check_and_complete_tournament
-                    check_and_complete_tournament(self)
-                    logger.info(f"Tournament badges assigned for completed multi-stage tournament {self.id}")
-                except Exception as e:
-                    logger.exception(f"Error assigning badges for completed multi-stage tournament {self.id}: {e}")
-                
-                return False, 0, True
-                
-            # Create next stage
-            matches_created = self._create_next_stage(winners, current_stage.stage_number + 1)
-            
-            # Update current round number
-            self.current_round_number = current_stage.stage_number + 1
-            self.automation_status = "idle"
-            self.save()
-            
-            logger.info(f"Advanced to stage {current_stage.stage_number + 1}, created {matches_created} matches")
-            return True, matches_created, False
-            
-        except Exception as e:
-            logger.error(f"Error advancing tournament {self.name}: {e}")
+                self.save(update_fields=["current_round_number", "automation_status"])
+                logger.info(
+                    "Advanced Tournament %s from Stage %s to configured Stage %s; generated %s matches",
+                    self.id,
+                    current_stage.stage_number,
+                    next_stage.stage_number,
+                    matches_created,
+                )
+                return True, matches_created, False
+        except Exception as exc:
+            logger.exception("Error advancing Tournament %s to next Stage: %s", self.id, exc)
             self.automation_status = "error"
-            self.save()
+            self.save(update_fields=["automation_status"])
             return False, 0, False
 
     def _get_qualifying_team_ids(self, stage):
@@ -785,6 +863,56 @@ class Tournament(models.Model):
         logger.info(f"Stage {stage.stage_number} completion check: {completed_rounds}/{required_rounds} rounds complete = {is_complete}")
         return is_complete
     
+    def resolve_stage_qualifiers(self, stage):
+        """
+        Return the ordered, unique TournamentTeam records qualified from a
+        completed Stage.  The current Stage decides who qualifies; callers
+        must let the already-configured next Stage decide how they play.
+        """
+        from tournaments.models import TournamentTeam
+
+        stage_teams = {
+            tournament_team.team_id: tournament_team
+            for tournament_team in self.tournamentteam_set.filter(
+                is_active=True,
+                current_stage_number=stage.stage_number,
+            ).select_related("team")
+        }
+
+        if stage.format == "poule":
+            qualifiers = []
+            seen_team_ids = set()
+            for poule in stage.poules.order_by("name", "id"):
+                # get_standings() is the sole Pool ranking source.  A smaller
+                # Pool simply contributes the teams it has, up to its own cap.
+                for standing in poule.get_standings()[:poule.max_qualifiers]:
+                    team = standing["team"]
+                    if team.id in seen_team_ids:
+                        continue
+                    tournament_team = stage_teams.get(team.id)
+                    if tournament_team:
+                        qualifiers.append(tournament_team)
+                        seen_team_ids.add(team.id)
+            logger.info(
+                "Pool stage %s qualified %s unique teams from final Pool standings",
+                stage.stage_number,
+                len(qualifiers),
+            )
+            return qualifiers
+
+        # Preserve existing non-Pool qualification behavior while giving both
+        # progression entry points the same TournamentTeam return shape.
+        qualifiers = []
+        seen_team_ids = set()
+        for team in self._get_stage_winners(stage):
+            if team.id in seen_team_ids:
+                continue
+            tournament_team = stage_teams.get(team.id)
+            if tournament_team:
+                qualifiers.append(tournament_team)
+                seen_team_ids.add(team.id)
+        return qualifiers
+
     def _get_stage_winners(self, stage):
         """Get qualifying teams from a completed stage based on stage format."""
         from matches.models import Match
@@ -883,79 +1011,18 @@ class Tournament(models.Model):
             return winners
     
     def _create_next_stage(self, winners, stage_number):
-        """Create matches for the next stage with the given winners."""
-        from tournaments.models import Stage
-        
-        # Get the format from the previous stage to preserve tournament design
-        previous_stage = self.stages.filter(stage_number=stage_number-1).first()
-        if previous_stage:
-            stage_format = previous_stage.format
-            num_qualifiers = previous_stage.num_qualifiers
-            logger.info(f"Preserving stage format '{stage_format}' from previous stage for stage {stage_number}")
-        else:
-            # Fallback to knockout if no previous stage found
-            stage_format = "knockout"
-            num_qualifiers = 1
-            logger.warning(f"No previous stage found for stage {stage_number}, defaulting to knockout format")
-        
-        # Get or create the next stage
-        next_stage, created = Stage.objects.get_or_create(
-            tournament=self,
-            stage_number=stage_number,
-            defaults={
-                'name': f"Stage {stage_number}",
-                'format': stage_format,  # ✅ FIXED: Preserve original format instead of hardcoding knockout
-                'num_qualifiers': num_qualifiers  # Preserve qualifiers from previous stage
-            }
+        """
+        Legacy compatibility hook.
+
+        Multi-Stage progression no longer creates a replacement Stage or pairs
+        plain winner Teams directly.  It always uses the already configured
+        next Stage through advance_to_next_stage().
+        """
+        logger.warning(
+            "Legacy _create_next_stage called for Tournament %s; direct winner pairing is disabled.",
+            self.id,
         )
-        
-        # Create a round for this stage
-        from tournaments.models import Round
-        round_obj, round_created = Round.objects.get_or_create(
-            tournament=self,
-            stage=next_stage,
-            number_in_stage=1,
-            defaults={
-                'number': self._get_next_round_number(),
-                'name': f"Round 1"
-            }
-        )
-        
-        # Clear only pending/scheduled matches if regenerating - preserve completed matches
-        if not round_created:
-            from matches.models import Match
-            Match.objects.filter(
-                tournament=self, 
-                round=round_obj,
-                status__in=['pending', 'scheduled']
-            ).delete()
-        
-        # Create matches between winners
-        matches_created = 0
-        for i in range(0, len(winners), 2):
-            if i + 1 < len(winners):
-                team1 = winners[i]
-                team2 = winners[i + 1]
-                
-                from matches.models import Match
-                match = Match.objects.create(
-                    tournament=self,
-                    round=round_obj,
-                    team1=team1,
-                    team2=team2,
-                    status="pending",
-                    time_limit_minutes=self.default_time_limit_minutes
-                )
-                matches_created += 1
-                
-        # Update teams' current stage number
-        for winner in winners:
-            tournament_team = self.tournamentteam_set.filter(team=winner).first()
-            if tournament_team:
-                tournament_team.current_stage_number = stage_number
-                tournament_team.save()
-                
-        return matches_created
+        return 0
 
     def _get_next_round_number(self):
         """Get the next available round number for the tournament."""
@@ -1274,6 +1341,12 @@ class Stage(models.Model):
     
     # settings = models.JSONField(null=True, blank=True) # For group size, etc.
     is_complete = models.BooleanField(default=False)
+    progression_message = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Read-only organizer status from the most recent stage progression attempt.",
+    )
     
     class Meta:
         unique_together = ("tournament", "stage_number")

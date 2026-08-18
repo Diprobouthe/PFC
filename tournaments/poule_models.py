@@ -15,6 +15,7 @@ Design principles:
   - Safe: all existing tournament types are completely unaffected
 """
 import logging
+from django.core.exceptions import ValidationError
 from django.db import models
 
 logger = logging.getLogger('tournaments')
@@ -43,6 +44,13 @@ class Poule(models.Model):
         blank=True,
         related_name='poules',
         help_text="Courts assigned to this poule. Matches within this poule use ONLY these courts."
+    )
+    max_qualifiers = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Maximum teams qualifying from this Pool to the next Stage. "
+            "Uses this Pool's final standings; 0 means no automatic qualifiers."
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -205,6 +213,23 @@ class PouleTeam(models.Model):
         unique_together = [('poule', 'team')]
         verbose_name = 'Poule Team Assignment'
         verbose_name_plural = 'Poule Team Assignments'
+
+    def clean(self):
+        """A team may appear in only one Pool within the same Pool Stage."""
+        if not self.poule_id or not self.team_id:
+            return
+
+        exists_in_another_poule = PouleTeam.objects.filter(
+            poule__stage=self.poule.stage,
+            team_id=self.team_id,
+        ).exclude(pk=self.pk).exists()
+        if exists_in_another_poule:
+            raise ValidationError({
+                'team': (
+                    'This team is already assigned to another Pool in this Stage. '
+                    'Remove it from that Pool before assigning it here.'
+                )
+            })
 
     def __str__(self):
         return f"{self.team.name} → {self.poule.name}"

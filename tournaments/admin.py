@@ -385,9 +385,10 @@ class TournamentAdmin(admin.ModelAdmin):
 
 @admin.register(Stage)
 class StageAdmin(admin.ModelAdmin):
-    list_display = ("tournament", "stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team", "is_complete")
+    list_display = ("tournament", "stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team", "is_complete", "progression_message")
     list_filter = ("tournament", "format", "is_complete")
     search_fields = ("tournament__name", "name")
+    readonly_fields = ("progression_message",)
     ordering = ("tournament", "stage_number")
     
     fieldsets = (
@@ -403,7 +404,7 @@ class StageAdmin(admin.ModelAdmin):
             "description": "For Round Robin stages only: specify number of matches per team for Incomplete Round Robin. Leave blank for full Round Robin where every team plays every other team."
         }),
         ("Status", {
-            "fields": ("is_complete",)
+            "fields": ("is_complete", "progression_message")
         }),
     )
 
