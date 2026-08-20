@@ -1863,3 +1863,7 @@ msgstr "Οι αγώνες θα δημιουργηθούν όταν εγγραφ�
 #: templates/tournaments/vs_encounter_detail.html:107
 msgid "Back to Tournament"
 msgstr "Πίσω στο τουρνουά"
+
+#: templates/base.html
+msgid "Install PFC"
+msgstr "Εγκατάσταση PFC"

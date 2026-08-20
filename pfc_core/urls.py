@@ -7,11 +7,16 @@ from . import auth_views
 from . import simple_creator
 from . import my_matches_view
 from . import smart_router
+from . import pwa_views
 
 urlpatterns = [
     # Standard Django language-cookie endpoint. Existing PFC URLs remain
     # unchanged; no language-prefixed routes are introduced.
     path('i18n/', include('django.conf.urls.i18n')),
+    # Optional PWA install assets. These root-level URLs give the service worker
+    # scope over existing deep links without changing any application route.
+    path('manifest.webmanifest', pwa_views.web_app_manifest, name='pwa_manifest'),
+    path('service-worker.js', pwa_views.service_worker, name='pwa_service_worker'),
     path('', views.home, name='home'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('my-matches/', smart_router.resolve_decision_url, name='my_active_matches'),

@@ -5,6 +5,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0d47a1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PFC">
+    <link rel="manifest" href="{% url 'pwa_manifest' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'pwa/pfc-icon-180.png' %}">
     <title>Petanque Platform (PFC)</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -260,6 +267,13 @@
                             </select>
                         </form>
                     </li>
+                    <!-- Optional PWA installation action: stays hidden until the browser
+                         determines that PFC is installable. It never interrupts normal use. -->
+                    <li class="nav-item" id="pfc-install-nav" hidden>
+                        <button type="button" class="nav-link text-white border-0 bg-transparent" id="pfc-install-btn">
+                            <i class="fas fa-download me-1"></i>{% translate "Install PFC" %}
+                        </button>
+                    </li>
                     <!-- Live Scores Link -->
                     <li class="nav-item">
                         <a class="nav-link text-white" href="{% url 'live_scores_list' %}">
@@ -390,6 +404,52 @@
     <!-- Team PIN Auto-Fill JavaScript -->
     <script src="{% static 'js/team_pin_autofill.js' %}"></script>
     
+    <!-- Optional PWA registration and non-intrusive installation action.
+         The service worker has root scope but only caches static/app-shell
+         assets; dynamic matches, scores, registrations, events and APIs remain
+         network-fresh. -->
+    <script>
+    (function () {
+        'use strict';
+        if (!('serviceWorker' in navigator)) return;
+
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('{% url "pwa_service_worker" %}', { scope: '/' })
+                .catch(function () {
+                    // PWA support is optional; normal website use remains unchanged.
+                });
+        });
+
+        var deferredInstallPrompt = null;
+        var installNav = document.getElementById('pfc-install-nav');
+        var installButton = document.getElementById('pfc-install-btn');
+
+        window.addEventListener('beforeinstallprompt', function (event) {
+            event.preventDefault();
+            deferredInstallPrompt = event;
+            if (installNav) installNav.hidden = false;
+        });
+
+        window.addEventListener('appinstalled', function () {
+            deferredInstallPrompt = null;
+            if (installNav) installNav.hidden = true;
+        });
+
+        if (installButton) {
+            installButton.addEventListener('click', async function () {
+                if (!deferredInstallPrompt) return;
+                deferredInstallPrompt.prompt();
+                try {
+                    await deferredInstallPrompt.userChoice;
+                } finally {
+                    deferredInstallPrompt = null;
+                    if (installNav) installNav.hidden = true;
+                }
+            });
+        }
+    })();
+    </script>
+
     <!-- Extra JavaScript Block -->
     {% block extra_js %}{% endblock %}
 
