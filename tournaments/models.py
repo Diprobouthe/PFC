@@ -1,5 +1,7 @@
 from pfc_core.media_uploads import tournament_banner_path
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 from teams.models import Team
 from courts.models import Court
 import math
@@ -90,6 +92,20 @@ class Tournament(models.Model):
         null=True,
         blank=True,
         help_text="Maximum number of individual players allowed to register (for Mêlée tournaments)"
+    )
+    max_teams = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional maximum number of Teams that may register. Leave blank for no Team limit."
+    )
+    registration_type = models.CharField(
+        max_length=20,
+        choices=[
+            ("free", "Free"),
+            ("voucher", "Voucher Required"),
+        ],
+        default="free",
+        help_text="Whether registrations are free or require a tournament-specific voucher.",
     )
     pregame_countdown_minutes = models.PositiveSmallIntegerField(
         default=3,
@@ -1298,6 +1314,88 @@ class TournamentTeam(models.Model):
         self.save()
 
     # We might need a separate task/function to calculate Buchholz globally after all points are updated.
+
+class TournamentRegistrationVoucher(models.Model):
+    """A tournament-specific code required only for participant registration."""
+
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name="registration_vouchers",
+    )
+    code = models.CharField(max_length=40)
+    is_active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    usage_limit = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional maximum successful registrations this voucher may authorize.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tournament", "code"],
+                name="unique_tournament_registration_voucher_code",
+            )
+        ]
+        ordering = ["tournament", "code"]
+
+    def save(self, *args, **kwargs):
+        self.code = (self.code or "").strip().upper()
+        return super().save(*args, **kwargs)
+
+    def is_currently_valid(self, now=None):
+        """Return whether this voucher may authorize another successful registration."""
+        now = now or timezone.now()
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at <= now:
+            return False
+        if self.usage_limit is not None and self.redemptions.count() >= self.usage_limit:
+            return False
+        return True
+
+    def __str__(self):
+        return f"{self.tournament.name}: {self.code}"
+
+
+class TournamentRegistrationVoucherRedemption(models.Model):
+    """Audit record created only after a voucher-authorized registration succeeds."""
+
+    voucher = models.ForeignKey(
+        TournamentRegistrationVoucher,
+        on_delete=models.CASCADE,
+        related_name="redemptions",
+    )
+    team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.SET_NULL)
+    player = models.ForeignKey("teams.Player", null=True, blank=True, on_delete=models.SET_NULL)
+    redeemed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(Q(team__isnull=False, player__isnull=True) | Q(team__isnull=True, player__isnull=False)),
+                name="registration_voucher_redemption_has_one_subject",
+            ),
+            models.UniqueConstraint(
+                fields=["voucher", "team"],
+                condition=Q(team__isnull=False),
+                name="unique_registration_voucher_team_redemption",
+            ),
+            models.UniqueConstraint(
+                fields=["voucher", "player"],
+                condition=Q(player__isnull=False),
+                name="unique_registration_voucher_player_redemption",
+            ),
+        ]
+        ordering = ["-redeemed_at"]
+
+    def __str__(self):
+        subject = self.team or self.player
+        return f"{self.voucher.code} → {subject}"
+
 
 # --- Tournament Court Model --- 
 class TournamentCourt(models.Model):

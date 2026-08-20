@@ -212,6 +212,7 @@ def _get_score_history(scoreboard):
     as _resolve_scorekeeper_names in views_scoreboard.py.
     """
     from matches.models import ScoreUpdate
+    from matches.scoreboard_time import format_score_update_time
     updates = list(
         ScoreUpdate.objects
         .filter(scoreboard=scoreboard)
@@ -236,7 +237,7 @@ def _get_score_history(scoreboard):
             'id': u['id'],
             'team1_score': u['team1_score'],
             'team2_score': u['team2_score'],
-            'ts': u['timestamp'].strftime('%H:%M:%S'),
+            'ts': format_score_update_time(u['timestamp'], scoreboard),
             'by': display_name,
             'type': u['update_type'],
         })

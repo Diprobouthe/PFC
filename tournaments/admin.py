@@ -1,7 +1,25 @@
+import secrets
+from io import BytesIO
+
+from django import forms
 from django.contrib import admin
 from django.contrib import messages
+from django.http import Http404, HttpResponse
+from django.shortcuts import render
+from django.urls import path, reverse
+from django.utils import timezone
 from django.utils.html import format_html
-from .models import Tournament, TournamentTeam, Round, Bracket, TournamentCourt, Stage, MeleePlayer
+from .models import (
+    Tournament,
+    TournamentTeam,
+    Round,
+    Bracket,
+    TournamentCourt,
+    Stage,
+    MeleePlayer,
+    TournamentRegistrationVoucher,
+    TournamentRegistrationVoucherRedemption,
+)
 from .poule_models import Poule, PouleTeam
 from .admin_helpers import (
     retry_automation_action,
@@ -81,6 +99,10 @@ class TournamentAdmin(admin.ModelAdmin):
             "fields": ("is_melee", "melee_format", "melee_teams_generated", "shuffle_players_after_round", "max_participants"),
             "classes": ("collapse",),
             "description": "Enable Mêlée mode for individual player registration with automatic team generation. Enable 'Shuffle players after round' for dynamic team mixing."
+        }),
+        ("Registration", {
+            "fields": ("max_teams", "registration_type"),
+            "description": "Maximum Teams is optional. Voucher Required uses tournament-specific registration vouchers; Free preserves normal registration.",
         }),
         ("Dates", {
             "fields": ("start_date", "end_date")
@@ -449,6 +471,215 @@ class BracketAdmin(admin.ModelAdmin):
         return "N/A"
     get_stage_display.short_description = "Stage"
     get_stage_display.admin_order_field = "round__stage__stage_number"
+
+class TournamentRegistrationVoucherBulkGenerateForm(forms.Form):
+    """Admin-only input for a single, tournament-specific voucher batch."""
+
+    tournament = forms.ModelChoiceField(
+        queryset=Tournament.objects.order_by("name"),
+        label="Tournament",
+    )
+    quantity = forms.IntegerField(
+        min_value=1,
+        max_value=1000,
+        initial=100,
+        label="Number of vouchers to generate",
+        help_text="Generate between 1 and 1,000 unique tournament-specific codes.",
+    )
+    uses_per_voucher = forms.IntegerField(
+        min_value=1,
+        initial=1,
+        label="Uses per voucher",
+        help_text="Each generated voucher can authorize this many successful registrations.",
+    )
+
+
+class TournamentRegistrationVoucherRedemptionInline(admin.TabularInline):
+    model = TournamentRegistrationVoucherRedemption
+    extra = 0
+    can_delete = False
+    readonly_fields = ("team", "player", "redeemed_at")
+
+
+@admin.register(TournamentRegistrationVoucher)
+class TournamentRegistrationVoucherAdmin(admin.ModelAdmin):
+    list_display = ("code", "tournament", "is_active", "expires_at", "usage_limit", "redemption_count")
+    list_filter = ("is_active", "tournament")
+    search_fields = ("code", "tournament__name")
+    readonly_fields = ("created_at",)
+    fields = ("tournament", "code", "is_active", "expires_at", "usage_limit", "created_at")
+    inlines = [TournamentRegistrationVoucherRedemptionInline]
+    change_list_template = "admin/tournaments/tournamentregistrationvoucher/change_list.html"
+
+    @admin.display(description="Successful uses")
+    def redemption_count(self, obj):
+        return obj.redemptions.count()
+
+    def get_urls(self):
+        custom_urls = [
+            path(
+                "bulk-generate/",
+                self.admin_site.admin_view(self.bulk_generate_view),
+                name="tournaments_tournamentregistrationvoucher_bulk_generate",
+            ),
+            path(
+                "export-pdf/",
+                self.admin_site.admin_view(self.export_pdf_view),
+                name="tournaments_tournamentregistrationvoucher_export_pdf",
+            ),
+        ]
+        return custom_urls + super().get_urls()
+
+    @staticmethod
+    def _new_batch_code(existing_codes):
+        """Return a collision-free printable code for the current tournament batch."""
+        while True:
+            code = f"PFC-{secrets.token_hex(5).upper()}"
+            if code not in existing_codes:
+                existing_codes.add(code)
+                return code
+
+    def bulk_generate_view(self, request):
+        """Generate one administrative batch without changing voucher semantics."""
+        generated_vouchers = []
+        selected_tournament = None
+        if request.method == "POST":
+            form = TournamentRegistrationVoucherBulkGenerateForm(request.POST)
+            if form.is_valid():
+                selected_tournament = form.cleaned_data["tournament"]
+                quantity = form.cleaned_data["quantity"]
+                uses_per_voucher = form.cleaned_data["uses_per_voucher"]
+                existing_codes = set(
+                    TournamentRegistrationVoucher.objects.filter(
+                        tournament=selected_tournament
+                    ).values_list("code", flat=True)
+                )
+                generated_vouchers = [
+                    TournamentRegistrationVoucher(
+                        tournament=selected_tournament,
+                        code=self._new_batch_code(existing_codes),
+                        usage_limit=uses_per_voucher,
+                    )
+                    for _ in range(quantity)
+                ]
+                TournamentRegistrationVoucher.objects.bulk_create(generated_vouchers)
+                generated_vouchers = list(
+                    TournamentRegistrationVoucher.objects.filter(
+                        tournament=selected_tournament,
+                        code__in=[voucher.code for voucher in generated_vouchers],
+                    ).order_by("code")
+                )
+                self.message_user(
+                    request,
+                    f"Generated {len(generated_vouchers)} voucher(s) for {selected_tournament.name}.",
+                    messages.SUCCESS,
+                )
+        else:
+            form = TournamentRegistrationVoucherBulkGenerateForm()
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Bulk generate Tournament Registration Vouchers",
+            "form": form,
+            "generated_vouchers": generated_vouchers,
+            "selected_tournament": selected_tournament,
+            "export_pdf_url": reverse(
+                "admin:tournaments_tournamentregistrationvoucher_export_pdf"
+            ),
+        }
+        return render(
+            request,
+            "admin/tournaments/tournamentregistrationvoucher/bulk_generate.html",
+            context,
+        )
+
+    def export_pdf_view(self, request):
+        """Return a simple printable PDF of one generated voucher batch."""
+        raw_ids = request.GET.get("ids", "")
+        try:
+            voucher_ids = [int(value) for value in raw_ids.split(",") if value]
+        except ValueError as exc:
+            raise Http404("Invalid voucher batch.") from exc
+        vouchers = list(
+            TournamentRegistrationVoucher.objects.filter(pk__in=voucher_ids)
+            .select_related("tournament")
+            .order_by("code")
+        )
+        if not vouchers:
+            raise Http404("Voucher batch not found.")
+        tournament = vouchers[0].tournament
+        if any(voucher.tournament_id != tournament.id for voucher in vouchers):
+            raise Http404("A voucher export may contain one tournament only.")
+
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        buffer = BytesIO()
+        document = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=18 * mm,
+            rightMargin=18 * mm,
+            topMargin=16 * mm,
+            bottomMargin=16 * mm,
+        )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "VoucherTitle",
+            parent=styles["Heading1"],
+            alignment=TA_CENTER,
+            fontSize=16,
+            spaceAfter=6,
+        )
+        subtitle_style = ParagraphStyle(
+            "VoucherSubtitle",
+            parent=styles["BodyText"],
+            alignment=TA_CENTER,
+            fontSize=10,
+            textColor=colors.HexColor("#444444"),
+            spaceAfter=12,
+        )
+        uses_vary = any(voucher.usage_limit != 1 for voucher in vouchers)
+        headings = ["Voucher code"] + (["Uses"] if uses_vary else [])
+        rows = [headings]
+        for voucher in vouchers:
+            row = [voucher.code]
+            if uses_vary:
+                row.append(str(voucher.usage_limit or "Unlimited"))
+            rows.append(row)
+        column_widths = [115 * mm, 35 * mm] if uses_vary else [150 * mm]
+        table = Table(rows, colWidths=column_widths, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D6EFD")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#AAB7C4")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F7FB")]),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        generated_at = timezone.localtime().strftime("%Y-%m-%d %H:%M")
+        document.build([
+            Paragraph("PFC Tournament Registration Vouchers", title_style),
+            Paragraph(
+                f"<b>{tournament.name}</b><br/>{len(vouchers)} voucher(s) · Generated export: {generated_at}",
+                subtitle_style,
+            ),
+            Spacer(1, 3 * mm),
+            table,
+        ])
+        filename = f"pfc-vouchers-tournament-{tournament.id}.pdf"
+        response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
 
 @admin.register(TournamentCourt)
 class TournamentCourtAdmin(admin.ModelAdmin):

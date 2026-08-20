@@ -1,0 +1,62 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main">
+  <p>
+    Generate unique vouchers for one tournament. These vouchers remain tournament-specific and
+    follow the existing registration voucher rules.
+  </p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      {% for field in form %}
+        <div class="form-row{% if field.errors %} errors{% endif %}">
+          <div>
+            {{ field.errors }}
+            <label for="{{ field.id_for_label }}"{% if field.field.required %} class="required"{% endif %}>{{ field.label }}:</label>
+            {{ field }}
+            {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" value="Generate vouchers" class="default">
+      <a href="{% url 'admin:tournaments_tournamentregistrationvoucher_changelist' %}" class="button cancel-link">Cancel</a>
+    </div>
+  </form>
+
+  {% if generated_vouchers %}
+    <div class="module" style="margin-top: 24px;">
+      <h2>Generated batch</h2>
+      <p>
+        <strong>{{ generated_vouchers|length }}</strong> voucher{{ generated_vouchers|pluralize }} generated for
+        <strong>{{ selected_tournament.name }}</strong>.
+      </p>
+      <p>
+        <a class="button default" href="{{ export_pdf_url }}?ids={% for voucher in generated_vouchers %}{{ voucher.id }}{% if not forloop.last %},{% endif %}{% endfor %}">
+          Export this batch as PDF
+        </a>
+      </p>
+      <table id="result_list">
+        <thead>
+          <tr>
+            <th scope="col">Voucher code</th>
+            <th scope="col">Uses per voucher</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for voucher in generated_vouchers %}
+            <tr>
+              <th scope="row"><code>{{ voucher.code }}</code></th>
+              <td>{{ voucher.usage_limit }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -206,6 +206,12 @@ class TeamBuildSession(models.Model):
         on_delete=models.SET_NULL,
         related_name="team_build_sessions",
     )
+    registration_voucher_code = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        help_text="Optional tournament registration voucher supplied when this build session was started.",
+    )
 
     # The resulting team (set once create_team() succeeds)
     created_team = models.OneToOneField(

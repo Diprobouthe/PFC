@@ -39,6 +39,16 @@
       <!-- Success / error banner (shown after AJAX actions) -->
       <div id="reg-banner" style="display:none;" class="alert mb-3"></div>
 
+      {% if tournament.registration_type == 'voucher' %}
+      <div class="alert alert-warning mb-3">
+        <i class="fas fa-ticket-alt me-1"></i><strong>Tournament voucher required.</strong>
+        Enter a valid voucher before registering a Team by any method.
+      </div>
+      <div class="mb-3" style="max-width:420px;">
+        <label for="reg-voucher-input" class="form-label">Tournament voucher</label>
+        <input type="text" id="reg-voucher-input" class="form-control" maxlength="40" autocomplete="off">
+      </div>
+      {% endif %}
       <!-- 1. Enter Team PIN -->
       <div class="card mb-3">
         <div class="card-header">
@@ -110,6 +120,12 @@
             {% endif %}
             <form method="post" class="needs-validation" novalidate>
               {% csrf_token %}
+              {% if tournament.registration_type == 'voucher' %}
+              <div class="mb-3">
+                <label for="legacy-voucher-code" class="form-label">Tournament voucher</label>
+                <input type="text" name="voucher_code" id="legacy-voucher-code" class="form-control" maxlength="40" required autocomplete="off">
+              </div>
+              {% endif %}
               <div class="mb-3">
                 <label for="{{ form.team_pin.id_for_label }}" class="form-label">Team PIN</label>
                 {{ form.team_pin }}
@@ -348,6 +364,10 @@
     return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 
+  function voucherCode() {
+    return (document.getElementById("reg-voucher-input")?.value || "").trim();
+  }
+
   function postJson(url, body) {
     return fetch(url, {
       method: "POST",
@@ -368,7 +388,7 @@
       }
       pinBtn.disabled = true;
       pinBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Registering…';
-      postJson(`/tournaments/${TOURNAMENT_ID}/register/api/pin/`, { pin })
+      postJson(`/tournaments/${TOURNAMENT_ID}/register/api/pin/`, { pin, voucher_code: voucherCode() })
         .then(data => {
           pinBtn.disabled = false;
           pinBtn.innerHTML = '<i class="fas fa-arrow-right me-1"></i>Register';
@@ -397,7 +417,7 @@
     myTeamBtn.addEventListener("click", () => {
       myTeamBtn.disabled = true;
       myTeamBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Registering…';
-      postJson(`/tournaments/${TOURNAMENT_ID}/register/api/my-team/`, {})
+      postJson(`/tournaments/${TOURNAMENT_ID}/register/api/my-team/`, { voucher_code: voucherCode() })
         .then(data => {
           myTeamBtn.disabled = false;
           myTeamBtn.innerHTML = '<i class="fas fa-check me-1"></i>Register My Team';
@@ -426,7 +446,7 @@
 
   document.addEventListener("qrPlayerResolved", function () {
     // QR scan completed — now call the server to resolve the team and register
-    postJson(`/tournaments/${TOURNAMENT_ID}/register/api/qr-team/`, {})
+    postJson(`/tournaments/${TOURNAMENT_ID}/register/api/qr-team/`, { voucher_code: voucherCode() })
       .then(data => {
         if (data.ok) {
           renderTeamResult("reg-qr-result", data);

@@ -70,16 +70,23 @@ def tournament_signin(request):
                 # Get or create player codename
                 player_codename = PlayerCodename.objects.get(codename=codename)
                 
-                # Check if already registered
-                if MeleePlayer.objects.filter(tournament=selected_tournament, player=player_codename.player).exists():
-                    messages.info(request, f"You are already registered for {selected_tournament.name}.")
-                else:
-                    # Register player for Mêlée tournament
-                    MeleePlayer.objects.create(
+                from tournaments.registration_services import (
+                    TournamentRegistrationEligibilityError,
+                    register_melee_player_for_tournament,
+                )
+                try:
+                    _, created, _ = register_melee_player_for_tournament(
                         tournament=selected_tournament,
-                        player=player_codename.player
+                        player=player_codename.player,
+                        voucher_code=request.POST.get('voucher_code', ''),
                     )
-                    messages.success(request, f"Successfully registered for {selected_tournament.name} Mêlée tournament!")
+                except TournamentRegistrationEligibilityError as exc:
+                    messages.error(request, ' '.join(exc.messages))
+                else:
+                    if created:
+                        messages.success(request, f"Successfully registered for {selected_tournament.name} Mêlée tournament!")
+                    else:
+                        messages.info(request, f"You are already registered for {selected_tournament.name}.")
                 
                 # Get logged-in codename for auto-fill
                 logged_in_codename = CodenameSessionManager.get_logged_in_codename(request) if CodenameSessionManager.is_logged_in(request) else ''
@@ -138,7 +145,20 @@ def tournament_signin(request):
                 # Persist through the shared Team Sign-in workflow. This keeps
                 # the active TeamTournamentSignin and TournamentTeam records in
                 # sync, exactly as the legacy form has always required.
-                activate_team_tournament_signin(team=team, tournament=tournament)
+                from tournaments.registration_services import TournamentRegistrationEligibilityError
+                try:
+                    activate_team_tournament_signin(
+                        team=team,
+                        tournament=tournament,
+                        voucher_code=form.cleaned_data.get('voucher_code', ''),
+                    )
+                except TournamentRegistrationEligibilityError as exc:
+                    messages.error(request, ' '.join(exc.messages))
+                    return render(request, 'signin/tournament_signin.html', {
+                        'form': form,
+                        'selected_tournament': tournament,
+                        'is_melee': False,
+                    })
                 messages.success(request, f"Successfully signed in to {tournament.name}.")
             
             # Redirect to team dashboard

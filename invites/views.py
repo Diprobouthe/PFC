@@ -27,12 +27,33 @@ from django.db.models import Q
 from friendly_games.models import PlayerCodename
 from teams.models import Player
 from courts.models import CourtComplex
-from tournaments.models import Tournament, TournamentTeam
+from tournaments.models import Tournament
+from tournaments.registration_services import TournamentRegistrationEligibilityError
 
 from .models import Invitation, TeamBuildSession
 
 
 # ── Auth helper ───────────────────────────────────────────────────────────────
+
+def _register_completed_tournament_build(session, team):
+    """Register a completed build through the same Team eligibility service."""
+    if not (session.is_tournament_type and session.tournament_id):
+        return False, None
+
+    from signin.services import activate_team_tournament_signin
+
+    try:
+        registration = activate_team_tournament_signin(
+            team=team,
+            tournament=session.tournament,
+            voucher_code=session.registration_voucher_code,
+        )
+    except TournamentRegistrationEligibilityError as exc:
+        return False, ' '.join(exc.messages)
+
+    # An existing TournamentTeam is still a successful tournament registration.
+    return bool(registration.get('tournament_team')), None
+
 
 def _get_current_player(request):
     """
@@ -183,6 +204,7 @@ def send_invite(request):
         build_type    = data.get("build_type", TeamBuildSession.BUILD_TYPE_NORMAL)
         tournament_id = data.get("tournament_id")
         proposed_name = str(data.get("proposed_name", ""))[:100]
+        registration_voucher_code = str(data.get("registration_voucher_code", ""))[:40].strip().upper()
 
         tournament = None
         if tournament_id:
@@ -193,6 +215,7 @@ def send_invite(request):
             build_type=build_type,
             target_size=target_size,
             tournament=tournament,
+            registration_voucher_code=registration_voucher_code,
             proposed_team_name=proposed_name,
         )
 
@@ -289,15 +312,9 @@ def accept_invite(request, token):
         if session.is_ready and session.status == TeamBuildSession.SESSION_OPEN:
             team = session.create_team()
             if team:
-                # Auto-register the new team into the tournament if this is a
-                # tournament build session. get_or_create prevents duplicates.
-                tournament_registered = False
-                if session.is_tournament_type and session.tournament_id:
-                    _, tournament_registered = TournamentTeam.objects.get_or_create(
-                        tournament_id=session.tournament_id,
-                        team=team,
-                        defaults={"is_active": True},
-                    )
+                # Tournament builds use the same centralized capacity and
+                # voucher eligibility service as every other Team registration.
+                tournament_registered, registration_error = _register_completed_tournament_build(session, team)
 
                 # Notify all accepted players + creator
                 all_pids = list(
@@ -313,6 +330,7 @@ def accept_invite(request, token):
                             "team_name":             team.name,
                             "team_pin":              team.pin,
                             "tournament_registered": tournament_registered,
+                            "tournament_registration_error": registration_error,
                         },
                     )
                 result["team_created"]          = True
@@ -320,6 +338,7 @@ def accept_invite(request, token):
                 result["team_name"]             = team.name
                 result["team_pin"]              = team.pin
                 result["tournament_registered"] = tournament_registered
+                result["tournament_registration_error"] = registration_error
 
     return JsonResponse(result)
 
@@ -599,12 +618,7 @@ def qr_add_player(request):
         team = session.create_team()
         if team:
             team_created = True
-            if session.is_tournament_type and session.tournament_id:
-                _, tournament_registered = TournamentTeam.objects.get_or_create(
-                    tournament_id=session.tournament_id,
-                    team=team,
-                    defaults={"is_active": True},
-                )
+            tournament_registered, registration_error = _register_completed_tournament_build(session, team)
             # Notify all accepted players + creator via channel layer
             all_pids = list(
                 session.accepted_players.values_list("pk", flat=True)
@@ -619,6 +633,7 @@ def qr_add_player(request):
                         "team_name":             team.name,
                         "team_pin":              team.pin,
                         "tournament_registered": tournament_registered,
+                        "tournament_registration_error": registration_error,
                     },
                 )
     else:

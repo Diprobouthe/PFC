@@ -330,12 +330,22 @@
     </div>
   {% endif %}
 
+{% if tournament.registration_type == 'voucher' %}
+  <div style="margin:0 16px 16px;">
+    <label for="mrVoucherCode" style="display:block;color:#d1d5db;font-size:13px;margin-bottom:6px;">Tournament voucher required</label>
+    <input id="mrVoucherCode" type="text" maxlength="40" autocomplete="off" required
+           style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:9px;border:1px solid #854d0e;background:#1f2937;color:#f9fafb;"
+           placeholder="Enter voucher code">
+  </div>
+{% endif %}
+
 </div>{# end shell #}
 
 {# ── Hidden form for QR registration ─────────────────────────────────────── #}
 {% if not is_full %}
 <form id="qrRegisterForm" method="post" style="display:none;">
   {% csrf_token %}
+  <input type="hidden" name="voucher_code" id="mrQrVoucherCode">
 </form>
 {% endif %}
 
@@ -351,8 +361,9 @@
 
   {% elif session_player %}
     {# Normal self-registration button #}
-    <form method="post" style="flex:1;display:flex;">
+    <form method="post" id="mrSelfRegisterForm" style="flex:1;display:flex;" onsubmit="document.getElementById('mrSelfVoucherCode').value = document.getElementById('mrVoucherCode')?.value || '';">
       {% csrf_token %}
+      <input type="hidden" name="voucher_code" id="mrSelfVoucherCode">
       <button type="submit" class="mr-btn-register active" style="width:100%;">
         &#43; Register for {% if is_singles %}Tête-à-tête{% else %}Mêlée{% endif %}
       </button>
@@ -383,6 +394,8 @@
   document.addEventListener('qrPlayerResolved', function(e) {
     var form = document.getElementById('qrRegisterForm');
     if (form) {
+      const voucher = document.getElementById('mrVoucherCode')?.value || '';
+      document.getElementById('mrQrVoucherCode').value = voucher;
       form.submit();
     }
   });

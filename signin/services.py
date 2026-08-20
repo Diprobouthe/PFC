@@ -11,6 +11,7 @@ from tournaments.models import (
     is_system_tournament_team,
     SYSTEM_TEAM_TOURNAMENT_MESSAGE,
 )
+from tournaments.registration_services import register_team_for_tournament
 from tournaments.vs_utils import (
     generate_vs_pending_matches,
     get_vs_num_matches,
@@ -24,7 +25,7 @@ VS_TWO_TEAM_MESSAGE = _("A VS tournament accepts exactly two teams.")
 
 
 @transaction.atomic
-def activate_team_tournament_signin(*, team, tournament):
+def activate_team_tournament_signin(*, team, tournament, voucher_code=None):
     """Create or reactivate the records used by the existing Team Sign-in flow.
 
     Normal tournaments retain their existing behaviour.  For a tournament
@@ -67,10 +68,10 @@ def activate_team_tournament_signin(*, team, tournament):
         signin.signed_in_at = timezone.now()
         signin.save(update_fields=["is_active", "signed_in_at"])
 
-    tournament_team, tournament_team_created = TournamentTeam.objects.get_or_create(
+    tournament_team, tournament_team_created, voucher_redemption = register_team_for_tournament(
         team=team,
         tournament=tournament,
-        defaults={},
+        voucher_code=voucher_code,
     )
 
     vs_encounter = None
@@ -106,6 +107,7 @@ def activate_team_tournament_signin(*, team, tournament):
         "created": created,
         "tournament_team": tournament_team,
         "tournament_team_created": tournament_team_created,
+        "voucher_redemption": voucher_redemption,
         "vs_encounter": vs_encounter,
         "vs_matches_created": vs_matches_created,
     }

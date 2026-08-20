@@ -20,7 +20,7 @@ Section map
   8  Role & Format Breakdown  (from MatchPlayer + PlayerProfile helpers)
   9  Tournament Breakdown  (per-tournament W/L, win%, avg score)
  10  Friendly Game Breakdown  (total, W/L, per-game table)
- 11  Practice Data  (shooting + pointing bar charts, session table, flagged sessions)
+ 11  Practice & In-Game Evidence  (separate training and ING match performance data)
  12  Data Quality Notes  (discrepancy flags for the AI reader)
 """
 
@@ -461,11 +461,12 @@ def _section_ai_instructions(ST, elements):
          'The "Best Observed Teammate" is the teammate with the highest win rate (minimum 3 games). '
          'Section 7 shows the same analysis for opponents.'),
 
-        ('Practice data',
-         'Section 11 shows shooting and pointing practice sessions. '
-         'Sessions flagged as invalid (zero shots, no end time, duration < 2 minutes, or '
-         'suspiciously short) are listed separately and excluded from statistics. '
-         'Only valid sessions contribute to averages and charts.'),
+        ('Practice versus In-Game (ING) performance evidence',
+         'Section 11 deliberately separates ordinary Practice Shooting/Pointing sessions from In-Game (ING) sessions. '
+         'ING means In Game: these statistics were recorded during an actual tournament match or friendly game through PFC Match Tracking, '
+         'not during training. Treat ING as direct competitive match-performance evidence and never merge it into practice averages. '
+         'When both evidence types exist, compare training performance with ING performance to assess transfer to real games, '
+         'state sample size, and avoid strong conclusions from small samples. Practice remains useful for technical baseline and repetition analysis.'),
 
         ('Data quality',
          'Section 12 lists any discrepancies between profile counters and dataset counts, '
@@ -1120,10 +1121,11 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
 # Section 11 — Practice Data
 # ─────────────────────────────────────────────────────────────────────────────
 def _section_practice(player, ST, elements):
-    elements += _section_header('11. PRACTICE DATA', ST)
+    elements += _section_header('11. PRACTICE & IN-GAME (ING) PERFORMANCE EVIDENCE', ST)
 
     from practice.models import PracticeSession
     from friendly_games.models import PlayerCodename
+    from match_tracking.models import TrackingPracticeSession
 
     codename = None
     try:
@@ -1134,16 +1136,23 @@ def _section_practice(player, ST, elements):
         pass
 
     if not codename:
-        elements.append(Paragraph('No codename linked — practice data unavailable.', ST['body']))
+        elements.append(Paragraph('No codename linked — Practice and In-Game (ING) data unavailable.', ST['body']))
         elements.append(Spacer(1, 6))
         return
 
+    # Existing `distance="ing"` marker means In Game: it is written by Match
+    # Tracking for real tournament-match or friendly-game statistics. Keep it
+    # separate from normal PracticeSession training data.
+    ing_sessions = list(PracticeSession.objects.filter(
+        player_codename=codename,
+        distance='ing',
+    ).order_by('-started_at')[:60])
     all_sessions = list(PracticeSession.objects.filter(
         player_codename=codename
-    ).order_by('-started_at')[:60])
+    ).exclude(distance='ing').order_by('-started_at')[:60])
 
-    if not all_sessions:
-        elements.append(Paragraph('No practice sessions recorded for this player.', ST['body']))
+    if not all_sessions and not ing_sessions:
+        elements.append(Paragraph('No Practice or In-Game (ING) sessions recorded for this player.', ST['body']))
         elements.append(Spacer(1, 6))
         return
 
@@ -1179,10 +1188,33 @@ def _section_practice(player, ST, elements):
                 (f'{ptype} Best Session',   f'{best_rate}%'),
             ]
 
+    ing_shooting = [s for s in ing_sessions if s.practice_type == 'shooting']
+    ing_pointing = [s for s in ing_sessions if s.practice_type == 'pointing']
+
+    def _ing_summary(sessions):
+        attempts = sum(s.total_shots for s in sessions)
+        if not attempts:
+            return attempts, 0.0
+        successes = sum(
+            (s.hits + s.petit_carreaux + s.carreaux)
+            if s.practice_type == 'shooting'
+            else (s.perfects + s.petit_perfects + s.goods + s.fairs)
+            for s in sessions
+        )
+        return attempts, round(successes / attempts * 100, 1)
+
+    ing_shooting_attempts, ing_shooting_rate = _ing_summary(ing_shooting)
+    ing_pointing_attempts, ing_pointing_rate = _ing_summary(ing_pointing)
+
     pairs += [
-        ('Total Sessions',   str(len(all_sessions))),
-        ('Valid Sessions',   str(len(valid_sessions))),
-        ('Flagged/Excluded', str(len(flagged_sessions))),
+        ('Practice Sessions',       str(len(all_sessions))),
+        ('Practice Valid Sessions', str(len(valid_sessions))),
+        ('Practice Flagged/Excluded', str(len(flagged_sessions))),
+        ('ING Match Sessions',      str(len(ing_sessions))),
+        ('ING Shooting Attempts',   str(ing_shooting_attempts)),
+        ('ING Shooting Success%',   f'{ing_shooting_rate}%' if ing_shooting_attempts else '—'),
+        ('ING Pointing Attempts',   str(ing_pointing_attempts)),
+        ('ING Pointing Success%',   f'{ing_pointing_rate}%' if ing_pointing_attempts else '—'),
     ]
     elements.append(_kv_table(pairs, ST, cols=3))
     elements.append(Spacer(1, 4))
@@ -1239,6 +1271,62 @@ def _section_practice(player, ST, elements):
         elements.append(_data_table(headers2, rows2, ST, col_widths=cw2))
 
     elements.append(Spacer(1, 6))
+
+    # ING sessions are match-performance evidence, so they are deliberately not
+    # subject to practice-duration validation or merged into practice charts.
+    elements.append(Paragraph('IN-GAME (ING) MATCH PERFORMANCE EVIDENCE', ST['label']))
+    if not ing_sessions:
+        elements.append(Paragraph(
+            'No ING sessions recorded. Match Tracking has not yet captured Shooting or Pointing attempts during a real match for this player.',
+            ST['body']
+        ))
+    else:
+        tracking_links = {
+            link.practice_session_id: link
+            for link in TrackingPracticeSession.objects.filter(
+                player=player,
+                practice_session_id__in=[session.id for session in ing_sessions],
+            ).select_related('tracking_session')
+        }
+        elements.append(Paragraph(
+            'ING means In Game. These are statistics captured through PFC Match Tracking during actual tournament matches or friendly games. '
+            'Use them as competitive evidence and compare them with the separate Practice data above; do not merge the two datasets.',
+            ST['body_bold']
+        ))
+        ing_rows = []
+        for session in ing_sessions[:30]:
+            link = tracking_links.get(session.id)
+            if link:
+                match_context = (
+                    'Tournament Match' if link.tracking_session.match_type == 'match' else 'Friendly Game'
+                ) + f' #{link.tracking_session.match_pk}'
+            else:
+                match_context = 'Match Tracking session'
+            if session.practice_type == 'shooting':
+                outcomes = (
+                    f'Hits {session.hits} · Petit Carreaux {session.petit_carreaux} · '
+                    f'Carreaux {session.carreaux} · Misses {session.misses}'
+                )
+            else:
+                outcomes = (
+                    f'Perfect {session.perfects + session.petit_perfects} · Good {session.goods} · '
+                    f'Fair {session.fairs} · Far {session.fars}'
+                )
+            ing_rows.append([
+                session.started_at.strftime('%Y-%m-%d'),
+                match_context,
+                session.practice_type.capitalize(),
+                str(session.total_shots),
+                f'{session.hit_percentage:.1f}%',
+                outcomes,
+            ])
+        elements.append(_data_table(
+            ['Date', 'Match Context', 'Type', 'Attempts', 'Success%', 'Recorded Outcomes'],
+            ing_rows,
+            ST,
+            col_widths=[22*mm, 34*mm, 20*mm, 18*mm, 20*mm, 56*mm],
+        ))
+        elements.append(Spacer(1, 6))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

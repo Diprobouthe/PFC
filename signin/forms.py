@@ -25,8 +25,13 @@ class TournamentSigninForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     pin = forms.CharField(
-        max_length=6, 
+        max_length=6,
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Enter your 6-digit PIN'})
+    )
+    voucher_code = forms.CharField(
+        max_length=40,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Tournament voucher (if required)'}),
     )
     
     def clean(self):

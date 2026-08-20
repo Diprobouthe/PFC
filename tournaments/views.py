@@ -388,10 +388,23 @@ def tournament_register(request, tournament_id):
                     url = reverse('tournament_register_choice', kwargs={'tournament_id': tournament_id})
                     return HttpResponseRedirect(f'{url}?pin={team.pin}')
                 else:
-                    # Only auto-register if no subteam options exist
-                    tournament_team = pin_form.save()
+                    # Only auto-register if no subteam options exist.  Persist
+                    # through the centralized registration eligibility service.
+                    from .registration_services import (
+                        TournamentRegistrationEligibilityError,
+                        register_team_for_tournament,
+                    )
+                    try:
+                        tournament_team, _, _ = register_team_for_tournament(
+                            team=team,
+                            tournament=tournament,
+                            voucher_code=request.POST.get('voucher_code', ''),
+                        )
+                    except TournamentRegistrationEligibilityError as exc:
+                        messages.error(request, ' '.join(exc.messages))
+                        return redirect('tournament_register', tournament_id=tournament.id)
                     messages.success(
-                        request, 
+                        request,
                         f"Team '{tournament_team.team.name}' successfully registered for {tournament.name}!"
                     )
                     return redirect('tournament_detail', tournament_id=tournament.id)
@@ -603,6 +616,10 @@ def tournament_register_melee(request, tournament_id):
     """
     from friendly_games.models import PlayerCodename
     from .models import MeleePlayer
+    from .registration_services import (
+        TournamentRegistrationEligibilityError,
+        register_melee_player_for_tournament,
+    )
 
     tournament = get_object_or_404(Tournament, id=tournament_id)
 
@@ -640,6 +657,7 @@ def tournament_register_melee(request, tournament_id):
 
     # ── Handle POST (one-tap registration or QR registration) ───────────────────
     if request.method == 'POST':
+        voucher_code = request.POST.get('voucher_code', '')
         # ── QR branch: register a player whose QR card was just scanned ──────────
         _qr_player_id = request.session.pop('qr_resolved_melee_player_id', None)
         if _qr_player_id:
@@ -655,21 +673,18 @@ def tournament_register_melee(request, tournament_id):
                 messages.info(request, f"{_qr_player.name} is already registered for this tournament.")
                 return redirect('tournament_register_melee', tournament_id=tournament.id)
 
-            # Capacity check
-            if tournament.max_participants:
-                _current_count = MeleePlayer.objects.filter(tournament=tournament).count()
-                if _current_count >= tournament.max_participants:
-                    messages.error(
-                        request,
-                        f"Tournament is full ({tournament.max_participants} players maximum)."
-                    )
-                    return redirect('tournament_register_melee', tournament_id=tournament.id)
-
-            MeleePlayer.objects.create(
-                tournament=tournament,
-                player=_qr_player,
-                original_team=_qr_player.team,
-            )
+            try:
+                _, created, _ = register_melee_player_for_tournament(
+                    tournament=tournament,
+                    player=_qr_player,
+                    voucher_code=voucher_code,
+                )
+            except TournamentRegistrationEligibilityError as exc:
+                messages.error(request, ' '.join(exc.messages))
+                return redirect('tournament_register_melee', tournament_id=tournament.id)
+            if not created:
+                messages.info(request, f"{_qr_player.name} is already registered for this tournament.")
+                return redirect('tournament_register_melee', tournament_id=tournament.id)
             messages.success(
                 request,
                 f"{_qr_player.name} has been registered for {tournament.name} via QR scan."
@@ -685,22 +700,19 @@ def tournament_register_melee(request, tournament_id):
             messages.info(request, "You are already registered for this tournament.")
             return redirect('tournament_detail', tournament_id=tournament.id)
 
-        # Check capacity
-        if tournament.max_participants:
-            current_count = MeleePlayer.objects.filter(tournament=tournament).count()
-            if current_count >= tournament.max_participants:
-                messages.error(
-                    request,
-                    f"Tournament is full ({tournament.max_participants} players maximum)."
-                )
-                return redirect('tournament_register_melee', tournament_id=tournament.id)
-
-        # Register the session player directly — no form, no codename input
-        MeleePlayer.objects.create(
-            tournament=tournament,
-            player=session_player,
-            original_team=session_player.team,
-        )
+        # Register through the centralized capacity and voucher service.
+        try:
+            _, created, _ = register_melee_player_for_tournament(
+                tournament=tournament,
+                player=session_player,
+                voucher_code=voucher_code,
+            )
+        except TournamentRegistrationEligibilityError as exc:
+            messages.error(request, ' '.join(exc.messages))
+            return redirect('tournament_register_melee', tournament_id=tournament.id)
+        if not created:
+            messages.info(request, "You are already registered for this tournament.")
+            return redirect('tournament_detail', tournament_id=tournament.id)
         if tournament.melee_format == 'tete_a_tete':
             _reg_msg = (
                 f"You are registered for {tournament.name}! "
@@ -1484,7 +1496,15 @@ def tournament_register_api_pin(request, tournament_id):
     # Resolve through the existing Team Sign-in persistence workflow rather
     # than maintaining a parallel TournamentTeam-only registration path.
     from signin.services import activate_team_tournament_signin
-    registration = activate_team_tournament_signin(team=team, tournament=tournament)
+    from .registration_services import TournamentRegistrationEligibilityError
+    try:
+        registration = activate_team_tournament_signin(
+            team=team,
+            tournament=tournament,
+            voucher_code=data.get("voucher_code", ""),
+        )
+    except TournamentRegistrationEligibilityError as exc:
+        return JsonResponse({"error": " ".join(exc.messages)}, status=400)
     tournament_team = registration["tournament_team"]
 
     return JsonResponse({
@@ -1503,6 +1523,7 @@ def tournament_register_api_my_team(request, tournament_id):
 
     Registers the logged-in user's team without exposing the PIN to the client.
     """
+    import json as _json
     from django.http import JsonResponse
     from teams.utils import get_team_info_from_session
     from tournaments.subteam_forms import QuickTeamRegistrationForm
@@ -1510,6 +1531,11 @@ def tournament_register_api_my_team(request, tournament_id):
     tournament = get_object_or_404(Tournament, id=tournament_id)
     if not tournament.is_active:
         return JsonResponse({"error": "Tournament is not accepting registrations."}, status=400)
+
+    try:
+        data = _json.loads(request.body or "{}")
+    except (_json.JSONDecodeError, ValueError):
+        data = {}
 
     team_info = get_team_info_from_session(request)
     if not team_info or not team_info.get("team_pin"):
@@ -1533,7 +1559,15 @@ def tournament_register_api_my_team(request, tournament_id):
     # Resolve through the existing Team Sign-in persistence workflow rather
     # than maintaining a parallel TournamentTeam-only registration path.
     from signin.services import activate_team_tournament_signin
-    registration = activate_team_tournament_signin(team=team, tournament=tournament)
+    from .registration_services import TournamentRegistrationEligibilityError
+    try:
+        registration = activate_team_tournament_signin(
+            team=team,
+            tournament=tournament,
+            voucher_code=data.get("voucher_code", ""),
+        )
+    except TournamentRegistrationEligibilityError as exc:
+        return JsonResponse({"error": " ".join(exc.messages)}, status=400)
     tournament_team = registration["tournament_team"]
 
     return JsonResponse({
@@ -1554,6 +1588,7 @@ def tournament_register_api_qr_team(request, tournament_id):
     existing QR scan), resolves the player's team, and registers it.
     The PIN is never sent to the client.
     """
+    import json as _json
     from django.http import JsonResponse
     from pfc_core.session_utils import CodenameSessionManager
     from teams.models import Team
@@ -1562,6 +1597,11 @@ def tournament_register_api_qr_team(request, tournament_id):
     tournament = get_object_or_404(Tournament, id=tournament_id)
     if not tournament.is_active:
         return JsonResponse({"error": "Tournament is not accepting registrations."}, status=400)
+
+    try:
+        data = _json.loads(request.body or "{}")
+    except (_json.JSONDecodeError, ValueError):
+        data = {}
 
     # Read and pop the codename stored by the QR scan
     codename = request.session.pop("qr_resolved_codename", None)
@@ -1599,7 +1639,15 @@ def tournament_register_api_qr_team(request, tournament_id):
     # Resolve through the existing Team Sign-in persistence workflow rather
     # than maintaining a parallel TournamentTeam-only registration path.
     from signin.services import activate_team_tournament_signin
-    registration = activate_team_tournament_signin(team=team, tournament=tournament)
+    from .registration_services import TournamentRegistrationEligibilityError
+    try:
+        registration = activate_team_tournament_signin(
+            team=team,
+            tournament=tournament,
+            voucher_code=data.get("voucher_code", ""),
+        )
+    except TournamentRegistrationEligibilityError as exc:
+        return JsonResponse({"error": " ".join(exc.messages)}, status=400)
     tournament_team = registration["tournament_team"]
 
     return JsonResponse({

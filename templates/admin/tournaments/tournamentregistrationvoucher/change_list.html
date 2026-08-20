@@ -1,0 +1,8 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:tournaments_tournamentregistrationvoucher_bulk_generate' %}" class="addlink">Bulk generate vouchers</a>
+  </li>
+  {{ block.super }}
+{% endblock %}

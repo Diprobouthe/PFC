@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Q
+from matches.scoreboard_time import get_scoreboard_court_complex, format_score_update_time
 from django.urls import reverse
 import json
 import logging
@@ -101,7 +102,7 @@ def _score_update_payload(score_update):
         'id': score_update.id,
         'team1_score': score_update.team1_score,
         'team2_score': score_update.team2_score,
-        'ts': timezone.localtime(score_update.timestamp).strftime('%H:%M:%S'),
+        'ts': format_score_update_time(score_update.timestamp, score_update.scoreboard),
         'by': display_name,
         'type': score_update.update_type,
     }
@@ -202,16 +203,14 @@ def scoreboard_detail(request, scoreboard_id):
     team1_name = None
     team2_name = None
     
-    # Resolve court complex for timezone-aware timestamp display
-    court_complex = None
+    # Resolve the assigned Court Complex once for display only.
+    court_complex = get_scoreboard_court_complex(scoreboard)
     if scoreboard.tournament_match:
         match_id = scoreboard.tournament_match.id
         team1_id = scoreboard.tournament_match.team1.id
         team2_id = scoreboard.tournament_match.team2.id
         team1_name = scoreboard.tournament_match.team1.name
         team2_name = scoreboard.tournament_match.team2.name
-        if scoreboard.tournament_match.court:
-            court_complex = scoreboard.tournament_match.court.courtcomplex_set.first()
     elif scoreboard.friendly_game:
         match_id = scoreboard.friendly_game.id
         # For friendly games, we'll use the game ID as both team references
@@ -220,7 +219,6 @@ def scoreboard_detail(request, scoreboard_id):
         team2_id = scoreboard.friendly_game.id  # Use game ID as placeholder
         team1_name = scoreboard.get_team1_name()
         team2_name = scoreboard.get_team2_name()
-        court_complex = scoreboard.friendly_game.court_complex
     
     # Resolve which team the current session belongs to (for single submit button).
     # A short-lived Matches-page QR proof has precedence over the phone holder's
@@ -544,12 +542,8 @@ def score_history(request, scoreboard_id):
     if not back_url:
         back_url = reverse('scoreboard_detail', kwargs={'scoreboard_id': scoreboard_id})
 
-    # Resolve court complex for timezone-aware timestamp display
-    court_complex = None
-    if scoreboard.tournament_match and scoreboard.tournament_match.court:
-        court_complex = scoreboard.tournament_match.court.courtcomplex_set.first()
-    elif scoreboard.friendly_game:
-        court_complex = scoreboard.friendly_game.court_complex
+    # Resolve the assigned Court Complex for display only; stored timestamps remain unchanged.
+    court_complex = get_scoreboard_court_complex(scoreboard)
 
     context = {
         'scoreboard': scoreboard,
