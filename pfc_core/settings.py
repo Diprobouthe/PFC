@@ -80,12 +80,6 @@ GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
 GOOGLE_OAUTH_REDIRECT_URI = os.environ.get('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:8000/player-auth/google/callback/')
 
-# Optional PWA Web Push. Leave these empty until valid VAPID values are supplied
-# through Render environment variables; all PFC Push delivery then remains off.
-PFC_WEB_PUSH_VAPID_PUBLIC_KEY = os.environ.get('PFC_WEB_PUSH_VAPID_PUBLIC_KEY', '')
-PFC_WEB_PUSH_VAPID_PRIVATE_KEY = os.environ.get('PFC_WEB_PUSH_VAPID_PRIVATE_KEY', '')
-PFC_WEB_PUSH_VAPID_SUBJECT = os.environ.get('PFC_WEB_PUSH_VAPID_SUBJECT', '')
-
 # Application definition
 
 INSTALLED_APPS = [

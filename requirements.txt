@@ -17,7 +17,6 @@ dj-database-url==2.1.0
 
 # ── Configuration ──────────────────────────────────────────────
 python-decouple==3.8
-pywebpush==2.4.0
 
 # ── Media / Images ─────────────────────────────────────────────
 Pillow==10.1.0

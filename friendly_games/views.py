@@ -510,6 +510,7 @@ def submit_score(request, game_id):
         game.status = 'PENDING_VALIDATION'  # New status for pending validation
         game.save()
         notify_game_state_changed(game.id, game.status)
+        
         # Create FriendlyGameResult for validation process
         from .models import FriendlyGameResult
         result = FriendlyGameResult.objects.create(
@@ -517,15 +518,6 @@ def submit_score(request, game_id):
             submitted_by_team=submitted_by_team,
             submitter_codename=submitter_codename,
             submitter_verified=True  # Already verified above
-        )
-        # The non-submitting side now has the existing validation action.
-        from pfc_events.push_notifications import notify_match_action_required
-        other_team = 'WHITE' if submitted_by_team == 'BLACK' else 'BLACK'
-        notify_match_action_required(
-            list(game.players.filter(team=other_team).values_list('player', flat=True)),
-            "result_validation",
-            "game",
-            game.id,
         )
         
         # Mark the submitting game player as verified
@@ -1028,14 +1020,6 @@ def validate_result(request, game_id):
         # Notify all connected clients that game state changed
         game.refresh_from_db()
         notify_game_state_changed(game.id, game.status)
-        if validation_action == 'disagree' and game.status == 'ACTIVE':
-            from pfc_events.push_notifications import notify_match_action_required
-            notify_match_action_required(
-                list(game.players.select_related('player').values_list('player', flat=True)),
-                "reopened",
-                "game",
-                game.id,
-            )
         # Deactivate presence if game is now COMPLETED
         if game.status == 'COMPLETED':
             deactivate_friendly_game_presence(game)

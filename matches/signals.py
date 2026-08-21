@@ -3,7 +3,6 @@ Django signals for automatic LiveScoreboard creation.
 This ensures that every match gets a live scoreboard without modifying existing logic.
 """
 
-from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Match, LiveScoreboard
@@ -30,28 +29,6 @@ def create_live_scoreboard_for_tournament_match(sender, instance, created, **kwa
         except Exception as e:
             # Log the error but don't let it break match creation
             logger.error(f"Failed to create live scoreboard for tournament match {instance.id}: {e}")
-
-
-@receiver(post_save, sender=Match)
-def notify_new_actionable_match(sender, instance, created, **kwargs):
-    """Broadcast a new pending Match only after its creation commits successfully."""
-    if not created or instance.status != "pending" or not instance.team1_id or not instance.team2_id:
-        return
-
-    match_id = instance.pk
-
-    def deliver():
-        try:
-            from pfc_events.signals import notify_match_state_changed
-            from pfc_events.push_notifications import notify_match_action_required
-            match = Match.objects.select_related("team1", "team2").get(pk=match_id)
-            notify_match_state_changed(match_id, match.status, match=match)
-            players = list(match.team1.players.all()) + list(match.team2.players.all())
-            notify_match_action_required(players, "new_match", "match", match_id)
-        except Exception as exc:
-            logger.warning("Failed to announce new actionable match %s: %s", match_id, exc)
-
-    transaction.on_commit(deliver)
 
 
 # Signal for friendly games - we need to import the model dynamically to avoid circular imports
@@ -116,14 +93,6 @@ def auto_assign_waiting_matches_when_court_available(sender, instance, created, 
                             match.start_time = timezone.now()
                         match.waiting_for_court = False
                         match.save()
-
-                        # This automatic promotion bypasses normal Match views,
-                        # so emit the same post-commit lifecycle broadcast used by
-                        # player-driven state transitions. It is not a Push action.
-                        from pfc_events.signals import notify_match_state_changed
-                        transaction.on_commit(
-                            lambda match_id=match.pk: notify_match_state_changed(match_id, "active")
-                        )
                         
                         # Auto-register players to Billboard when match starts
                         try:
