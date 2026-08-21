@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-21 06:37+0000\n"
+"POT-Creation-Date: 2026-08-21 07:51+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -815,7 +815,9 @@ msgstr "Προαιρετικές ειδοποιήσεις στο τηλέφων�
 #: teams/templates/teams/edit_player_profile.html:590
 msgid ""
 "Receive optional alerts for invitations and when a match needs your action."
-msgstr "Λάβετε προαιρετικές ειδοποιήσεις για προσκλήσεις και όταν ένας αγώνας χρειάζεται τη δική σας ενέργεια."
+msgstr ""
+"Λάβετε προαιρετικές ειδοποιήσεις για προσκλήσεις και όταν ένας αγώνας "
+"χρειάζεται τη δική σας ενέργεια."
 
 #: teams/templates/teams/edit_player_profile.html:478
 msgid "Enable"
@@ -835,7 +837,8 @@ msgstr "Οι ειδοποιήσεις αγώνα θα είναι διαθέσι�
 
 #: teams/templates/teams/edit_player_profile.html:588
 msgid "Notifications are blocked for PFC in this browser."
-msgstr "Οι ειδοποιήσεις για το PFC έχουν αποκλειστεί σε αυτό το πρόγραμμα περιήγησης."
+msgstr ""
+"Οι ειδοποιήσεις για το PFC έχουν αποκλειστεί σε αυτό το πρόγραμμα περιήγησης."
 
 #: teams/templates/teams/edit_player_profile.html:589
 msgid "Match Alerts are enabled on this device."
@@ -844,15 +847,49 @@ msgstr "Οι ειδοποιήσεις αγώνα έχουν ενεργοποιη
 #: teams/templates/teams/edit_player_profile.html:591
 msgid ""
 "Notifications were not enabled. You can allow them in your browser settings."
-msgstr "Οι ειδοποιήσεις δεν ενεργοποιήθηκαν. Μπορείτε να τις επιτρέψετε από τις ρυθμίσεις του προγράμματος περιήγησης."
+msgstr ""
+"Οι ειδοποιήσεις δεν ενεργοποιήθηκαν. Μπορείτε να τις επιτρέψετε από τις "
+"ρυθμίσεις του προγράμματος περιήγησης."
 
 #: teams/templates/teams/edit_player_profile.html:592
 msgid "Could not enable Match Alerts. Please try again."
-msgstr "Δεν ήταν δυνατή η ενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+msgstr ""
+"Δεν ήταν δυνατή η ενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:593
 msgid "Could not disable Match Alerts. Please try again."
-msgstr "Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+msgstr ""
+"Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+
+#: teams/templates/teams/edit_player_profile.html:594
+msgid "Preparing Match Alerts…"
+msgstr "Προετοιμασία ειδοποιήσεων αγώνα…"
+
+#: teams/templates/teams/edit_player_profile.html:595
+msgid "PFC could not confirm your player session. Please sign in again."
+msgstr "Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
+
+#: teams/templates/teams/edit_player_profile.html:596
+msgid "PFC could not start its notification worker. Reload PFC and try again."
+msgstr "Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+
+#: teams/templates/teams/edit_player_profile.html:597
+msgid "PFC could not read Push configuration. Please try again."
+msgstr "Το PFC δεν μπόρεσε να διαβάσει τη ρύθμιση Push. Προσπαθήστε ξανά."
+
+#: teams/templates/teams/edit_player_profile.html:598
+msgid "The server Push key is invalid. Please contact PFC support."
+msgstr "Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την υποστήριξη PFC."
+
+#: teams/templates/teams/edit_player_profile.html:599
+msgid ""
+"The browser could not create a Push subscription. Check that PFC is "
+"installed and notifications are allowed, then try again."
+msgstr "Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι ειδοποιήσεις και προσπαθήστε ξανά."
+
+#: teams/templates/teams/edit_player_profile.html:600
+msgid "Match Alerts are taking too long to start. Reload PFC and try again."
+msgstr "Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
 
 #: teams/templates/teams/pfc_market.html:4
 #: teams/templates/teams/pfc_market.html:253 templates/home.html:498
@@ -1145,36 +1182,37 @@ msgstr "Κατάταξη παικτών"
 msgid "Admin Portal"
 msgstr "Πύλη διαχείρισης"
 
-#: templates/base.html:569
+#: templates/base.html:632
 msgid "New invite from"
 msgstr "Νέα πρόσκληση από"
 
-#: templates/base.html:570
+#: templates/base.html:633
 msgid "someone"
 msgstr "κάποιον"
 
-#: templates/base.html:571
+#: templates/base.html:634
 msgid "Tap to view"
 msgstr "Πατήστε για προβολή"
 
-#: templates/base.html:572
+#: templates/base.html:635
 msgid "A new match is available and requires action from your side."
-msgstr "Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
+msgstr ""
+"Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
 
-#: templates/base.html:573
+#: templates/base.html:636
 msgid "The opposing team has started the match and is waiting for your side."
 msgstr "Η αντίπαλη ομάδα ξεκίνησε τον αγώνα και περιμένει τη δική σου πλευρά."
 
-#: templates/base.html:574
+#: templates/base.html:637
 msgid ""
 "The opposing team submitted a result and is waiting for your validation."
 msgstr "Η αντίπαλη ομάδα υπέβαλε αποτέλεσμα και περιμένει την επιβεβαίωσή σου."
 
-#: templates/base.html:575
+#: templates/base.html:638
 msgid "There is a new action for your match."
 msgstr "Υπάρχει νέα ενέργεια για τον αγώνα σου."
 
-#: templates/base.html:576
+#: templates/base.html:639
 msgid "Tap the central button to continue."
 msgstr "Πάτησε το κεντρικό κουμπί για να συνεχίσεις."
 
