@@ -37,6 +37,7 @@ urlpatterns = [
 
     # Shot Accuracy Tracker API
     path('api/shoot/', include('shooting.urls')),
+    path('api/', include('pfc_events.urls')),
 
     # Shooting Practice Module (v0.1)
     path('practice/', include('practice.urls')),

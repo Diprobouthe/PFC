@@ -450,6 +450,177 @@
     })();
     </script>
 
+    <!-- Optional Match Alerts helper. It never asks for permission until a
+         signed-in player presses the explicit enable control in Edit Profile. -->
+    <script>
+    (function () {
+        'use strict';
+        function cookie(name) {
+            var value = '; ' + document.cookie;
+            var parts = value.split('; ' + name + '=');
+            return parts.length === 2 ? parts.pop().split(';').shift() : '';
+        }
+        function base64UrlToUint8Array(value) {
+            var padding = '='.repeat((4 - value.length % 4) % 4);
+            var base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+            var raw = window.atob(base64);
+            return Uint8Array.from(raw, function (character) { return character.charCodeAt(0); });
+        }
+        function post(url, body) {
+            return fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': cookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(body)
+            }).then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok || !data.ok) throw new Error(data.error || 'Request failed');
+                    return data;
+                });
+            });
+        }
+        function fail(code) {
+            var error = new Error(code);
+            error.code = code;
+            return error;
+        }
+        function timeout(promise, milliseconds, code) {
+            return Promise.race([
+                promise,
+                new Promise(function (_, reject) {
+                    window.setTimeout(function () { reject(fail(code)); }, milliseconds);
+                })
+            ]);
+        }
+        function config() {
+            return timeout(
+                fetch('/api/push/config/', { credentials: 'same-origin' })
+                    .then(function (response) {
+                        return response.json().catch(function () { throw fail('config_invalid_response'); })
+                            .then(function (data) {
+                                if (!response.ok || !data.ok) {
+                                    throw fail(response.status === 401 ? 'not_authenticated' : 'config_failed');
+                                }
+                                return data;
+                            });
+                    }),
+                10000,
+                'config_timeout'
+            );
+        }
+        function registration() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+                return Promise.reject(fail('unsupported'));
+            }
+            // Register again on demand. This is idempotent and prevents an installed
+            // PWA with an old/missing controller from waiting forever on `ready`.
+            return timeout(
+                navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+                    .then(function () { return navigator.serviceWorker.ready; }),
+                12000,
+                'service_worker_timeout'
+            );
+        }
+        function sync(subscription) {
+            if (!subscription) return Promise.resolve({ ok: true });
+            return post('/api/push/subscribe/', subscription.toJSON());
+        }
+        function currentStatus() {
+            return registration().then(function (worker) {
+                return Promise.all([config(), worker.pushManager.getSubscription()]);
+            }).then(function (values) {
+                var pushConfig = values[0];
+                var subscription = values[1];
+                return {
+                    supported: true,
+                    configured: !!pushConfig.enabled,
+                    permission: Notification.permission,
+                    subscribed: !!subscription,
+                    subscription: subscription
+                };
+            }).catch(function (error) {
+                return {
+                    supported: 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window,
+                    configured: false,
+                    permission: 'Notification' in window ? Notification.permission : 'unsupported',
+                    subscribed: false,
+                    error: error && (error.code || error.message) || 'status_failed'
+                };
+            });
+        }
+        function requestPermissionFromGesture() {
+            if (Notification.permission === 'granted') return Promise.resolve('granted');
+            if (Notification.permission === 'denied') return Promise.reject(fail('denied'));
+            // This call intentionally happens immediately inside Enable's click
+            // stack. Some installed-PWA browsers suppress prompts after an async
+            // service-worker/config wait has consumed the user activation.
+            try {
+                return Notification.requestPermission().then(function (permission) {
+                    if (permission !== 'granted') throw fail('denied');
+                    return permission;
+                });
+            } catch (error) {
+                return Promise.reject(error && error.code ? error : fail('permission_failed'));
+            }
+        }
+        function enable() {
+            // Start permission before any await/fetch/service-worker work so this
+            // remains a browser-recognized direct user gesture.
+            var permissionRequest = requestPermissionFromGesture();
+            return permissionRequest.then(function () {
+                return Promise.all([registration(), config()]);
+            }).then(function (values) {
+                var worker = values[0];
+                var pushConfig = values[1];
+                if (!pushConfig.enabled || !pushConfig.public_key) throw fail('not_configured');
+                var applicationServerKey;
+                try {
+                    applicationServerKey = base64UrlToUint8Array(pushConfig.public_key);
+                } catch (error) {
+                    throw fail('invalid_vapid_key');
+                }
+                return worker.pushManager.getSubscription().then(function (existing) {
+                    if (existing) return existing;
+                    return worker.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: applicationServerKey
+                    }).catch(function (error) {
+                        if (error && error.name === 'NotAllowedError') throw fail('denied');
+                        throw error && error.code ? error : fail('subscribe_failed');
+                    });
+                }).then(sync);
+            });
+        }
+        function disable() {
+            return registration().then(function (worker) {
+                return worker.pushManager.getSubscription().then(function (subscription) {
+                    if (!subscription) return { ok: true };
+                    var endpoint = subscription.endpoint;
+                    return subscription.unsubscribe().then(function () {
+                        return post('/api/push/unsubscribe/', { endpoint: endpoint });
+                    });
+                });
+            });
+        }
+        window.PFCMatchAlerts = { status: currentStatus, enable: enable, disable: disable, sync: sync };
+        // Child-template scripts can render before this shared helper. Announce
+        // readiness so controls such as Edit Profile bind their real click handler.
+        window.dispatchEvent(new CustomEvent('pfc:match-alerts-ready'));
+
+        navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'pfc:pushsubscriptionchange') {
+                registration().then(function (worker) {
+                    return worker.pushManager.getSubscription();
+                }).then(sync).catch(function () {});
+            }
+        });
+    })();
+    </script>
+
     <!-- Extra JavaScript Block -->
     {% block extra_js %}{% endblock %}
 
@@ -464,6 +635,11 @@
     {% translate "New invite from" as invite_from_label %}
     {% translate "someone" as invite_someone_label %}
     {% translate "Tap to view" as invite_tap_to_view_label %}
+    {% translate "A new match is available and requires action from your side." as match_alert_new_label %}
+    {% translate "The opposing team has started the match and is waiting for your side." as match_alert_started_label %}
+    {% translate "The opposing team submitted a result and is waiting for your validation." as match_alert_validation_label %}
+    {% translate "There is a new action for your match." as match_alert_generic_label %}
+    {% translate "Tap the central button to continue." as match_alert_continue_label %}
     <!-- Toast container (hidden until an invite arrives) -->
     <div id="pfc-notify-toast" role="alert" aria-live="polite"></div>
     <script>
@@ -474,6 +650,11 @@
         var INVITE_FROM_LABEL = '{{ invite_from_label|escapejs }}';
         var INVITE_SOMEONE_LABEL = '{{ invite_someone_label|escapejs }}';
         var INVITE_TAP_TO_VIEW_LABEL = '{{ invite_tap_to_view_label|escapejs }}';
+        var MATCH_ALERT_NEW_LABEL = '{{ match_alert_new_label|escapejs }}';
+        var MATCH_ALERT_STARTED_LABEL = '{{ match_alert_started_label|escapejs }}';
+        var MATCH_ALERT_VALIDATION_LABEL = '{{ match_alert_validation_label|escapejs }}';
+        var MATCH_ALERT_GENERIC_LABEL = '{{ match_alert_generic_label|escapejs }}';
+        var MATCH_ALERT_CONTINUE_LABEL = '{{ match_alert_continue_label|escapejs }}';
         var FALLBACK_MS = 180000;   // 3-minute slow fallback poll
         var badge       = document.getElementById('pfc-invite-badge');
         var toast       = document.getElementById('pfc-notify-toast');
@@ -493,22 +674,36 @@
         }
 
         // ── Toast helper ─────────────────────────────────────────────
-        function showToast(title, body) {
+        function showToast(title, body, options) {
             if (!toast) return;
+            options = options || {};
+            var icon = options.icon || 'fa-envelope';
             toast.innerHTML =
-                '<div class="pfc-toast-title"><i class="fas fa-envelope me-1"></i>' +
+                '<div class="pfc-toast-title"><i class="fas ' + escHtml(icon) + ' me-1"></i>' +
                 escHtml(title) + '</div>' +
                 '<div class="pfc-toast-body">' + escHtml(body) + '</div>';
             toast.classList.add('pfc-toast-show');
             clearTimeout(toastTimer);
-            // Navigate to invite hub on click
-            toast.onclick = function () {
-                window.location.href = '/invites/';
-            };
+            if (options.url) {
+                toast.style.cursor = 'pointer';
+                toast.onclick = function () { window.location.href = options.url; };
+            } else {
+                // Match action prompts never route or resolve state themselves.
+                toast.style.cursor = 'default';
+                toast.onclick = null;
+            }
             // Auto-dismiss after 6 seconds
             toastTimer = setTimeout(function () {
                 toast.classList.remove('pfc-toast-show');
             }, 6000);
+        }
+
+        function matchActionBody(kind) {
+            var lead = kind === 'new_match' ? MATCH_ALERT_NEW_LABEL
+                : kind === 'opponent_started' ? MATCH_ALERT_STARTED_LABEL
+                : kind === 'result_validation' ? MATCH_ALERT_VALIDATION_LABEL
+                : MATCH_ALERT_GENERIC_LABEL;
+            return lead + ' ' + MATCH_ALERT_CONTINUE_LABEL;
         }
 
         function escHtml(s) {
@@ -565,11 +760,14 @@
                     setBadge(true);
                     showToast(
                         INVITE_FROM_LABEL + ' ' + (msg.sender_name || INVITE_SOMEONE_LABEL),
-                        msg.message || INVITE_TAP_TO_VIEW_LABEL
+                        msg.message || INVITE_TAP_TO_VIEW_LABEL,
+                        { icon: 'fa-envelope', url: '/invites/' }
                     );
                     // If the invite hub is open on this page, tell it to
                     // refresh its inbox without coupling to its internals.
                     document.dispatchEvent(new CustomEvent('pfc:invite.received', { detail: msg }));
+                } else if (msg.type === 'match.action_required') {
+                    showToast('PFC', matchActionBody(msg.event_kind), { icon: 'fa-bell' });
                 }
                 // invite.accepted / invite.rejected / session.ready / session.update
                 // are handled by the hub page's own WS block (see invite_hub.html).

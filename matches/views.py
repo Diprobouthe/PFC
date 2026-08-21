@@ -739,6 +739,16 @@ def match_activate(request, match_id, team_id):
                 match.status = "pending_verification"
                 match.save()
                 notify_match_state_changed(match.id, match.status)
+                # The opposing roster now has the existing activation action.
+                # The notification is a transient prompt only; Smart resolves it.
+                from pfc_events.push_notifications import notify_match_action_required
+                opponent_team = match.team2 if team == match.team1 else match.team1
+                notify_match_action_required(
+                    list(opponent_team.players.all()),
+                    "opponent_started",
+                    "match",
+                    match.id,
+                )
                 messages.success(request, _("Match initiated successfully. Waiting for the other team to validate."))
                 return redirect("match_detail", match_id=match.id)
             elif is_validating:
@@ -931,6 +941,15 @@ def match_submit_result(request, match_id, team_id):
             match.status = "waiting_validation"
             match.save()
             notify_match_state_changed(match.id, match.status)
+            # Only the non-submitting roster now has the existing validation action.
+            from pfc_events.push_notifications import notify_match_action_required
+            opponent_team = match.team2 if team == match.team1 else match.team1
+            notify_match_action_required(
+                list(opponent_team.players.all()),
+                "result_validation",
+                "match",
+                match.id,
+            )
 
             # Deactivate game-generated presence when result is submitted.
             # The match is no longer actively being played — players are in
@@ -1276,6 +1295,8 @@ def match_validate_result(request, match_id, team_id):
                         _next_complex = match.court.courtcomplex_set.first()
                         next_match_to_assign.start_time = get_court_local_now(_next_complex) if _next_complex else timezone.now()
                         next_match_to_assign.save()
+                        # This automatic promotion bypasses normal activation views.
+                        notify_match_state_changed(next_match_to_assign.id, next_match_to_assign.status)
                         
                         # Auto-register players to Billboard when match starts
                         try:
@@ -1297,6 +1318,14 @@ def match_validate_result(request, match_id, team_id):
                 match.team2_score = None
                 match.save()
                 notify_match_state_changed(match.id, match.status)
+                # A disputed result reopens the existing submit-score action.
+                from pfc_events.push_notifications import notify_match_action_required
+                notify_match_action_required(
+                    list(match.team1.players.all()) + list(match.team2.players.all()),
+                    "reopened",
+                    "match",
+                    match.id,
+                )
                 # Re-register presence: the match is active again so players are
                 # back on court.  auto_register_players_to_billboard() deactivates
                 # any stale entry for this game_ref and creates a fresh one with

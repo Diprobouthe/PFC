@@ -871,20 +871,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
         const wsUrl = wsScheme + '://' + window.location.host + '/ws/match/' + MATCH_ID + '/';
-        let ws;
-        try {
-            ws = new WebSocket(wsUrl);
-            ws.onmessage = function(e) {
-                try {
-                    const data = JSON.parse(e.data);
-                    if (data.type === 'match.state_changed') handleStateChange(data);
-                } catch(err) {}
-            };
-            // No onerror/onclose fallback to polling — WS is the only path.
-        } catch(e) {}
+        let ws = null;
+        let reconnectTimer = null;
+        let retryDelay = 1000;
 
+        function connectStateSocket() {
+            if (_redirecting || document.visibilityState === 'hidden') return;
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+            try {
+                ws = new WebSocket(wsUrl);
+                ws.onopen = function() { retryDelay = 1000; };
+                ws.onmessage = function(e) {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.type === 'match.state_changed') handleStateChange(data);
+                    } catch(err) {}
+                };
+                ws.onerror = function() { if (ws) ws.close(); };
+                ws.onclose = function() {
+                    ws = null;
+                    if (_redirecting || document.visibilityState === 'hidden') return;
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(connectStateSocket, retryDelay);
+                    retryDelay = Math.min(retryDelay * 2, 30000);
+                };
+            } catch(e) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectStateSocket, retryDelay);
+                retryDelay = Math.min(retryDelay * 2, 30000);
+            }
+        }
+
+        connectStateSocket();
         document.addEventListener('visibilitychange', function() {
-            if (document.hidden && ws && ws.readyState === WebSocket.OPEN) ws.close();
+            if (document.visibilityState === 'visible') connectStateSocket();
         });
     })();
     {% endif %}

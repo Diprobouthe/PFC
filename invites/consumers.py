@@ -177,3 +177,12 @@ class InviteConsumer(AsyncWebsocketConsumer):
             "accepted_count": event["accepted_count"],
             "target_size":    event["target_size"],
         }))
+
+    async def match_action_required(self, event):
+        """Transient prompt only; Match state remains server-authoritative."""
+        await self.send(text_data=json.dumps({
+            "type": "match.action_required",
+            "event_kind": event.get("event_kind", ""),
+            "object_type": event.get("object_type", ""),
+            "object_id": event.get("object_id"),
+        }))

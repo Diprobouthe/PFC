@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block title %}My Profile · PFC{% endblock %}
 
 {% block content %}
@@ -463,7 +464,23 @@
     </form>
   </div>
 
-  <!-- ⑤ MY BOULES -->
+  <!-- ⑤ MATCH ALERTS -->
+  <div class="ep-row" id="pfc-match-alerts-settings">
+    <div class="ep-label">{% translate "Match Alerts" %}</div>
+    <div class="ep-team-row" style="align-items:flex-start;">
+      <div class="ep-team-left" style="align-items:flex-start;">
+        <i class="fas fa-bell ep-team-icon-box" style="margin-top:2px;"></i>
+        <span style="flex:1;">
+          <strong style="font-size:.9rem;">{% translate "Optional phone alerts" %}</strong>
+          <small id="pfc-match-alerts-status" style="display:block;color:#6c757d;margin-top:2px;">{% translate "Receive optional alerts for invitations and when a match needs your action." %}</small>
+        </span>
+      </div>
+      <button type="button" class="ep-save-btn visible" id="pfc-enable-match-alerts">{% translate "Enable" %}</button>
+      <button type="button" class="ep-transfer-btn" id="pfc-disable-match-alerts" hidden>{% translate "Disable" %}</button>
+    </div>
+  </div>
+
+  <!-- ⑥ MY BOULES -->
   <div class="ep-row">
     <div class="ep-label">My Boules</div>
     <form method="post">
@@ -487,7 +504,7 @@
     </form>
   </div>
 
-  <!-- ⑥ TEAM -->
+  <!-- ⑦ TEAM -->
   <div class="ep-row">
     <div class="ep-label">Team</div>
     <div class="ep-team-row">
@@ -565,6 +582,99 @@ function epToggleTransfer() {
   btn.textContent = isOpen ? 'Cancel' : 'Transfer';
   if (isOpen) panel.querySelector('input[name="new_team_pin"]')?.focus();
 }
+
+{% translate "This browser does not support Match Alerts." as match_alert_unsupported %}
+{% translate "Match Alerts will be available once Push is configured." as match_alert_unconfigured %}
+{% translate "Notifications are blocked for PFC in this browser." as match_alert_blocked %}
+{% translate "Match Alerts are enabled on this device." as match_alert_enabled %}
+{% translate "Receive optional alerts for invitations and when a match needs your action." as match_alert_description %}
+{% translate "Notifications were not enabled. You can allow them in your browser settings." as match_alert_denied %}
+{% translate "Could not enable Match Alerts. Please try again." as match_alert_enable_failed %}
+{% translate "Could not disable Match Alerts. Please try again." as match_alert_disable_failed %}
+{% translate "Preparing Match Alerts…" as match_alert_preparing %}
+{% translate "PFC could not confirm your player session. Please sign in again." as match_alert_not_authenticated %}
+{% translate "PFC could not start its notification worker. Reload PFC and try again." as match_alert_worker_failed %}
+{% translate "PFC could not read Push configuration. Please try again." as match_alert_config_failed %}
+{% translate "The server Push key is invalid. Please contact PFC support." as match_alert_invalid_key %}
+{% translate "The browser could not create a Push subscription. Check that PFC is installed and notifications are allowed, then try again." as match_alert_subscribe_failed %}
+{% translate "Match Alerts are taking too long to start. Reload PFC and try again." as match_alert_timeout %}
+/* ── Optional Match Alerts — permission is requested only by Enable. ── */
+(function() {
+  function initialiseMatchAlerts() {
+  const settings = document.getElementById('pfc-match-alerts-settings');
+  if (!settings || !window.PFCMatchAlerts) return;
+  const enable = document.getElementById('pfc-enable-match-alerts');
+  const disable = document.getElementById('pfc-disable-match-alerts');
+  const status = document.getElementById('pfc-match-alerts-status');
+
+  function show(text, isError) {
+    if (!status) return;
+    status.textContent = text;
+    status.style.color = isError ? '#b42318' : '#6c757d';
+    status.setAttribute('role', isError ? 'alert' : 'status');
+  }
+  function errorText(error) {
+    const code = error && (error.code || error.message) || '';
+    if (code === 'denied') return '{{ match_alert_denied|escapejs }}';
+    if (code === 'not_authenticated') return '{{ match_alert_not_authenticated|escapejs }}';
+    if (code === 'not_configured') return '{{ match_alert_unconfigured|escapejs }}';
+    if (code === 'service_worker_timeout') return '{{ match_alert_worker_failed|escapejs }}';
+    if (code === 'config_timeout' || code === 'config_failed' || code === 'config_invalid_response') return '{{ match_alert_config_failed|escapejs }}';
+    if (code === 'invalid_vapid_key') return '{{ match_alert_invalid_key|escapejs }}';
+    if (code === 'subscribe_failed' || code === 'permission_failed') return '{{ match_alert_subscribe_failed|escapejs }}';
+    return '{{ match_alert_enable_failed|escapejs }}';
+  }
+  function refresh() {
+    window.PFCMatchAlerts.status().then(function(state) {
+      if (!state.supported) {
+        show('{{ match_alert_unsupported|escapejs }}', true);
+        enable.hidden = true; disable.hidden = true; return;
+      }
+      if (state.error) {
+        show(errorText({ code: state.error }), true);
+        enable.hidden = false; disable.hidden = true; return;
+      }
+      if (!state.configured) {
+        show('{{ match_alert_unconfigured|escapejs }}', true);
+        enable.hidden = true; disable.hidden = true; return;
+      }
+      if (state.permission === 'denied') {
+        show('{{ match_alert_blocked|escapejs }}', true);
+        enable.hidden = true; disable.hidden = true; return;
+      }
+      if (state.subscribed) {
+        show('{{ match_alert_enabled|escapejs }}');
+        enable.hidden = true; disable.hidden = false; return;
+      }
+      show('{{ match_alert_description|escapejs }}');
+      enable.hidden = false; disable.hidden = true;
+    });
+  }
+  enable.addEventListener('click', function() {
+    enable.disabled = true;
+    show('{{ match_alert_preparing|escapejs }}');
+    window.PFCMatchAlerts.enable().then(function() {
+      refresh();
+    }).catch(function(error) {
+      show(errorText(error), true);
+    }).finally(function() { enable.disabled = false; });
+  });
+  disable.addEventListener('click', function() {
+    disable.disabled = true;
+    window.PFCMatchAlerts.disable().then(refresh).catch(function() {
+      show('{{ match_alert_disable_failed|escapejs }}');
+    }).finally(function() { disable.disabled = false; });
+  });
+  refresh();
+  }
+  // Child-template scripts render before the base template's shared helper.
+  // Bind after its explicit readiness event instead of silently returning.
+  if (window.PFCMatchAlerts) {
+    initialiseMatchAlerts();
+  } else {
+    window.addEventListener('pfc:match-alerts-ready', initialiseMatchAlerts, { once: true });
+  }
+})();
 
 /* ── Django messages → toasts ── */
 (function() {
