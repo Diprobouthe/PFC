@@ -379,17 +379,24 @@ def reject_invite(request, token):
 
 @require_GET
 def inbox(request):
-    """GET /invites/inbox/ — pending invites for the current player."""
+    """GET /invites/inbox/ — pending actions plus accepted Invitation history."""
     player = _get_current_player(request)
     if not player:
         return JsonResponse({"error": "Not authenticated"}, status=401)
 
+    # Accepted rows retain their original fields in the existing Invitation
+    # model. Keep them in the recipient's Inbox as read-only history, while
+    # declined/expired rows retain the current hidden behavior.
     invites = (
         Invitation.objects
-        .filter(recipient=player, status=Invitation.STATUS_PENDING)
+        .filter(
+            recipient=player,
+            status__in=[Invitation.STATUS_PENDING, Invitation.STATUS_ACCEPTED],
+        )
         .select_related("sender", "play_court", "session")
         .order_by("-created_at")[:50]
     )
+    pending_count = sum(1 for invite in invites if invite.status == Invitation.STATUS_PENDING)
 
     data = []
     for inv in invites:
@@ -399,6 +406,9 @@ def inbox(request):
             "invite_type": inv.invite_type,
             "sender_name": inv.sender.name,
             "message":     inv.message,
+            "play_notes":  inv.play_notes,
+            "status":      inv.status,
+            "responded_at": inv.responded_at.isoformat() if inv.responded_at else None,
             "play_time":   inv.play_time.isoformat() if inv.play_time else None,
             "play_court":  inv.play_court.name if inv.play_court else None,
             "session_id":  inv.session_id,
@@ -406,7 +416,7 @@ def inbox(request):
             "created_at":  inv.created_at.isoformat(),
         })
 
-    return JsonResponse({"invites": data})
+    return JsonResponse({"invites": data, "pending_count": pending_count})
 
 
 # ── Session status (JSON) ─────────────────────────────────────────────────────

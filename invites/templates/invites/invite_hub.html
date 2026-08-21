@@ -356,12 +356,17 @@
 .ih-inbox-list { display: flex; flex-direction: column; gap: 10px; }
 .ih-empty { font-size: 0.85rem; color: #999; text-align: center; padding: 12px 0; }
 
-.ih-invite-card {
-  border: 1.5px solid #e0e8f4;
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: #f9fbfd;
-}
+  .ih-invite-card {
+    border: 1.5px solid #e0e8f4;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #f9fbfd;
+  }
+  .ih-invite-card.accepted {
+    border-color: #b8dfc0;
+    background: #f5fbf6;
+  }
+
 .ih-invite-card-header {
   display: flex;
   justify-content: space-between;
@@ -377,7 +382,18 @@
   background: #e8f0fe;
   color: #1a4fa0;
 }
-.ih-invite-card-type.play { background: #e8f5e9; color: #2e7d32; }
+  .ih-invite-card-type.play { background: #e8f5e9; color: #2e7d32; }
+  .ih-invite-status {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    margin-left: 5px;
+  }
+  .ih-invite-history-note { font-size: 0.78rem; color: #2e7d32; font-weight: 600; }
+
 .ih-invite-card-msg { font-size: 0.85rem; color: #444; margin-bottom: 8px; font-style: italic; }
 .ih-invite-card-meta { font-size: 0.78rem; color: #888; margin-bottom: 10px; }
 .ih-invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -631,15 +647,20 @@
   }
 
   // ── Inbox ──────────────────────────────────────────────────────────
+  {% translate "Accepted" as invitation_accepted_label %}
+  {% translate "Accepted invitation" as invitation_accepted_history_label %}
+  const INVITATION_ACCEPTED_LABEL = '{{ invitation_accepted_label|escapejs }}';
+  const INVITATION_ACCEPTED_HISTORY_LABEL = '{{ invitation_accepted_history_label|escapejs }}';
+
   function loadInbox() {
     fetch("/invites/inbox/")
       .then(r => r.json())
       .then(data => {
         if (data.error) { inboxList.innerHTML = '<div class="ih-empty">Log in to see invites.</div>'; return; }
         const invites = data.invites || [];
-        inboxCount.textContent = invites.length;
+        inboxCount.textContent = data.pending_count != null ? data.pending_count : invites.length;
         if (invites.length === 0) {
-          inboxList.innerHTML = '<div class="ih-empty">No pending invites.</div>';
+          inboxList.innerHTML = '<div class="ih-empty">No invitations.</div>';
           return;
         }
         inboxList.innerHTML = invites.map(inv => buildInviteCard(inv)).join("");
@@ -656,22 +677,29 @@
   function buildInviteCard(inv) {
     const typeLabel = inv.invite_type === "play" ? "Play" : "Team Build";
     const typeCls   = inv.invite_type === "play" ? "play" : "";
+    const isAccepted = inv.status === "accepted";
     let meta = "";
     if (inv.play_time) meta += `<i class="fas fa-clock"></i> ${fmtTime(inv.play_time)}  `;
     if (inv.play_court) meta += `<i class="fas fa-map-marker-alt"></i> ${escHtml(inv.play_court)}  `;
     if (inv.target_size) meta += `<i class="fas fa-users"></i> ${inv.target_size}-player team`;
     return `
-      <div class="ih-invite-card">
+      <div class="ih-invite-card${isAccepted ? " accepted" : ""}">
         <div class="ih-invite-card-header">
           <span class="ih-invite-card-from">${escHtml(inv.sender_name)}</span>
-          <span class="ih-invite-card-type ${typeCls}">${typeLabel}</span>
+          <span>
+            <span class="ih-invite-card-type ${typeCls}">${typeLabel}</span>
+            ${isAccepted ? `<span class="ih-invite-status"><i class="fas fa-check"></i> ${INVITATION_ACCEPTED_LABEL}</span>` : ""}
+          </span>
         </div>
         ${inv.message ? `<div class="ih-invite-card-msg">"${escHtml(inv.message)}"</div>` : ""}
+        ${inv.play_notes ? `<div class="ih-invite-card-meta">${escHtml(inv.play_notes)}</div>` : ""}
         ${meta ? `<div class="ih-invite-card-meta">${meta}</div>` : ""}
-        <div class="ih-invite-actions">
-          <button class="ih-accept-btn" data-token="${inv.token}"><i class="fas fa-check"></i> Accept</button>
-          <button class="ih-reject-btn" data-token="${inv.token}"><i class="fas fa-times"></i> Decline</button>
-        </div>
+        ${isAccepted
+          ? `<div class="ih-invite-history-note"><i class="fas fa-check-circle"></i> ${INVITATION_ACCEPTED_HISTORY_LABEL}</div>`
+          : `<div class="ih-invite-actions">
+              <button class="ih-accept-btn" data-token="${inv.token}"><i class="fas fa-check"></i> Accept</button>
+              <button class="ih-reject-btn" data-token="${inv.token}"><i class="fas fa-times"></i> Decline</button>
+            </div>`}
       </div>`;
   }
 

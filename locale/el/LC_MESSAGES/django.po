@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-21 07:51+0000\n"
+"POT-Creation-Date: 2026-08-21 12:06+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -369,6 +369,14 @@ msgstr ""
 msgid "Match Number: %(match_number)s"
 msgstr "Αριθμός αγώνα: %(match_number)s"
 
+#: invites/templates/invites/invite_hub.html:650 matches/models.py:300
+msgid "Accepted"
+msgstr "Αποδεκτό"
+
+#: invites/templates/invites/invite_hub.html:651
+msgid "Accepted invitation"
+msgstr "Αποδεκτή πρόσκληση"
+
 #: match_tracking/templates/match_tracking/tracking_page.html:4
 #: match_tracking/templates/match_tracking/tracking_page.html:462
 msgid "No score updates recorded yet."
@@ -576,10 +584,6 @@ msgstr "Μεικτή μορφή"
 #: matches/models.py:27
 msgid "Unknown Format"
 msgstr "Άγνωστη μορφή"
-
-#: matches/models.py:300
-msgid "Accepted"
-msgstr "Αποδεκτό"
 
 #: matches/models.py:301
 msgid "Rejected"
@@ -867,11 +871,14 @@ msgstr "Προετοιμασία ειδοποιήσεων αγώνα…"
 
 #: teams/templates/teams/edit_player_profile.html:595
 msgid "PFC could not confirm your player session. Please sign in again."
-msgstr "Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
+msgstr ""
+"Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:596
 msgid "PFC could not start its notification worker. Reload PFC and try again."
-msgstr "Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+msgstr ""
+"Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το "
+"PFC και προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:597
 msgid "PFC could not read Push configuration. Please try again."
@@ -879,17 +886,24 @@ msgstr "Το PFC δεν μπόρεσε να διαβάσει τη ρύθμιση
 
 #: teams/templates/teams/edit_player_profile.html:598
 msgid "The server Push key is invalid. Please contact PFC support."
-msgstr "Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την υποστήριξη PFC."
+msgstr ""
+"Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την "
+"υποστήριξη PFC."
 
 #: teams/templates/teams/edit_player_profile.html:599
 msgid ""
 "The browser could not create a Push subscription. Check that PFC is "
 "installed and notifications are allowed, then try again."
-msgstr "Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι ειδοποιήσεις και προσπαθήστε ξανά."
+msgstr ""
+"Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. "
+"Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι "
+"ειδοποιήσεις και προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:600
 msgid "Match Alerts are taking too long to start. Reload PFC and try again."
-msgstr "Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+msgstr ""
+"Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και "
+"προσπαθήστε ξανά."
 
 #: teams/templates/teams/pfc_market.html:4
 #: teams/templates/teams/pfc_market.html:253 templates/home.html:498
@@ -1182,37 +1196,37 @@ msgstr "Κατάταξη παικτών"
 msgid "Admin Portal"
 msgstr "Πύλη διαχείρισης"
 
-#: templates/base.html:632
+#: templates/base.html:635
 msgid "New invite from"
 msgstr "Νέα πρόσκληση από"
 
-#: templates/base.html:633
+#: templates/base.html:636
 msgid "someone"
 msgstr "κάποιον"
 
-#: templates/base.html:634
+#: templates/base.html:637
 msgid "Tap to view"
 msgstr "Πατήστε για προβολή"
 
-#: templates/base.html:635
+#: templates/base.html:638
 msgid "A new match is available and requires action from your side."
 msgstr ""
 "Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
 
-#: templates/base.html:636
+#: templates/base.html:639
 msgid "The opposing team has started the match and is waiting for your side."
 msgstr "Η αντίπαλη ομάδα ξεκίνησε τον αγώνα και περιμένει τη δική σου πλευρά."
 
-#: templates/base.html:637
+#: templates/base.html:640
 msgid ""
 "The opposing team submitted a result and is waiting for your validation."
 msgstr "Η αντίπαλη ομάδα υπέβαλε αποτέλεσμα και περιμένει την επιβεβαίωσή σου."
 
-#: templates/base.html:638
+#: templates/base.html:641
 msgid "There is a new action for your match."
 msgstr "Υπάρχει νέα ενέργεια για τον αγώνα σου."
 
-#: templates/base.html:639
+#: templates/base.html:642
 msgid "Tap the central button to continue."
 msgstr "Πάτησε το κεντρικό κουμπί για να συνεχίσεις."
 
