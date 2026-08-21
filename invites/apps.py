@@ -5,3 +5,6 @@ class InvitesConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "invites"
     verbose_name = "PFC Invitations"
+
+    def ready(self):
+        import invites.signals  # noqa: F401

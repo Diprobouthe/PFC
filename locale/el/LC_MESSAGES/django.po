@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-16 10:34+0000\n"
+"POT-Creation-Date: 2026-08-21 06:37+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -134,7 +134,7 @@ msgstr "Σουτέρ"
 msgid "Pointeur"
 msgstr "Ποντέρ"
 
-#: friendly_games/models.py:397 matches/views.py:845
+#: friendly_games/models.py:397 matches/views.py:855
 #: templates/matches/match_activate.html:337
 #: templates/matches/match_activate.html:367
 msgid "Milieu"
@@ -187,7 +187,8 @@ msgstr "Αποχώρηση από τον αγώνα"
 
 #: friendly_games/templates/friendly_games/game_detail.html:392
 msgid "Joined the wrong side? Leave and re-join on the correct team."
-msgstr "Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
+msgstr ""
+"Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
 
 #: friendly_games/templates/friendly_games/game_detail.html:396
 #: friendly_games/templates/friendly_games/submit_score_list.html:27
@@ -236,7 +237,7 @@ msgid "Rematch"
 msgstr "Επαναληπτικός αγώνας"
 
 #: friendly_games/templates/friendly_games/game_detail.html:466
-#: templates/base.html:224 templates/home.html:4
+#: templates/base.html:231 templates/home.html:4
 #: templates/pfc_core/my_matches.html:155
 msgid "Home"
 msgstr "Αρχική"
@@ -348,7 +349,9 @@ msgstr "Πίσω στην αρχική"
 msgid ""
 "Friendly game \"%(game_name)s\" created successfully with %(total_players)s "
 "players!"
-msgstr "Ο φιλικός αγώνας \"%(game_name)s\" δημιουργήθηκε επιτυχώς με %(total_players)s παίκτες!"
+msgstr ""
+"Ο φιλικός αγώνας \"%(game_name)s\" δημιουργήθηκε επιτυχώς με "
+"%(total_players)s παίκτες!"
 
 #: friendly_games/views.py:297
 #, python-format
@@ -358,7 +361,8 @@ msgstr "Ο δημιουργός επιβεβαιώθηκε ως %(player_name)s.
 #: friendly_games/views.py:301
 #, python-format
 msgid "Creator codename \"%(codename)s\" not found - no validation."
-msgstr "Ο κωδικός δημιουργού \"%(codename)s\" δεν βρέθηκε — δεν έγινε επιβεβαίωση."
+msgstr ""
+"Ο κωδικός δημιουργού \"%(codename)s\" δεν βρέθηκε — δεν έγινε επιβεβαίωση."
 
 #: friendly_games/views.py:305
 #, python-format
@@ -411,7 +415,9 @@ msgstr "Απέτυχε"
 msgid ""
 "End this Match Tracking session? QR permissions and active shooting/pointing "
 "sessions will be closed."
-msgstr "Να τερματιστεί αυτή η συνεδρία παρακολούθησης αγώνα; Οι άδειες QR και οι ενεργές συνεδρίες βολών/πόντων θα κλείσουν."
+msgstr ""
+"Να τερματιστεί αυτή η συνεδρία παρακολούθησης αγώνα; Οι άδειες QR και οι "
+"ενεργές συνεδρίες βολών/πόντων θα κλείσουν."
 
 #: match_tracking/templates/match_tracking/tracking_page.html:15
 msgid "Could not end tracking"
@@ -441,14 +447,15 @@ msgid "Submit one completed end"
 msgstr "Υποβολή ενός ολοκληρωμένου γύρου"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:259
-#: signin/templates/signin/tournament_signin.html:128 templates/home.html:360
+#: signin/templates/signin/tournament_signin.html:145 templates/home.html:360
 #: templates/home.html:366 templates/partials/qr_scanner_modal.html:178
 msgid "Scan Player QR"
 msgstr "Σάρωση QR παίκτη"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:266
 msgid "Scan a player QR code to enable controls."
-msgstr "Σαρώστε τον κωδικό QR ενός παίκτη για να ενεργοποιηθούν τα χειριστήρια."
+msgstr ""
+"Σαρώστε τον κωδικό QR ενός παίκτη για να ενεργοποιηθούν τα χειριστήρια."
 
 #: match_tracking/templates/match_tracking/tracking_page.html:310
 #: match_tracking/templates/match_tracking/tracking_page.html:394
@@ -518,7 +525,8 @@ msgstr "Εξαγωγή PDF"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:386
 msgid "End this tracking period and revoke all QR authorizations"
-msgstr "Τερματισμός της περιόδου παρακολούθησης και ανάκληση όλων των αδειών QR"
+msgstr ""
+"Τερματισμός της περιόδου παρακολούθησης και ανάκληση όλων των αδειών QR"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:387
 msgid "End Session"
@@ -627,26 +635,29 @@ msgstr "Ο αγώνας σας περιμένει να γίνει διαθέσι
 msgid "No court has been assigned to your match yet."
 msgstr "Δεν έχει ανατεθεί ακόμη γήπεδο στον αγώνα σας."
 
-#: matches/views.py:447 matches/views.py:855 matches/views.py:976
+#: matches/views.py:447 matches/views.py:865 matches/views.py:995
 msgid "This team is not part of this match."
 msgstr "Αυτή η ομάδα δεν συμμετέχει σε αυτόν τον αγώνα."
 
-#: matches/views.py:742
+#: matches/views.py:752
 msgid "Match initiated successfully. Waiting for the other team to validate."
-msgstr "Ο αγώνας ξεκίνησε επιτυχώς. Αναμονή για επιβεβαίωση από την άλλη ομάδα."
+msgstr ""
+"Ο αγώνας ξεκίνησε επιτυχώς. Αναμονή για επιβεβαίωση από την άλλη ομάδα."
 
-#: matches/views.py:763
+#: matches/views.py:773
 #, python-format
 msgid "Match validated and activated! %(status)s"
 msgstr "Ο αγώνας επιβεβαιώθηκε και ενεργοποιήθηκε! %(status)s"
 
-#: matches/views.py:777
+#: matches/views.py:787
 msgid ""
 "Match validated successfully. No court is currently available — the match "
 "will start automatically as soon as a court becomes free."
-msgstr "Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπάρχει διαθέσιμο γήπεδο· θα ξεκινήσει αυτόματα μόλις ελευθερωθεί γήπεδο."
+msgstr ""
+"Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπάρχει διαθέσιμο γήπεδο· θα ξεκινήσει "
+"αυτόματα μόλις ελευθερωθεί γήπεδο."
 
-#: matches/views.py:844 teams/templates/teams/player_leaderboard.html:410
+#: matches/views.py:854 teams/templates/teams/player_leaderboard.html:410
 #: templates/matches/match_activate.html:336
 #: templates/matches/match_activate.html:366
 #: templates/matches/scoreboard_embed.html:248
@@ -656,16 +667,16 @@ msgstr "Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπ
 msgid "Pointer"
 msgstr "Πλασέ"
 
-#: matches/views.py:846 templates/matches/match_activate.html:338
+#: matches/views.py:856 templates/matches/match_activate.html:338
 #: templates/matches/match_activate.html:368
 msgid "Shooter"
 msgstr "Σουτέρ"
 
-#: matches/views.py:880
+#: matches/views.py:890
 msgid "You are not authorised to submit results for this team."
 msgstr "Δεν έχετε άδεια να υποβάλετε αποτέλεσμα για αυτή την ομάδα."
 
-#: matches/views.py:1010
+#: matches/views.py:1029
 msgid "You are not authorised to validate results for this team."
 msgstr "Δεν έχετε άδεια να επιβεβαιώσετε αποτέλεσμα για αυτή την ομάδα."
 
@@ -749,7 +760,8 @@ msgstr "Δεν ήταν δυνατός ο προσδιορισμός του σα
 #: pfc_core/smart_router.py:612
 #, python-format
 msgid "%(player_name)s has no current actionable match or game."
-msgstr "Ο παίκτης %(player_name)s δεν έχει τρέχοντα αγώνα με διαθέσιμη ενέργεια."
+msgstr ""
+"Ο παίκτης %(player_name)s δεν έχει τρέχοντα αγώνα με διαθέσιμη ενέργεια."
 
 #: pfc_core/smart_router.py:664 templates/home.html:298
 msgid "No team"
@@ -759,7 +771,7 @@ msgstr "Χωρίς ομάδα"
 msgid "No active matches"
 msgstr "Δεν υπάρχουν ενεργοί αγώνες"
 
-#: signin/services.py:23
+#: signin/services.py:24
 msgid "A VS tournament accepts exactly two teams."
 msgstr "Ένα τουρνουά VS δέχεται ακριβώς δύο ομάδες."
 
@@ -769,27 +781,78 @@ msgstr "Ένα τουρνουά VS δέχεται ακριβώς δύο ομάδ
 msgid "Join Tournament"
 msgstr "Εγγραφή σε τουρνουά"
 
-#: signin/templates/signin/tournament_signin.html:98
-#: signin/templates/signin/tournament_signin.html:106
-#: signin/templates/signin/tournament_signin.html:111
+#: signin/templates/signin/tournament_signin.html:115
+#: signin/templates/signin/tournament_signin.html:123
+#: signin/templates/signin/tournament_signin.html:128
 msgid "Register My Team"
 msgstr "Εγγραφή της ομάδας μου"
 
-#: signin/templates/signin/tournament_signin.html:121
+#: signin/templates/signin/tournament_signin.html:138
 msgid "Register Other Team"
 msgstr "Εγγραφή άλλης ομάδας"
 
-#: signin/templates/signin/tournament_signin.html:139
+#: signin/templates/signin/tournament_signin.html:156
 msgid "Advanced Registration Options"
 msgstr "Προηγμένες επιλογές εγγραφής"
 
-#: signin/templates/signin/tournament_signin.html:144
+#: signin/templates/signin/tournament_signin.html:161
 msgid "Enter Team PIN"
 msgstr "Εισαγωγή PIN ομάδας"
 
-#: signin/templates/signin/tournament_signin.html:152
+#: signin/templates/signin/tournament_signin.html:169
 msgid "Register"
 msgstr "Εγγραφή"
+
+#: teams/templates/teams/edit_player_profile.html:469
+msgid "Match Alerts"
+msgstr "Ειδοποιήσεις αγώνα"
+
+#: teams/templates/teams/edit_player_profile.html:474
+msgid "Optional phone alerts"
+msgstr "Προαιρετικές ειδοποιήσεις στο τηλέφωνο"
+
+#: teams/templates/teams/edit_player_profile.html:475
+#: teams/templates/teams/edit_player_profile.html:590
+msgid ""
+"Receive optional alerts for invitations and when a match needs your action."
+msgstr "Λάβετε προαιρετικές ειδοποιήσεις για προσκλήσεις και όταν ένας αγώνας χρειάζεται τη δική σας ενέργεια."
+
+#: teams/templates/teams/edit_player_profile.html:478
+msgid "Enable"
+msgstr "Ενεργοποίηση"
+
+#: teams/templates/teams/edit_player_profile.html:479
+msgid "Disable"
+msgstr "Απενεργοποίηση"
+
+#: teams/templates/teams/edit_player_profile.html:586
+msgid "This browser does not support Match Alerts."
+msgstr "Αυτό το πρόγραμμα περιήγησης δεν υποστηρίζει ειδοποιήσεις αγώνα."
+
+#: teams/templates/teams/edit_player_profile.html:587
+msgid "Match Alerts will be available once Push is configured."
+msgstr "Οι ειδοποιήσεις αγώνα θα είναι διαθέσιμες μόλις ρυθμιστεί το Push."
+
+#: teams/templates/teams/edit_player_profile.html:588
+msgid "Notifications are blocked for PFC in this browser."
+msgstr "Οι ειδοποιήσεις για το PFC έχουν αποκλειστεί σε αυτό το πρόγραμμα περιήγησης."
+
+#: teams/templates/teams/edit_player_profile.html:589
+msgid "Match Alerts are enabled on this device."
+msgstr "Οι ειδοποιήσεις αγώνα έχουν ενεργοποιηθεί σε αυτή τη συσκευή."
+
+#: teams/templates/teams/edit_player_profile.html:591
+msgid ""
+"Notifications were not enabled. You can allow them in your browser settings."
+msgstr "Οι ειδοποιήσεις δεν ενεργοποιήθηκαν. Μπορείτε να τις επιτρέψετε από τις ρυθμίσεις του προγράμματος περιήγησης."
+
+#: teams/templates/teams/edit_player_profile.html:592
+msgid "Could not enable Match Alerts. Please try again."
+msgstr "Δεν ήταν δυνατή η ενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+
+#: teams/templates/teams/edit_player_profile.html:593
+msgid "Could not disable Match Alerts. Please try again."
+msgstr "Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
 
 #: teams/templates/teams/pfc_market.html:4
 #: teams/templates/teams/pfc_market.html:253 templates/home.html:498
@@ -975,120 +1038,145 @@ msgstr[1] "%(count)s αγώνες"
 msgid "No Team"
 msgstr "Χωρίς ομάδες:"
 
-#: templates/base.html:231 templates/home.html:350 templates/home.html:354
+#: templates/base.html:238 templates/home.html:350 templates/home.html:354
 #: templates/pfc_core/my_matches.html:4 templates/pfc_core/my_matches.html:12
 msgid "My Matches"
 msgstr "Οι αγώνες μου"
 
-#: templates/base.html:239
+#: templates/base.html:246
 msgid "Invitations"
 msgstr "Προσκλήσεις"
 
-#: templates/base.html:256
+#: templates/base.html:263
 msgid "Language"
 msgstr "Γλώσσα"
 
-#: templates/base.html:266
+#: templates/base.html:274
+msgid "Install PFC"
+msgstr "Εγκατάσταση PFC"
+
+#: templates/base.html:280
 msgid "Live Scores"
 msgstr "Ζωντανά σκορ"
 
-#: templates/base.html:278
+#: templates/base.html:292
 msgid "Player Session"
 msgstr "Συνεδρία παίκτη"
 
-#: templates/base.html:279
+#: templates/base.html:293
 msgid "Logged in as:"
 msgstr "Συνδεδεμένος ως:"
 
-#: templates/base.html:283
+#: templates/base.html:297
 msgid "View Profile"
 msgstr "Προβολή προφίλ"
 
-#: templates/base.html:288
+#: templates/base.html:302
 msgid "Logout Player"
 msgstr "Αποσύνδεση παίκτη"
 
-#: templates/base.html:295
+#: templates/base.html:309
 msgid "Sign In"
 msgstr "Σύνδεση"
 
-#: templates/base.html:308
+#: templates/base.html:322
 msgid "Team Session"
 msgstr "Συνεδρία ομάδας"
 
-#: templates/base.html:309
+#: templates/base.html:323
 msgid "Team:"
 msgstr "Ομάδα:"
 
-#: templates/base.html:310
+#: templates/base.html:324
 msgid "PIN:"
 msgstr "PIN:"
 
-#: templates/base.html:314
+#: templates/base.html:328
 msgid "Logout Team"
 msgstr "Αποσύνδεση ομάδας"
 
-#: templates/base.html:321
+#: templates/base.html:335
 msgid "Admin"
 msgstr "Διαχείριση"
 
-#: templates/base.html:338
+#: templates/base.html:352
 msgid "Close"
 msgstr "Κλείσιμο"
 
-#: templates/base.html:353
+#: templates/base.html:367
 msgid "Organizing petanque, connecting community"
 msgstr "Οργανώνουμε το pétanque, συνδέουμε την κοινότητα"
 
-#: templates/base.html:356
+#: templates/base.html:370
 msgid "Quick Links"
 msgstr "Γρήγοροι σύνδεσμοι"
 
-#: templates/base.html:358 templates/home.html:418
+#: templates/base.html:372 templates/home.html:418
 #: templates/tournaments/tournament_list.html:4
 #: templates/tournaments/tournament_list.html:182
 msgid "Tournaments"
 msgstr "Τουρνουά"
 
-#: templates/base.html:359 templates/home.html:473
+#: templates/base.html:373 templates/home.html:473
 #: templates/matches/match_detail.html:696 templates/matches/match_list.html:4
 #: templates/tournaments/vs_encounter_detail.html:40
 msgid "Matches"
 msgstr "Αγώνες"
 
-#: templates/base.html:360 templates/home.html:495
+#: templates/base.html:374 templates/home.html:495
 #: templates/teams/team_list.html:4 templates/teams/team_list.html:11
 msgid "Teams"
 msgstr "Ομάδες"
 
-#: templates/base.html:361
+#: templates/base.html:375
 msgctxt "petanque playing areas navigation"
 msgid "Courts"
 msgstr "Γήπεδα"
 
-#: templates/base.html:365
+#: templates/base.html:379
 msgid "Players & Admin"
 msgstr "Παίκτες και διαχείριση"
 
-#: templates/base.html:367
+#: templates/base.html:381
 msgid "Player Leaderboard"
 msgstr "Κατάταξη παικτών"
 
-#: templates/base.html:368
+#: templates/base.html:382
 msgid "Admin Portal"
 msgstr "Πύλη διαχείρισης"
 
-#: templates/base.html:404
+#: templates/base.html:569
 msgid "New invite from"
 msgstr "Νέα πρόσκληση από"
 
-#: templates/base.html:405
+#: templates/base.html:570
 msgid "someone"
 msgstr "κάποιον"
 
-#: templates/base.html:406
+#: templates/base.html:571
 msgid "Tap to view"
 msgstr "Πατήστε για προβολή"
+
+#: templates/base.html:572
+msgid "A new match is available and requires action from your side."
+msgstr "Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
+
+#: templates/base.html:573
+msgid "The opposing team has started the match and is waiting for your side."
+msgstr "Η αντίπαλη ομάδα ξεκίνησε τον αγώνα και περιμένει τη δική σου πλευρά."
+
+#: templates/base.html:574
+msgid ""
+"The opposing team submitted a result and is waiting for your validation."
+msgstr "Η αντίπαλη ομάδα υπέβαλε αποτέλεσμα και περιμένει την επιβεβαίωσή σου."
+
+#: templates/base.html:575
+msgid "There is a new action for your match."
+msgstr "Υπάρχει νέα ενέργεια για τον αγώνα σου."
+
+#: templates/base.html:576
+msgid "Tap the central button to continue."
+msgstr "Πάτησε το κεντρικό κουμπί για να συνεχίσεις."
 
 #: templates/courts/court_list.html:4 templates/courts/court_list.html:10
 msgctxt "petanque playing areas page"
@@ -1493,13 +1581,17 @@ msgstr "Επιβεβαίωση — Διαφωνώ"
 msgid ""
 "Confirm that you agree with the submitted score? The match will be marked as "
 "completed."
-msgstr "Επιβεβαιώνετε ότι συμφωνείτε με το υποβληθέν σκορ; Ο αγώνας θα σημειωθεί ως ολοκληρωμένος."
+msgstr ""
+"Επιβεβαιώνετε ότι συμφωνείτε με το υποβληθέν σκορ; Ο αγώνας θα σημειωθεί ως "
+"ολοκληρωμένος."
 
 #: templates/matches/match_validate_result.html:6
 msgid ""
 "Confirm that you disagree with the submitted score? The result will be "
 "cleared for resubmission."
-msgstr "Επιβεβαιώνετε ότι διαφωνείτε με το υποβληθέν σκορ; Το αποτέλεσμα θα εκκαθαριστεί για νέα υποβολή."
+msgstr ""
+"Επιβεβαιώνετε ότι διαφωνείτε με το υποβληθέν σκορ; Το αποτέλεσμα θα "
+"εκκαθαριστεί για νέα υποβολή."
 
 #: templates/matches/match_validate_result.html:302
 msgid "Match Evidence"
@@ -1532,7 +1624,9 @@ msgstr "Διαφωνώ"
 msgid ""
 "Scan a QR card from a player of %(team_name)s to confirm their identity, "
 "then choose Agree or Disagree."
-msgstr "Σαρώστε την κάρτα QR ενός παίκτη της ομάδας %(team_name)s για επιβεβαίωση ταυτότητας και επιλέξτε Συμφωνώ ή Διαφωνώ."
+msgstr ""
+"Σαρώστε την κάρτα QR ενός παίκτη της ομάδας %(team_name)s για επιβεβαίωση "
+"ταυτότητας και επιλέξτε Συμφωνώ ή Διαφωνώ."
 
 #: templates/matches/match_validate_result.html:390
 msgid "Select a decision"
@@ -1634,7 +1728,8 @@ msgstr "Στρέψτε την κάμερα σε μια κάρτα QR παίκτ�
 
 #: templates/partials/qr_scanner_modal.html:13
 msgid "Camera access denied. Please allow camera access."
-msgstr "Η πρόσβαση στην κάμερα δεν επιτράπηκε. Επιτρέψτε την πρόσβαση στην κάμερα."
+msgstr ""
+"Η πρόσβαση στην κάμερα δεν επιτράπηκε. Επιτρέψτε την πρόσβαση στην κάμερα."
 
 #: templates/partials/qr_scanner_modal.html:14
 msgid "Configuration error: resolve URL not set."
@@ -1700,7 +1795,8 @@ msgstr "Δεν έχετε συνδεθεί:"
 
 #: templates/pfc_core/my_matches.html:21
 msgid "Please log in with your player codename to see your active matches."
-msgstr "Συνδεθείτε με τον κωδικό παίκτη σας για να δείτε τους ενεργούς αγώνες σας."
+msgstr ""
+"Συνδεθείτε με τον κωδικό παίκτη σας για να δείτε τους ενεργούς αγώνες σας."
 
 #: templates/pfc_core/my_matches.html:24
 msgid "Login with Codename"
@@ -1714,7 +1810,9 @@ msgstr "Χωρίς ομάδες:"
 msgid ""
 "You're not currently a member of any team. Join or create a team to "
 "participate in matches!"
-msgstr "Δεν είστε μέλος κάποιας ομάδας. Συμμετάσχετε ή δημιουργήστε ομάδα για να παίξετε σε αγώνες!"
+msgstr ""
+"Δεν είστε μέλος κάποιας ομάδας. Συμμετάσχετε ή δημιουργήστε ομάδα για να "
+"παίξετε σε αγώνες!"
 
 #: templates/pfc_core/my_matches.html:41
 msgid "All Clear!"
@@ -1864,6 +1962,28 @@ msgstr "Οι αγώνες θα δημιουργηθούν όταν εγγραφ�
 msgid "Back to Tournament"
 msgstr "Πίσω στο τουρνουά"
 
-#: templates/base.html
-msgid "Install PFC"
-msgstr "Εγκατάσταση PFC"
+#: tournaments/registration_services.py:21
+msgid "Tournament is not accepting registrations."
+msgstr ""
+
+#: tournaments/registration_services.py:22
+#, fuzzy
+#| msgid "Tournaments"
+msgid "Tournament is full."
+msgstr "Τουρνουά"
+
+#: tournaments/registration_services.py:23
+msgid "A valid tournament voucher is required to register."
+msgstr ""
+
+#: tournaments/registration_services.py:24
+msgid "This tournament voucher is invalid, expired, inactive, or fully used."
+msgstr ""
+
+#: tournaments/registration_services.py:25
+msgid "Registration is closed. Teams have already been generated."
+msgstr ""
+
+#: tournaments/registration_services.py:104
+msgid "This tournament is not configured for Mêlée mode."
+msgstr ""

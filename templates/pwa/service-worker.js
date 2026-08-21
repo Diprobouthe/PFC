@@ -83,3 +83,64 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// Optional Web Push. Push payloads are prompts only: they contain no
+// authoritative Match state and notification clicks only focus/open PFC root.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (error) { data = {}; }
+  const body = String(data.body || '');
+  const title = String(data.title || 'PFC');
+  const tag = String(data.tag || 'pfc-notification');
+  const requestedUrl = String(data.url || '/');
+  const target = new URL(requestedUrl, self.location.origin);
+  const safeUrl = target.origin === self.location.origin ? target.pathname + target.search : '/';
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '{% static "pwa/pfc-icon-192.png" %}',
+      badge: '{% static "pwa/pfc-icon-192.png" %}',
+      tag,
+      renotify: false,
+      data: { url: safeUrl },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = new URL(
+    (event.notification.data && event.notification.data.url) || '/',
+    self.location.origin
+  ).href;
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === targetUrl && 'focus' in client) return client.focus();
+      }
+      for (const client of clientList) {
+        if (!client.url.startsWith(self.location.origin)) continue;
+        if ('navigate' in client && 'focus' in client) {
+          return client.navigate(targetUrl).then(function () { return client.focus(); });
+        }
+        if ('focus' in client) return client.focus();
+      }
+      return clients.openWindow ? clients.openWindow(targetUrl) : undefined;
+    })
+  );
+});
+
+// The browser can invalidate a subscription while PFC is closed. The worker
+// cannot safely use a CSRF-protected account endpoint on its own, so it asks an
+// open PFC page to refresh the existing opt-in without requesting permission.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      clientList.forEach((client) => client.postMessage({
+        type: 'pfc:pushsubscriptionchange',
+      }));
+    })
+  );
+});
