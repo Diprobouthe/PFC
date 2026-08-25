@@ -409,6 +409,44 @@ def inbox(request):
     return JsonResponse({"invites": data})
 
 
+# ── Accepted Invitation history (JSON) ───────────────────────────────────────
+
+@require_GET
+def accepted_history(request):
+    """GET /invites/history/ — read-only accepted Invitation history."""
+    player = _get_current_player(request)
+    if not player:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    # This is intentionally a separate response from /inbox/. The shared
+    # notification badge and pending-action flow continue to consume only the
+    # existing pending Invitation endpoint.
+    invitations = (
+        Invitation.objects
+        .filter(recipient=player, status=Invitation.STATUS_ACCEPTED)
+        .select_related("sender", "play_court", "session")
+        .order_by("-responded_at", "-created_at")[:50]
+    )
+
+    data = []
+    for inv in invitations:
+        data.append({
+            "id":           inv.pk,
+            "invite_type":  inv.invite_type,
+            "sender_name":  inv.sender.name,
+            "message":      inv.message,
+            "play_notes":   inv.play_notes,
+            "play_time":    inv.play_time.isoformat() if inv.play_time else None,
+            "play_court":   inv.play_court.name if inv.play_court else None,
+            "session_id":   inv.session_id,
+            "target_size":  inv.session.target_size if inv.session else None,
+            "created_at":   inv.created_at.isoformat(),
+            "responded_at": inv.responded_at.isoformat() if inv.responded_at else None,
+        })
+
+    return JsonResponse({"invitations": data})
+
+
 # ── Session status (JSON) ─────────────────────────────────────────────────────
 
 @require_GET

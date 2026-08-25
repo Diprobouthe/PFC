@@ -98,7 +98,7 @@ class BillboardEntry(models.Model):
         default=False,
         help_text="If True, the player is counted as verified-present but their name is not shown publicly."
     )
-    
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Billboard Entry"

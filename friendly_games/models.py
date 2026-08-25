@@ -144,6 +144,16 @@ class FriendlyGame(models.Model):
         help_text='Player who created this game (only they can start it)',
     )
 
+    # The side selected at random when the Friendly Game begins. This is display
+    # and notification context only; it does not alter score or result rules.
+    starting_team = models.CharField(
+        max_length=10,
+        choices=[('BLACK', _('Black Team')), ('WHITE', _('White Team'))],
+        blank=True,
+        default='',
+        help_text='Side selected at random to start the Friendly Game',
+    )
+
     # ── Court assignment ─────────────────────────────────────────────────────
     court_complex = models.ForeignKey(
         CourtComplex,

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-21 07:51+0000\n"
+"POT-Creation-Date: 2026-08-25 19:24+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -17,8 +17,40 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: billboard/templates/billboard/billboard_list.html:91
+msgid "Show my name"
+msgstr "Εμφάνιση του ονόματός μου"
+
+#: billboard/templates/billboard/billboard_list.html:93
+msgid "Your presence is still verified either way"
+msgstr "Η παρουσία σας παραμένει επιβεβαιωμένη σε κάθε περίπτωση"
+
+#: billboard/templates/billboard/billboard_list.html:98
+msgid "Available for Friendly"
+msgstr "Διαθέσιμος για φιλικό"
+
+#: billboard/templates/billboard/billboard_list.html:99
+msgid ""
+"This saved preference applies only while I am currently here at a Court "
+"Complex."
+msgstr ""
+"Η αποθηκευμένη προτίμηση ισχύει μόνο όταν βρίσκομαι τώρα σε Εγκαταστάσεις."
+
+#: billboard/templates/billboard/billboard_list.html:443
+msgid "Available for Friendly preference saved."
+msgstr "Η προτίμηση «Διαθέσιμος για φιλικό» αποθηκεύτηκε."
+
+#: billboard/templates/billboard/billboard_list.html:443
+msgid "Available for Friendly preference turned off."
+msgstr "Η προτίμηση «Διαθέσιμος για φιλικό» απενεργοποιήθηκε."
+
+#: billboard/templates/billboard/billboard_list.html:444
+#: billboard/templates/billboard/billboard_list.html:445
+msgid "Unable to update Friendly availability."
+msgstr "Δεν ήταν δυνατή η ενημέρωση της διαθεσιμότητας για φιλικό."
+
 #: courts/templates/courts/court_complex_list.html:4
-#: courts/templates/courts/court_complex_list.html:10 templates/home.html:501
+#: courts/templates/courts/court_complex_list.html:10 templates/home.html:622
 msgctxt "petanque venue complex"
 msgid "Court Complex"
 msgstr "Εγκαταστάσεις"
@@ -76,7 +108,7 @@ msgid "Pending Validation"
 msgstr "Σε αναμονή επιβεβαίωσης"
 
 #: friendly_games/models.py:75
-#: match_tracking/templates/match_tracking/tracking_page.html:212
+#: match_tracking/templates/match_tracking/tracking_page.html:225
 #: matches/models.py:18 templates/matches/match_detail.html:321
 msgid "Completed"
 msgstr "Ολοκληρώθηκε"
@@ -102,10 +134,11 @@ msgstr "Μερικώς επιβεβαιωμένο"
 msgid "Fully Validated"
 msgstr "Πλήρως επιβεβαιωμένο"
 
-#: friendly_games/models.py:390 friendly_games/models.py:536
-#: friendly_games/models.py:543
-#: friendly_games/templates/friendly_games/game_detail.html:422
-#: friendly_games/templates/friendly_games/game_detail.html:424
+#: friendly_games/models.py:151 friendly_games/models.py:400
+#: friendly_games/models.py:546 friendly_games/models.py:553
+#: friendly_games/templates/friendly_games/game_detail.html:378
+#: friendly_games/templates/friendly_games/game_detail.html:466
+#: friendly_games/templates/friendly_games/game_detail.html:468
 #: friendly_games/templates/friendly_games/submit_score_list.html:54
 #: friendly_games/templates/friendly_games/submit_score_list.html:118
 #: templates/matches/match_list.html:588
@@ -114,10 +147,11 @@ msgstr "Πλήρως επιβεβαιωμένο"
 msgid "Black Team"
 msgstr "Μαύρη ομάδα"
 
-#: friendly_games/models.py:391 friendly_games/models.py:536
-#: friendly_games/models.py:543
-#: friendly_games/templates/friendly_games/game_detail.html:422
-#: friendly_games/templates/friendly_games/game_detail.html:424
+#: friendly_games/models.py:151 friendly_games/models.py:401
+#: friendly_games/models.py:546 friendly_games/models.py:553
+#: friendly_games/templates/friendly_games/game_detail.html:378
+#: friendly_games/templates/friendly_games/game_detail.html:466
+#: friendly_games/templates/friendly_games/game_detail.html:468
 #: friendly_games/templates/friendly_games/submit_score_list.html:54
 #: friendly_games/templates/friendly_games/submit_score_list.html:118
 #: templates/matches/match_list.html:588
@@ -126,54 +160,327 @@ msgstr "Μαύρη ομάδα"
 msgid "White Team"
 msgstr "Λευκή ομάδα"
 
-#: friendly_games/models.py:395
+#: friendly_games/models.py:405
 msgid "Tirer"
 msgstr "Σουτέρ"
 
-#: friendly_games/models.py:396
+#: friendly_games/models.py:406
 msgid "Pointeur"
 msgstr "Ποντέρ"
 
-#: friendly_games/models.py:397 matches/views.py:855
-#: templates/matches/match_activate.html:337
+#: friendly_games/models.py:407
+#: friendly_games/templates/friendly_games/create_game.html:93
+#: matches/views.py:855 templates/matches/match_activate.html:337
 #: templates/matches/match_activate.html:367
 msgid "Milieu"
 msgstr "Μέσος"
 
-#: friendly_games/models.py:523
+#: friendly_games/models.py:533
 #, fuzzy
 #| msgid "Submit Result"
 msgid "Agree with Result"
 msgstr "Υποβολή αποτελέσματος"
 
-#: friendly_games/models.py:524
+#: friendly_games/models.py:534
 msgid "Disagree with Result"
 msgstr ""
+
+#: friendly_games/templates/friendly_games/create_game.html:4
+#: friendly_games/templates/friendly_games/create_game.html:73
+#: templates/home.html:516 templates/pfc_core/my_matches.html:45
+msgid "Create Friendly"
+msgstr "Δημιουργία φιλικού αγώνα"
+
+#: friendly_games/templates/friendly_games/create_game.html:74
+msgid ""
+"Set up the game, then share the code so players can join their own side."
+msgstr ""
+"Ρυθμίστε τον αγώνα και μοιραστείτε τον κωδικό ώστε οι παίκτες να μπορούν να "
+"συμμετέχουν στην πλευρά τους."
+
+#: friendly_games/templates/friendly_games/create_game.html:89
+msgid "Your Position"
+msgstr "Η θέση σας"
+
+#: friendly_games/templates/friendly_games/create_game.html:91
+#: matches/views.py:856 templates/matches/match_activate.html:338
+#: templates/matches/match_activate.html:368
+msgid "Shooter"
+msgstr "Σουτέρ"
+
+#: friendly_games/templates/friendly_games/create_game.html:92
+#: matches/views.py:854 teams/templates/teams/player_leaderboard.html:410
+#: templates/matches/match_activate.html:336
+#: templates/matches/match_activate.html:366
+msgid "Pointer"
+msgstr "Πλασέ"
+
+#: friendly_games/templates/friendly_games/create_game.html:99
+msgid "Timed Game"
+msgstr "Αγώνας με χρονικό όριο"
+
+#: friendly_games/templates/friendly_games/create_game.html:108
+#: templates/matches/scoreboard_embed.html:238
+#: templates/matches/scoreboard_embed.html:242
+msgid "Court"
+msgstr "Γήπεδο"
+
+#: friendly_games/templates/friendly_games/create_game.html:110
+msgid "Complex — any"
+msgstr "Εγκαταστάσεις — οποιεσδήποτε"
+
+#: friendly_games/templates/friendly_games/create_game.html:111
+msgid "Court — any"
+msgstr "Γήπεδο — οποιοδήποτε"
+
+#: friendly_games/templates/friendly_games/create_game.html:116
+msgid "Players at Courts"
+msgstr "Παίκτες στα Γήπεδα"
+
+#: friendly_games/templates/friendly_games/create_game.html:117
+msgid ""
+"Only players who are currently here at this Court Complex and enabled "
+"Available for Friendly are shown."
+msgstr ""
+"Εμφανίζονται μόνο παίκτες που βρίσκονται τώρα σε αυτές τις Εγκαταστάσεις και "
+"έχουν ενεργοποιήσει το «Διαθέσιμος για φιλικό»."
+
+#: friendly_games/templates/friendly_games/create_game.html:119
+msgid "Show available players"
+msgstr "Εμφάνιση διαθέσιμων παικτών"
+
+#: friendly_games/templates/friendly_games/create_game.html:121
+msgid "Random player pull"
+msgstr "Τυχαία επιλογή παικτών"
+
+#: friendly_games/templates/friendly_games/create_game.html:122
+#: friendly_games/templates/friendly_games/create_game.html:123
+#: friendly_games/templates/friendly_games/create_game.html:124
+#: friendly_games/templates/friendly_games/create_game.html:125
+#: friendly_games/templates/friendly_games/create_game.html:126
+#: friendly_games/templates/friendly_games/create_game.html:127
+#: friendly_games/templates/friendly_games/create_game.html:138
+#: friendly_games/templates/friendly_games/game_detail.html:414
+msgid "Random"
+msgstr "Τυχαία"
+
+#: friendly_games/templates/friendly_games/create_game.html:131
+msgid "Include me in the Friendly Game"
+msgstr "Συμπερίλαβέ με στον φιλικό αγώνα"
+
+#: friendly_games/templates/friendly_games/create_game.html:131
+msgid ""
+"Uncheck only when building the game for players at courts without joining it "
+"yourself."
+msgstr ""
+"Αποεπιλέξτε το μόνο όταν οργανώνετε τον αγώνα για παίκτες στα Γήπεδα χωρίς "
+"να συμμετέχετε εσείς."
+
+#: friendly_games/templates/friendly_games/create_game.html:135
+#: friendly_games/templates/friendly_games/game_detail.html:410
+msgid "Creator QR Setup"
+msgstr "Ρύθμιση QR δημιουργού"
+
+#: friendly_games/templates/friendly_games/create_game.html:137
+#: friendly_games/templates/friendly_games/game_detail.html:413
+msgid "Manual"
+msgstr "Χειροκίνητα"
+
+#: friendly_games/templates/friendly_games/create_game.html:137
+msgid "Choose Black or White"
+msgstr "Επιλέξτε Μαύρο ή Λευκό"
+
+#: friendly_games/templates/friendly_games/create_game.html:138
+msgid "Even QR teams"
+msgstr "Ισορροπημένες ομάδες QR"
+
+#: friendly_games/templates/friendly_games/create_game.html:139
+#: friendly_games/templates/friendly_games/game_detail.html:415
+msgid "Balanced"
+msgstr "Ισορροπημένα"
+
+#: friendly_games/templates/friendly_games/create_game.html:139
+msgid "Rating and position"
+msgstr "Αξιολόγηση και θέση"
+
+#: friendly_games/templates/friendly_games/create_game.html:141
+#: friendly_games/templates/friendly_games/create_game.html:182
+msgid "Choose a side, then scan a Player QR to add that player immediately."
+msgstr "Επιλέξτε πλευρά και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
+
+#: friendly_games/templates/friendly_games/create_game.html:143
+#: friendly_games/templates/friendly_games/game_detail.html:421
+#: match_tracking/templates/match_tracking/tracking_page.html:272
+#: signin/templates/signin/tournament_signin.html:145 templates/home.html:467
+#: templates/home.html:472 templates/partials/qr_scanner_modal.html:178
+msgid "Scan Player QR"
+msgstr "Σάρωση QR παίκτη"
+
+#: friendly_games/templates/friendly_games/create_game.html:147
+#: friendly_games/templates/friendly_games/game_detail.html:355
+#: friendly_games/templates/friendly_games/game_detail.html:418
+#: friendly_games/templates/friendly_games/game_detail.html:467
+#: friendly_games/templates/friendly_games/game_detail.html:487
+#: friendly_games/templates/friendly_games/submit_score.html:275
+msgid "Black"
+msgstr "Μαύρη"
+
+#: friendly_games/templates/friendly_games/create_game.html:148
+#: friendly_games/templates/friendly_games/game_detail.html:364
+#: friendly_games/templates/friendly_games/game_detail.html:419
+#: friendly_games/templates/friendly_games/game_detail.html:467
+#: friendly_games/templates/friendly_games/game_detail.html:493
+#: friendly_games/templates/friendly_games/submit_score.html:277
+msgid "White"
+msgstr "Λευκή"
+
+#: friendly_games/templates/friendly_games/create_game.html:152
+#, fuzzy
+#| msgid "Not a participant"
+msgid "Participants"
+msgstr "Δεν είστε συμμετέχων"
+
+#: friendly_games/templates/friendly_games/create_game.html:156
+msgid ""
+"These creator tools do not lock the game. Until Start Match, players can "
+"still join normally and choose Black or White if a place is available."
+msgstr ""
+"Τα εργαλεία του δημιουργού δεν κλειδώνουν τον αγώνα. Μέχρι την Έναρξη αγώνα, "
+"οι παίκτες μπορούν να εγγράφονται κανονικά και να επιλέγουν Μαύρη ή Λευκή "
+"πλευρά, αν υπάρχει διαθέσιμη θέση."
+
+#: friendly_games/templates/friendly_games/create_game.html:160
+msgid "Game Name"
+msgstr "Όνομα αγώνα"
+
+#: friendly_games/templates/friendly_games/create_game.html:166
+#: friendly_games/templates/friendly_games/create_game.html:174
+#: templates/matches/match_list.html:538
+msgid "Create Game"
+msgstr "Δημιουργία αγώνα"
+
+#: friendly_games/templates/friendly_games/create_game.html:173
+msgid "Empty"
+msgstr "Κενό"
+
+#: friendly_games/templates/friendly_games/create_game.html:175
+#: friendly_games/templates/friendly_games/game_detail.html:423
+#: friendly_games/templates/friendly_games/game_detail.html:601
+msgid "Create Teams"
+msgstr "Δημιουργία ομάδων"
+
+#: friendly_games/templates/friendly_games/create_game.html:176
+#: friendly_games/templates/friendly_games/game_detail.html:592
+#: templates/home.html:661
+msgid "QR scanner is unavailable. Please reload and try again."
+msgstr "Ο σαρωτής QR δεν είναι διαθέσιμος. Επαναφορτώστε και δοκιμάστε ξανά."
+
+#: friendly_games/templates/friendly_games/create_game.html:177
+msgid "Choose Black or White before scanning."
+msgstr "Επιλέξτε Μαύρο ή Λευκό πριν από τη σάρωση."
+
+#: friendly_games/templates/friendly_games/create_game.html:178
+#: friendly_games/templates/friendly_games/game_detail.html:598
+msgid "Scanned player added."
+msgstr "Ο σαρωμένος παίκτης προστέθηκε."
+
+#: friendly_games/templates/friendly_games/create_game.html:179
+msgid "Scanned participant added. Press Create Teams when ready."
+msgstr ""
+"Ο σαρωμένος συμμετέχων προστέθηκε. Πατήστε Δημιουργία ομάδων όταν είστε "
+"έτοιμοι."
+
+#: friendly_games/templates/friendly_games/create_game.html:180
+#: friendly_games/templates/friendly_games/game_detail.html:597
+msgid "This player is already included."
+msgstr "Αυτός ο παίκτης έχει ήδη συμπεριληφθεί."
+
+#: friendly_games/templates/friendly_games/create_game.html:181
+msgid "That team already has three players."
+msgstr "Αυτή η ομάδα έχει ήδη τρεις παίκτες."
+
+#: friendly_games/templates/friendly_games/create_game.html:183
+#: friendly_games/templates/friendly_games/game_detail.html:594
+msgid ""
+"Scan the participants. Create Teams will distribute them randomly and as "
+"evenly as possible."
+msgstr ""
+"Σαρώστε τους συμμετέχοντες. Η Δημιουργία ομάδων θα τους κατανείμει τυχαία "
+"και όσο το δυνατόν ισόρροπα."
+
+#: friendly_games/templates/friendly_games/create_game.html:184
+#: friendly_games/templates/friendly_games/game_detail.html:595
+msgid ""
+"Scan the participants. Create Teams will use existing rating first and "
+"preferred position as an additional balancing factor."
+msgstr ""
+"Σαρώστε τους συμμετέχοντες. Η Δημιουργία ομάδων χρησιμοποιεί πρώτα την "
+"υπάρχουσα αξιολόγηση και τη προτιμώμενη θέση ως πρόσθετο κριτήριο ισορροπίας."
+
+#: friendly_games/templates/friendly_games/create_game.html:185
+#, fuzzy
+#| msgctxt "petanque venue complex empty state"
+#| msgid "No Court Complexes Yet"
+msgid "Select a Court Complex first."
+msgstr "Δεν υπάρχουν ακόμη εγκαταστάσεις"
+
+#: friendly_games/templates/friendly_games/create_game.html:186
+msgid ""
+"No currently available Friendly players were found at this Court Complex."
+msgstr ""
+
+#: friendly_games/templates/friendly_games/create_game.html:187
+msgid "Available players loaded. Select players or use a Random pull."
+msgstr ""
+
+#: friendly_games/templates/friendly_games/create_game.html:188
+msgid "Selected court players were added to the current setup."
+msgstr ""
+
+#: friendly_games/templates/friendly_games/create_game.html:189
+msgid "Not enough currently available players for that random pull."
+msgstr ""
+
+#: friendly_games/templates/friendly_games/create_game.html:190
+#, fuzzy
+#| msgid "Unable to resolve the player action."
+msgid "Unable to load available players at courts."
+msgstr "Δεν ήταν δυνατός ο προσδιορισμός της ενέργειας του παίκτη."
+
+#: friendly_games/templates/friendly_games/create_game.html:207
+#: friendly_games/templates/friendly_games/create_game.html:219
+msgid "You"
+msgstr "Εσείς"
+
+#: friendly_games/templates/friendly_games/create_game.html:207
+#: friendly_games/templates/friendly_games/create_game.html:219
+msgid "Remove"
+msgstr "Αφαίρεση"
+
+#: friendly_games/templates/friendly_games/create_game.html:339
+msgid "Sign in with your PFC codename before creating a Friendly Game."
+msgstr "Συνδεθείτε με το ψευδώνυμο PFC πριν δημιουργήσετε Φιλικό αγώνα."
 
 #: friendly_games/templates/friendly_games/game_detail.html:4
 #: templates/pfc_core/my_matches.html:82 templates/pfc_core/my_matches.html:129
 msgid "Friendly Game"
 msgstr "Φιλικός αγώνας"
 
-#: friendly_games/templates/friendly_games/game_detail.html:317
+#: friendly_games/templates/friendly_games/game_detail.html:340
 msgid "Code"
 msgstr "Κωδικός"
 
-#: friendly_games/templates/friendly_games/game_detail.html:332
-#: friendly_games/templates/friendly_games/game_detail.html:423
-#: friendly_games/templates/friendly_games/game_detail.html:443
-#: friendly_games/templates/friendly_games/submit_score.html:275
-msgid "Black"
-msgstr "Μαύρη"
+#: friendly_games/templates/friendly_games/game_detail.html:378
+msgid "starts first"
+msgstr "ξεκινά πρώτος"
 
-#: friendly_games/templates/friendly_games/game_detail.html:341
-#: friendly_games/templates/friendly_games/game_detail.html:423
-#: friendly_games/templates/friendly_games/game_detail.html:449
-#: friendly_games/templates/friendly_games/submit_score.html:277
-msgid "White"
-msgstr "Λευκή"
+#: friendly_games/templates/friendly_games/game_detail.html:411
+#: friendly_games/templates/friendly_games/game_detail.html:593
+msgid ""
+"Choose Black or White, then scan a Player QR to add that player immediately."
+msgstr "Επιλέξτε Μαύρο ή Λευκό και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
 
-#: friendly_games/templates/friendly_games/game_detail.html:383
+#: friendly_games/templates/friendly_games/game_detail.html:427
 #: templates/matches/match_activate.html:4
 #: templates/matches/match_activate.html:355
 #: templates/matches/match_detail.html:626
@@ -181,39 +488,41 @@ msgstr "Λευκή"
 msgid "Start Match"
 msgstr "Έναρξη αγώνα"
 
-#: friendly_games/templates/friendly_games/game_detail.html:389
+#: friendly_games/templates/friendly_games/game_detail.html:433
 msgid "Leave Game"
 msgstr "Αποχώρηση από τον αγώνα"
 
-#: friendly_games/templates/friendly_games/game_detail.html:392
+#: friendly_games/templates/friendly_games/game_detail.html:436
 msgid "Joined the wrong side? Leave and re-join on the correct team."
 msgstr ""
 "Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
 
-#: friendly_games/templates/friendly_games/game_detail.html:396
+#: friendly_games/templates/friendly_games/game_detail.html:440
 #: friendly_games/templates/friendly_games/submit_score_list.html:27
-#: templates/home.html:398
+#: templates/home.html:519
 msgid "Join Game"
 msgstr "Συμμετοχή σε αγώνα"
 
-#: friendly_games/templates/friendly_games/game_detail.html:411
+#: friendly_games/templates/friendly_games/game_detail.html:455
 #: templates/matches/scoreboard_detail.html:14
+#: templates/matches/scoreboard_embed.html:9
+#: templates/matches/scoreboard_embed.html:234
 msgid "Live Score"
 msgstr "Ζωντανό σκορ"
 
-#: friendly_games/templates/friendly_games/game_detail.html:415
+#: friendly_games/templates/friendly_games/game_detail.html:459
 msgid "Submit Final Score"
 msgstr "Υποβολή τελικού σκορ"
 
-#: friendly_games/templates/friendly_games/game_detail.html:422
+#: friendly_games/templates/friendly_games/game_detail.html:466
 msgid "submitted"
 msgstr "υπέβαλε"
 
-#: friendly_games/templates/friendly_games/game_detail.html:424
+#: friendly_games/templates/friendly_games/game_detail.html:468
 msgid "must validate."
 msgstr "πρέπει να επιβεβαιώσει."
 
-#: friendly_games/templates/friendly_games/game_detail.html:427
+#: friendly_games/templates/friendly_games/game_detail.html:471
 #: templates/matches/match_detail.html:320
 #: templates/matches/match_detail.html:674
 #: templates/matches/match_detail.html:680
@@ -223,24 +532,40 @@ msgstr "πρέπει να επιβεβαιώσει."
 msgid "Validate Result"
 msgstr "Επιβεβαίωση αποτελέσματος"
 
-#: friendly_games/templates/friendly_games/game_detail.html:436
+#: friendly_games/templates/friendly_games/game_detail.html:480
 msgid "Score Progression History"
 msgstr "Ιστορικό εξέλιξης σκορ"
 
-#: friendly_games/templates/friendly_games/game_detail.html:444
-#: friendly_games/templates/friendly_games/game_detail.html:450
+#: friendly_games/templates/friendly_games/game_detail.html:488
+#: friendly_games/templates/friendly_games/game_detail.html:494
 msgid "Winner"
 msgstr "Νικητής"
 
-#: friendly_games/templates/friendly_games/game_detail.html:456
+#: friendly_games/templates/friendly_games/game_detail.html:500
 msgid "Rematch"
 msgstr "Επαναληπτικός αγώνας"
 
-#: friendly_games/templates/friendly_games/game_detail.html:466
+#: friendly_games/templates/friendly_games/game_detail.html:510
 #: templates/base.html:231 templates/home.html:4
+#: templates/matches/scoreboard_embed.html:219
 #: templates/pfc_core/my_matches.html:155
 msgid "Home"
 msgstr "Αρχική"
+
+#: friendly_games/templates/friendly_games/game_detail.html:596
+msgid "Scan at least one player first."
+msgstr ""
+
+#: friendly_games/templates/friendly_games/game_detail.html:599
+msgid "Scanned players were added to the Friendly Game."
+msgstr ""
+
+#: friendly_games/templates/friendly_games/game_detail.html:600
+#, fuzzy
+#| msgid "Could not disable Match Alerts. Please try again."
+msgid "Unable to update the Friendly Game. Please try again."
+msgstr ""
+"Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
 
 #: friendly_games/templates/friendly_games/submit_score.html:267
 msgid "Submitting as"
@@ -248,8 +573,8 @@ msgstr "Υποβολή ως"
 
 #: friendly_games/templates/friendly_games/submit_score.html:284
 #: friendly_games/templates/friendly_games/submit_score_list.html:76
-#: match_tracking/templates/match_tracking/tracking_page.html:245
-#: templates/home.html:401 templates/home.html:432
+#: match_tracking/templates/match_tracking/tracking_page.html:258
+#: templates/home.html:522 templates/home.html:553
 msgid "Submit Score"
 msgstr "Υποβολή σκορ"
 
@@ -344,7 +669,7 @@ msgstr "Επιβεβαίωση"
 msgid "Back to Home"
 msgstr "Πίσω στην αρχική"
 
-#: friendly_games/views.py:291
+#: friendly_games/views.py:545
 #, python-format
 msgid ""
 "Friendly game \"%(game_name)s\" created successfully with %(total_players)s "
@@ -353,24 +678,44 @@ msgstr ""
 "Ο φιλικός αγώνας \"%(game_name)s\" δημιουργήθηκε επιτυχώς με "
 "%(total_players)s παίκτες!"
 
-#: friendly_games/views.py:297
+#: friendly_games/views.py:551
 #, python-format
 msgid "Creator validated as %(player_name)s."
 msgstr "Ο δημιουργός επιβεβαιώθηκε ως %(player_name)s."
 
-#: friendly_games/views.py:301
+#: friendly_games/views.py:555
 #, python-format
 msgid "Creator codename \"%(codename)s\" not found - no validation."
 msgstr ""
 "Ο κωδικός δημιουργού \"%(codename)s\" δεν βρέθηκε — δεν έγινε επιβεβαίωση."
 
-#: friendly_games/views.py:305
+#: friendly_games/views.py:559
 #, python-format
 msgid "Match Number: %(match_number)s"
 msgstr "Αριθμός αγώνα: %(match_number)s"
 
+#: invites/templates/invites/invite_hub.html:37
+msgid "Accepted Invitations"
+msgstr "Αποδεκτές προσκλήσεις"
+
+#: invites/templates/invites/invite_hub.html:40
+msgid "Loading…"
+msgstr "Φόρτωση…"
+
+#: invites/templates/invites/invite_hub.html:661 matches/models.py:300
+msgid "Accepted"
+msgstr "Αποδεκτό"
+
+#: invites/templates/invites/invite_hub.html:662
+msgid "Accepted invitation"
+msgstr "Αποδεκτή πρόσκληση"
+
+#: invites/templates/invites/invite_hub.html:663
+msgid "No accepted invitations yet."
+msgstr "Δεν υπάρχουν ακόμη αποδεκτές προσκλήσεις."
+
 #: match_tracking/templates/match_tracking/tracking_page.html:4
-#: match_tracking/templates/match_tracking/tracking_page.html:462
+#: match_tracking/templates/match_tracking/tracking_page.html:477
 msgid "No score updates recorded yet."
 msgstr "Δεν έχουν καταγραφεί ακόμη ενημερώσεις σκορ."
 
@@ -431,114 +776,138 @@ msgstr "Ο αγώνας ολοκληρώθηκε"
 msgid "read-only history"
 msgstr "ιστορικό μόνο για ανάγνωση"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:23
+#: match_tracking/templates/match_tracking/tracking_page.html:18
+msgid "Scan the player QR code to confirm broadcast permission."
+msgstr "Σαρώστε το QR του παίκτη για επιβεβαίωση άδειας μετάδοσης."
+
+#: match_tracking/templates/match_tracking/tracking_page.html:19
+msgid "Authorize tracking before enabling broadcast."
+msgstr "Ενεργοποιήστε πρώτα την παρακολούθηση πριν τη μετάδοση."
+
+#: match_tracking/templates/match_tracking/tracking_page.html:20
+#: match_tracking/templates/match_tracking/tracking_page.html:297
+#: match_tracking/templates/match_tracking/tracking_page.html:315
+msgid "Broadcast enabled"
+msgstr "Ενεργή μετάδοση"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:21
+#: match_tracking/templates/match_tracking/tracking_page.html:297
+#: match_tracking/templates/match_tracking/tracking_page.html:315
+msgid "Broadcast private"
+msgstr "Ιδιωτική μετάδοση"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:27
 msgid "Match Tracking"
 msgstr "Παρακολούθηση αγώνα"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:212
+#: match_tracking/templates/match_tracking/tracking_page.html:225
 #: matches/models.py:16 templates/matches/match_detail.html:319
 #: templates/matches/match_list.html:317 templates/matches/match_list.html:352
 #: templates/matches/match_list.html:503 templates/matches/match_list.html:559
 msgid "Active"
 msgstr "Ενεργός"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:244
+#: match_tracking/templates/match_tracking/tracking_page.html:257
 msgid "Submit one completed end"
 msgstr "Υποβολή ενός ολοκληρωμένου γύρου"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:259
-#: signin/templates/signin/tournament_signin.html:145 templates/home.html:360
-#: templates/home.html:366 templates/partials/qr_scanner_modal.html:178
-msgid "Scan Player QR"
-msgstr "Σάρωση QR παίκτη"
-
-#: match_tracking/templates/match_tracking/tracking_page.html:266
+#: match_tracking/templates/match_tracking/tracking_page.html:279
 msgid "Scan a player QR code to enable controls."
 msgstr ""
 "Σαρώστε τον κωδικό QR ενός παίκτη για να ενεργοποιηθούν τα χειριστήρια."
 
-#: match_tracking/templates/match_tracking/tracking_page.html:310
-#: match_tracking/templates/match_tracking/tracking_page.html:394
+#: match_tracking/templates/match_tracking/tracking_page.html:297
+#: match_tracking/templates/match_tracking/tracking_page.html:315
+msgid "Permission to Broadcast"
+msgstr "Άδεια μετάδοσης"
+
+#: match_tracking/templates/match_tracking/tracking_page.html:325
+#: match_tracking/templates/match_tracking/tracking_page.html:409
 msgid "Shooting"
 msgstr "Βολές"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:313
-#: match_tracking/templates/match_tracking/tracking_page.html:423
+#: match_tracking/templates/match_tracking/tracking_page.html:328
+#: match_tracking/templates/match_tracking/tracking_page.html:438
 msgid "Pointing"
 msgstr "Πλασέ"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:320
-#: match_tracking/templates/match_tracking/tracking_page.html:324
+#: match_tracking/templates/match_tracking/tracking_page.html:335
+#: match_tracking/templates/match_tracking/tracking_page.html:339
+#: templates/matches/scoreboard_embed.html:335
 msgid "Carreau"
 msgstr "Καρό"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:326
-#: match_tracking/templates/match_tracking/tracking_page.html:333
+#: match_tracking/templates/match_tracking/tracking_page.html:341
+#: match_tracking/templates/match_tracking/tracking_page.html:348
+#: templates/matches/scoreboard_embed.html:336
 msgid "Petit Carreau"
 msgstr "Μικρό καρό"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:335
-#: match_tracking/templates/match_tracking/tracking_page.html:341
+#: match_tracking/templates/match_tracking/tracking_page.html:350
+#: match_tracking/templates/match_tracking/tracking_page.html:356
+#: templates/matches/scoreboard_embed.html:337
 msgid "Hit"
 msgstr "Χτύπημα"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:343
-#: match_tracking/templates/match_tracking/tracking_page.html:350
+#: match_tracking/templates/match_tracking/tracking_page.html:358
+#: match_tracking/templates/match_tracking/tracking_page.html:365
+#: templates/matches/scoreboard_embed.html:338
 msgid "Miss"
 msgstr "Αστοχία"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:359
-#: match_tracking/templates/match_tracking/tracking_page.html:361
+#: match_tracking/templates/match_tracking/tracking_page.html:374
+#: match_tracking/templates/match_tracking/tracking_page.html:376
 msgid "Perfect"
 msgstr "Τέλειο"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:363
-#: match_tracking/templates/match_tracking/tracking_page.html:365
+#: match_tracking/templates/match_tracking/tracking_page.html:378
+#: match_tracking/templates/match_tracking/tracking_page.html:380
 msgid "Good"
 msgstr "Καλό"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:367
-#: match_tracking/templates/match_tracking/tracking_page.html:369
+#: match_tracking/templates/match_tracking/tracking_page.html:382
+#: match_tracking/templates/match_tracking/tracking_page.html:384
 msgid "Fair"
 msgstr "Μέτριο"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:371
-#: match_tracking/templates/match_tracking/tracking_page.html:373
+#: match_tracking/templates/match_tracking/tracking_page.html:386
+#: match_tracking/templates/match_tracking/tracking_page.html:388
 msgid "Far"
 msgstr "Μακρινό"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:380
+#: match_tracking/templates/match_tracking/tracking_page.html:395
 msgid "Remove the most recently recorded shot"
 msgstr "Αφαίρεση της πιο πρόσφατα καταγεγραμμένης προσπάθειας"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:381
+#: match_tracking/templates/match_tracking/tracking_page.html:396
 msgid "Undo Last Shot"
 msgstr "Αναίρεση τελευταίας προσπάθειας"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:383
+#: match_tracking/templates/match_tracking/tracking_page.html:398
 msgid "Export match analysis to PDF"
 msgstr "Εξαγωγή ανάλυσης αγώνα σε PDF"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:384
+#: match_tracking/templates/match_tracking/tracking_page.html:399
 msgid "Export PDF"
 msgstr "Εξαγωγή PDF"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:386
+#: match_tracking/templates/match_tracking/tracking_page.html:401
 msgid "End this tracking period and revoke all QR authorizations"
 msgstr ""
 "Τερματισμός της περιόδου παρακολούθησης και ανάκληση όλων των αδειών QR"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:387
+#: match_tracking/templates/match_tracking/tracking_page.html:402
 msgid "End Session"
 msgstr "Τερματισμός συνεδρίας"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:398
-#: match_tracking/templates/match_tracking/tracking_page.html:427
-#: teams/templates/teams/pfc_market.html:308 templates/home.html:295
+#: match_tracking/templates/match_tracking/tracking_page.html:413
+#: match_tracking/templates/match_tracking/tracking_page.html:442
+#: teams/templates/teams/pfc_market.html:308 templates/home.html:416
+#: templates/home.html:437
 msgid "Player"
 msgstr "Παίκτης"
 
-#: match_tracking/templates/match_tracking/tracking_page.html:454
+#: match_tracking/templates/match_tracking/tracking_page.html:469
 #: templates/matches/scoreboard_detail.html:390
 msgid "Score Progression"
 msgstr "Εξέλιξη σκορ"
@@ -576,10 +945,6 @@ msgstr "Μεικτή μορφή"
 #: matches/models.py:27
 msgid "Unknown Format"
 msgstr "Άγνωστη μορφή"
-
-#: matches/models.py:300
-msgid "Accepted"
-msgstr "Αποδεκτό"
 
 #: matches/models.py:301
 msgid "Rejected"
@@ -656,21 +1021,6 @@ msgid ""
 msgstr ""
 "Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπάρχει διαθέσιμο γήπεδο· θα ξεκινήσει "
 "αυτόματα μόλις ελευθερωθεί γήπεδο."
-
-#: matches/views.py:854 teams/templates/teams/player_leaderboard.html:410
-#: templates/matches/match_activate.html:336
-#: templates/matches/match_activate.html:366
-#: templates/matches/scoreboard_embed.html:248
-#: templates/matches/scoreboard_embed.html:265
-#: templates/matches/scoreboard_embed.html:296
-#: templates/matches/scoreboard_embed.html:313
-msgid "Pointer"
-msgstr "Πλασέ"
-
-#: matches/views.py:856 templates/matches/match_activate.html:338
-#: templates/matches/match_activate.html:368
-msgid "Shooter"
-msgstr "Σουτέρ"
 
 #: matches/views.py:890
 msgid "You are not authorised to submit results for this team."
@@ -763,7 +1113,7 @@ msgid "%(player_name)s has no current actionable match or game."
 msgstr ""
 "Ο παίκτης %(player_name)s δεν έχει τρέχοντα αγώνα με διαθέσιμη ενέργεια."
 
-#: pfc_core/smart_router.py:664 templates/home.html:298
+#: pfc_core/smart_router.py:664 templates/home.html:418
 msgid "No team"
 msgstr "Χωρίς ομάδα"
 
@@ -776,7 +1126,7 @@ msgid "A VS tournament accepts exactly two teams."
 msgstr "Ένα τουρνουά VS δέχεται ακριβώς δύο ομάδες."
 
 #: signin/templates/signin/tournament_signin.html:4
-#: signin/templates/signin/tournament_signin.html:10 templates/home.html:441
+#: signin/templates/signin/tournament_signin.html:10 templates/home.html:562
 #: templates/pfc_core/my_matches.html:48
 msgid "Join Tournament"
 msgstr "Εγγραφή σε τουρνουά"
@@ -867,11 +1217,14 @@ msgstr "Προετοιμασία ειδοποιήσεων αγώνα…"
 
 #: teams/templates/teams/edit_player_profile.html:595
 msgid "PFC could not confirm your player session. Please sign in again."
-msgstr "Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
+msgstr ""
+"Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:596
 msgid "PFC could not start its notification worker. Reload PFC and try again."
-msgstr "Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+msgstr ""
+"Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το "
+"PFC και προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:597
 msgid "PFC could not read Push configuration. Please try again."
@@ -879,20 +1232,27 @@ msgstr "Το PFC δεν μπόρεσε να διαβάσει τη ρύθμιση
 
 #: teams/templates/teams/edit_player_profile.html:598
 msgid "The server Push key is invalid. Please contact PFC support."
-msgstr "Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την υποστήριξη PFC."
+msgstr ""
+"Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την "
+"υποστήριξη PFC."
 
 #: teams/templates/teams/edit_player_profile.html:599
 msgid ""
 "The browser could not create a Push subscription. Check that PFC is "
 "installed and notifications are allowed, then try again."
-msgstr "Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι ειδοποιήσεις και προσπαθήστε ξανά."
+msgstr ""
+"Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. "
+"Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι "
+"ειδοποιήσεις και προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:600
 msgid "Match Alerts are taking too long to start. Reload PFC and try again."
-msgstr "Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+msgstr ""
+"Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και "
+"προσπαθήστε ξανά."
 
 #: teams/templates/teams/pfc_market.html:4
-#: teams/templates/teams/pfc_market.html:253 templates/home.html:498
+#: teams/templates/teams/pfc_market.html:253 templates/home.html:619
 msgid "PFC Market"
 msgstr "Αγορά PFC"
 
@@ -906,7 +1266,7 @@ msgid "Live player rankings and performance trends"
 msgstr "Ζωντανές κατατάξεις παικτών και τάσεις απόδοσης"
 
 #: teams/templates/teams/pfc_market.html:260
-#: teams/templates/teams/player_profile.html:582 templates/home.html:447
+#: teams/templates/teams/player_profile.html:599 templates/home.html:568
 #: templates/matches/match_detail.html:420
 #: templates/matches/match_detail.html:520
 #: templates/matches/match_detail.html:584 templates/teams/team_list.html:54
@@ -938,7 +1298,7 @@ msgid "Search players"
 msgstr "Αναζήτηση παικτών"
 
 #: teams/templates/teams/pfc_market.html:292
-#: teams/templates/teams/pfc_market.html:309
+#: teams/templates/teams/pfc_market.html:309 templates/home.html:420
 msgid "Rating"
 msgstr "Αξιολόγηση"
 
@@ -954,7 +1314,7 @@ msgstr[0] "%(counter)s παίκτης"
 msgstr[1] "%(counter)s παίκτες"
 
 #: teams/templates/teams/pfc_market.html:310
-#: teams/templates/teams/player_profile.html:509
+#: teams/templates/teams/player_profile.html:523
 msgid "Change"
 msgstr "Μεταβολή"
 
@@ -974,82 +1334,87 @@ msgstr "Κανένας παίκτης δεν ταιριάζει με την αν
 msgid "Player Profile"
 msgstr "Προφίλ παίκτη"
 
-#: teams/templates/teams/player_profile.html:456
+#: teams/templates/teams/player_profile.html:426
+#: teams/templates/teams/player_profile.html:427
+msgid "Boules"
+msgstr "Μπάλες"
+
+#: teams/templates/teams/player_profile.html:470
 msgid "Win Rate"
 msgstr "Ποσοστό νικών"
 
-#: teams/templates/teams/player_profile.html:460
+#: teams/templates/teams/player_profile.html:474
 msgid "This player keeps their statistics private."
 msgstr "Αυτός ο παίκτης διατηρεί τα στατιστικά του ιδιωτικά."
 
-#: teams/templates/teams/player_profile.html:466
+#: teams/templates/teams/player_profile.html:480
 msgid "Overall"
 msgstr "Συνολικά"
 
-#: teams/templates/teams/player_profile.html:468
+#: teams/templates/teams/player_profile.html:482
 #: templates/matches/match_list.html:301
 msgid "Tournament"
 msgstr "Τουρνουά"
 
-#: teams/templates/teams/player_profile.html:469
+#: teams/templates/teams/player_profile.html:483
 #: templates/matches/match_list.html:306
 msgid "Friendly"
 msgstr "Φιλικός αγώνας"
 
-#: teams/templates/teams/player_profile.html:471
+#: teams/templates/teams/player_profile.html:485
 msgid "Shot Tracker"
 msgstr "Παρακολούθηση προσπαθειών"
 
-#: teams/templates/teams/player_profile.html:485
+#: teams/templates/teams/player_profile.html:499
 msgid "Tournament games"
 msgstr "Αγώνες τουρνουά"
 
-#: teams/templates/teams/player_profile.html:489
+#: teams/templates/teams/player_profile.html:503
 msgid "Friendly games"
 msgstr "Φιλικοί αγώνες"
 
-#: teams/templates/teams/player_profile.html:496
+#: teams/templates/teams/player_profile.html:510
 msgid "Rating Progression"
 msgstr "Εξέλιξη αξιολόγησης"
 
-#: teams/templates/teams/player_profile.html:501
+#: teams/templates/teams/player_profile.html:515
 msgid "Start"
 msgstr "Αρχή"
 
-#: teams/templates/teams/player_profile.html:505
+#: teams/templates/teams/player_profile.html:519
 msgid "Current"
 msgstr "Τρέχον"
 
-#: teams/templates/teams/player_profile.html:513
+#: teams/templates/teams/player_profile.html:527
 msgid "Rated"
 msgstr "Με αξιολόγηση"
 
-#: teams/templates/teams/player_profile.html:526
+#: teams/templates/teams/player_profile.html:540
 msgid "Skill Comparison"
 msgstr "Σύγκριση επιπέδου"
 
-#: teams/templates/teams/player_profile.html:530
+#: teams/templates/teams/player_profile.html:544
 msgid "of players have a lower rating than you"
 msgstr "των παικτών έχουν χαμηλότερη αξιολόγηση από εσάς"
 
-#: teams/templates/teams/player_profile.html:531
+#: teams/templates/teams/player_profile.html:545
 #, python-format
 msgid "Compared to %(total)s players in the community"
 msgstr "Σε σύγκριση με %(total)s παίκτες της κοινότητας"
 
-#: teams/templates/teams/player_profile.html:570
+#: teams/templates/teams/player_profile.html:587
 msgid "Your Rating"
 msgstr "Η αξιολόγησή σας"
 
-#: teams/templates/teams/player_profile.html:574
+#: teams/templates/teams/player_profile.html:591
 msgid "Community Average"
 msgstr "Μέσος όρος κοινότητας"
 
-#: teams/templates/teams/player_profile.html:578
+#: teams/templates/teams/player_profile.html:595
 msgid "Percentile"
 msgstr "Εκατοστημόριο"
 
-#: teams/templates/teams/player_profile.html:592
+#: teams/templates/teams/player_profile.html:609
 #, fuzzy
 #| msgid "Score History"
 msgid "Match History"
@@ -1075,8 +1440,8 @@ msgstr[1] "%(count)s αγώνες"
 msgid "No Team"
 msgstr "Χωρίς ομάδες:"
 
-#: templates/base.html:238 templates/home.html:350 templates/home.html:354
-#: templates/pfc_core/my_matches.html:4 templates/pfc_core/my_matches.html:12
+#: templates/base.html:238 templates/pfc_core/my_matches.html:4
+#: templates/pfc_core/my_matches.html:12
 msgid "My Matches"
 msgstr "Οι αγώνες μου"
 
@@ -1148,19 +1513,19 @@ msgstr "Οργανώνουμε το pétanque, συνδέουμε την κοι�
 msgid "Quick Links"
 msgstr "Γρήγοροι σύνδεσμοι"
 
-#: templates/base.html:372 templates/home.html:418
+#: templates/base.html:372 templates/home.html:539
 #: templates/tournaments/tournament_list.html:4
 #: templates/tournaments/tournament_list.html:182
 msgid "Tournaments"
 msgstr "Τουρνουά"
 
-#: templates/base.html:373 templates/home.html:473
+#: templates/base.html:373 templates/home.html:594
 #: templates/matches/match_detail.html:696 templates/matches/match_list.html:4
 #: templates/tournaments/vs_encounter_detail.html:40
 msgid "Matches"
 msgstr "Αγώνες"
 
-#: templates/base.html:374 templates/home.html:495
+#: templates/base.html:374 templates/home.html:616
 #: templates/teams/team_list.html:4 templates/teams/team_list.html:11
 msgid "Teams"
 msgstr "Ομάδες"
@@ -1182,37 +1547,41 @@ msgstr "Κατάταξη παικτών"
 msgid "Admin Portal"
 msgstr "Πύλη διαχείρισης"
 
-#: templates/base.html:632
+#: templates/base.html:635
 msgid "New invite from"
 msgstr "Νέα πρόσκληση από"
 
-#: templates/base.html:633
+#: templates/base.html:636
 msgid "someone"
 msgstr "κάποιον"
 
-#: templates/base.html:634
+#: templates/base.html:637
 msgid "Tap to view"
 msgstr "Πατήστε για προβολή"
 
-#: templates/base.html:635
+#: templates/base.html:638
 msgid "A new match is available and requires action from your side."
 msgstr ""
 "Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
 
-#: templates/base.html:636
+#: templates/base.html:639
 msgid "The opposing team has started the match and is waiting for your side."
 msgstr "Η αντίπαλη ομάδα ξεκίνησε τον αγώνα και περιμένει τη δική σου πλευρά."
 
-#: templates/base.html:637
+#: templates/base.html:640
 msgid ""
 "The opposing team submitted a result and is waiting for your validation."
 msgstr "Η αντίπαλη ομάδα υπέβαλε αποτέλεσμα και περιμένει την επιβεβαίωσή σου."
 
-#: templates/base.html:638
+#: templates/base.html:641
+msgid "Your side was selected to start the Friendly Game."
+msgstr "Η πλευρά σου επιλέχθηκε να ξεκινήσει πρώτη τον Φιλικό αγώνα."
+
+#: templates/base.html:642
 msgid "There is a new action for your match."
 msgstr "Υπάρχει νέα ενέργεια για τον αγώνα σου."
 
-#: templates/base.html:639
+#: templates/base.html:643
 msgid "Tap the central button to continue."
 msgstr "Πάτησε το κεντρικό κουμπί για να συνεχίσεις."
 
@@ -1247,119 +1616,118 @@ msgctxt "petanque playing areas empty state"
 msgid "No courts are available."
 msgstr "Δεν υπάρχουν διαθέσιμα γήπεδα."
 
-#: templates/home.html:301
+#: templates/home.html:426
+msgid "Show my QR Card"
+msgstr "Εμφάνιση της QR κάρτας μου"
+
+#: templates/home.html:430
+msgid "Team"
+msgstr "Ομάδα"
+
+#: templates/home.html:432
 msgid "Team session"
 msgstr "Συνεδρία ομάδας"
 
-#: templates/home.html:303
+#: templates/home.html:438
 msgid "Sign in"
 msgstr "Σύνδεση"
 
-#: templates/home.html:304
+#: templates/home.html:439
 msgid "Tap to log in"
 msgstr "Πατήστε για σύνδεση"
 
-#: templates/home.html:313
+#: templates/home.html:446
+msgid "Courts now"
+msgstr "Γήπεδα τώρα"
+
+#: templates/home.html:449
 msgctxt "petanque playing areas home"
 msgid "Courts"
 msgstr "Γήπεδα"
 
-#: templates/home.html:315
+#: templates/home.html:451
 #, python-format
-msgid "%(counter)s player"
-msgid_plural "%(counter)s players"
-msgstr[0] "%(counter)s παίκτης"
-msgstr[1] "%(counter)s παίκτες"
+msgid "%(counter)s player now"
+msgid_plural "%(counter)s players now"
+msgstr[0] "%(counter)s παίκτης τώρα"
+msgstr[1] "%(counter)s παίκτες τώρα"
 
-#: templates/home.html:316
-msgid "at courts now"
-msgstr "στα γήπεδα τώρα"
-
-#: templates/home.html:318
-msgid "No players"
-msgstr "Δεν υπάρχουν παίκτες"
-
-#: templates/home.html:319
-msgid "at courts"
-msgstr "στα γήπεδα"
-
-#: templates/home.html:330
-msgid "Weather"
-msgstr "Καιρός"
-
-#: templates/home.html:336
+#: templates/home.html:454
 msgid "Unavailable"
 msgstr "Μη διαθέσιμο"
 
-#: templates/home.html:348
-msgid "Tap the ball to start"
-msgstr "Πατήστε τη μπάλα για έναρξη"
+#: templates/home.html:457 templates/home.html:459
+msgid "I'm Coming"
+msgstr "Έρχομαι"
 
-#: templates/home.html:355
-msgid "Your active game, tournament or friendly"
-msgstr "Ο ενεργός αγώνας, το τουρνουά ή ο φιλικός αγώνας σας"
+#: templates/home.html:478
+msgid "Live Now"
+msgstr "Ζωντανά τώρα"
 
-#: templates/home.html:376
+#: templates/home.html:480
+#, python-format
+msgid "LIVE NOW — %(counter)s match"
+msgid_plural "LIVE NOW — %(counter)s matches"
+msgstr[0] "ΖΩΝΤΑΝΑ ΤΩΡΑ — %(counter)s αγώνας"
+msgstr[1] "ΖΩΝΤΑΝΑ ΤΩΡΑ — %(counter)s αγώνες"
+
+#: templates/home.html:481
+msgid "View all"
+msgstr "Δες όλους"
+
+#: templates/home.html:497
 msgid "More options"
 msgstr "Περισσότερες επιλογές"
 
-#: templates/home.html:387
+#: templates/home.html:508
 msgid "Friendly Games"
 msgstr "Φιλικοί αγώνες"
 
-#: templates/home.html:395 templates/pfc_core/my_matches.html:45
-msgid "Create Friendly"
-msgstr "Δημιουργία φιλικού αγώνα"
-
-#: templates/home.html:404
+#: templates/home.html:525
 msgid "Statistics"
 msgstr "Στατιστικά"
 
-#: templates/home.html:429
+#: templates/home.html:550
 msgid "Find Match"
 msgstr "Εύρεση αγώνα"
 
-#: templates/home.html:438
+#: templates/home.html:559
 msgid "Create Tournament"
 msgstr "Δημιουργία τουρνουά"
 
-#: templates/home.html:444
+#: templates/home.html:565
 msgid "View Tournaments"
 msgstr "Προβολή τουρνουά"
 
-#: templates/home.html:461
+#: templates/home.html:582
 msgid "Practice & Matches"
 msgstr "Προπόνηση και αγώνες"
 
-#: templates/home.html:470
+#: templates/home.html:591
 msgid "Start Practice"
 msgstr "Έναρξη προπόνησης"
 
-#: templates/home.html:487
+#: templates/home.html:608
 msgid "Teams, Market & More"
 msgstr "Ομάδες, Αγορά και άλλα"
 
-#: templates/home.html:505
+#: templates/home.html:626
 msgid "AI Umpire"
 msgstr "Διαιτητής AI"
 
-#: templates/home.html:540
-msgid "QR scanner is unavailable. Please reload and try again."
-msgstr "Ο σαρωτής QR δεν είναι διαθέσιμος. Επαναφορτώστε και δοκιμάστε ξανά."
-
-#: templates/home.html:541
+#: templates/home.html:662
 msgid "Finding"
 msgstr "Αναζήτηση"
 
-#: templates/home.html:542
+#: templates/home.html:663
 msgid "next action…"
 msgstr "επόμενης ενέργειας…"
 
-#: templates/home.html:543
+#: templates/home.html:664
 msgid "No current action was found."
 msgstr "Δεν βρέθηκε τρέχουσα ενέργεια."
 
-#: templates/home.html:544
+#: templates/home.html:665
 msgid "Unable to resolve the player action."
 msgstr "Δεν ήταν δυνατός ο προσδιορισμός της ενέργειας του παίκτη."
 
@@ -1555,10 +1923,6 @@ msgstr "Λήγει"
 msgid "No games waiting for players"
 msgstr "Δεν υπάρχουν αγώνες σε αναμονή παικτών"
 
-#: templates/matches/match_list.html:538
-msgid "Create Game"
-msgstr "Δημιουργία αγώνα"
-
 #: templates/matches/match_list.html:567
 msgid "No active friendly games"
 msgstr "Δεν υπάρχουν ενεργοί φιλικοί αγώνες"
@@ -1719,6 +2083,8 @@ msgid "Live"
 msgstr "Ζωντανά"
 
 #: templates/matches/scoreboard_detail.html:203
+#: templates/matches/scoreboard_embed.html:223
+#: templates/matches/scoreboard_embed.html:224
 msgid "Back"
 msgstr "Πίσω"
 
@@ -1758,6 +2124,70 @@ msgstr "Από"
 #: templates/matches/scoreboard_detail.html:402
 msgid "Type"
 msgstr "Τύπος"
+
+#: templates/matches/scoreboard_embed.html:227
+#: templates/matches/scoreboard_embed.html:388
+msgid "LIVE"
+msgstr "ΖΩΝΤΑΝΑ"
+
+#: templates/matches/scoreboard_embed.html:227
+#: templates/matches/scoreboard_embed.html:388
+msgid "FINAL"
+msgstr "ΤΕΛΙΚΟ"
+
+#: templates/matches/scoreboard_embed.html:240
+msgid "Waiting for court assignment"
+msgstr "Αναμονή ανάθεσης γηπέδου"
+
+#: templates/matches/scoreboard_embed.html:273
+msgid "Current end"
+msgstr "Τρέχον γύρισμα"
+
+#: templates/matches/scoreboard_embed.html:281
+msgid "Last updated"
+msgstr "Τελευταία ενημέρωση"
+
+#: templates/matches/scoreboard_embed.html:281
+msgid "ago by"
+msgstr "πριν από · από"
+
+#: templates/matches/scoreboard_embed.html:285
+msgid "Live Score actions"
+msgstr "Ενέργειες ζωντανού σκορ"
+
+#: templates/matches/scoreboard_embed.html:287
+#: templates/matches/scoreboard_embed.html:289
+msgid "Match Analytics"
+msgstr "Ανάλυση αγώνα"
+
+#: templates/matches/scoreboard_embed.html:291
+msgid "Share"
+msgstr "Κοινοποίηση"
+
+#: templates/matches/scoreboard_embed.html:292
+#: templates/matches/scoreboard_embed.html:409
+msgid "Copy link"
+msgstr "Αντιγραφή συνδέσμου"
+
+#: templates/matches/scoreboard_embed.html:339
+msgid "Perfect placement"
+msgstr "Τέλεια τοποθέτηση"
+
+#: templates/matches/scoreboard_embed.html:340
+msgid "Good placement"
+msgstr "Καλή τοποθέτηση"
+
+#: templates/matches/scoreboard_embed.html:341
+msgid "Fair placement"
+msgstr "Μέτρια τοποθέτηση"
+
+#: templates/matches/scoreboard_embed.html:342
+msgid "Far placement"
+msgstr "Μακρινή τοποθέτηση"
+
+#: templates/matches/scoreboard_embed.html:408
+msgid "Copied!"
+msgstr "Αντιγράφηκε!"
 
 #: templates/partials/qr_scanner_modal.html:12
 #: templates/partials/qr_scanner_modal.html:185
@@ -2025,3 +2455,33 @@ msgstr ""
 #: tournaments/registration_services.py:104
 msgid "This tournament is not configured for Mêlée mode."
 msgstr ""
+
+#~ msgid "Add selected to setup"
+#~ msgstr "Προσθήκη επιλεγμένων στη σύνθεση"
+
+#~ msgid "Add scanned player to"
+#~ msgstr "Προσθήκη σαρωμένου παίκτη σε"
+
+#~ msgid "Scanned participants"
+#~ msgstr "Σαρωμένοι συμμετέχοντες"
+
+#~ msgid "No players"
+#~ msgstr "Δεν υπάρχουν παίκτες"
+
+#~ msgid "Weather"
+#~ msgstr "Καιρός"
+
+#~ msgid "Tap the ball to start"
+#~ msgstr "Πατήστε τη μπάλα για έναρξη"
+
+#~ msgid "Your active game, tournament or friendly"
+#~ msgstr "Ο ενεργός αγώνας, το τουρνουά ή ο φιλικός αγώνας σας"
+
+#~ msgid "Novice"
+#~ msgstr "Αρχάριος"
+
+#~ msgid "Intermediate"
+#~ msgstr "Ενδιάμεσος"
+
+#~ msgid "Professional"
+#~ msgstr "Επαγγελματίας"

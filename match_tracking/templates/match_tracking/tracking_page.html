@@ -15,6 +15,10 @@
 {% translate "Could not end tracking" as i18n_end_tracking_failed %}
 {% translate "Match completed" as i18n_match_completed %}
 {% translate "read-only history" as i18n_read_only_history %}
+{% translate "Scan the player QR code to confirm broadcast permission." as i18n_scan_broadcast_permission %}
+{% translate "Authorize tracking before enabling broadcast." as i18n_authorize_before_broadcast %}
+{% translate "Broadcast enabled" as i18n_broadcast_enabled %}
+{% translate "Broadcast private" as i18n_broadcast_private %}
 <!DOCTYPE html>
 <html lang="{{ CURRENT_LANGUAGE }}">
 <head>
@@ -92,6 +96,15 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .mt-lock-icon { position: absolute; top: 8px; right: 10px; font-size: 14px; }
 .mt-lock-icon.locked   { color: #cbd5e1; }
 .mt-lock-icon.unlocked { color: #16a34a; }
+.mt-broadcast-btn {
+    position: absolute; top: 31px; right: 7px; width: 27px; height: 27px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid #d5dde8; border-radius: 50%; background: #fff; cursor: pointer;
+    font-size: 12px; line-height: 1; transition: all .15s;
+}
+.mt-broadcast-btn:disabled { cursor: not-allowed; opacity: .48; }
+.mt-broadcast-btn.private { color: #94a3b8; }
+.mt-broadcast-btn.permitted { border-color: #0f766e; background: #ecfdf5; color: #047857; }
 
 /* ── Mode switch (Shooting / Pointing) ──────────────────────────────────── */
 .mt-mode-switch { display: flex; gap: 0; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0; margin: 0 14px 10px; }
@@ -281,6 +294,7 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
             <div class="mt-player-card-pos">{{ p.position|default:"—" }}</div>
             <div class="mt-player-card-acc" id="acc-{{ p.player_id }}" style="display:none">—%</div>
             <span class="mt-lock-icon locked" id="lock-{{ p.player_id }}"><i class="fas fa-lock"></i></span>
+            <button type="button" class="mt-broadcast-btn {% if p.broadcast_permitted %}permitted{% else %}private{% endif %}" id="broadcast-{{ p.player_id }}" data-permitted="{% if p.broadcast_permitted %}1{% else %}0{% endif %}" disabled onclick="requestBroadcastPermission(event, {{ p.player_id }})" title="{% if p.broadcast_permitted %}{% translate 'Broadcast enabled' %}{% else %}{% translate 'Broadcast private' %}{% endif %}" aria-label="{% translate 'Permission to Broadcast' %}"><i class="fas {% if p.broadcast_permitted %}fa-bullhorn{% else %}fa-bullhorn-slash{% endif %}"></i></button>
         </div>
         {% endif %}{% endfor %}
     </div>
@@ -298,6 +312,7 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
             <div class="mt-player-card-pos">{{ p.position|default:"—" }}</div>
             <div class="mt-player-card-acc" id="acc-{{ p.player_id }}" style="display:none">—%</div>
             <span class="mt-lock-icon locked" id="lock-{{ p.player_id }}"><i class="fas fa-lock"></i></span>
+            <button type="button" class="mt-broadcast-btn {% if p.broadcast_permitted %}permitted{% else %}private{% endif %}" id="broadcast-{{ p.player_id }}" data-permitted="{% if p.broadcast_permitted %}1{% else %}0{% endif %}" disabled onclick="requestBroadcastPermission(event, {{ p.player_id }})" title="{% if p.broadcast_permitted %}{% translate 'Broadcast enabled' %}{% else %}{% translate 'Broadcast private' %}{% endif %}" aria-label="{% translate 'Permission to Broadcast' %}"><i class="fas {% if p.broadcast_permitted %}fa-bullhorn{% else %}fa-bullhorn-slash{% endif %}"></i></button>
         </div>
         {% endif %}{% endfor %}
     </div>
@@ -489,12 +504,17 @@ var TRACKING_I18N = {
     endTrackingConfirm: '{{ i18n_end_tracking_confirm|escapejs }}',
     endTrackingFailed: '{{ i18n_end_tracking_failed|escapejs }}',
     matchCompleted: '{{ i18n_match_completed|escapejs }}',
-    readOnlyHistory: '{{ i18n_read_only_history|escapejs }}'
+    readOnlyHistory: '{{ i18n_read_only_history|escapejs }}',
+    scanBroadcastPermission: '{{ i18n_scan_broadcast_permission|escapejs }}',
+    authorizeBeforeBroadcast: '{{ i18n_authorize_before_broadcast|escapejs }}',
+    broadcastEnabled: '{{ i18n_broadcast_enabled|escapejs }}',
+    broadcastPrivate: '{{ i18n_broadcast_private|escapejs }}'
 };
 var MATCH_PK     = {{ pk }};
 var SCOREBOARD_ID = {% if scoreboard_id %}{{ scoreboard_id }}{% else %}null{% endif %};
 var SCORE_UPDATE_URL = {% if score_update_url %}'{{ score_update_url }}'{% else %}null{% endif %};
 var VERIFY_URL   = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/verify/';
+var BROADCAST_PERMISSION_URL = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/broadcast-permission/';
 var STATS_BASE   = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/player/';
 var SHOT_START   = '{{ shot_start_url }}';
 var SHOT_RECORD  = '{{ shot_record_url }}';
@@ -517,6 +537,7 @@ var scoreAuthName = null;     // display name of the first authorised participan
 var scoreAuthCodename = null; // first codename that grants score update permission
 var selectedPlayerId  = null;
 var activeSessionId   = null; // current PracticeSession id for shot recording
+var pendingBroadcastPlayerId = null; // fresh QR proof target for public-feed consent
 var officialT1 = parseInt(document.getElementById('score-t1').textContent, 10) || 0;
 var officialT2 = parseInt(document.getElementById('score-t2').textContent, 10) || 0;
 var currentT1 = officialT1; // editable, unsubmitted score
@@ -578,6 +599,14 @@ if (AUTO_AUTH_ID && LOGGED_IN_CODENAME) {
 document.addEventListener('qrPlayerResolved', function(e) {
     var data = e.detail;
     if (!data || !data.player_id) return;
+    if (pendingBroadcastPlayerId !== null) {
+        var requestedPlayerId = pendingBroadcastPlayerId;
+        pendingBroadcastPlayerId = null;
+        var broadcastButton = document.getElementById('broadcast-' + requestedPlayerId);
+        var nextPermission = !(broadcastButton && broadcastButton.getAttribute('data-permitted') === '1');
+        submitBroadcastPermission(requestedPlayerId, nextPermission);
+        return;
+    }
     // Verify this player is actually in this game
     fetch(VERIFY_URL, {
         method: 'POST',
@@ -589,7 +618,7 @@ document.addEventListener('qrPlayerResolved', function(e) {
         if (res.ok) {
             // res.codename is the server-side resolved codename from the QR session;
             // it is only present when the QR scan happened in this same browser session.
-            _authorizePlayer(res.player_id, res.codename || null, res.stats, res.player_name || '');
+            _authorizePlayer(res.player_id, res.codename || null, res.stats, res.player_name || '', !!res.broadcast_permitted);
             var authMsg = '\u2713 ' + res.player_name + ' authorized';
             if (!res.codename) authMsg += ' (view only — rescan to enable shots)';
             _showScoreFeedback(authMsg, 'ok');
@@ -602,20 +631,21 @@ document.addEventListener('qrPlayerResolved', function(e) {
     });
 });
 
-function _authorizePlayer(playerId, codename, stats, displayName) {
+function _authorizePlayer(playerId, codename, stats, displayName, broadcastPermitted) {
     // Resolve display name: prefer the passed displayName, fall back to the player card's data attribute
     var resolvedName = displayName || '';
     if (!resolvedName) {
         var card = document.getElementById('pcard-' + playerId);
         if (card) resolvedName = card.getAttribute('data-player-name') || '';
     }
-    authorizedPlayers[playerId] = { codename: codename, name: resolvedName, stats: stats || {} };
+    authorizedPlayers[playerId] = { codename: codename, name: resolvedName, stats: stats || {}, broadcastPermitted: !!broadcastPermitted };
 
     // Unlock card
     var card = document.getElementById('pcard-' + playerId);
     var lock = document.getElementById('lock-' + playerId);
     if (card) { card.classList.add('authorized'); }
     if (lock) { lock.className = 'mt-lock-icon unlocked'; lock.innerHTML = '<i class="fas fa-lock-open"></i>'; }
+    _setBroadcastState(playerId, !!broadcastPermitted);
 
     // Grant score update permission to first authorised participant
     if (!scoreAuthCodename) {
@@ -641,6 +671,56 @@ function _authorizePlayer(playerId, codename, stats, displayName) {
     // Refresh stats from server
     _fetchPlayerStats(playerId);
 }
+
+function _setBroadcastState(playerId, permitted) {
+    var button = document.getElementById('broadcast-' + playerId);
+    if (!button) return;
+    button.disabled = !authorizedPlayers[playerId];
+    button.setAttribute('data-permitted', permitted ? '1' : '0');
+    button.className = 'mt-broadcast-btn ' + (permitted ? 'permitted' : 'private');
+    button.title = permitted ? TRACKING_I18N.broadcastEnabled : TRACKING_I18N.broadcastPrivate;
+    button.innerHTML = '<i class="fas ' + (permitted ? 'fa-bullhorn' : 'fa-bullhorn-slash') + '"></i>';
+    if (authorizedPlayers[playerId]) authorizedPlayers[playerId].broadcastPermitted = permitted;
+}
+
+function submitBroadcastPermission(playerId, enabled) {
+    fetch(BROADCAST_PERMISSION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ player_id: playerId, enabled: enabled })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            _setBroadcastState(res.player_id, !!res.broadcast_permitted);
+            _showScoreFeedback('\u2713 ' + res.player_name + ': ' + (res.broadcast_permitted ? TRACKING_I18N.broadcastEnabled : TRACKING_I18N.broadcastPrivate), 'ok');
+        } else {
+            _showScoreFeedback('\u2717 ' + (res.error || TRACKING_I18N.failed), 'err');
+        }
+    })
+    .catch(function() { _showScoreFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err'); });
+}
+
+window.requestBroadcastPermission = function(event, playerId) {
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    if (!authorizedPlayers[playerId]) {
+        _showScoreFeedback('\u2717 ' + TRACKING_I18N.authorizeBeforeBroadcast, 'err');
+        return;
+    }
+    var broadcastButton = document.getElementById('broadcast-' + playerId);
+    var nextPermission = !(broadcastButton && broadcastButton.getAttribute('data-permitted') === '1');
+    // The active PFC player already has their own verified identity in this
+    // Match Tracking session. Reuse that established self-authorization rather
+    // than asking them to scan their own card; all other player targets still
+    // enter the fresh QR confirmation path below.
+    if (playerId === AUTO_AUTH_ID && LOGGED_IN_CODENAME) {
+        submitBroadcastPermission(playerId, nextPermission);
+        return;
+    }
+    pendingBroadcastPlayerId = playerId;
+    _showScoreFeedback(TRACKING_I18N.scanBroadcastPermission, 'ok');
+    if (typeof openQrScanner === 'function') openQrScanner();
+};
 
 function _enableScoreControls() {
     if (!SCORE_UPDATE_URL) return;

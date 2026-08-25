@@ -493,14 +493,17 @@ def reset_scoreboard(request, scoreboard_id):
 def scoreboard_embed(request, scoreboard_id):
     """
     Embeddable scoreboard view for displaying on external screens.
-    This is a minimal view without controls, just showing current scores.
+    This remains read-only; the compact current-end tracking feed is a public
+    projection of already-recorded, explicitly permitted actions only.
     """
     scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
-    
+    from match_tracking.services import current_end_actions_for_scoreboard
+
     context = {
         'scoreboard': scoreboard,
+        'current_end_actions': current_end_actions_for_scoreboard(scoreboard),
     }
-    
+
     return render(request, 'matches/scoreboard_embed.html', context)
 
 

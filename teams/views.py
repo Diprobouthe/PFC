@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Count, Prefetch
 from django.http import JsonResponse
+from django.utils.translation import gettext as _
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile
 from .forms import TeamForm, PlayerForm, TeamAvailabilityForm, PublicPlayerForm, EditPlayerProfileForm
 from .utils import get_recent_matches_with_participation, get_player_participation_summary
@@ -1163,9 +1164,11 @@ def player_profile(request, player_id):
                     
                     # Calculate positions for SVG (800px wide chart, 20px margins)
                     x_pos = 20 + ((bin_start - min_rating) / (max_rating - min_rating)) * 760
-                    width = ((bin_end - bin_start) / (max_rating - min_rating)) * 760
-                    height = (count / max_count) * 100 if count > 0 else 0  # Max height 100px
-                    y_pos = 160 - height  # Start from bottom (y=160) and go up
+                    # Keep each real bin visible even when a low-frequency bin
+                    # would otherwise become sub-pixel thin after SVG scaling.
+                    width = max(((bin_end - bin_start) / (max_rating - min_rating)) * 760, 0.5)
+                    height = max((count / max_count) * 150, 3) if count > 0 else 0  # Max height 150px
+                    y_pos = 180 - height  # Start from the SVG baseline (y=180) and go up
                     
                     histogram_data.append({
                         'bin_start': round(bin_start, 1),
@@ -1177,23 +1180,44 @@ def player_profile(request, player_id):
                         'height': height
                     })
                 
-                # Calculate current player position
-                current_player_x = 20 + ((current_rating - min_rating) / (max_rating - min_rating)) * 760
+                # Calculate current player position on the same dynamic domain.
+                # Clamping keeps the marker inside the chart even for legacy
+                # records whose rating is outside the current population range.
+                current_player_ratio = (current_rating - min_rating) / (max_rating - min_rating)
+                current_player_x = 20 + min(max(current_player_ratio, 0), 1) * 760
                 
+                # Translate display-only category labels for the active UI
+                # language. Their keys, thresholds, and geometry stay unchanged.
+                category_display_names = {
+                    category['key']: _(category['display_name'])
+                    for category in categories
+                }
+                current_player_category_display = category_display_names.get(
+                    current_player_category,
+                    current_player_category,
+                )
+
                 # Create category bands with proper positioning
                 category_bands = []
                 for category in categories:
                     # Calculate band positions
+                    # Clip every category band to the same dynamic domain used
+                    # by the histogram and marker.  The previous max_rating + 50
+                    # extension pushed higher-category labels outside the SVG
+                    # viewBox when the current population did not reach them.
                     band_min = max(category['min'], min_rating)
-                    band_max = min(category['max'] if category['max'] != float('inf') else max_rating + 50, max_rating + 50)
+                    band_max = min(
+                        category['max'] if category['max'] != float('inf') else max_rating,
+                        max_rating,
+                    )
                     
-                    if band_min <= max_rating:
+                    if band_min < max_rating and band_max > band_min:
                         x_start = 20 + ((band_min - min_rating) / (max_rating - min_rating)) * 760
                         x_end = 20 + ((band_max - min_rating) / (max_rating - min_rating)) * 760
                         
                         category_bands.append({
                             'key': category['key'],
-                            'display_name': category['display_name'],
+                            'display_name': category_display_names[category['key']],
                             'min': category['min'],
                             'max': category['max'],
                             'x_start': x_start,
@@ -1210,6 +1234,7 @@ def player_profile(request, player_id):
                     'current_rating': current_rating,
                     'current_player_x': current_player_x,
                     'current_player_category': current_player_category,
+                    'current_player_category_display': current_player_category_display,
                     'percentile': percentile,
                     'avg_rating': avg_rating,
                     'min_rating': min_rating,

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load shot_tracker_tags i18n %}
+{% load shot_tracker_tags i18n l10n %}
 
 {% block title %}{{ player.name }} - {% translate "Player Profile" %}{% endblock %}
 
@@ -110,7 +110,17 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     text-decoration: none !important; background: #fffbeb !important;
     white-space: nowrap !important; margin-top: 6px !important;
 }
-.pp-cert-btn:hover { background: #fef3c7 !important; color: #92400e !important; border-color: #92400e !important; }
+	.pp-cert-btn:hover { background: #fef3c7 !important; color: #92400e !important; border-color: #92400e !important; }
+	.pp-boules {
+	    margin-top: 10px !important;
+	    padding: 9px 11px !important;
+	    border: 1px solid #dce7f8 !important;
+	    border-radius: 12px !important;
+	    background: #f8fbff !important;
+	}
+	.pp-boules-label { color: #5d718f !important; font-size: 11px !important; font-weight: 800 !important; letter-spacing: .07em !important; text-transform: uppercase !important; }
+	.pp-boules-brand { margin-top: 2px !important; color: #173e78 !important; font-size: 15px !important; font-weight: 800 !important; line-height: 1.25 !important; }
+	.pp-boules-spec { margin-top: 2px !important; color: #61768f !important; font-size: 13px !important; font-weight: 700 !important; }
 
 /* ---- QUICK STATS STRIP — 4 big boxes ---- */
 .pp-stats-strip {
@@ -411,12 +421,16 @@ a.mh-card::after {
                 {% if player.profile.get_preferred_position_display %}
                     <span class="pp-badge">{{ player.profile.get_preferred_position_display }}</span>
                 {% endif %}
-                {% if player.profile.boule_brand or player.profile.boule_diameter_mm or player.profile.boule_weight_g %}
-                    <span class="pp-badge"><i class="fas fa-circle" style="font-size:.55rem;"></i>
-                        {% if player.profile.boule_brand %}{{ player.profile.boule_brand }}{% endif %}{% if player.profile.boule_diameter_mm %}{% if player.profile.boule_brand %} · {% endif %}{{ player.profile.boule_diameter_mm }} mm{% endif %}{% if player.profile.boule_weight_g %}{% if player.profile.boule_brand or player.profile.boule_diameter_mm %} · {% endif %}{{ player.profile.boule_weight_g }} g{% endif %}
-                    </span>
-                {% endif %}
             </div>
+            {% if player.profile.boule_brand or player.profile.boule_diameter_mm or player.profile.boule_weight_g %}
+            <section class="pp-boules" aria-label="{% translate 'Boules' %}">
+                <div class="pp-boules-label">{% translate "Boules" %}</div>
+                {% if player.profile.boule_brand %}<div class="pp-boules-brand">{{ player.profile.boule_brand }}</div>{% endif %}
+                {% if player.profile.boule_diameter_mm or player.profile.boule_weight_g %}
+                <div class="pp-boules-spec">{% if player.profile.boule_diameter_mm %}{{ player.profile.boule_diameter_mm }} mm{% endif %}{% if player.profile.boule_weight_g %}{% if player.profile.boule_diameter_mm %} · {% endif %}{{ player.profile.boule_weight_g }} g{% endif %}</div>
+                {% endif %}
+            </section>
+            {% endif %}
         </div>
         {% if is_own_profile %}
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
@@ -531,33 +545,36 @@ a.mh-card::after {
                             <span class="pct-sub">{% blocktranslate with total=bell_curve_data.total_players %}Compared to {{ total }} players in the community{% endblocktranslate %}</span>
                         </div>
                         <div class="skill-histogram" style="text-align:center !important;">
-                            <svg width="100%" height="200" viewBox="0 0 800 220"
+                            {% localize off %}
+                            <svg width="100%" height="240" viewBox="0 0 800 260"
                                  role="img"
                                  aria-label="Player skill distribution histogram"
                                  aria-describedby="histogram-description">
                                 {% for category in bell_curve_data.categories %}
-                                    <rect x="{{ category.x_start }}" y="40" width="{{ category.width }}" height="120"
+                                    <rect x="{{ category.x_start }}" y="20" width="{{ category.width }}" height="160"
                                           fill="{{ category.color }}" opacity="0.15" rx="4"/>
                                 {% endfor %}
                                 {% for bin in bell_curve_data.histogram_data %}
                                     {% if bin.count > 0 %}
                                         <rect x="{{ bin.x_pos }}" y="{{ bin.y_pos }}" width="{{ bin.width }}" height="{{ bin.height }}"
-                                              fill="#3498db" opacity="0.7" stroke="#2980b9" stroke-width="1"/>
+                                              fill="#3498db" opacity="0.88" stroke="#1f6f9f" stroke-width="1.5"/>
                                     {% endif %}
                                 {% endfor %}
-                                <line x1="{{ bell_curve_data.current_player_x }}" y1="40"
-                                      x2="{{ bell_curve_data.current_player_x }}" y2="160"
-                                      stroke="#e74c3c" stroke-width="3">
-                                    <title>Rating: {{ bell_curve_data.current_rating|floatformat:1 }} — {{ bell_curve_data.current_player_category|upper }}</title>
+                                <line x1="20" y1="180" x2="780" y2="180" stroke="#6c757d" stroke-width="1" opacity="0.45"/>
+                                <line x1="{{ bell_curve_data.current_player_x }}" y1="20"
+                                      x2="{{ bell_curve_data.current_player_x }}" y2="180"
+                                      stroke="#d82626" stroke-width="5">
+                                    <title>Rating: {{ bell_curve_data.current_rating|floatformat:"1u" }} — {{ bell_curve_data.current_player_category_display|upper }}</title>
                                 </line>
                                 {% for category in bell_curve_data.categories %}
-                                    <text x="{{ category.label_x }}" y="185" text-anchor="middle"
-                                          font-size="16" font-weight="bold" fill="#2c3e50"
+                                    <text x="{{ category.label_x }}" y="210" text-anchor="middle"
+                                          font-size="19" font-weight="bold" fill="#2c3e50"
                                           class="category-label">{{ category.display_name|upper }}</text>
                                 {% endfor %}
-                                <text x="20" y="210" font-size="14" fill="#6c757d">{{ bell_curve_data.min_rating|floatformat:0 }}</text>
-                                <text x="780" y="210" text-anchor="end" font-size="14" fill="#6c757d">{{ bell_curve_data.max_rating|floatformat:0 }}</text>
+                                <text x="20" y="240" font-size="16" fill="#52616b">{{ bell_curve_data.min_rating|floatformat:0 }}</text>
+                                <text x="780" y="240" text-anchor="end" font-size="16" fill="#52616b">{{ bell_curve_data.max_rating|floatformat:0 }}</text>
                             </svg>
+                            {% endlocalize %}
                             <div id="histogram-description" class="sr-only">
                                 This histogram shows the distribution of player ratings across the community.
                                 Your rating of {{ bell_curve_data.current_rating|floatformat:1 }} is marked with a red vertical line,

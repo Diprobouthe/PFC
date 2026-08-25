@@ -638,6 +638,7 @@
     {% translate "A new match is available and requires action from your side." as match_alert_new_label %}
     {% translate "The opposing team has started the match and is waiting for your side." as match_alert_started_label %}
     {% translate "The opposing team submitted a result and is waiting for your validation." as match_alert_validation_label %}
+    {% translate "Your side was selected to start the Friendly Game." as match_alert_friendly_starts_label %}
     {% translate "There is a new action for your match." as match_alert_generic_label %}
     {% translate "Tap the central button to continue." as match_alert_continue_label %}
     <!-- Toast container (hidden until an invite arrives) -->
@@ -653,6 +654,7 @@
         var MATCH_ALERT_NEW_LABEL = '{{ match_alert_new_label|escapejs }}';
         var MATCH_ALERT_STARTED_LABEL = '{{ match_alert_started_label|escapejs }}';
         var MATCH_ALERT_VALIDATION_LABEL = '{{ match_alert_validation_label|escapejs }}';
+        var MATCH_ALERT_FRIENDLY_STARTS_LABEL = '{{ match_alert_friendly_starts_label|escapejs }}';
         var MATCH_ALERT_GENERIC_LABEL = '{{ match_alert_generic_label|escapejs }}';
         var MATCH_ALERT_CONTINUE_LABEL = '{{ match_alert_continue_label|escapejs }}';
         var FALLBACK_MS = 180000;   // 3-minute slow fallback poll
@@ -702,6 +704,7 @@
             var lead = kind === 'new_match' ? MATCH_ALERT_NEW_LABEL
                 : kind === 'opponent_started' ? MATCH_ALERT_STARTED_LABEL
                 : kind === 'result_validation' ? MATCH_ALERT_VALIDATION_LABEL
+                : kind === 'friendly_starts' ? MATCH_ALERT_FRIENDLY_STARTS_LABEL
                 : MATCH_ALERT_GENERIC_LABEL;
             return lead + ' ' + MATCH_ALERT_CONTINUE_LABEL;
         }

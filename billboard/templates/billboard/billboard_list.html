@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static court_tz_tags %}
+{% load static court_tz_tags i18n %}
 
 {% block title %}Billboard — PFC{% endblock %}
 
@@ -84,13 +84,20 @@ canvas.bb-chart{width:100%!important;max-height:180px}
         <span class="bb-btn-label">I'm going</span>
       </button>
     </div>
-    <!-- Anonymous toggle -->
+    <!-- Presence-session choices -->
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:rgba(255,255,255,.85)">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
         <input type="checkbox" id="anon-toggle" style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer;" onchange="saveAnonPref()">
-        <span>Show my name</span>
+        <span>{% translate "Show my name" %}</span>
       </label>
-      <span style="opacity:.55;font-size:11px;" id="anon-hint">Your presence is still verified either way</span>
+      <span style="opacity:.55;font-size:11px;" id="anon-hint">{% translate "Your presence is still verified either way" %}</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-size:13px;color:rgba(255,255,255,.95)">
+      <input type="checkbox" id="friendly-available-toggle" style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer;margin-top:2px;" onchange="saveFriendlyAvailability()">
+      <label for="friendly-available-toggle" style="cursor:pointer;line-height:1.3;">
+        <strong>{% translate "Available for Friendly" %}</strong>
+        <span style="display:block;opacity:.72;font-size:11px;">{% translate "This saved preference applies only while I am currently here at a Court Complex." %}</span>
+      </label>
     </div>
     <button class="bb-defaults-chip" onclick="toggleExpand()" id="expand-chip">
       <i class="fas fa-sliders-h"></i>
@@ -302,10 +309,17 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const BB={defaults:{},dateMode:'today',timeMode:'now',expandOpen:false,charts:{}};
+const BB={defaults:{},dateMode:'today',timeMode:'now',expandOpen:false,charts:{},friendlyPresenceActive:false};
 document.addEventListener('DOMContentLoaded',()=>{
   fetchDefaults();
   {% if courts %}loadAnalytics({{ courts.0.id }});{% endif %}
+
+  // The Welcome Screen's “I'm Coming” button intentionally lands in this
+  // existing arrival flow. It only opens the existing time-selection controls;
+  // creating, cancelling, and leaving presence all remain unchanged here.
+  if (new URLSearchParams(window.location.search).get('action') === 'going') {
+    setTimeout(oneTapGoingOpen, 0);
+  }
 });
 async function fetchDefaults(courtId){
   try{
@@ -318,6 +332,9 @@ async function fetchDefaults(courtId){
       const tog=document.getElementById('anon-toggle');
       if(tog) tog.checked = !d.last_anonymous; // "Show my name" = NOT anonymous
     }
+    BB.friendlyPresenceActive = Boolean(d.friendly_presence_active);
+    const friendlyToggle = document.getElementById('friendly-available-toggle');
+    if (friendlyToggle) friendlyToggle.checked = Boolean(d.available_for_friendly);
     const s=document.getElementById('sel-court');
     if(s){
       if(!courtId&&BB.defaults.court_id){
@@ -417,6 +434,16 @@ function line(id,labels,data){
 function csrf(){return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1]||'';}
 function toast(msg){const t=document.getElementById('bb-toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function saveAnonPref(){/* preference is persisted server-side when the user next checks in */}
+async function saveFriendlyAvailability(){
+  const enabled = Boolean(document.getElementById('friendly-available-toggle')?.checked);
+  const courtId = parseInt(document.getElementById('sel-court')?.value);
+  try{
+    const r = await fetch('{% url "billboard:api_friendly_availability" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({available_for_friendly:enabled})});
+    const d = await r.json();
+    if(d.ok){ toast(enabled ? '{% translate "Available for Friendly preference saved." %}' : '{% translate "Available for Friendly preference turned off." %}'); }
+    else { toast('⚠️ '+(d.error||'{% translate "Unable to update Friendly availability." %}')); fetchDefaults(courtId); }
+  }catch(e){ toast('⚠️ {% translate "Unable to update Friendly availability." %}'); fetchDefaults(courtId); }
+}
 
 /* ── Community presence ──────────────────────────────────────── */
 var _cpCourtId = null;

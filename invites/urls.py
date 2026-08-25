@@ -20,6 +20,7 @@ urlpatterns = [
 
     # JSON endpoints
     path("inbox/", views.inbox, name="inbox"),
+    path("history/", views.accepted_history, name="accepted_history"),
     path("session/<uuid:token>/", views.session_status, name="session_status"),
     path("players/search/", views.player_search, name="player_search"),
     path("qr-add-player/", views.qr_add_player, name="qr_add_player"),

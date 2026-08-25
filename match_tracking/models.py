@@ -65,6 +65,10 @@ class TrackingAuthorization(models.Model):
     codename = models.CharField(max_length=50)
     authorized_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    # Separate, explicit consent for the public spectator feed. Tracking itself
+    # remains usable when this is false, and the permission ends with the
+    # existing match-scoped authorization/session lifecycle.
+    broadcast_permitted = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         constraints = [

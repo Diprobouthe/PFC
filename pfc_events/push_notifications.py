@@ -177,6 +177,8 @@ def _match_body(event_kind, locale):
         lead = "Η αντίπαλη ομάδα ξεκίνησε τον αγώνα και περιμένει τη δική σου πλευρά." if greek else "The opposing team has started the match and is waiting for your side."
     elif event_kind == "result_validation":
         lead = "Η αντίπαλη ομάδα υπέβαλε αποτέλεσμα και περιμένει την επιβεβαίωσή σου." if greek else "The opposing team submitted a result and is waiting for your validation."
+    elif event_kind == "friendly_starts":
+        lead = "Η ομάδα σου επιλέχθηκε να ξεκινήσει πρώτη τον φιλικό αγώνα." if greek else "Your side was selected to start the Friendly Game."
     else:
         lead = "Υπάρχει νέα ενέργεια για τον αγώνα σου." if greek else "There is a new action for your match."
     return f"{lead} {continuation}"

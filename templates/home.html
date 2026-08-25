@@ -5,144 +5,260 @@
 
 {% block content %}
 <style>
-/* ── Home page redesign: ball-first hierarchy ─────────────────────── */
-
-/* ── Info strip (user / courts / weather) ─────────────────────────── */
-.ic-row {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 0;
+/* ── Welcome Screen: existing data, clearer two-card hierarchy ─────── */
+.home-top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, .93fr) minmax(0, 1.17fr);
+    gap: 10px;
     width: 100%;
-    box-sizing: border-box;
+    margin-bottom: 14px;
 }
-.ic-card {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 6px 10px 8px;
-    border-radius: 12px;
+.home-card {
+    position: relative;
+    min-width: 0;
+    border-radius: 18px;
     border: 1.5px solid;
     background: #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,.07);
-    text-decoration: none;
-    color: inherit;
-    cursor: pointer;
-    transition: transform .13s, box-shadow .13s;
-    min-width: 0;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, .08);
     overflow: hidden;
 }
-.ic-card:active { transform: scale(.97); }
-.ic-card:hover  { box-shadow: 0 4px 16px rgba(0,0,0,.13); transform: translateY(-1px); }
-.ic-card.ic-user   { border-color: #b3c6f5; background: #eef3ff; }
-.ic-card.ic-courts { border-color: #a8d5b5; background: #edfaf2; }
-.ic-card.ic-weather{ border-color: #f5e0a0; background: #fffbeb; }
-.ic-icon {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px;
-    flex-shrink: 0;
-}
-.ic-user   .ic-icon { background: #d0dcfc; color: #2a5bd7; }
-.ic-courts .ic-icon { background: #c3ecd0; color: #1a7a3c; }
-.ic-weather .ic-icon{ background: #fde9a0; color: #b07800; }
-.ic-body { flex: 1; min-width: 0; }
-.ic-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .04em; color: #888; font-weight: 600; line-height: 1; margin-bottom: 2px; }
-.ic-value { font-size: .82rem; font-weight: 700; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ic-sub   { font-size: .7rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ic-chevron { color: #bbb; font-size: 11px; flex-shrink: 0; }
-
-/* ── Hero: central ball call-to-action ─────────────────────────────── */
-.home-hero {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 36px 24px 28px;
-    text-align: center;
-}
-.home-hero-hint {
-    font-size: .75rem;
-    font-weight: 600;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: #8a9bbf;
-    margin-bottom: 18px;
-}
-.home-ball-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: linear-gradient(145deg, #1a3a8f 0%, #0d47a1 60%, #1565c0 100%);
-    box-shadow:
-        0 0 0 8px rgba(26,58,143,.12),
-        0 0 0 16px rgba(26,58,143,.06),
-        0 12px 40px rgba(13,71,161,.45);
+.home-card-player { border-color: #b3c6f5; background: linear-gradient(160deg, #f7f9ff 0%, #eef3ff 100%); }
+.home-card-courts { border-color: #a8d5b5; background: linear-gradient(160deg, #fbfffc 0%, #edfaf2 100%); }
+.home-player-primary,
+.home-court-summary {
+    display: block;
+    color: inherit;
     text-decoration: none;
-    transition: transform .18s, box-shadow .18s;
-    flex-shrink: 0;
 }
-.home-ball-btn:hover, .home-ball-btn:focus {
-    transform: scale(1.06) translateY(-3px);
-    box-shadow:
-        0 0 0 10px rgba(26,58,143,.16),
-        0 0 0 20px rgba(26,58,143,.07),
-        0 16px 50px rgba(13,71,161,.55);
-    outline: none;
-}
-.home-ball-btn:active { transform: scale(.95); }
-.home-ball-btn img { height: 72px; width: auto; }
-
-.home-ball-label {
-    margin-top: 16px;
-    font-size: .95rem;
-    font-weight: 700;
-    color: #1a1a2e;
-    letter-spacing: .01em;
-}
-.home-ball-sub {
-    margin-top: 4px;
-    font-size: .78rem;
-    color: #6b7a99;
-}
-
-/* ── Home QR action below ball ─────────────────────────────────────── */
-.home-nav-hint {
-    margin-top: 20px;
+.home-player-primary { padding: 13px 12px 12px; }
+.home-player-avatar {
+    width: 78px;
+    height: 78px;
+    margin-bottom: 10px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #dce6ff;
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: #f0f4ff;
-    border: 1.5px solid #c8d6f8;
-    border-radius: 10px;
-    padding: 9px 16px;
-    font-size: .78rem;
-    color: #3d5a9e;
-    font-weight: 500;
+    justify-content: center;
+    color: #2a5bd7;
+    box-shadow: 0 2px 8px rgba(42, 91, 215, .16);
 }
-.home-nav-hint .hint-pfc {
+.home-player-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.home-player-avatar i { font-size: 28px; }
+.home-card-label {
+    margin-bottom: 4px;
+    color: #6b7280;
+    font-size: .66rem;
     font-weight: 800;
-    color: #1a3a8f;
-    letter-spacing: .04em;
+    letter-spacing: .07em;
+    line-height: 1.1;
+    text-transform: uppercase;
 }
-.home-qr-action {
-    border: none;
-    cursor: pointer;
-    font: inherit;
-    color: #1a3a8f;
+.home-player-name,
+.home-court-name {
+    overflow: hidden;
+    color: #17233e;
+    font-size: clamp(.95rem, 3.8vw, 1.25rem);
+    font-weight: 800;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.home-qr-action:hover { background: #e4ecff; }
-.home-qr-action:disabled { opacity: .65; cursor: wait; }
+.home-player-team {
+    overflow: hidden;
+    margin-top: 3px;
+    color: #2859b4;
+    font-size: .74rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.home-player-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
+    color: #8a6200;
+    font-size: .78rem;
+    font-weight: 800;
+}
+.home-player-rating i { color: #f7c928; }
+.home-player-boules {
+    overflow: hidden;
+    margin-top: 5px;
+    color: #65728a;
+    font-size: .67rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.home-player-boules i { margin-right: 3px; color: #7789a8; font-size: .6rem; }
+.home-qr-shortcut {
+    position: absolute;
+    right: 8px;
+    top: 66px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 2px solid #d3def9;
+    border-radius: 11px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(42, 91, 215, .16);
+    color: #1754bf;
+    font-size: 18px;
+    text-decoration: none;
+}
+.home-qr-shortcut:hover { color: #1754bf; background: #f6f8ff; }
+.home-qr-shortcut:active { transform: scale(.94); }
+.home-court-summary { padding: 15px 14px 8px; }
+.home-court-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+.home-court-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 37px;
+    height: 37px;
+    flex: 0 0 37px;
+    border-radius: 11px;
+    background: #c3ecd0;
+    color: #17733b;
+    font-size: 17px;
+}
+.home-court-name { white-space: normal; }
+.home-court-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    color: #215f39;
+    font-size: .84rem;
+    font-weight: 800;
+}
+.home-court-count i { color: #17813f; }
+.home-court-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    margin: 10px 14px 0;
+    padding: 9px 0 0;
+    border-top: 1px solid rgba(23, 115, 59, .14);
+}
+.home-temperature {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #7d5c00;
+    font-size: .79rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.home-temperature .weather-icon { font-size: 1rem; }
+.home-coming-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% - 28px);
+    min-height: 42px;
+    margin: 11px 14px 14px;
+    border-radius: 11px;
+    background: #087d32;
+    color: #fff;
+    font-size: .88rem;
+    font-weight: 800;
+    text-decoration: none;
+    transition: background .13s, transform .13s;
+}
+.home-coming-btn:hover { background: #056d2b; color: #fff; }
+.home-coming-btn:active { transform: scale(.98); }
+.home-qr-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 13px 14px;
+    border: 1.5px solid #c8d6f8;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+    color: #1a3a8f;
+    font-size: .94rem;
+    font-weight: 800;
+    text-align: left;
+}
+button.home-qr-panel { border-color: #c8d6f8; cursor: pointer; }
+.home-qr-panel:hover { background: #f5f8ff; }
+.home-qr-panel i { font-size: 1.22rem; }
+.home-qr-panel:disabled { cursor: wait; opacity: .65; }
 .home-qr-feedback {
     min-height: 18px;
-    margin-top: 8px;
+    margin: -6px 2px 12px;
     font-size: .75rem;
     font-weight: 600;
 }
+.home-live-card {
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1.5px solid #e4e9f4;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+}
+.home-live-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 13px 9px;
+}
+.home-live-title {
+    color: #1d2536;
+    font-size: .86rem;
+    font-weight: 900;
+    letter-spacing: .015em;
+}
+.home-live-dot { color: #ef3131; font-size: .7rem; vertical-align: 1px; }
+.home-live-all { color: #1754bf; font-size: .75rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.home-live-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 10px;
+    padding: 10px 4px;
+    border-top: 1px solid #edf0f5;
+    color: #182136;
+    text-decoration: none;
+}
+.home-live-badge {
+    border-radius: 5px;
+    background: #ef3131;
+    color: #fff;
+    font-size: .59rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    line-height: 1;
+    padding: 5px 5px;
+}
+.home-live-match {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    font-size: .77rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.home-live-score { color: #087d32; font-size: .88rem; font-weight: 900; white-space: nowrap; }
+.home-live-arrow { color: #9aa3b1; font-size: .78rem; }
 
 /* ── Divider before secondary sections ─────────────────────────────── */
 .home-divider {
@@ -269,108 +385,113 @@
 
 /* Accessibility / motion */
 @media (prefers-reduced-motion: reduce) {
-    .home-ball-btn, .sec-btn, .ic-card { transition: none; }
+    .home-coming-btn, .sec-btn, .home-qr-shortcut { transition: none; }
     .sec-chevron { transition: none; }
 }
-@media (max-width: 400px) {
-    .home-ball-btn { width: 104px; height: 104px; }
-    .home-ball-btn img { height: 62px; }
+@media (max-width: 370px) {
+    .home-top-grid { gap: 7px; }
+    .home-player-primary { padding: 11px 9px; }
+    .home-player-avatar { width: 66px; height: 66px; }
+    .home-qr-shortcut { top: 54px; right: 6px; width: 34px; height: 34px; }
+    .home-court-summary { padding: 12px 10px 7px; }
+    .home-court-meta { margin-left: 10px; margin-right: 10px; }
+    .home-coming-btn { width: calc(100% - 20px); margin-left: 10px; margin-right: 10px; }
 }
 </style>
 
 <div class="container-fluid px-3 pt-2 pb-5">
 
-    <!-- ── Info strip ────────────────────────────────────────────────── -->
-    <div class="ic-row mb-3">
-
-        {% if logged_in_player %}
-        <a href="{% url 'player_profile' logged_in_player.id %}" class="ic-card ic-user">
-        {% elif team_info %}
-        <a href="{% url 'team_list' %}" class="ic-card ic-user">
-        {% else %}
-        <a href="{% url 'player_auth:login' %}" class="ic-card ic-user">
-        {% endif %}
-            <div class="ic-icon"><i class="fas fa-user"></i></div>
-            <div class="ic-body">
-                <div class="ic-label">{% translate "Player" %}</div>
-                {% if player_name %}
-                    <div class="ic-value">{{ player_name }}</div>
-                    <div class="ic-sub">{% if team_info.team_name %}{{ team_info.team_name }}{% else %}{% translate "No team" %}{% endif %}</div>
-                {% elif team_info %}
-                    <div class="ic-value">{{ team_info.team_name }}</div>
-                    <div class="ic-sub">{% translate "Team session" %}</div>
-                {% else %}
-                    <div class="ic-value">{% translate "Sign in" %}</div>
-                    <div class="ic-sub">{% translate "Tap to log in" %}</div>
+    <!-- ── Two-card welcome summary: existing player, courts and weather data ── -->
+    <div class="home-top-grid">
+        <section class="home-card home-card-player">
+            {% if logged_in_player %}
+            <a href="{% url 'player_profile' logged_in_player.id %}" class="home-player-primary">
+                <div class="home-player-avatar">
+                    {% if home_player_profile and home_player_profile.profile_picture %}
+                        <img src="{{ home_player_profile.profile_picture.url }}" alt="{{ logged_in_player.name }}">
+                    {% else %}
+                        <i class="fas fa-user" aria-hidden="true"></i>
+                    {% endif %}
+                </div>
+                <div class="home-card-label">{% translate "Player" %}</div>
+                <div class="home-player-name">{{ logged_in_player.name }}</div>
+                <div class="home-player-team">{% if home_player_team %}{{ home_player_team.name }}{% else %}{% translate "No team" %}{% endif %}</div>
+                {% if home_player_profile %}
+                <div class="home-player-rating"><i class="fas fa-star" aria-hidden="true"></i>{% translate "Rating" %} {{ home_player_profile.value|floatformat:1 }}</div>
+                {% if home_player_profile.boule_brand or home_player_profile.boule_diameter_mm or home_player_profile.boule_weight_g %}
+                <div class="home-player-boules"><i class="fas fa-circle" aria-hidden="true"></i>{% if home_player_profile.boule_brand %}{{ home_player_profile.boule_brand }}{% endif %}{% if home_player_profile.boule_diameter_mm %}{% if home_player_profile.boule_brand %} · {% endif %}{{ home_player_profile.boule_diameter_mm }} mm{% endif %}{% if home_player_profile.boule_weight_g %}{% if home_player_profile.boule_brand or home_player_profile.boule_diameter_mm %} · {% endif %}{{ home_player_profile.boule_weight_g }} g{% endif %}</div>
                 {% endif %}
-            </div>
-            <i class="fas fa-chevron-right ic-chevron"></i>
-        </a>
-
-        <a href="{% url 'billboard:list' %}" class="ic-card ic-courts">
-            <div class="ic-icon"><i class="fas fa-map-marker-alt"></i></div>
-            <div class="ic-body">
-                <div class="ic-label">{% if at_courts_court_name %}{{ at_courts_court_name }}{% else %}{% translate "Courts" context "petanque playing areas home" %}{% endif %}</div>
-                {% if currently_at_courts > 0 %}
-                    <div class="ic-value">{% blocktranslate count counter=currently_at_courts %}{{ counter }} player{% plural %}{{ counter }} players{% endblocktranslate %}</div>
-                    <div class="ic-sub">{% translate "at courts now" %}</div>
-                {% else %}
-                    <div class="ic-value">{% translate "No players" %}</div>
-                    <div class="ic-sub">{% translate "at courts" %}</div>
                 {% endif %}
-            </div>
-            <i class="fas fa-chevron-right ic-chevron"></i>
-        </a>
+            </a>
+            <a href="{% url 'player_qr_card' logged_in_player.id %}" class="home-qr-shortcut" aria-label="{% translate 'Show my QR Card' %}" title="{% translate 'Show my QR Card' %}"><i class="fas fa-qrcode" aria-hidden="true"></i></a>
+            {% elif team_info %}
+            <a href="{% url 'team_list' %}" class="home-player-primary">
+                <div class="home-player-avatar"><i class="fas fa-users" aria-hidden="true"></i></div>
+                <div class="home-card-label">{% translate "Team" %}</div>
+                <div class="home-player-name">{{ team_info.team_name }}</div>
+                <div class="home-player-team">{% translate "Team session" %}</div>
+            </a>
+            {% else %}
+            <a href="{% url 'player_auth:login' %}" class="home-player-primary">
+                <div class="home-player-avatar"><i class="fas fa-user" aria-hidden="true"></i></div>
+                <div class="home-card-label">{% translate "Player" %}</div>
+                <div class="home-player-name">{% translate "Sign in" %}</div>
+                <div class="home-player-team">{% translate "Tap to log in" %}</div>
+            </a>
+            {% endif %}
+        </section>
 
-        <a href="https://www.windy.com/?37.991,23.738,12" target="_blank" rel="noopener" class="ic-card ic-weather">
-            <div class="ic-icon">
-                {% if weather_data %}{{ weather_data.icon }}{% else %}☁️{% endif %}
+        <section class="home-card home-card-courts">
+            <a href="{% url 'billboard:list' %}" class="home-court-summary">
+                <div class="home-card-label">{% translate "Courts now" %}</div>
+                <div class="home-court-head">
+                    <div class="home-court-icon"><i class="fas fa-map-marker-alt" aria-hidden="true"></i></div>
+                    <div class="home-court-name">{% if at_courts_court_name %}{{ at_courts_court_name }}{% else %}{% translate "Courts" context "petanque playing areas home" %}{% endif %}</div>
+                </div>
+                <div class="home-court-count"><i class="fas fa-users" aria-hidden="true"></i>{% blocktranslate count counter=currently_at_courts %}{{ counter }} player now{% plural %}{{ counter }} players now{% endblocktranslate %}</div>
+            </a>
+            <div class="home-court-meta">
+                <span class="home-temperature">{% if weather_data %}<span class="weather-icon" aria-hidden="true">{{ weather_data.icon }}</span>{{ weather_data.temperature }}&deg;C{% else %}<span class="weather-icon" aria-hidden="true">☁️</span>{% translate "Unavailable" %}{% endif %}</span>
             </div>
-            <div class="ic-body">
-                <div class="ic-label">{% translate "Weather" %}</div>
-                {% if weather_data %}
-                    <div class="ic-value">{{ weather_data.temperature }}&deg;C</div>
-                    <div class="ic-sub">{{ weather_data.description }}</div>
-                {% else %}
-                    <div class="ic-value">N/A</div>
-                    <div class="ic-sub">{% translate "Unavailable" %}</div>
-                {% endif %}
-            </div>
-            <i class="fas fa-chevron-right ic-chevron"></i>
-        </a>
-
+            {% if request.session.player_codename %}
+            <a href="{% url 'billboard:list' %}?action=going" class="home-coming-btn">{% translate "I'm Coming" %}</a>
+            {% else %}
+            <a href="{% url 'player_auth:login' %}" class="home-coming-btn">{% translate "I'm Coming" %}</a>
+            {% endif %}
+        </section>
     </div>
-    <!-- ── end info strip ───────────────────────────────────────────── -->
 
+    <!-- Existing QR scan action: scans another player's card, not this user's QR. -->
+    {% if request.session.player_codename %}
+    <button type="button" id="homeQrActionBtn" class="home-qr-panel">
+        <i class="fas fa-qrcode" aria-hidden="true"></i>{% translate "Scan Player QR" %}
+    </button>
+    <div id="homeQrFeedback" class="home-qr-feedback" aria-live="polite"></div>
+    {% else %}
+    <a href="{% url 'player_auth:login' %}" class="home-qr-panel">
+        <i class="fas fa-qrcode" aria-hidden="true"></i>{% translate "Scan Player QR" %}
+    </a>
+    {% endif %}
 
-    <!-- ── HERO: Central ball — PRIMARY ACTION ──────────────────────── -->
-    <div class="home-hero">
-        <div class="home-hero-hint">{% translate "Tap the ball to start" %}</div>
-
-        <a href="{% url 'my_active_matches' %}" class="home-ball-btn" title="{% translate 'My Matches' %}">
-            <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
+    <!-- Existing active scoreboards only. The entire section remains absent when no game is live. -->
+    {% if home_live_scoreboards %}
+    <section class="home-live-card" aria-label="{% translate 'Live Now' %}">
+        <div class="home-live-heading">
+            <div class="home-live-title"><i class="fas fa-circle home-live-dot" aria-hidden="true"></i> {% blocktranslate count counter=home_live_scoreboards|length %}LIVE NOW — {{ counter }} match{% plural %}LIVE NOW — {{ counter }} matches{% endblocktranslate %}</div>
+            <a href="{% url 'live_scores_list' %}" class="home-live-all">{% translate "View all" %} <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+        </div>
+        {% for scoreboard in home_live_scoreboards|slice:":3" %}
+        <a href="{% url 'scoreboard_embed' scoreboard.id %}" class="home-live-row">
+            <span class="home-live-badge">LIVE</span>
+            <span class="home-live-match">{{ scoreboard.get_team1_name }} — {{ scoreboard.get_team2_name }}</span>
+            <span class="home-live-score">{{ scoreboard.team1_score }} – {{ scoreboard.team2_score }}</span>
+            <i class="fas fa-chevron-right home-live-arrow" aria-hidden="true"></i>
         </a>
+        {% endfor %}
+    </section>
+    {% endif %}
 
-        <div class="home-ball-label">PFC — {% translate "My Matches" %}</div>
-        <div class="home-ball-sub">{% translate "Your active game, tournament or friendly" %}</div>
-
-        {% if request.session.player_codename %}
-        <button type="button" id="homeQrActionBtn" class="home-nav-hint home-qr-action">
-            <i class="fas fa-qrcode" style="font-size:.9rem;"></i>
-            {% translate "Scan Player QR" %}
-        </button>
-        <div id="homeQrFeedback" class="home-qr-feedback" aria-live="polite"></div>
-        {% else %}
-        <a href="{% url 'player_auth:login' %}" class="home-nav-hint" style="text-decoration:none;">
-            <i class="fas fa-qrcode" style="font-size:.9rem;"></i>
-            {% translate "Scan Player QR" %}
-        </a>
-        {% endif %}
-    </div>
-    <!-- ── end hero ─────────────────────────────────────────────────── -->
-
-
-    <!-- ── SECONDARY SECTIONS ───────────────────────────────────────── -->
+    <!-- ── Existing accordion sections, intentionally unchanged ───────── -->
     <div class="home-divider">
         <div class="home-divider-line"></div>
         <div class="home-divider-label">{% translate "More options" %}</div>

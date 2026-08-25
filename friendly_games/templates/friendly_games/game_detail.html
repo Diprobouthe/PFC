@@ -242,9 +242,32 @@
     gap: 5px;
     white-space: nowrap;
 }
-.fg-share-btn:hover { color: #495057; background: #f8f9fa; }
+	.fg-share-btn:hover { color: #495057; background: #f8f9fa; }
 
-/* ── Share drawer (hidden by default) ── */
+	/* ── Creator QR setup, only while the game is waiting to start ─────── */
+	.fg-creator-setup { width: 100%; margin: 4px 0 10px; padding: 12px; border: 1px solid #b9d7ca; border-radius: 12px; background: #f5fcf8; }
+	.fg-creator-title { margin-bottom: 3px; color: #155c38; font-size: .8rem; font-weight: 900; }
+	.fg-creator-copy { margin: 0 0 10px; color: #537064; font-size: .73rem; line-height: 1.35; }
+	.fg-creator-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+	.fg-creator-mode { min-height: 48px; border: 1px solid #c9dfd1; border-radius: 8px; background: #fff; color: #37604a; font-size: .7rem; font-weight: 800; cursor: pointer; }
+	.fg-creator-mode.active { border-color: #087d72; background: #dff7f0; color: #056b63; box-shadow: inset 0 0 0 1px #087d72; }
+	.fg-creator-sides { display: none; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+	.fg-creator-sides.visible { display: grid; }
+	.fg-creator-side { min-height: 34px; border: 1px solid #c9dfd1; border-radius: 8px; background: #fff; color: #293940; font-size: .74rem; font-weight: 800; cursor: pointer; }
+	.fg-creator-side.black { background: #212529; border-color: #212529; color: #fff; }
+	.fg-creator-side.selected { box-shadow: 0 0 0 3px rgba(8,125,114,.22); }
+	.fg-creator-scan, .fg-creator-apply { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 40px; margin-top: 9px; border: 1.5px solid #087d72; border-radius: 9px; background: #effcf9; color: #056b63; font-size: .78rem; font-weight: 900; cursor: pointer; }
+	.fg-creator-apply { display: none; border-color: #1754bf; background: #edf3ff; color: #124699; }
+	.fg-creator-apply.visible { display: flex; }
+	.fg-creator-pills { display: none; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+	.fg-creator-pills.visible { display: flex; }
+	.fg-creator-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 99px; background: #e5f7eb; color: #155c38; font-size: .69rem; font-weight: 700; }
+	.fg-creator-pill button { border: none; background: transparent; color: #5d7b67; cursor: pointer; }
+	.fg-creator-feedback { min-height: 16px; margin-top: 7px; color: #667085; font-size: .7rem; }
+	.fg-creator-feedback.error { color: #b42318; }
+	.fg-opening-side { width: 100%; padding: 9px 11px; border-radius: 10px; background: #eef7ff; color: #164a7a; font-size: .78rem; font-weight: 750; text-align: center; }
+
+	/* ── Share drawer (hidden by default) ── */
 .fg-share-drawer {
     display: none;
     position: fixed;
@@ -351,6 +374,10 @@
     <!-- PRIMARY ACTION AREA -->
     <div class="fg-action">
 
+        {% if game.status == 'ACTIVE' and game.starting_team %}
+        <div class="fg-opening-side"><i class="fas fa-flag-checkered"></i> {% if game.starting_team == 'BLACK' %}{% translate "Black Team" %}{% else %}{% translate "White Team" %}{% endif %} {% translate "starts first" %}</div>
+        {% endif %}
+
         {% if game.status == 'WAITING_FOR_PLAYERS' %}
             <!-- ── BEFORE MATCH: START (creator only) or LEAVE (joined players) ── -->
 
@@ -379,6 +406,23 @@
 
             {# Simple server-side logic: view passes is_creator and is_joined in context #}
             {% if is_creator %}
+                <section class="fg-creator-setup" id="creatorQrSetup">
+                    <div class="fg-creator-title"><i class="fas fa-qrcode"></i> {% translate "Creator QR Setup" %}</div>
+                    <p class="fg-creator-copy" id="creatorSetupCopy">{% translate "Choose Black or White, then scan a Player QR to add that player immediately." %}</p>
+                    <div class="fg-creator-modes">
+                        <button type="button" class="fg-creator-mode active" data-fg-mode="manual">{% translate "Manual" %}</button>
+                        <button type="button" class="fg-creator-mode" data-fg-mode="random">{% translate "Random" %}</button>
+                        <button type="button" class="fg-creator-mode" data-fg-mode="balanced">{% translate "Balanced" %}</button>
+                    </div>
+                    <div class="fg-creator-sides visible" id="creatorSides">
+                        <button type="button" class="fg-creator-side black selected" data-fg-team="BLACK">⚫ {% translate "Black" %}</button>
+                        <button type="button" class="fg-creator-side" data-fg-team="WHITE">⚪ {% translate "White" %}</button>
+                    </div>
+                    <button type="button" class="fg-creator-scan" id="creatorQrScan"><i class="fas fa-qrcode"></i> {% translate "Scan Player QR" %}</button>
+                    <div class="fg-creator-pills" id="creatorScannedPills"></div>
+                    <button type="button" class="fg-creator-apply" id="creatorApplyTeams"><i class="fas fa-users"></i> {% translate "Create Teams" %}</button>
+                    <div class="fg-creator-feedback" id="creatorQrFeedback" aria-live="polite"></div>
+                </section>
                 <a href="{% url 'friendly_games:start_match' game.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="fg-btn-primary fg-btn-start">
                     <i class="fas fa-play-circle"></i> {% translate "Start Match" %}
                 </a>
@@ -533,6 +577,70 @@ function copyCode() {
 {% include "partials/timer_countdown_js.html" with timer_seconds=game.time_remaining_seconds timer_total=game.timer_total_seconds timer_id="friendly" timer_sound=True timer_start_epoch=game.timer_started_at|date:"U" %}
 {% endif %}
 
+{% if is_creator and game.status == 'WAITING_FOR_PLAYERS' %}
+(function () {
+    window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";
+    const endpoint = "{% url 'friendly_games:creator_assign_players' game.id %}";
+    const state = { mode: 'manual', team: 'BLACK', scanned: [] };
+    const scanButton = document.getElementById('creatorQrScan');
+    const applyButton = document.getElementById('creatorApplyTeams');
+    const feedback = document.getElementById('creatorQrFeedback');
+    const pills = document.getElementById('creatorScannedPills');
+    const sides = document.getElementById('creatorSides');
+    const copy = document.getElementById('creatorSetupCopy');
+    const texts = {
+        unavailable: '{% translate "QR scanner is unavailable. Please reload and try again." %}',
+        manual: '{% translate "Choose Black or White, then scan a Player QR to add that player immediately." %}',
+        random: '{% translate "Scan the participants. Create Teams will distribute them randomly and as evenly as possible." %}',
+        balanced: '{% translate "Scan the participants. Create Teams will use existing rating first and preferred position as an additional balancing factor." %}',
+        noPlayers: '{% translate "Scan at least one player first." %}',
+        duplicate: '{% translate "This player is already included." %}',
+        added: '{% translate "Scanned player added." %}',
+        assigned: '{% translate "Scanned players were added to the Friendly Game." %}',
+        network: '{% translate "Unable to update the Friendly Game. Please try again." %}',
+        createTeams: '{% translate "Create Teams" %}'
+    };
+    function csrfToken() { const value = '; ' + document.cookie; const parts = value.split('; csrftoken='); return parts.length === 2 ? parts.pop().split(';').shift() : ''; }
+    function show(message, error) { feedback.textContent = message || ''; feedback.className = 'fg-creator-feedback' + (error ? ' error' : ''); }
+    function renderPills() {
+        const setupMode = state.mode !== 'manual';
+        pills.classList.toggle('visible', setupMode && state.scanned.length > 0);
+        pills.innerHTML = setupMode ? state.scanned.map(player => '<span class="fg-creator-pill"><i class="fas fa-qrcode"></i>' + String(player.name).replace(/[&<>]/g, function(ch) { return {'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]; }) + '<button type="button" data-remove-scan="' + player.id + '">✕</button></span>').join('') : '';
+    }
+    function setMode(mode) {
+        state.mode = mode;
+        document.querySelectorAll('[data-fg-mode]').forEach(button => button.classList.toggle('active', button.dataset.fgMode === mode));
+        const manual = mode === 'manual';
+        sides.classList.toggle('visible', manual);
+        applyButton.classList.toggle('visible', !manual);
+        copy.textContent = mode === 'manual' ? texts.manual : (mode === 'random' ? texts.random : texts.balanced);
+        show('', false); renderPills();
+    }
+    async function assign(payload) {
+        const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() }, body: JSON.stringify(payload) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || texts.network);
+        show(data.message || texts.assigned, false);
+        window.setTimeout(function () { window.location.assign(data.redirect_url || window.location.href); }, 180);
+    }
+    document.querySelectorAll('[data-fg-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.fgMode)));
+    document.querySelectorAll('[data-fg-team]').forEach(button => button.addEventListener('click', () => { state.team = button.dataset.fgTeam; document.querySelectorAll('[data-fg-team]').forEach(item => item.classList.toggle('selected', item.dataset.fgTeam === state.team)); }));
+    scanButton.addEventListener('click', function () { if (typeof openQrScanner !== 'function') { show(texts.unavailable, true); return; } openQrScanner(); });
+    applyButton.addEventListener('click', function () { if (!state.scanned.length) { show(texts.noPlayers, true); return; } assign({ mode: state.mode, player_ids: state.scanned.map(player => player.id) }).catch(error => show(error.message || texts.network, true)); });
+    pills.addEventListener('click', function (event) { const button = event.target.closest('[data-remove-scan]'); if (!button) return; state.scanned = state.scanned.filter(player => String(player.id) !== button.dataset.removeScan); renderPills(); });
+    document.addEventListener('qrPlayerResolved', function (event) {
+        const detail = event.detail || {}; const player = { id: Number(detail.player_id), name: detail.player_name || String(detail.player_id) };
+        if (!player.id) return;
+        if (state.mode === 'manual') {
+            assign({ mode: 'manual', assignments: [{ id: player.id, team: state.team }] }).catch(error => show(error.message || texts.network, true));
+            return;
+        }
+        if (state.scanned.some(item => item.id === player.id)) { show(texts.duplicate, true); return; }
+        state.scanned.push(player); show(texts.added, false); renderPills();
+    });
+})();
+{% endif %}
+
 // ── WebSocket-based PFC state listener (server-authoritative) ───────
     // The server pushes next_url in the payload.  No polling, no fetch.
     {% if game.status == 'ACTIVE' or game.status == 'PENDING_VALIDATION' or game.status == 'READY' %}
@@ -610,6 +718,9 @@ function copyCode() {
     })();
     {% endif %}
 </script>
+{% if is_creator and game.status == 'WAITING_FOR_PLAYERS' %}
+{% include 'partials/qr_scanner_modal.html' %}
+{% endif %}
 {% if qr_action_token %}
 <script>
   if (window.history && window.history.replaceState) {

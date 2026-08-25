@@ -288,6 +288,20 @@ def tracking_page(request, match_type, pk):
     # ── Participants ─────────────────────────────────────────────────────────
     players = _build_player_list(match_type, pk)
 
+    # ── Existing match-scoped authorization state ───────────────────────────
+    from .services import get_active_tracking_session
+    tracking_session = get_active_tracking_session(match_type, pk, create=False)
+    if tracking_session:
+        broadcast_by_player = {
+            auth.player_id: auth.broadcast_permitted
+            for auth in tracking_session.authorizations.filter(is_active=True)
+        }
+        for player_data in players:
+            player_data['broadcast_permitted'] = bool(broadcast_by_player.get(player_data['player_id'], False))
+    else:
+        for player_data in players:
+            player_data['broadcast_permitted'] = False
+
     # ── Detect logged-in player ──────────────────────────────────────────────
     from pfc_core.session_utils import CodenameSessionManager
     logged_in_codename = CodenameSessionManager.get_logged_in_codename(request)
@@ -402,7 +416,72 @@ def verify_participant(request, match_type, pk):
         # Returned only to the verified scanning browser; the server also retains
         # the identity in TrackingAuthorization for this match-scoped period.
         'codename': authorization.codename,
+        'broadcast_permitted': authorization.broadcast_permitted,
         'stats': stats,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AJAX: broadcast consent for an already tracking-authorized player
+# ─────────────────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def broadcast_permission(request, match_type, pk):
+    """Set explicit public-feed consent after a fresh QR proof for this player."""
+    if match_type not in ('match', 'game'):
+        return JsonResponse({'ok': False, 'error': 'Invalid match type'}, status=400)
+    if not _is_tracking_active(match_type, pk):
+        return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
+    try:
+        data = json.loads(request.body)
+        player_id = int(data.get('player_id', 0))
+        enabled = bool(data.get('enabled', False))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
+
+    # A participant who is already signed in under their own active PFC
+    # codename may control their own broadcast setting without scanning their
+    # own QR card. This is the same self-authorization principle used for
+    # their own Match Tracking. Every other player's broadcast still requires
+    # a fresh QR proof from this browser session.
+    from pfc_core.session_utils import CodenameSessionManager
+    from friendly_games.models import PlayerCodename
+
+    logged_in_codename = (CodenameSessionManager.get_logged_in_codename(request) or '').upper()
+    pc = None
+    if logged_in_codename:
+        try:
+            candidate = PlayerCodename.objects.select_related('player').get(codename=logged_in_codename)
+            if candidate.player_id == player_id:
+                pc = candidate
+        except PlayerCodename.DoesNotExist:
+            pass
+
+    if pc is None:
+        qr_codename = request.session.pop('qr_resolved_codename', None)
+        request.session.modified = True
+        if not qr_codename:
+            return JsonResponse({'ok': False, 'error': 'Scan the player QR card to confirm broadcast permission'}, status=403)
+        try:
+            pc = PlayerCodename.objects.select_related('player').get(codename=qr_codename)
+        except PlayerCodename.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'QR identity could not be resolved'}, status=403)
+        if pc.player_id != player_id:
+            return JsonResponse({'ok': False, 'error': 'QR identity mismatch'}, status=403)
+
+    from .services import active_authorization, broadcast_current_end_feed
+    authorization = active_authorization(match_type, pk, player_id, codename=pc.codename)
+    if not authorization:
+        return JsonResponse({'ok': False, 'error': 'Authorize tracking before enabling broadcast'}, status=403)
+    authorization.broadcast_permitted = enabled
+    authorization.save(update_fields=['broadcast_permitted'])
+    broadcast_current_end_feed(match_type, pk)
+    return JsonResponse({
+        'ok': True,
+        'player_id': player_id,
+        'player_name': pc.player.name,
+        'broadcast_permitted': authorization.broadcast_permitted,
     })
 
 
@@ -464,9 +543,11 @@ def record_shot(request, match_type, pk):
                 authorization.codename,
                 practice_type,
             )
-            Shot.objects.create(session=session, outcome=outcome)
+            shot = Shot.objects.create(session=session, outcome=outcome)
             session.refresh_from_db()
 
+        from .services import broadcast_permitted_action
+        broadcast_permitted_action(match_type, pk, authorization, shot)
         combined = _get_player_shot_stats(player_id, match_type, pk)
         return JsonResponse({
             'ok': True,
@@ -524,6 +605,8 @@ def undo_last_shot(request, match_type, pk):
         last_shot.delete()
         session.update_statistics()
         session.refresh_from_db()
+        from .services import broadcast_current_end_feed
+        broadcast_current_end_feed(match_type, pk)
         return JsonResponse({
             'ok': True,
             'undone_outcome': undone_outcome,

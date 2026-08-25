@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block title %}Invitations — PFC{% endblock %}
 
 {% block content %}
@@ -27,6 +28,16 @@
     </div>
     <div id="ih-inbox-list" class="ih-inbox-list">
       <div class="ih-empty">Loading…</div>
+    </div>
+  </section>
+
+  <!-- ── Accepted Invitation history (read-only) ───────────────────── -->
+  <section class="ih-section" id="ih-history-section">
+    <div class="ih-section-head">
+      <span class="ih-section-title">{% translate "Accepted Invitations" %}</span>
+    </div>
+    <div id="ih-history-list" class="ih-inbox-list">
+      <div class="ih-empty">{% translate "Loading…" %}</div>
     </div>
   </section>
 
@@ -356,12 +367,27 @@
 .ih-inbox-list { display: flex; flex-direction: column; gap: 10px; }
 .ih-empty { font-size: 0.85rem; color: #999; text-align: center; padding: 12px 0; }
 
-.ih-invite-card {
-  border: 1.5px solid #e0e8f4;
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: #f9fbfd;
-}
+  .ih-invite-card {
+    border: 1.5px solid #e0e8f4;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #f9fbfd;
+  }
+  .ih-invite-card.ih-accepted-history {
+    border-color: #b8dfc0;
+    background: #f5fbf6;
+  }
+  .ih-invite-status {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    margin-left: 5px;
+  }
+  .ih-invite-history-note { font-size: 0.78rem; color: #2e7d32; font-weight: 600; }
+
 .ih-invite-card-header {
   display: flex;
   justify-content: space-between;
@@ -467,6 +493,7 @@
   const sendResult    = document.getElementById("ih-send-result");
   const inboxList     = document.getElementById("ih-inbox-list");
   const inboxCount    = document.getElementById("ih-inbox-count");
+  const historyList   = document.getElementById("ih-history-list");
   const sessionSection = document.getElementById("ih-session-section");
   const sessionInfo   = document.getElementById("ih-session-info");
 
@@ -631,6 +658,52 @@
   }
 
   // ── Inbox ──────────────────────────────────────────────────────────
+  {% translate "Accepted" as invitation_accepted_label %}
+  {% translate "Accepted invitation" as invitation_accepted_history_label %}
+  {% translate "No accepted invitations yet." as no_accepted_invitations_label %}
+  const INVITATION_ACCEPTED_LABEL = '{{ invitation_accepted_label|escapejs }}';
+  const INVITATION_ACCEPTED_HISTORY_LABEL = '{{ invitation_accepted_history_label|escapejs }}';
+  const NO_ACCEPTED_INVITATIONS_LABEL = '{{ no_accepted_invitations_label|escapejs }}';
+
+  function loadAcceptedHistory() {
+    if (!historyList) return;
+    fetch("/invites/history/")
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>'; return; }
+        const invitations = data.invitations || [];
+        if (invitations.length === 0) {
+          historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>';
+          return;
+        }
+        historyList.innerHTML = invitations.map(inv => buildAcceptedHistoryCard(inv)).join("");
+      })
+      .catch(() => { historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>'; });
+  }
+
+  function buildAcceptedHistoryCard(inv) {
+    const typeLabel = inv.invite_type === "play" ? "Play" : "Team Build";
+    const typeCls = inv.invite_type === "play" ? "play" : "";
+    let meta = "";
+    if (inv.play_time) meta += `<i class="fas fa-clock"></i> ${fmtTime(inv.play_time)}  `;
+    if (inv.play_court) meta += `<i class="fas fa-map-marker-alt"></i> ${escHtml(inv.play_court)}  `;
+    if (inv.target_size) meta += `<i class="fas fa-users"></i> ${inv.target_size}-player team`;
+    return `
+      <div class="ih-invite-card ih-accepted-history">
+        <div class="ih-invite-card-header">
+          <span class="ih-invite-card-from">${escHtml(inv.sender_name)}</span>
+          <span>
+            <span class="ih-invite-card-type ${typeCls}">${typeLabel}</span>
+            <span class="ih-invite-status"><i class="fas fa-check"></i> ${INVITATION_ACCEPTED_LABEL}</span>
+          </span>
+        </div>
+        ${inv.message ? `<div class="ih-invite-card-msg">"${escHtml(inv.message)}"</div>` : ""}
+        ${inv.play_notes ? `<div class="ih-invite-card-meta">${escHtml(inv.play_notes)}</div>` : ""}
+        ${meta ? `<div class="ih-invite-card-meta">${meta}</div>` : ""}
+        <div class="ih-invite-history-note"><i class="fas fa-check-circle"></i> ${INVITATION_ACCEPTED_HISTORY_LABEL}</div>
+      </div>`;
+  }
+
   function loadInbox() {
     fetch("/invites/inbox/")
       .then(r => r.json())
@@ -685,6 +758,7 @@
       .then(data => {
         if (data.ok) {
           loadInbox();
+          loadAcceptedHistory();
           if (data.team_created) {
             alert(`Team created!\nName: ${data.team_name}\nPIN: ${data.team_pin}`);
           }
@@ -913,6 +987,7 @@
   // the hub does not need its own poll since it is only open when the
   // user is actively managing invites.
   loadInbox();
+  loadAcceptedHistory();
 })();
 </script>
 {% endblock %}

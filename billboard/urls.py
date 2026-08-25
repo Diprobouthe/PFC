@@ -20,6 +20,7 @@ urlpatterns = [
     # ── One-tap presence API ──────────────────────────────────────────────────
     path('api/defaults/', presence_views.api_defaults, name='api_defaults'),
     path('api/im-here/', presence_views.api_im_here, name='api_im_here'),
+    path('api/friendly-availability/', presence_views.api_friendly_availability, name='api_friendly_availability'),
     path('api/going/', presence_views.api_going, name='api_going'),
     path('api/leave/', presence_views.api_leave, name='api_leave'),
 

@@ -36,6 +36,29 @@ def _get_codename(request):
     return None
 
 
+def _current_manual_presence(codename, court=None):
+    """Return the latest currently valid manual AT_COURTS session for a player.
+
+    This deliberately mirrors the existing two-hour manual-presence window.  It
+    never treats game-generated or post-game presence as Friendly pull consent.
+    """
+    if not codename:
+        return None
+    entries = BillboardEntry.objects.filter(
+        codename=codename.upper(),
+        action_type='AT_COURTS',
+        presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+        is_active=True,
+    ).select_related('court_complex').order_by('-created_at')
+    if court is not None:
+        entries = entries.filter(court_complex=court)
+    for entry in entries:
+        local_now = get_court_local_now(entry.court_complex)
+        if entry.created_at >= local_now - timedelta(hours=2):
+            return entry
+    return None
+
+
 # ── Smart defaults ────────────────────────────────────────────────────────────
 
 def _snap_to_slot(dt):
@@ -120,12 +143,19 @@ def api_defaults(request):
         if prefs:
             last_anonymous = prefs.last_anonymous_choice
 
+    current_presence = _current_manual_presence(codename, court_complex) if codename else None
+    friendly_preference = False
+    if codename:
+        prefs = UserPresencePrefs.get_for_codename(codename)
+        friendly_preference = bool(prefs and prefs.available_for_friendly)
     return JsonResponse({
         "ok": True,
         "codename": codename,
         "defaults": defaults,
         "courts": courts,
         "last_anonymous": last_anonymous,
+        "friendly_presence_active": bool(current_presence),
+        "available_for_friendly": friendly_preference,
     })
 
 
@@ -194,7 +224,6 @@ def api_im_here(request):
     message = str(data.get("message", ""))[:200]
     # Anonymous presence: player is counted as verified but name is hidden publicly.
     is_anonymous = bool(data.get("is_anonymous", False))
-
     entry = BillboardEntry.objects.create(
         codename=codename,
         action_type="AT_COURTS",
@@ -216,6 +245,30 @@ def api_im_here(request):
         "entry_id": entry.pk,
         "court": court.name,
         "date": sched_date.isoformat(),
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_friendly_availability(request):
+    """Persist the caller's Friendly pull preference independently of presence.
+
+    The preference never creates presence by itself.  Friendly creator selection
+    still requires a valid manual AT_COURTS entry at the same Court Complex.
+    """
+    codename = _get_codename(request)
+    if not codename:
+        return JsonResponse({"ok": False, "error": "Sign in before changing Friendly availability."}, status=401)
+    try:
+        data = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Invalid availability request."}, status=400)
+    prefs, _ = UserPresencePrefs.objects.get_or_create(codename=codename.upper())
+    prefs.available_for_friendly = bool(data.get("available_for_friendly", False))
+    prefs.save(update_fields=["available_for_friendly", "updated_at"])
+    return JsonResponse({
+        "ok": True,
+        "available_for_friendly": prefs.available_for_friendly,
     })
 
 

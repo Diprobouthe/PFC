@@ -1,755 +1,344 @@
 {% extends 'base.html' %}
+{% load i18n %}
 
-{% block title %}New Game · PFC{% endblock %}
+{% block title %}{% translate "Create Friendly" %} · PFC{% endblock %}
 
 {% block content %}
 <style>
-/* ── Full-screen shell ── */
-.cg-shell {
-    min-height: calc(100dvh - 56px);
-    display: flex;
-    flex-direction: column;
-    padding: 10px 14px 80px; /* bottom pad for sticky button */
-    max-width: 480px;
-    margin: 0 auto;
-    gap: 8px;
-}
-
-/* ── Section rows ── */
-.cg-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.cg-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #6c757d;
-    margin-bottom: 2px;
-}
-
-/* ── Position selector ── */
-.cg-position-group {
-    display: flex;
-    gap: 6px;
-}
-.cg-pos-btn {
-    flex: 1;
-    padding: 8px 4px;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    background: #f8f9fa;
-    color: #495057;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    text-align: center;
-    transition: all 0.15s;
-    user-select: none;
-}
-.cg-pos-btn.active {
-    border-color: #198754;
-    background: #198754;
-    color: #fff;
-}
-.cg-pos-btn:hover:not(.active) { background: #e9ecef; }
-
-/* ── Timer row ── */
-.cg-timer-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #f8f9fa;
-    border: 1.5px solid #dee2e6;
-    border-radius: 10px;
-    padding: 10px 14px;
-}
-.cg-timer-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.cg-timer-icon {
-    font-size: 1rem;
-    color: #6c757d;
-}
-.cg-timer-text {
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: #212529;
-}
-.cg-timer-sub {
-    font-size: 0.7rem;
-    color: #6c757d;
-    margin-top: 1px;
-}
-/* Bootstrap switch override — bigger tap target */
-.cg-switch .form-check-input {
-    width: 2.4em;
-    height: 1.3em;
-    cursor: pointer;
-}
-.cg-timer-duration {
-    display: none;
-    margin-top: 8px;
-    padding: 0 2px;
-}
-.cg-timer-duration.visible { display: flex; align-items: center; gap: 8px; }
-.cg-duration-chips {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-.cg-chip {
-    padding: 5px 12px;
-    border: 1.5px solid #dee2e6;
-    border-radius: 20px;
-    background: #f8f9fa;
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.cg-chip.active {
-    border-color: #0d6efd;
-    background: #0d6efd;
-    color: #fff;
-}
-
-/* ── Court row ── */
-.cg-court-row {
-    display: flex;
-    gap: 6px;
-}
-.cg-court-row select {
-    flex: 1;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 0.82rem;
-    color: #212529;
-    background: #f8f9fa;
-    appearance: auto;
-}
-.cg-court-row select:focus {
-    outline: none;
-    border-color: #198754;
-    background: #fff;
-}
-
-/* ── Advanced toggle ── */
-.cg-advanced-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    background: #f8f9fa;
-    cursor: pointer;
-    user-select: none;
-}
-.cg-advanced-toggle span {
-    font-size: 0.78rem;
-    color: #6c757d;
-    font-weight: 600;
-}
-.cg-advanced-toggle i {
-    font-size: 0.75rem;
-    color: #adb5bd;
-    transition: transform 0.2s;
-}
-.cg-advanced-toggle.open i { transform: rotate(180deg); }
-
-/* ── Advanced panel ── */
-.cg-advanced-panel {
-    display: none;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    background: #fff;
-    padding: 12px;
-    gap: 10px;
-    flex-direction: column;
-}
-.cg-advanced-panel.open { display: flex; }
-
-/* ── Team assignment inside advanced ── */
-.cg-teams-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-.cg-team-col {
-    border-radius: 8px;
-    padding: 8px;
-    min-height: 60px;
-}
-.cg-team-black { background: #212529; color: #fff; cursor: pointer; }
-.cg-team-white { background: #f8f9fa; border: 1px solid #dee2e6; color: #212529; cursor: pointer; }
-/* QR target-team highlight: ring around the selected panel */
-.cg-team-col.qr-target-selected { box-shadow: 0 0 0 3px #0f766e; outline: 2px solid #0f766e; }
-.cg-team-col-label {
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    opacity: 0.6;
-    margin-bottom: 4px;
-}
-.cg-team-slot {
-    font-size: 0.78rem;
-    font-weight: 500;
-    padding: 3px 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.cg-team-slot-empty {
-    font-size: 0.72rem;
-    opacity: 0.4;
-    font-style: italic;
-}
-.cg-remove-btn {
-    background: none;
-    border: none;
-    color: #adb5bd;
-    cursor: pointer;
-    font-size: 0.7rem;
-    padding: 0 2px;
-    line-height: 1;
-}
-.cg-remove-btn:hover { color: #dc3545; }
-
-/* ── Player picker ── */
-.cg-player-search {
-    width: 100%;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 0.82rem;
-    background: #f8f9fa;
-}
-.cg-player-search:focus { outline: none; border-color: #198754; background: #fff; }
-.cg-player-list {
-    max-height: 180px;
-    overflow-y: auto;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    background: #fff;
-}
-.cg-player-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 10px;
-    border-bottom: 1px solid #f0f0f0;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.cg-player-item:last-child { border-bottom: none; }
-.cg-player-item:hover { background: #f8f9fa; }
-.cg-player-item.in-black { background: #212529; color: #fff; }
-.cg-player-item.in-black:hover { background: #343a40; }
-.cg-player-item.in-white { background: #e9ecef; color: #212529; }
-.cg-player-item.in-white:hover { background: #dee2e6; }
-.cg-player-name { font-size: 0.82rem; font-weight: 500; }
-.cg-player-pos { font-size: 0.68rem; opacity: 0.55; }
-.cg-player-badge {
-    font-size: 0.65rem;
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-weight: 700;
-}
-.badge-black { background: #fff; color: #212529; }
-.badge-white { background: #212529; color: #fff; }
-
-/* ── Game name input ── */
-.cg-name-input {
-    width: 100%;
-    border: 1.5px solid #dee2e6;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 0.82rem;
-    background: #f8f9fa;
-}
-.cg-name-input:focus { outline: none; border-color: #198754; background: #fff; }
-
-/* ── Sticky create button ── */
-.cg-sticky-btn {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    padding: 12px 16px 20px;
-    background: linear-gradient(to top, #fff 70%, transparent);
-    z-index: 100;
-    max-width: 480px;
-    margin: 0 auto;
-}
-.cg-create-btn {
-    width: 100%;
-    padding: 16px 24px;
-    font-size: 1.15rem;
-    font-weight: 700;
-    border-radius: 14px;
-    border: none;
-    background: #198754;
-    color: #fff;
-    box-shadow: 0 4px 16px rgba(25,135,84,0.35);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: transform 0.1s, box-shadow 0.1s;
-}
-.cg-create-btn:active { transform: scale(0.97); }
-.cg-create-btn:hover { background: #157347; }
-
-/* ── Auto-selected indicator ── */
-.cg-auto-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    color: #198754;
-    font-weight: 600;
-    padding: 2px 6px;
-    background: #d1e7dd;
-    border-radius: 6px;
-}
+    .fgc-shell { max-width: 520px; margin: 0 auto; padding: 14px 14px 92px; }
+    .fgc-heading { margin: 0 0 4px; color: #14233b; font-size: 1.25rem; font-weight: 900; }
+    .fgc-subtitle { margin: 0 0 16px; color: #667085; font-size: .84rem; }
+    .fgc-card { margin-bottom: 12px; padding: 14px; border: 1px solid #e1e8f2; border-radius: 15px; background: #fff; box-shadow: 0 3px 12px rgba(22, 43, 77, .05); }
+    .fgc-label { display: block; margin-bottom: 7px; color: #53637c; font-size: .71rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .fgc-position, .fgc-mode-grid, .fgc-team-grid { display: grid; gap: 8px; }
+    .fgc-position { grid-template-columns: repeat(3, 1fr); }
+    .fgc-mode-grid { grid-template-columns: repeat(3, 1fr); }
+    .fgc-choice, .fgc-mode, .fgc-side { min-height: 42px; border: 1.5px solid #d7e0eb; border-radius: 10px; background: #f8fafc; color: #334155; font-size: .79rem; font-weight: 800; cursor: pointer; }
+    .fgc-choice.active { border-color: #087d32; background: #087d32; color: #fff; }
+    .fgc-mode { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 8px 5px; text-align: center; }
+    .fgc-mode i { color: #3974ce; font-size: 1.1rem; }
+    .fgc-mode.active { border-color: #1754bf; background: #edf3ff; color: #124699; box-shadow: inset 0 0 0 1px #1754bf; }
+    .fgc-mode.active i { color: #124699; }
+    .fgc-mode small { display: block; color: #6b7a90; font-size: .62rem; font-weight: 600; line-height: 1.15; }
+    .fgc-timer { display: flex; align-items: center; justify-content: space-between; padding: 11px 0 3px; }
+    .fgc-timer-copy { display: flex; align-items: center; gap: 10px; color: #1f2c3d; font-size: .88rem; font-weight: 800; }
+    .fgc-timer-copy i { color: #527297; }
+    .fgc-duration { display: none; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+    .fgc-duration.visible { display: flex; }
+    .fgc-chip { padding: 6px 11px; border: 1.5px solid #d7e0eb; border-radius: 99px; background: #f8fafc; color: #465970; font-size: .76rem; font-weight: 800; cursor: pointer; }
+    .fgc-chip.active { border-color: #1754bf; background: #1754bf; color: #fff; }
+    .fgc-courts { display: grid; grid-template-columns: minmax(0, 1fr) 116px; gap: 8px; }
+    .fgc-courts select, .fgc-name-input { width: 100%; min-height: 42px; border: 1.5px solid #d7e0eb; border-radius: 10px; background: #f8fafc; color: #24344d; padding: 0 10px; font-size: .82rem; }
+    .fgc-mode-note { margin: 11px 0 0; color: #60718a; font-size: .78rem; line-height: 1.4; }
+    .fgc-scan-action { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 49px; margin-top: 12px; border: 2px solid #087d72; border-radius: 12px; background: #effcf9; color: #056b63; font-size: .92rem; font-weight: 900; cursor: pointer; }
+    .fgc-scan-action:active { transform: scale(.98); }
+    .fgc-feedback { min-height: 18px; margin: 8px 2px 0; color: #697b92; font-size: .76rem; }
+    .fgc-feedback.error { color: #b42318; } .fgc-feedback.success { color: #087d32; }
+    .fgc-team-grid { grid-template-columns: 1fr 1fr; margin-top: 13px; }
+    .fgc-team { min-width: 0; min-height: 104px; padding: 10px; border-radius: 12px; }
+    .fgc-team.black { background: #23272f; color: #fff; } .fgc-team.white { border: 1px solid #d9e1ea; background: #f9fbfd; color: #26374d; }
+    button.fgc-team { width: 100%; border: none; text-align: left; font: inherit; cursor: pointer; }
+    button.fgc-team.white { border: 1px solid #d9e1ea; }
+    .fgc-team-selector.selected { outline: 3px solid rgba(18, 116, 206, .7); outline-offset: 2px; box-shadow: 0 0 0 5px rgba(18, 116, 206, .12); }
+    .fgc-player { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 3px 0; font-size: .78rem; font-weight: 700; }
+    .fgc-player span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fgc-remove { border: none; background: transparent; color: inherit; cursor: pointer; opacity: .7; }
+    .fgc-empty { padding-top: 12px; font-size: .74rem; font-style: italic; opacity: .55; }
+    .fgc-scanned-wrap { display: none; margin-top: 13px; }
+    .fgc-scanned-wrap.visible { display: block; }
+    .fgc-scanned-list { display: flex; flex-wrap: wrap; gap: 7px; }
+    .fgc-scan-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #b9d7ca; border-radius: 99px; background: #effbf4; color: #17613b; font-size: .75rem; font-weight: 750; }
+    .fgc-scan-pill button { border: none; background: transparent; color: #567460; cursor: pointer; }
+    .fgc-normal-join-note { margin-top: 12px; padding: 10px; border-radius: 10px; background: #fff8dd; color: #735300; font-size: .76rem; line-height: 1.4; }
+    .fgc-normal-join-note i { margin-right: 5px; }
+    .fgc-court-players { display: none; margin-top: 12px; padding: 11px; border: 1px solid #c8d9f5; border-radius: 12px; background: #f5f9ff; }
+    .fgc-court-players.visible { display: block; }
+    .fgc-court-helper { margin: 0 0 9px; color: #58708f; font-size: .75rem; line-height: 1.35; }
+    .fgc-court-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
+    .fgc-court-button, .fgc-pull-button { min-height: 36px; border: 1.5px solid #98b7e8; border-radius: 9px; background: #fff; color: #1754a5; padding: 0 10px; font-size: .74rem; font-weight: 800; cursor: pointer; }
+    .fgc-pull-button { border-color: #b7cde9; color: #305c96; }
+    .fgc-court-players-list { display: grid; gap: 6px; margin-bottom: 9px; }
+    .fgc-court-player { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 9px; border: 1px solid #dce7f7; border-radius: 9px; background: #fff; color: #29476b; font-size: .78rem; font-weight: 750; cursor: pointer; }
+    .fgc-court-player.selected { border-color: #1754bf; background: #eaf2ff; box-shadow: inset 0 0 0 1px #1754bf; }
+    .fgc-court-player small { color: #70849e; font-size: .68rem; font-weight: 650; }
+    .fgc-court-empty { color: #6d8098; font-size: .76rem; font-style: italic; }
+    .fgc-include-creator { display: flex; align-items: flex-start; gap: 7px; margin-top: 9px; color: #405a78; font-size: .76rem; line-height: 1.3; cursor: pointer; }
+    .fgc-sticky { position: fixed; right: 0; bottom: 0; left: 0; z-index: 100; max-width: 520px; margin: 0 auto; padding: 12px 14px max(16px, env(safe-area-inset-bottom)); background: linear-gradient(to top, #fff 76%, rgba(255,255,255,0)); }
+    .fgc-submit { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 53px; border: none; border-radius: 13px; background: #087d32; color: #fff; font-size: 1rem; font-weight: 900; box-shadow: 0 5px 16px rgba(8, 125, 50, .26); cursor: pointer; }
+    .fgc-submit:active { transform: scale(.98); }
+    @media (max-width: 350px) { .fgc-mode small { display: none; } .fgc-courts { grid-template-columns: 1fr; } }
 </style>
 
-<div class="cg-shell">
-    <form method="post" id="gameForm">
+<div class="fgc-shell">
+    <h1 class="fgc-heading">{% translate "Create Friendly" %}</h1>
+    <p class="fgc-subtitle">{% translate "Set up the game, then share the code so players can join their own side." %}</p>
+
+    <form id="friendlyCreateForm" method="post">
         {% csrf_token %}
-        <!-- Hidden inputs -->
-        <input type="hidden" name="black_team_players" id="blackTeamPlayers">
-        <input type="hidden" name="white_team_players" id="whiteTeamPlayers">
-        <input type="hidden" name="game_name" id="game_name" value="Friendly Game">
-        <input type="hidden" name="creator_codename" id="creator_codename" value="{{ session_codename|default:'' }}">
-        <input type="hidden" name="time_limit_minutes" id="time_limit_minutes_hidden" value="30">
+        <input type="hidden" name="game_name" id="gameName" value="Friendly Game">
+        <input type="hidden" name="creator_codename" value="{{ session_codename|default:'' }}">
+        <input type="hidden" name="creator_position" id="creatorPosition" value="milieu">
+        <input type="hidden" name="setup_mode" id="setupMode" value="manual">
+        <input type="hidden" name="manual_assignments" id="manualAssignments" value="[]">
+        <input type="hidden" name="scanned_player_ids" id="scannedPlayerIds" value="[]">
+        <input type="hidden" name="court_player_ids" id="courtPlayerIds" value="[]">
+        <input type="hidden" name="include_creator" id="includeCreator" value="1">
+        <input type="hidden" name="time_limit_minutes" id="timeLimitMinutes" value="30">
 
-        <!-- ① POSITION -->
-        <div class="cg-row">
-            <div class="cg-label">Your Position</div>
-            <div class="cg-position-group" id="positionGroup">
-                <button type="button" class="cg-pos-btn {% if auto_selected_player.position == 'tirer' or not auto_selected_player %}{% endif %}" data-pos="tirer">Shooter</button>
-                <button type="button" class="cg-pos-btn {% if auto_selected_player.position == 'pointeur' %}{% endif %}" data-pos="pointeur">Pointeur</button>
-                <button type="button" class="cg-pos-btn active" data-pos="milieu">Milieu</button>
+        <section class="fgc-card">
+            <label class="fgc-label">{% translate "Your Position" %}</label>
+            <div class="fgc-position" id="positionButtons">
+                <button type="button" class="fgc-choice" data-position="tirer">{% translate "Shooter" %}</button>
+                <button type="button" class="fgc-choice" data-position="pointeur">{% translate "Pointer" %}</button>
+                <button type="button" class="fgc-choice active" data-position="milieu">{% translate "Milieu" %}</button>
             </div>
-            <input type="hidden" name="creator_position" id="creator_position" value="milieu">
-        </div>
+        </section>
 
-        <!-- ② TIMER -->
-        <div class="cg-row">
-            <div class="cg-timer-row" id="timerRow">
-                <div class="cg-timer-left">
-                    <i class="fas fa-clock cg-timer-icon"></i>
-                    <div>
-                        <div class="cg-timer-text">Timed Game</div>
-                        <div class="cg-timer-sub" id="timerSubtext">Off</div>
-                    </div>
-                </div>
-                <div class="cg-switch form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="is_timed" name="is_timed" value="1">
-                </div>
+        <section class="fgc-card">
+            <div class="fgc-timer">
+                <div class="fgc-timer-copy"><i class="fas fa-clock" aria-hidden="true"></i><span>{% translate "Timed Game" %}</span></div>
+                <div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="timedGame" name="is_timed" value="1"></div>
             </div>
-            <div class="cg-timer-duration" id="timerDuration">
-                <div class="cg-label" style="margin-bottom:0;">Duration</div>
-                <div class="cg-duration-chips" id="durationChips">
-                    <div class="cg-chip" data-min="15">15 min</div>
-                    <div class="cg-chip" data-min="20">20 min</div>
-                    <div class="cg-chip active" data-min="30">30 min</div>
-                    <div class="cg-chip" data-min="45">45 min</div>
-                    <div class="cg-chip" data-min="60">60 min</div>
-                </div>
+            <div class="fgc-duration" id="durationChoices">
+                <button type="button" class="fgc-chip" data-minutes="15">15 min</button><button type="button" class="fgc-chip" data-minutes="20">20 min</button><button type="button" class="fgc-chip active" data-minutes="30">30 min</button><button type="button" class="fgc-chip" data-minutes="45">45 min</button><button type="button" class="fgc-chip" data-minutes="60">60 min</button>
             </div>
-        </div>
+        </section>
 
-        <!-- ③ COURT -->
-        <div class="cg-row">
-            <div class="cg-label">Court</div>
-            <div class="cg-court-row">
-                <select name="court_complex_id" id="court_complex_id">
-                    <option value="">Complex — any</option>
-                    {% for cx in all_complexes %}
-                    <option value="{{ cx.id }}" {% if cx.id == preferred_complex_id %}selected{% endif %}>{{ cx.name }}</option>
-                    {% endfor %}
-                </select>
-                <select name="court_id" id="court_id" style="max-width:120px;">
-                    <option value="">Court — any</option>
-                    {% for cx in all_complexes %}
-                        {% for ct in cx.courts.all %}
-                        <option value="{{ ct.id }}" data-complex="{{ cx.id }}" {% if ct.id == preferred_court_id %}selected{% endif %}>
-                            #{{ ct.number }}
-                        </option>
-                        {% endfor %}
-                    {% endfor %}
-                </select>
+        <section class="fgc-card">
+            <label class="fgc-label">{% translate "Court" %}</label>
+            <div class="fgc-courts">
+                <select name="court_complex_id" id="courtComplex"><option value="">{% translate "Complex — any" %}</option>{% for cx in all_complexes %}<option value="{{ cx.id }}" {% if cx.id == preferred_complex_id %}selected{% endif %}>{{ cx.name }}</option>{% endfor %}</select>
+                <select name="court_id" id="court"><option value="">{% translate "Court — any" %}</option>{% for cx in all_complexes %}{% for ct in cx.courts.all %}<option value="{{ ct.id }}" data-complex="{{ cx.id }}" {% if ct.id == preferred_court_id %}selected{% endif %}>#{{ ct.number }}</option>{% endfor %}{% endfor %}</select>
             </div>
-        </div>
+        </section>
 
-        <!-- ④ ADVANCED (collapsed) -->
-        <div class="cg-row">
-            <div class="cg-advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
-                <span><i class="fas fa-sliders-h me-2"></i>Advanced Options</span>
-                <i class="fas fa-chevron-down" id="advancedChevron"></i>
+        <section class="fgc-card fgc-court-players" id="courtPlayersPanel" aria-labelledby="courtPlayersHeading">
+            <label class="fgc-label" id="courtPlayersHeading">{% translate "Players at Courts" %}</label>
+            <p class="fgc-court-helper">{% translate "Only players who are currently here at this Court Complex and enabled Available for Friendly are shown." %}</p>
+            <div class="fgc-court-actions">
+                <button type="button" class="fgc-court-button" id="loadCourtPlayers"><i class="fas fa-users" aria-hidden="true"></i> {% translate "Show available players" %}</button>
             </div>
-            <div class="cg-advanced-panel" id="advancedPanel">
-
-                <!-- Game name -->
-                <div>
-                    <div class="cg-label">Game Name</div>
-                    <input type="text" class="cg-name-input" id="game_name_input" placeholder="Friendly Game" value="Friendly Game"
-                           oninput="document.getElementById('game_name').value = this.value || 'Friendly Game'">
-                </div>
-
-                <!-- Teams -->
-                <div>
-                    <div class="cg-label" style="margin-bottom:6px;">Teams
-                        <span id="teamTypeBadge" class="ms-2" style="font-size:0.7rem;color:#198754;font-weight:700;"></span>
-                    </div>
-                    <div class="cg-teams-grid">
-                        <div class="cg-team-col cg-team-black qr-target-selected" id="teamPanelBlack" onclick="setQrTarget('black')" title="Tap to set as QR scan target">
-                            <div class="cg-team-col-label">⚫ Black</div>
-                            <div id="blackSlots"><div class="cg-team-slot-empty">Empty</div></div>
-                        </div>
-                        <div class="cg-team-col cg-team-white" id="teamPanelWhite" onclick="setQrTarget('white')" title="Tap to set as QR scan target">
-                            <div class="cg-team-col-label">⚪ White</div>
-                            <div id="whiteSlots"><div class="cg-team-slot-empty">Empty</div></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Player search + list -->
-                <div>
-                    <div class="cg-label">Add Players <span style="font-weight:400;text-transform:none;font-size:0.7rem;color:#adb5bd;">— tap to assign Black → White → remove</span></div>
-                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-                        <input type="text" class="cg-player-search" id="playerSearch" placeholder="Search player…" oninput="filterPlayers()" style="flex:1;margin-bottom:0;">
-                        <button type="button" onclick="openQrScanner()" title="Scan QR Card" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:10px;border:2px solid #0f766e;color:#0f766e;font-size:14px;font-weight:700;background:#f0fdfa;cursor:pointer;white-space:nowrap;">
-                            <i class="fas fa-qrcode"></i> Scan QR
-                        </button>
-                    </div>
-
-                    <div class="cg-player-list" id="playerList">
-                        {% for team in teams %}
-                            {% for player in team.players.all %}
-                            <div class="cg-player-item" data-id="{{ player.id }}" data-name="{{ player.name|escapejs }}" data-pos="{{ player.position|default:'MILIEU'|escapejs }}" onclick="cyclePlayer(this)">
-                                <div>
-                                    <div class="cg-player-name">{{ player.name }}</div>
-                                    <div class="cg-player-pos">{{ player.position|default:"—" }} · {{ team.name }}</div>
-                                </div>
-                                <span class="cg-player-badge" id="badge-{{ player.id }}"></span>
-                            </div>
-                            {% endfor %}
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <!-- Codename (hidden, pre-filled from session) -->
-                <!-- codename is passed via hidden input above -->
-
+            <div class="fgc-court-actions" aria-label="{% translate "Random player pull" %}">
+                <button type="button" class="fgc-pull-button" data-court-pull="1">{% translate "Random" %}: 1</button>
+                <button type="button" class="fgc-pull-button" data-court-pull="2">{% translate "Random" %}: 2</button>
+                <button type="button" class="fgc-pull-button" data-court-pull="3">{% translate "Random" %}: 3</button>
+                <button type="button" class="fgc-pull-button" data-court-pull="4">{% translate "Random" %}: 4</button>
+                <button type="button" class="fgc-pull-button" data-court-pull="5">{% translate "Random" %}: 5</button>
+                <button type="button" class="fgc-pull-button" data-court-pull="6">{% translate "Random" %}: 6</button>
             </div>
-        </div>
+            <div id="courtPlayersFeedback" class="fgc-feedback" aria-live="polite"></div>
+            <div id="courtPlayersList" class="fgc-court-players-list"></div>
+            <label class="fgc-include-creator"><input type="checkbox" id="includeCreatorToggle" checked> <span>{% translate "Include me in the Friendly Game" %}<small style="display:block;color:#72839a">{% translate "Uncheck only when building the game for players at courts without joining it yourself." %}</small></span></label>
+        </section>
 
+        <section class="fgc-card" aria-labelledby="setupHeading">
+            <label class="fgc-label" id="setupHeading">{% translate "Creator QR Setup" %}</label>
+            <div class="fgc-mode-grid" id="modeButtons">
+                <button type="button" class="fgc-mode active" data-mode="manual"><i class="fas fa-hand-pointer" aria-hidden="true"></i>{% translate "Manual" %}<small>{% translate "Choose Black or White" %}</small></button>
+                <button type="button" class="fgc-mode" data-mode="random"><i class="fas fa-random" aria-hidden="true"></i>{% translate "Random" %}<small>{% translate "Even QR teams" %}</small></button>
+                <button type="button" class="fgc-mode" data-mode="balanced"><i class="fas fa-scale-balanced" aria-hidden="true"></i>{% translate "Balanced" %}<small>{% translate "Rating and position" %}</small></button>
+            </div>
+            <p class="fgc-mode-note" id="modeNote">{% translate "Choose a side, then scan a Player QR to add that player immediately." %}</p>
+
+            <button type="button" id="scanPlayerQr" class="fgc-scan-action"><i class="fas fa-qrcode" aria-hidden="true"></i>{% translate "Scan Player QR" %}</button>
+            <div id="qrFeedback" class="fgc-feedback" aria-live="polite"></div>
+
+            <div class="fgc-team-grid" id="manualTeams">
+                <button type="button" class="fgc-team fgc-team-selector black selected" data-team="BLACK" aria-label="{% translate "Black" %}"><div id="blackPlayers"></div></button>
+                <button type="button" class="fgc-team fgc-team-selector white" data-team="WHITE" aria-label="{% translate "White" %}"><div id="whitePlayers"></div></button>
+            </div>
+
+            <div class="fgc-scanned-wrap" id="scannedWrap">
+                <label class="fgc-label">{% translate "Participants" %}</label>
+                <div class="fgc-scanned-list" id="scannedList"></div>
+            </div>
+
+            <div class="fgc-normal-join-note"><i class="fas fa-door-open" aria-hidden="true"></i>{% translate "These creator tools do not lock the game. Until Start Match, players can still join normally and choose Black or White if a place is available." %}</div>
+        </section>
+
+        <section class="fgc-card">
+            <label class="fgc-label">{% translate "Game Name" %}</label>
+            <input id="gameNameInput" class="fgc-name-input" type="text" value="Friendly Game" placeholder="Friendly Game">
+        </section>
     </form>
 </div>
 
-<!-- ⑤ STICKY CREATE BUTTON -->
-<div class="cg-sticky-btn">
-    <button type="submit" form="gameForm" class="cg-create-btn" id="createGameBtn">
-        <i class="fas fa-play-circle"></i> Create Game
-    </button>
-</div>
+<div class="fgc-sticky"><button form="friendlyCreateForm" type="submit" class="fgc-submit" id="createGameButton"><i class="fas fa-play-circle" aria-hidden="true"></i><span>{% translate "Create Game" %}</span></button></div>
 
 <script>
-// ── State ──
-const selected = { black: [], white: [] };
+window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";
+const creator = {% if auto_selected_player %}{ id: {{ auto_selected_player.id }}, name: '{{ auto_selected_player.name|escapejs }}', creator: true }{% else %}null{% endif %};
+const state = { mode: 'manual', target: 'BLACK', manual: { BLACK: [], WHITE: [] }, scanned: creator ? [{ ...creator, creator: true }] : [], courtEligible: [], courtSelected: [], includeCreator: true };
+const labels = {
+    empty: '{% translate "Empty" %}',
+    createGame: '{% translate "Create Game" %}',
+    createTeams: '{% translate "Create Teams" %}',
+    scanUnavailable: '{% translate "QR scanner is unavailable. Please reload and try again." %}',
+    chooseSide: '{% translate "Choose Black or White before scanning." %}',
+    added: '{% translate "Scanned player added." %}',
+    participantAdded: '{% translate "Scanned participant added. Press Create Teams when ready." %}',
+    duplicate: '{% translate "This player is already included." %}',
+    full: '{% translate "That team already has three players." %}',
+    manualNote: '{% translate "Choose a side, then scan a Player QR to add that player immediately." %}',
+    randomNote: '{% translate "Scan the participants. Create Teams will distribute them randomly and as evenly as possible." %}',
+    balancedNote: '{% translate "Scan the participants. Create Teams will use existing rating first and preferred position as an additional balancing factor." %}',
+    selectComplex: '{% translate "Select a Court Complex first." %}',
+    noCourtPlayers: '{% translate "No currently available Friendly players were found at this Court Complex." %}',
+    loadedCourtPlayers: '{% translate "Available players loaded. Select players or use a Random pull." %}',
+    selectedCourtPlayers: '{% translate "Selected court players were added to the current setup." %}',
+    randomPullShort: '{% translate "Not enough currently available players for that random pull." %}',
+    courtPlayersError: '{% translate "Unable to load available players at courts." %}'
+};
 
-// ── Position chips ──
-document.querySelectorAll('.cg-pos-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.cg-pos-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('creator_position').value = btn.dataset.pos;
+function escapeHtml(value) { const node = document.createElement('div'); node.textContent = value || ''; return node.innerHTML; }
+function allManualPlayers() { return [...state.manual.BLACK, ...state.manual.WHITE]; }
+function setFeedback(text, isError) { const el = document.getElementById('qrFeedback'); el.textContent = text || ''; el.className = 'fgc-feedback' + (text ? (isError ? ' error' : ' success') : ''); }
+function syncPayloads() {
+    document.getElementById('setupMode').value = state.mode;
+    document.getElementById('manualAssignments').value = JSON.stringify(allManualPlayers().map(player => ({ id: player.id, team: player.team })));
+    document.getElementById('scannedPlayerIds').value = JSON.stringify(state.scanned.map(player => player.id));
+    document.getElementById('courtPlayerIds').value = JSON.stringify(state.courtSelected.map(player => player.id));
+    document.getElementById('includeCreator').value = state.includeCreator ? '1' : '0';
+}
+function renderTeam(team) {
+    const container = document.getElementById(team === 'BLACK' ? 'blackPlayers' : 'whitePlayers');
+    const players = state.manual[team];
+    if (!players.length) { container.innerHTML = '<div class="fgc-empty">' + labels.empty + '</div>'; return; }
+    container.innerHTML = players.map(player => '<div class="fgc-player"><span>' + escapeHtml(player.name) + (player.creator ? ' <small>({% translate "You" %})</small>' : '') + '</span>' + (player.creator ? '' : '<button type="button" class="fgc-remove" data-team="' + team + '" data-id="' + player.id + '" aria-label="{% translate "Remove" %}">✕</button>') + '</div>').join('');
+}
+function nonManualParticipants() { return state.scanned; }
+function syncCreatorParticipant() {
+    if (!creator) return;
+    const hasCreator = state.scanned.some(player => player.id === creator.id);
+    if (state.includeCreator && !hasCreator) state.scanned.unshift({ ...creator, creator: true });
+    if (!state.includeCreator && hasCreator) state.scanned = state.scanned.filter(player => player.id !== creator.id);
+}
+function renderScanned() {
+    const wrap = document.getElementById('scannedWrap'); const list = document.getElementById('scannedList');
+    wrap.classList.toggle('visible', state.scanned.length > 0);
+    list.innerHTML = state.scanned.map(player => '<span class="fgc-scan-pill"><i class="fas ' + (player.creator ? 'fa-user-check' : 'fa-qrcode') + '" aria-hidden="true"></i>' + escapeHtml(player.name) + (player.creator ? ' <small>({% translate "You" %})</small>' : '<button type="button" data-scan-id="' + player.id + '" aria-label="{% translate "Remove" %}">✕</button>') + '</span>').join('');
+}
+function render() { renderTeam('BLACK'); renderTeam('WHITE'); renderScanned(); syncPayloads(); }
+function setMode(mode) {
+    if (mode !== 'manual') {
+        allManualPlayers().forEach(player => {
+            if (!state.scanned.some(item => item.id === player.id)) state.scanned.push({ ...player, creator: Boolean(player.creator) });
+        });
+        state.manual = { BLACK: [], WHITE: [] };
+    }
+    state.mode = mode;
+    syncCreatorParticipant();
+    document.querySelectorAll('.fgc-mode').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+    const manual = mode === 'manual';
+    document.getElementById('manualTeams').style.display = manual ? 'grid' : 'none';
+    document.getElementById('modeNote').textContent = mode === 'manual' ? labels.manualNote : (mode === 'random' ? labels.randomNote : labels.balancedNote);
+    document.querySelector('#createGameButton span').textContent = manual ? labels.createGame : labels.createTeams;
+    setFeedback('', false); render();
+}
+function addManual(player) {
+    const everyone = allManualPlayers();
+    if (everyone.some(item => item.id === player.id)) { setFeedback(labels.duplicate, true); return false; }
+    if (state.manual[state.target].length >= 3) { setFeedback(labels.full, true); return false; }
+    state.manual[state.target].push({ ...player, team: state.target }); setFeedback(labels.added, false); render(); return true;
+}
+function addScanned(player) {
+    if (state.scanned.some(item => item.id === player.id)) { setFeedback(labels.duplicate, true); return false; }
+    state.scanned.push(player); setFeedback(labels.participantAdded, false); render(); return true;
+}
+function setCourtFeedback(text, isError) { const el = document.getElementById('courtPlayersFeedback'); el.textContent = text || ''; el.className = 'fgc-feedback' + (text ? (isError ? ' error' : ' success') : ''); }
+function currentStagedIds() { return new Set([...allManualPlayers(), ...nonManualParticipants()].map(player => player.id)); }
+function renderCourtPlayers() {
+    const list = document.getElementById('courtPlayersList');
+    if (!state.courtEligible.length) { list.innerHTML = '<div class="fgc-court-empty">' + labels.noCourtPlayers + '</div>'; return; }
+    const staged = currentStagedIds();
+    list.innerHTML = state.courtEligible.map(player => {
+        const isStaged = staged.has(player.id);
+        const meta = player.position ? (' · ' + escapeHtml(player.position)) : '';
+        return '<button type="button" class="fgc-court-player" data-court-player="' + player.id + '"' + (isStaged ? ' disabled' : '') + '><span>' + escapeHtml(player.name) + '<small>' + meta + '</small></span><span>' + (isStaged ? '✓' : '+') + '</span></button>';
+    }).join('');
+}
+async function loadCourtPlayers() {
+    const complexId = document.getElementById('courtComplex').value;
+    if (!complexId) { setCourtFeedback(labels.selectComplex, true); return; }
+    setCourtFeedback('', false);
+    try {
+        const response = await fetch('{% url "friendly_games:available_court_players_api" %}?court_complex_id=' + encodeURIComponent(complexId), { credentials: 'same-origin' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || labels.courtPlayersError);
+        state.courtEligible = data.players || [];
+        renderCourtPlayers();
+        setCourtFeedback(state.courtEligible.length ? labels.loadedCourtPlayers : labels.noCourtPlayers, !state.courtEligible.length);
+    } catch (error) { setCourtFeedback(error.message || labels.courtPlayersError, true); }
+}
+function randomCourtPull(count) {
+    if (state.mode === 'manual') setMode('random');
+    const staged = currentStagedIds();
+    const remainingCapacity = 6 - state.scanned.length;
+    const candidates = state.courtEligible.filter(player => !staged.has(player.id));
+    if (count > remainingCapacity || candidates.length < count) { setCourtFeedback(labels.randomPullShort, true); return; }
+    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+    const pulled = shuffled.slice(0, count);
+    pulled.forEach(player => {
+        if (!state.scanned.some(item => item.id === player.id)) state.scanned.push(player);
+        if (!state.courtSelected.some(item => item.id === player.id)) state.courtSelected.push(player);
     });
-});
+    render(); renderCourtPlayers(); setCourtFeedback(labels.selectedCourtPlayers, false);
+}
 
-// ── Auto-select position from session ──
-{% if auto_selected_player and auto_selected_player.position %}
-(function() {
-    const pos = '{{ auto_selected_player.position|lower|escapejs }}';
-    document.querySelectorAll('.cg-pos-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.pos === pos);
-    });
-    document.getElementById('creator_position').value = pos;
-})();
+document.querySelectorAll('[data-position]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-position]').forEach(item => item.classList.remove('active')); button.classList.add('active'); document.getElementById('creatorPosition').value = button.dataset.position; }));
+{% if auto_selected_player and auto_selected_player.profile.preferred_position %}
+(function() { const preferred = '{{ auto_selected_player.profile.preferred_position|escapejs }}'; const button = document.querySelector('[data-position="' + preferred + '"]'); if (button) button.click(); })();
 {% endif %}
-
-// ── Timer toggle ──
-const timedCheckbox = document.getElementById('is_timed');
-const timerDuration = document.getElementById('timerDuration');
-const timerSubtext = document.getElementById('timerSubtext');
-
-timedCheckbox.addEventListener('change', function() {
-    if (this.checked) {
-        timerDuration.classList.add('visible');
-        timerSubtext.textContent = getSelectedDuration() + ' min';
-    } else {
-        timerDuration.classList.remove('visible');
-        timerSubtext.textContent = 'Off';
+document.querySelectorAll('.fgc-mode').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+document.querySelectorAll('.fgc-team-selector').forEach(button => button.addEventListener('click', () => { state.target = button.dataset.team; document.querySelectorAll('.fgc-team-selector').forEach(item => item.classList.toggle('selected', item.dataset.team === state.target)); }));
+document.getElementById('timedGame').addEventListener('change', function() { document.getElementById('durationChoices').classList.toggle('visible', this.checked); });
+document.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-minutes]').forEach(item => item.classList.remove('active')); button.classList.add('active'); document.getElementById('timeLimitMinutes').value = button.dataset.minutes; }));
+document.getElementById('gameNameInput').addEventListener('input', function() { document.getElementById('gameName').value = this.value || 'Friendly Game'; });
+document.getElementById('courtComplex').addEventListener('change', function() {
+    const value = this.value; const court = document.getElementById('court');
+    [...court.options].forEach(option => { if (!option.value) return; option.hidden = Boolean(value && option.dataset.complex !== value); });
+    if (court.selectedOptions[0] && court.selectedOptions[0].hidden) court.value = '';
+    document.getElementById('courtPlayersPanel').classList.toggle('visible', Boolean(value));
+    state.courtEligible = []; state.courtSelected = [];
+    document.getElementById('courtPlayersList').innerHTML = ''; setCourtFeedback('', false); syncPayloads();
+});
+document.getElementById('loadCourtPlayers').addEventListener('click', loadCourtPlayers);
+document.querySelectorAll('[data-court-pull]').forEach(button => button.addEventListener('click', () => randomCourtPull(Number(button.dataset.courtPull))));
+document.getElementById('includeCreatorToggle').addEventListener('change', function() {
+    state.includeCreator = this.checked;
+    syncCreatorParticipant();
+    render(); renderCourtPlayers(); syncPayloads();
+});
+document.getElementById('courtPlayersList').addEventListener('click', function(event) {
+    const button = event.target.closest('[data-court-player]'); if (!button || button.disabled) return;
+    const player = state.courtEligible.find(item => String(item.id) === button.dataset.courtPlayer); if (!player) return;
+    const wasAdded = state.mode === 'manual' ? addManual(player) : addScanned(player);
+    if (!wasAdded) return;
+    if (!state.courtSelected.some(item => item.id === player.id)) state.courtSelected.push(player);
+    setCourtFeedback(labels.selectedCourtPlayers, false);
+    renderCourtPlayers(); syncPayloads();
+});
+document.getElementById('scanPlayerQr').addEventListener('click', function() { if (typeof openQrScanner !== 'function') { setFeedback(labels.scanUnavailable, true); return; } openQrScanner(); });
+document.addEventListener('qrPlayerResolved', function(event) { const detail = event.detail || {}; const player = { id: Number(detail.player_id), name: detail.player_name || String(detail.player_id) }; if (!player.id) return; if (creator && player.id === creator.id) { setFeedback(labels.duplicate, true); return; } if (state.mode === 'manual') addManual(player); else addScanned(player); });
+document.addEventListener('click', function(event) {
+    const remove = event.target.closest('[data-team][data-id]');
+    if (remove) {
+        const removedId = Number(remove.dataset.id);
+        state.manual[remove.dataset.team] = state.manual[remove.dataset.team].filter(player => String(player.id) !== remove.dataset.id);
+        state.courtSelected = state.courtSelected.filter(player => player.id !== removedId);
+        render(); renderCourtPlayers();
+    }
+    const scanRemove = event.target.closest('[data-scan-id]');
+    if (scanRemove) {
+        const removedId = Number(scanRemove.dataset.scanId);
+        state.scanned = state.scanned.filter(player => String(player.id) !== scanRemove.dataset.scanId);
+        state.courtSelected = state.courtSelected.filter(player => player.id !== removedId);
+        render(); renderCourtPlayers();
     }
 });
-
-// ── Duration chips ──
-document.querySelectorAll('.cg-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-        document.querySelectorAll('.cg-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        document.getElementById('time_limit_minutes_hidden').value = chip.dataset.min;
-        timerSubtext.textContent = chip.dataset.min + ' min';
-    });
-});
-
-function getSelectedDuration() {
-    const active = document.querySelector('.cg-chip.active');
-    return active ? active.dataset.min : '30';
-}
-
-// ── Advanced toggle ──
-function toggleAdvanced() {
-    const panel = document.getElementById('advancedPanel');
-    const toggle = document.getElementById('advancedToggle');
-    const chevron = document.getElementById('advancedChevron');
-    const open = panel.classList.toggle('open');
-    toggle.classList.toggle('open', open);
-}
-
-// ── Player cycling ──
-function cyclePlayer(el) {
-    const id = el.dataset.id;
-    const name = el.dataset.name;
-    const pos = el.dataset.pos;
-
-    const inBlack = selected.black.findIndex(p => p.id === id);
-    const inWhite = selected.white.findIndex(p => p.id === id);
-
-    if (inBlack >= 0) {
-        // black → white (if space)
-        selected.black.splice(inBlack, 1);
-        if (selected.white.length < 3) {
-            // Manual cycle clears qr_verified
-            selected.white.push({ id, name, pos, qr_verified: false });
-            el.classList.remove('in-black'); el.classList.add('in-white');
-        } else {
-            el.classList.remove('in-black', 'in-white');
-        }
-    } else if (inWhite >= 0) {
-        // white → remove
-        selected.white.splice(inWhite, 1);
-        el.classList.remove('in-white');
-    } else {
-        // unassigned → black (if space)
-        if (selected.black.length < 3) {
-            // Manual add: qr_verified=false
-            selected.black.push({ id, name, pos, qr_verified: false });
-            el.classList.add('in-black');
-        } else if (selected.white.length < 3) {
-            selected.white.push({ id, name, pos, qr_verified: false });
-            el.classList.add('in-white');
-        }
-    }
-    updateBadge(el, id);
-    updateTeamSlots();
-    updateHiddenInputs();
-}
-
-function updateBadge(el, id) {
-    const badge = document.getElementById('badge-' + id);
-    if (!badge) return;
-    if (el.classList.contains('in-black')) { badge.textContent = '⚫'; badge.className = 'cg-player-badge'; }
-    else if (el.classList.contains('in-white')) { badge.textContent = '⚪'; badge.className = 'cg-player-badge'; }
-    else { badge.textContent = ''; }
-}
-
-function updateTeamSlots() {
-    renderSlots('blackSlots', selected.black, 'black');
-    renderSlots('whiteSlots', selected.white, 'white');
-    // Game type badge
-    const b = selected.black.length, w = selected.white.length;
-    const types = { '1-1': 'Tête', '2-2': 'Doublettes', '3-3': 'Triplettes' };
-    const badge = document.getElementById('teamTypeBadge');
-    if (badge) badge.textContent = (b > 0 || w > 0) ? (types[`${b}-${w}`] || `${b}v${w}`) : '';
-}
-
-function renderSlots(containerId, players, team) {
-    const el = document.getElementById(containerId);
-    if (players.length === 0) {
-        el.innerHTML = '<div class="cg-team-slot-empty">Empty</div>';
-        return;
-    }
-    el.innerHTML = players.map(p => `
-        <div class="cg-team-slot">
-            <span>${p.name}${p.qr_verified ? ' <span title="QR verified" style="color:#0f766e;font-size:0.7rem;">&#x2713;QR</span>' : ''}</span>
-            <button type="button" class="cg-remove-btn" onclick="removePlayer('${p.id}','${team}')">✕</button>
-        </div>`).join('');
-}
-
-function removePlayer(id, team) {
-    selected[team] = selected[team].filter(p => p.id !== id);
-    const el = document.querySelector(`[data-id="${id}"]`);
-    if (el) { el.classList.remove('in-black', 'in-white'); updateBadge(el, id); }
-    updateTeamSlots();
-    updateHiddenInputs();
-}
-
-function updateHiddenInputs() {
-    // Send {id, qr_verified} objects so the server can distinguish QR-confirmed from manual adds
-    document.getElementById('blackTeamPlayers').value = JSON.stringify(
-        selected.black.map(p => ({ id: p.id, qr_verified: p.qr_verified || false }))
-    );
-    document.getElementById('whiteTeamPlayers').value = JSON.stringify(
-        selected.white.map(p => ({ id: p.id, qr_verified: p.qr_verified || false }))
-    );
-}
-
-// ── Player search ──
-function filterPlayers() {
-    const q = document.getElementById('playerSearch').value.toLowerCase();
-    document.querySelectorAll('.cg-player-item').forEach(el => {
-        el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
-    });
-}
-
-// ── Auto-select logged-in player ──
-{% if auto_selected_player %}
-(function() {
-    const autoId = '{{ auto_selected_player.id }}';
-    const autoName = '{{ auto_selected_player.name|escapejs }}';
-    const autoPos = '{{ auto_selected_player.position|default:"MILIEU"|escapejs }}';
-    const el = document.querySelector(`[data-id="${autoId}"]`);
-    const alreadySelected = selected.black.some(p => p.id === autoId) || selected.white.some(p => p.id === autoId);
-    if (!alreadySelected && selected.black.length < 3) {
-        // Creator is verified via session codename (not QR), qr_verified=false is correct here.
-        // Do not depend on a visible player-card element existing in the DOM.
-        selected.black.push({ id: autoId, name: autoName, pos: autoPos, qr_verified: false });
-        if (el) {
-            el.classList.add('in-black');
-            updateBadge(el, autoId);
-        }
-        updateTeamSlots();
-        updateHiddenInputs();
-    }
-})();
-{% endif %}
-
-// ── Form validation ──
-document.getElementById('gameForm').addEventListener('submit', function(e) {
-    const total = selected.black.length + selected.white.length;
-    if (total === 0) {
-        e.preventDefault();
-        alert('Please add at least one player to a team.');
-        return false;
-    }
-    if (selected.black.length === 0 || selected.white.length === 0) {
-        if (!confirm('One team is empty. Continue anyway?')) {
-            e.preventDefault();
-            return false;
-        }
-    }
-});
-
-// ── Court: filter specific court options by complex ──
-document.getElementById('court_complex_id').addEventListener('change', function() {
-    const cxId = this.value;
-    document.querySelectorAll('#court_id option').forEach(opt => {
-        if (!opt.value) return; // keep "any" option
-        opt.style.display = (!cxId || opt.dataset.complex === cxId) ? '' : 'none';
-    });
-    // Reset court selection if current doesn't match
-    const courtSel = document.getElementById('court_id');
-    const selected = courtSel.options[courtSel.selectedIndex];
-    if (selected && selected.value && selected.dataset.complex !== cxId) {
-        courtSel.value = '';
-    }
-});
+document.getElementById('friendlyCreateForm').addEventListener('submit', function(event) { if (!document.querySelector('[name="creator_codename"]').value) { event.preventDefault(); setFeedback('{% translate "Sign in with your PFC codename before creating a Friendly Game." %}', true); } syncPayloads(); });
+if (document.getElementById('courtComplex').value) document.getElementById('courtPlayersPanel').classList.add('visible');
+render(); syncPayloads();
 </script>
-<!-- QR Scanner -->
-<script>window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";</script>
-{% include "partials/qr_scanner_modal.html" %}
-<script>
-// QR target team: 'black' by default
-let qrTargetTeam = 'black';
-
-function setQrTarget(team) {
-    qrTargetTeam = team;
-    // Highlight the selected large team panel with a teal ring; remove from the other.
-    const panelBlack = document.getElementById('teamPanelBlack');
-    const panelWhite = document.getElementById('teamPanelWhite');
-    if (team === 'black') {
-        panelBlack.classList.add('qr-target-selected');
-        panelWhite.classList.remove('qr-target-selected');
-    } else {
-        panelWhite.classList.add('qr-target-selected');
-        panelBlack.classList.remove('qr-target-selected');
-    }
-}
-
-document.addEventListener('qrPlayerResolved', function(e) {
-    const d = e.detail;
-    const el = document.querySelector('[data-id="' + d.player_id + '"]');
-    // Use DOM element data if available, otherwise fall back to QR event data.
-    const id   = el ? el.dataset.id   : String(d.player_id);
-    const name = el ? el.dataset.name : (d.player_name || String(d.player_id));
-    const pos  = el ? el.dataset.pos  : (d.position || 'MILIEU');
-    const inBlack = el ? el.classList.contains('in-black') : selected.black.some(p => p.id === id);
-    const inWhite = el ? el.classList.contains('in-white') : selected.white.some(p => p.id === id);
-
-    if (qrTargetTeam === 'black') {
-        if (inBlack) {
-            // Already on black — upgrade to qr_verified if not already
-            const existing = selected.black.find(p => p.id === id);
-            if (existing) existing.qr_verified = true;
-            updateTeamSlots();
-            updateHiddenInputs();
-            return;
-        }
-        // Remove from white if there
-        if (inWhite) {
-            const wi = selected.white.findIndex(p => p.id === id);
-            if (wi >= 0) selected.white.splice(wi, 1);
-            if (el) el.classList.remove('in-white');
-        }
-        if (selected.black.length < 3) {
-            // QR add: qr_verified=true
-            selected.black.push({ id, name, pos, qr_verified: true });
-            if (el) el.classList.add('in-black');
-        }
-    } else {
-        if (inWhite) {
-            // Already on white — upgrade to qr_verified if not already
-            const existing = selected.white.find(p => p.id === id);
-            if (existing) existing.qr_verified = true;
-            updateTeamSlots();
-            updateHiddenInputs();
-            return;
-        }
-        // Remove from black if there
-        if (inBlack) {
-            const bi = selected.black.findIndex(p => p.id === id);
-            if (bi >= 0) selected.black.splice(bi, 1);
-            if (el) el.classList.remove('in-black');
-        }
-        if (selected.white.length < 3) {
-            // QR add: qr_verified=true
-            selected.white.push({ id, name, pos, qr_verified: true });
-            if (el) el.classList.add('in-white');
-        }
-    }
-    if (el) updateBadge(el, id);
-    updateTeamSlots();
-    updateHiddenInputs();
-});
-</script>
+{% include 'partials/qr_scanner_modal.html' %}
 {% endblock %}

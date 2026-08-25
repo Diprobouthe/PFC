@@ -152,3 +152,19 @@ class ScoreboardConsumer(AsyncWebsocketConsumer):
             "is_active":        event.get("is_active", True),
             "score_update":     event.get("score_update"),
         }))
+
+    async def tracking_action(self, event):
+        """Relay one already-permitted current-end action to public viewers."""
+        await self.send(text_data=json.dumps({
+            "type": "tracking.action",
+            "scoreboard_id": event.get("scoreboard_id"),
+            "action": event.get("action") or {},
+        }))
+
+    async def tracking_feed_replaced(self, event):
+        """Relay a consent/undo-driven replacement of the public current-end feed."""
+        await self.send(text_data=json.dumps({
+            "type": "tracking.feed.replace",
+            "scoreboard_id": event.get("scoreboard_id"),
+            "actions": event.get("actions") or [],
+        }))

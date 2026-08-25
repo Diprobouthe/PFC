@@ -106,3 +106,125 @@ def end_tracking_sessions(match_type, match_pk, reason):
     for session in sessions:
         session.end(reason)
     return len(sessions)
+
+
+def scoreboard_for_tracking(match_type, match_pk):
+    """Resolve the existing LiveScoreboard for one tracked match/game, if present."""
+    from matches.models import LiveScoreboard
+
+    lookup = {"tournament_match_id": match_pk} if match_type == "match" else {"friendly_game_id": match_pk}
+    return LiveScoreboard.objects.filter(**lookup).first()
+
+
+def scoreboard_side_for_player(scoreboard, player_id):
+    """Return the existing LiveScoreboard side key for one participating player."""
+    if scoreboard.tournament_match_id:
+        from matches.models import MatchPlayer
+
+        match = scoreboard.tournament_match
+        participant = (
+            MatchPlayer.objects.filter(match=match, player_id=player_id)
+            .values("team_id")
+            .first()
+        )
+        if participant:
+            if participant["team_id"] == match.team1_id:
+                return "team1"
+            if participant["team_id"] == match.team2_id:
+                return "team2"
+    elif scoreboard.friendly_game_id:
+        participant = scoreboard.friendly_game.players.filter(player_id=player_id).values("team").first()
+        if participant:
+            if participant["team"] == "BLACK":
+                return "team1"
+            if participant["team"] == "WHITE":
+                return "team2"
+    return None
+
+
+def current_end_actions_for_scoreboard(scoreboard):
+    """Return the public, permitted actions recorded after the latest official score update.
+
+    This is a read-only projection of existing Match Tracking Shot records. It
+    never changes the tracking history, statistics, analytics, AI Coach, or PDF
+    data. A player must have active match-scoped broadcast consent at query time.
+    """
+    from practice.models import Shot
+
+    if scoreboard.tournament_match_id:
+        match_type, match_pk = "match", scoreboard.tournament_match_id
+    elif scoreboard.friendly_game_id:
+        match_type, match_pk = "game", scoreboard.friendly_game_id
+    else:
+        return []
+
+    tracking_session = get_active_tracking_session(match_type, match_pk, create=False)
+    if not tracking_session:
+        return []
+
+    latest_score_update = scoreboard.score_updates.order_by("-timestamp", "-id").first()
+    boundary = latest_score_update.timestamp if latest_score_update else tracking_session.started_at
+    permitted_player_ids = list(
+        tracking_session.authorizations.filter(
+            is_active=True,
+            broadcast_permitted=True,
+        ).values_list("player_id", flat=True)
+    )
+    if not permitted_player_ids:
+        return []
+
+    shots = (
+        Shot.objects.filter(
+            session__match_tracking_link__tracking_session=tracking_session,
+            session__match_tracking_link__player_id__in=permitted_player_ids,
+            timestamp__gt=boundary,
+        )
+        .select_related("session__match_tracking_link__player")
+        .order_by("timestamp", "id")
+    )
+    actions = []
+    for shot in shots:
+        player = shot.session.match_tracking_link.player
+        side = scoreboard_side_for_player(scoreboard, player.id)
+        if not side:
+            continue
+        actions.append({
+            "id": str(shot.id),
+            "player_name": player.name,
+            "outcome": shot.outcome,
+            "side": side,
+        })
+    return actions
+
+
+def broadcast_current_end_feed(match_type, match_pk):
+    """Replace the spectator feed from existing records after consent or undo changes."""
+    scoreboard = scoreboard_for_tracking(match_type, match_pk)
+    if not scoreboard:
+        return
+    from pfc_events.scoreboard_broadcast import broadcast_tracking_feed
+
+    broadcast_tracking_feed(scoreboard.id, current_end_actions_for_scoreboard(scoreboard))
+
+
+def broadcast_permitted_action(match_type, match_pk, authorization, shot):
+    """Append one permitted existing Shot to the spectator feed after persistence."""
+    if not authorization.broadcast_permitted:
+        return
+    scoreboard = scoreboard_for_tracking(match_type, match_pk)
+    if not scoreboard:
+        return
+    from pfc_events.scoreboard_broadcast import broadcast_tracking_action
+
+    side = scoreboard_side_for_player(scoreboard, authorization.player_id)
+    if not side:
+        return
+    broadcast_tracking_action(
+        scoreboard.id,
+        {
+            "id": str(shot.id),
+            "player_name": authorization.player.name,
+            "outcome": shot.outcome,
+            "side": side,
+        },
+    )

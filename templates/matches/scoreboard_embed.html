@@ -1,496 +1,466 @@
 <!DOCTYPE html>
 {% load i18n %}
-<html lang="en">
+{% get_current_language as CURRENT_LANGUAGE %}
+<html lang="{{ CURRENT_LANGUAGE }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Score - {{ scoreboard.get_match_name }}</title>
-    <!-- Bootstrap CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#124ea3">
+    <title>{% translate "Live Score" %} · {{ scoreboard.get_match_name }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-family: 'Arial', sans-serif;
-            overflow: hidden;
+        :root {
+            --pfc-blue: #0d4fa8;
+            --pfc-blue-deep: #06285e;
+            --pfc-gold: #ffc928;
+            --panel: rgba(255, 255, 255, .12);
+            --panel-line: rgba(255, 255, 255, .24);
+            --text-muted: rgba(255, 255, 255, .74);
         }
-        
-        .scoreboard-container {
-            height: 100vh;
+        * { box-sizing: border-box; }
+        html, body { min-height: 100%; }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            color: #fff;
+            background:
+                radial-gradient(circle at 14% 8%, rgba(72, 158, 255, .35), transparent 28%),
+                radial-gradient(circle at 86% 85%, rgba(255, 199, 40, .16), transparent 30%),
+                linear-gradient(145deg, #0a387b 0%, #145db4 47%, #392a8f 100%);
+            font-family: Arial, sans-serif;
+        }
+        .spectator-shell {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            min-height: 100vh;
+            padding: max(16px, env(safe-area-inset-top)) clamp(16px, 4vw, 42px) max(16px, env(safe-area-inset-bottom));
+        }
+        .spectator-topbar {
+            display: flex;
             align-items: center;
-            text-align: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: min(1080px, 100%);
+            margin: 0 auto;
         }
-        
-        .match-title {
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin-bottom: 2rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            min-width: 116px;
+            text-decoration: none;
         }
-        
-        .score-display {
-            background: rgba(255,255,255,0.1);
-            border-radius: 20px;
-            padding: 3rem;
-            margin: 2rem 0;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        
-        .team-name {
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        }
-        
-        .players-list {
-            font-size: 1rem;
-            opacity: 0.9;
-            margin-bottom: 1rem;
-            line-height: 1.4;
-        }
-        
-        .player-item {
-            display: block;
-            margin-bottom: 0.3rem;
-        }
-        
-        .player-name {
-            font-weight: 600;
-        }
-        
-        .player-position {
-            font-size: 0.85rem;
-            opacity: 0.8;
-            margin-left: 0.5rem;
-        }
-        
-        .position-icon {
-            margin-right: 0.3rem;
-        }
-        
-        .score {
-            font-size: 8rem;
-            font-weight: bold;
+        .brand img { width: min(145px, 27vw); height: auto; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .22)); }
+        .top-actions { display: inline-flex; align-items: center; gap: 8px; }
+        .top-button, .status-pill, .action-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            border: 1px solid var(--panel-line);
+            border-radius: 999px;
+            background: rgba(5, 29, 73, .33);
+            color: #fff;
+            font-size: .82rem;
+            font-weight: 800;
             line-height: 1;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+            text-decoration: none;
+            white-space: nowrap;
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
         }
-        
-        .vs-separator {
-            font-size: 4rem;
-            opacity: 0.7;
-            margin: 0 2rem;
-        }
-        
-        .status-info {
-            position: absolute;
-            top: 2rem;
-            right: 2rem;
-            background: rgba(0,0,0,0.3);
-            padding: 1rem;
-            border-radius: 10px;
-            backdrop-filter: blur(5px);
-        }
-        
-        .last-update {
-            position: absolute;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.3);
-            padding: 1rem 2rem;
-            border-radius: 10px;
-            backdrop-filter: blur(5px);
-        }
-        
-        .disclaimer {
-            position: absolute;
-            bottom: 2rem;
-            right: 2rem;
-            background: rgba(255,193,7,0.2);
-            color: #ffc107;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            backdrop-filter: blur(5px);
-        }
+        .top-button { min-height: 38px; padding: 0 13px; cursor: pointer; }
+        .top-button:hover, .action-link:hover { background: rgba(255, 255, 255, .18); color: #fff; }
+        .status-pill { min-height: 38px; padding: 0 14px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1ee77a; box-shadow: 0 0 0 4px rgba(30, 231, 122, .16); }
+        .status-pill.final .status-dot { background: #acb7ca; box-shadow: none; }
 
-        /* ── PFC branding ───────────────────────────────────────────── */
-        .pfc-brand-bar {
-            position: absolute;
-            top: 1.2rem;
-            left: 1.5rem;
+        .spectator-main {
             display: flex;
+            flex: 1;
             align-items: center;
-            gap: 8px;
-            background: rgba(255,255,255,0.12);
-            backdrop-filter: blur(6px);
-            border-radius: 20px;
-            padding: 5px 14px 5px 10px;
-        }
-        .pfc-brand-bar img {
-            height: 22px;
-            width: auto;
-            filter: brightness(0) invert(1);
-            opacity: 0.9;
-        }
-        .pfc-brand-bar span {
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: rgba(255,255,255,0.75);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-
-        /* ── Share bar ──────────────────────────────────────────────── */
-        .share-bar {
-            position: absolute;
-            bottom: 1.5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
             justify-content: center;
+            width: min(1080px, 100%);
+            margin: 0 auto;
+            padding: 28px 0 20px;
         }
+        .match-board { width: 100%; text-align: center; }
+        .eyebrow { margin-bottom: 8px; color: #b7d8ff; font-size: .72rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+        .match-title { margin: 0; font-size: clamp(1.65rem, 4.1vw, 3rem); font-weight: 900; line-height: 1.1; letter-spacing: -.025em; text-shadow: 0 3px 10px rgba(0, 0, 0, .22); }
+        .court-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            max-width: 100%;
+            margin: 15px auto 23px;
+            padding: 8px 14px;
+            border: 1px solid var(--panel-line);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .12);
+            color: #fff;
+            font-size: .9rem;
+            font-weight: 750;
+            line-height: 1.25;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+        }
+        .court-chip.waiting { color: #ffe193; }
+        .score-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            align-items: stretch;
+            gap: clamp(7px, 2vw, 22px);
+            width: min(900px, 100%);
+            margin: 0 auto;
+            padding: clamp(20px, 4vw, 42px);
+            border: 1px solid var(--panel-line);
+            border-radius: 28px;
+            background: linear-gradient(145deg, rgba(255,255,255,.18), rgba(255,255,255,.08));
+            box-shadow: 0 20px 55px rgba(0, 0, 0, .23);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        .team-column { display: flex; flex-direction: column; min-width: 0; }
+        .team-name { min-height: 2.35em; overflow-wrap: anywhere; font-size: clamp(1.08rem, 3vw, 2rem); font-weight: 900; line-height: 1.17; text-shadow: 0 2px 4px rgba(0, 0, 0, .16); }
+        .players-list { min-height: 2.8em; margin: 12px 0 14px; color: var(--text-muted); font-size: clamp(.75rem, 1.65vw, .96rem); line-height: 1.45; }
+        .player-item { display: block; }
+        .player-name { font-weight: 750; }
+        .player-position { margin-left: 4px; color: rgba(255,255,255,.56); font-size: .84em; }
+        .team-score {
+            margin-top: auto;
+            font-size: clamp(4.8rem, 15vw, 9.5rem);
+            font-weight: 900;
+            line-height: .88;
+            letter-spacing: -.08em;
+            text-shadow: 0 7px 15px rgba(0, 0, 0, .25);
+        }
+        .team-score.team-one { color: #fff; }
+        .team-score.team-two { color: #fff; }
+        .score-separator { display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.68); font-size: clamp(2.2rem, 7vw, 4rem); font-weight: 700; }
+        .current-end-feed {
+            width: min(720px, 100%); margin: 16px auto 0; padding: 13px 15px;
+            border: 1px solid var(--panel-line); border-radius: 18px;
+            background: rgba(5, 29, 73, .28); text-align: left;
+            backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+        }
+        .current-end-feed[hidden] { display: none; }
+        .current-end-heading { display: flex; align-items: center; gap: 7px; color: #cfe4ff; font-size: .7rem; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+        .current-end-heading i { color: #ffc928; }
+        .current-end-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+        .current-end-side { min-width: 0; padding: 9px 10px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(255,255,255,.05); }
+        .current-end-side.team-two { background: rgba(255, 201, 40, .08); }
+        .current-end-side-name { overflow: hidden; color: #cfe4ff; font-size: .66rem; font-weight: 900; letter-spacing: .07em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+        .current-end-list { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+        .current-end-item { display: flex; align-items: baseline; gap: 5px; min-width: 0; color: #fff; font-size: .82rem; line-height: 1.28; }
+        .current-end-item::before { content: '•'; flex: 0 0 auto; color: #ffc928; font-size: .9rem; }
+        .current-end-player { overflow: hidden; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+        .current-end-action { overflow: hidden; color: var(--text-muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+        .spectator-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: min(1080px, 100%);
+            margin: 0 auto;
+            padding-top: 8px;
+        }
+        .last-update { max-width: 42%; color: var(--text-muted); font-size: .75rem; line-height: 1.35; text-align: left; }
+        .bottom-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+        .action-link, .share-btn { min-height: 38px; padding: 0 13px; }
+        .action-link.analytics { background: rgba(255, 201, 40, .18); border-color: rgba(255, 222, 116, .54); color: #fff3bd; }
         .share-btn {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 7px 16px;
-            border-radius: 20px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            text-decoration: none;
-            border: none;
+            justify-content: center;
+            gap: 7px;
+            border: 1px solid var(--panel-line);
+            border-radius: 999px;
+            background: rgba(5, 29, 73, .33);
+            color: #fff;
+            font-size: .82rem;
+            font-weight: 800;
             cursor: pointer;
-            transition: opacity 0.15s, transform 0.1s;
             white-space: nowrap;
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
         }
-        .share-btn:hover { opacity: 0.88; transform: translateY(-1px); text-decoration: none; }
-        .share-btn-copy   { background: rgba(255,255,255,0.18); color: #fff; backdrop-filter: blur(4px); }
-        .share-btn-native { background: rgba(255,255,255,0.18); color: #fff; backdrop-filter: blur(4px); }
-        
-        @media (max-width: 768px) {
-            .match-title { font-size: 1.8rem; }
-            .team-name { font-size: 1.5rem; }
-            .players-list { font-size: 0.85rem; }
-            .player-position { font-size: 0.75rem; }
-            .score { font-size: 5rem; }
-            .vs-separator { font-size: 2.5rem; margin: 0 1rem; }
-            .score-display { padding: 2rem; }
+        .share-btn:hover { background: rgba(255, 255, 255, .18); }
+        @media (max-width: 575px) {
+            .spectator-shell { padding-right: 12px; padding-left: 12px; }
+            .brand img { width: 108px; }
+            .top-button { min-width: 38px; padding: 0 11px; }
+            .top-button .back-label { display: none; }
+            .status-pill { min-width: 38px; padding: 0 11px; }
+            .status-pill .status-label { display: none; }
+            .score-panel { gap: 4px; padding: 22px 12px 20px; border-radius: 20px; }
+            .team-name { min-height: 2.8em; font-size: 1.05rem; }
+            .players-list { min-height: 3em; margin: 8px 0 10px; font-size: .69rem; }
+            .team-score { font-size: clamp(4.7rem, 24vw, 6.7rem); }
+            .score-separator { font-size: 1.8rem; }
+            .current-end-feed { margin-top: 12px; padding: 11px 12px; border-radius: 15px; }
+            .current-end-columns { gap: 7px; }
+            .current-end-side { padding: 8px; }
+            .current-end-side-name { font-size: .61rem; }
+            .current-end-item { gap: 4px; font-size: .72rem; }
+            .spectator-footer { align-items: flex-start; flex-direction: column; }
+            .last-update { max-width: 100%; }
+            .bottom-actions { justify-content: flex-start; width: 100%; }
+            .action-link, .share-btn { flex: 1 1 auto; padding: 0 10px; }
         }
+        @media (max-height: 620px) and (orientation: landscape) {
+            .spectator-main { padding: 12px 0; }
+            .eyebrow { display: none; }
+            .court-chip { margin: 8px auto 12px; }
+            .score-panel { padding: 16px 24px; }
+            .team-name { min-height: auto; }
+            .players-list { min-height: auto; margin: 4px 0 8px; }
+            .spectator-footer { padding-top: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
     </style>
 </head>
 <body>
-    <div class="scoreboard-container">
-
-        <!-- PFC branding (top-left) -->
-        <div class="pfc-brand-bar">
-            <img src="/static/PFCtextwhite.svg" alt="PFC">
-        </div>
-
-        <!-- Status Info -->
-        <div class="status-info">
-            <div class="d-flex align-items-center">
-                <i class="fas fa-circle {% if scoreboard.is_active %}text-success{% else %}text-secondary{% endif %} me-2"></i>
-                <span>{% if scoreboard.is_active %}LIVE{% else %}FINAL{% endif %}</span>
+    <main class="spectator-shell" aria-live="polite">
+        <header class="spectator-topbar">
+            <a class="brand" href="{% url 'home' %}" aria-label="PFC {% translate 'Home' %}">
+                <img src="/static/PFCtextwhite.svg" alt="PFC">
+            </a>
+            <div class="top-actions">
+                <button id="spectator-back" type="button" class="top-button" aria-label="{% translate 'Back' %}">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i><span class="back-label">{% translate "Back" %}</span>
+                </button>
+                <div id="score-status" class="status-pill {% if not scoreboard.is_active %}final{% endif %}">
+                    <span class="status-dot" aria-hidden="true"></span><span class="status-label">{% if scoreboard.is_active %}{% translate "LIVE" %}{% else %}{% translate "FINAL" %}{% endif %}</span>
+                </div>
             </div>
-        </div>
-        
-        <!-- Match Title -->
-        <div class="match-title">
-            {{ scoreboard.get_match_name }}
-        </div>
-        
-        <!-- Court Info: persistent for spectators -->
-        {% if scoreboard.tournament_match and scoreboard.tournament_match.court %}
-        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:1.1rem;font-weight:700;letter-spacing:0.02em;">
-            <i class="fas fa-map-marker-alt me-2"></i>Court {{ scoreboard.tournament_match.court.number }}{% if scoreboard.tournament_match.court.name %} &middot; {{ scoreboard.tournament_match.court.name }}{% endif %}{% if scoreboard.tournament_match.court.court_complex %} &middot; {{ scoreboard.tournament_match.court.court_complex.name }}{% endif %}
-        </div>
-        {% elif scoreboard.tournament_match and scoreboard.tournament_match.waiting_for_court %}
-        <div style="background:rgba(255,193,7,0.25);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:0.95rem;font-weight:600;color:#ffe082;">
-            <i class="fas fa-hourglass-half me-2"></i>Waiting for court assignment
-        </div>
-        {% elif scoreboard.friendly_game and scoreboard.friendly_game.court %}
-        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:1.1rem;font-weight:700;">
-            <i class="fas fa-map-marker-alt me-2"></i>Court {{ scoreboard.friendly_game.court.number }}{% if scoreboard.friendly_game.court.name %} &middot; {{ scoreboard.friendly_game.court.name }}{% endif %}{% if scoreboard.friendly_game.court_complex %} &middot; {{ scoreboard.friendly_game.court_complex.name }}{% endif %}
-        </div>
-        {% elif scoreboard.friendly_game and scoreboard.friendly_game.court_complex %}
-        <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:6px 18px;margin-bottom:1.2rem;font-size:1.1rem;font-weight:700;">
-            <i class="fas fa-map-marker-alt me-2"></i>{{ scoreboard.friendly_game.court_complex.name }}
-        </div>
-        {% endif %}
+        </header>
 
-        <!-- Score Display -->
-        <div class="score-display">
-            <div class="row align-items-center">
-                <div class="col-5">
-                    <div class="team-name">{{ scoreboard.get_team1_name }}</div>
-                    {% if scoreboard.get_team1_players %}
+        <section class="spectator-main">
+            <div class="match-board">
+                <div class="eyebrow">PFC · {% translate "Live Score" %}</div>
+                <h1 class="match-title">{{ scoreboard.get_match_name }}</h1>
+
+                {% if scoreboard.tournament_match and scoreboard.tournament_match.court %}
+                <div class="court-chip"><i class="fas fa-map-marker-alt" aria-hidden="true"></i>{% translate "Court" %} {{ scoreboard.tournament_match.court.number }}{% if scoreboard.tournament_match.court.name %} · {{ scoreboard.tournament_match.court.name }}{% endif %}{% if scoreboard.tournament_match.court.court_complex %} · {{ scoreboard.tournament_match.court.court_complex.name }}{% endif %}</div>
+                {% elif scoreboard.tournament_match and scoreboard.tournament_match.waiting_for_court %}
+                <div class="court-chip waiting"><i class="fas fa-hourglass-half" aria-hidden="true"></i>{% translate "Waiting for court assignment" %}</div>
+                {% elif scoreboard.friendly_game and scoreboard.friendly_game.court %}
+                <div class="court-chip"><i class="fas fa-map-marker-alt" aria-hidden="true"></i>{% translate "Court" %} {{ scoreboard.friendly_game.court.number }}{% if scoreboard.friendly_game.court.name %} · {{ scoreboard.friendly_game.court.name }}{% endif %}{% if scoreboard.friendly_game.court_complex %} · {{ scoreboard.friendly_game.court_complex.name }}{% endif %}</div>
+                {% elif scoreboard.friendly_game and scoreboard.friendly_game.court_complex %}
+                <div class="court-chip"><i class="fas fa-map-marker-alt" aria-hidden="true"></i>{{ scoreboard.friendly_game.court_complex.name }}</div>
+                {% endif %}
+
+                <div class="score-panel">
+                    <div class="team-column">
+                        <div class="team-name">{{ scoreboard.get_team1_name }}</div>
+                        {% if scoreboard.get_team1_players %}
                         <div class="players-list">
                             {% for player in scoreboard.get_team1_players %}
-                                <span class="player-item">
-                                    {% if scoreboard.tournament_match %}
-                                        <span class="player-name">{{ player.player.name }}</span>
-                                        {% if player.role %}
-                                            <span class="player-position">
-                                                {% if player.role == 'tirer' %}
-                                                    Tireur
-                                                {% elif player.role == 'pointer' %}
-                                                    {% translate "Pointer" %}
-                                                {% elif player.role == 'milieu' %}
-                                                    Milieu
-                                                {% elif player.role == 'flex' %}
-                                                    Flex
-                                                {% else %}
-                                                    {{ player.get_role_display }}
-                                                {% endif %}
-                                            </span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="player-name">{{ player.player.name }}</span>
-                                        {% if player.position %}
-                                            <span class="player-position">
-                                                {% if player.position == 'TIRER' %}
-                                                    Tireur
-                                                {% elif player.position == 'POINTEUR' %}
-                                                    {% translate "Pointer" %}
-                                                {% elif player.position == 'MILIEU' %}
-                                                    Milieu
-                                                {% else %}
-                                                    {{ player.position }}
-                                                {% endif %}
-                                            </span>
-                                        {% endif %}
-                                    {% endif %}
-                                </span>
+                            <span class="player-item"><span class="player-name">{{ player.player.name }}</span>{% if scoreboard.tournament_match and player.role %}<span class="player-position">{{ player.get_role_display }}</span>{% elif player.position %}<span class="player-position">{{ player.position }}</span>{% endif %}</span>
                             {% endfor %}
                         </div>
-                    {% endif %}
-                    <div class="score" style="color:#ffffff;" id="team1-score">{{ scoreboard.team1_score }}</div>
-                </div>
-                <div class="col-2">
-                    <div class="vs-separator">-</div>
-                </div>
-                <div class="col-5">
-                    <div class="team-name">{{ scoreboard.get_team2_name }}</div>
-                    {% if scoreboard.get_team2_players %}
+                        {% endif %}
+                        <div id="team1-score" class="team-score team-one">{{ scoreboard.team1_score }}</div>
+                    </div>
+                    <div class="score-separator" aria-hidden="true">–</div>
+                    <div class="team-column">
+                        <div class="team-name">{{ scoreboard.get_team2_name }}</div>
+                        {% if scoreboard.get_team2_players %}
                         <div class="players-list">
                             {% for player in scoreboard.get_team2_players %}
-                                <span class="player-item">
-                                    {% if scoreboard.tournament_match %}
-                                        <span class="player-name">{{ player.player.name }}</span>
-                                        {% if player.role %}
-                                            <span class="player-position">
-                                                {% if player.role == 'tirer' %}
-                                                    Tireur
-                                                {% elif player.role == 'pointer' %}
-                                                    {% translate "Pointer" %}
-                                                {% elif player.role == 'milieu' %}
-                                                    Milieu
-                                                {% elif player.role == 'flex' %}
-                                                    Flex
-                                                {% else %}
-                                                    {{ player.get_role_display }}
-                                                {% endif %}
-                                            </span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="player-name">{{ player.player.name }}</span>
-                                        {% if player.position %}
-                                            <span class="player-position">
-                                                {% if player.position == 'TIRER' %}
-                                                    Tireur
-                                                {% elif player.position == 'POINTEUR' %}
-                                                    {% translate "Pointer" %}
-                                                {% elif player.position == 'MILIEU' %}
-                                                    Milieu
-                                                {% else %}
-                                                    {{ player.position }}
-                                                {% endif %}
-                                            </span>
-                                        {% endif %}
-                                    {% endif %}
-                                </span>
+                            <span class="player-item"><span class="player-name">{{ player.player.name }}</span>{% if scoreboard.tournament_match and player.role %}<span class="player-position">{{ player.get_role_display }}</span>{% elif player.position %}<span class="player-position">{{ player.position }}</span>{% endif %}</span>
                             {% endfor %}
                         </div>
-                    {% endif %}
-                    <div class="score" style="color:#ffc107;" id="team2-score">{{ scoreboard.team2_score }}</div>
+                        {% endif %}
+                        <div id="team2-score" class="team-score team-two">{{ scoreboard.team2_score }}</div>
+                    </div>
                 </div>
+                <section id="current-end-feed" class="current-end-feed"{% if not current_end_actions %} hidden{% endif %} aria-live="polite">
+                    <div class="current-end-heading"><i class="fas fa-bullhorn" aria-hidden="true"></i>{% translate "Current end" %}</div>
+                    <div class="current-end-columns">
+                        <div class="current-end-side team-one">
+                            <div class="current-end-side-name">{{ scoreboard.get_team1_name }}</div>
+                            <ul id="current-end-list-team1" class="current-end-list"></ul>
+                        </div>
+                        <div class="current-end-side team-two">
+                            <div class="current-end-side-name">{{ scoreboard.get_team2_name }}</div>
+                            <ul id="current-end-list-team2" class="current-end-list"></ul>
+                        </div>
+                    </div>
+                </section>
             </div>
-        </div>
-        
-        <!-- Last Update Info -->
-        {% if scoreboard.get_last_updated_by_name %}
-            <div class="last-update">
-                <i class="fas fa-clock me-2"></i>
-                Last updated {{ scoreboard.updated_at|timesince }} ago by {{ scoreboard.get_last_updated_by_name }}
-            </div>
-        {% endif %}
-        
-        <!-- Disclaimer -->
-        <div class="disclaimer">
-            <i class="fas fa-info-circle me-1"></i>
-            Unofficial Score
-        </div>
+        </section>
 
-        <!-- Share bar (bottom-center) -->
-        <div class="share-bar" id="share-bar">
-            <!-- Native Share (Web Share API) — shown on supported devices -->
-            <button id="btn-native" class="share-btn share-btn-native" style="display:none;">
-                <i class="fas fa-share-nodes"></i> Share
-            </button>
-            <!-- Copy link fallback -->
-            <button id="btn-copy" class="share-btn share-btn-copy">
-                <i class="fas fa-link"></i> Copy link
-            </button>
-        </div>
+        <footer class="spectator-footer">
+            {% if scoreboard.get_last_updated_by_name %}
+            <div class="last-update"><i class="fas fa-clock" aria-hidden="true"></i> {% translate "Last updated" %} {{ scoreboard.updated_at|timesince }} {% translate "ago by" %} {{ scoreboard.get_last_updated_by_name }}</div>
+            {% else %}
+            <div class="last-update"></div>
+            {% endif %}
+            <nav class="bottom-actions" aria-label="{% translate 'Live Score actions' %}">
+                {% if scoreboard.tournament_match %}
+                <a class="action-link analytics" href="{% url 'match_tracking:tracking_page' 'match' scoreboard.tournament_match.id %}"><i class="fas fa-chart-line" aria-hidden="true"></i>{% translate "Match Analytics" %}</a>
+                {% elif scoreboard.friendly_game %}
+                <a class="action-link analytics" href="{% url 'match_tracking:tracking_page' 'game' scoreboard.friendly_game.id %}"><i class="fas fa-chart-line" aria-hidden="true"></i>{% translate "Match Analytics" %}</a>
+                {% endif %}
+                <button id="btn-native" class="share-btn" type="button" style="display:none;"><i class="fas fa-share-nodes" aria-hidden="true"></i>{% translate "Share" %}</button>
+                <button id="btn-copy" class="share-btn" type="button"><i class="fas fa-link" aria-hidden="true"></i>{% translate "Copy link" %}</button>
+            </nav>
+        </footer>
+    </main>
 
-    </div>
-    
-    <!-- Live score WebSocket client -->
+    {{ current_end_actions|json_script:"current-end-actions-data" }}
     <script>
-        // ── Pulse animation ──────────────────────────────────────────────────
-        const _pulseStyle = document.createElement('style');
-        _pulseStyle.textContent = `
-            @keyframes pulse {
-                0%   { transform: scale(1); }
-                50%  { transform: scale(1.15); }
-                100% { transform: scale(1); }
+        (function() {
+            var backButton = document.getElementById('spectator-back');
+            if (backButton) {
+                backButton.addEventListener('click', function() {
+                    var referrer = document.referrer;
+                    var samePfcOrigin = false;
+                    try { samePfcOrigin = referrer && new URL(referrer).origin === window.location.origin; } catch (e) {}
+                    if (samePfcOrigin && window.history.length > 1) {
+                        window.history.back();
+                    } else {
+                        window.location.assign('{% url "home" %}');
+                    }
+                });
             }
-        `;
-        document.head.appendChild(_pulseStyle);
+        })();
 
         function flashScore(el) {
-            el.style.animation = 'none';
-            el.offsetHeight; // reflow
-            el.style.animation = 'pulse 0.6s ease-in-out';
-            setTimeout(() => el.style.animation = '', 700);
+            el.animate([
+                { transform: 'scale(1)' },
+                { transform: 'scale(1.11)' },
+                { transform: 'scale(1)' }
+            ], { duration: 560, easing: 'ease-in-out' });
         }
 
-        // ── WebSocket live score push ──────────────────────────────────
-        // No polling. No reload. Server pushes score changes directly.
         (function() {
             const scoreboardId = {{ scoreboard.id }};
             const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
             const wsUrl = wsScheme + '://' + window.location.host + '/ws/scoreboard/' + scoreboardId + '/';
-
             const team1El = document.getElementById('team1-score');
             const team2El = document.getElementById('team2-score');
-            const statusEl = document.querySelector('.status-info span');
-            const statusDot = document.querySelector('.status-info .fa-circle');
-
+            const statusEl = document.querySelector('#score-status .status-label');
+            const statusBox = document.getElementById('score-status');
+            const feed = document.getElementById('current-end-feed');
+            const feedListTeam1 = document.getElementById('current-end-list-team1');
+            const feedListTeam2 = document.getElementById('current-end-list-team2');
+            const initialActionsEl = document.getElementById('current-end-actions-data');
+            const actionLabels = {
+                carreau: '{% translate "Carreau" %}',
+                petit_carreau: '{% translate "Petit Carreau" %}',
+                hit: '{% translate "Hit" %}',
+                miss: '{% translate "Miss" %}',
+                perfect: '{% translate "Perfect placement" %}',
+                good: '{% translate "Good placement" %}',
+                fair: '{% translate "Fair placement" %}',
+                far: '{% translate "Far placement" %}'
+            };
+            let currentEndActions = initialActionsEl ? JSON.parse(initialActionsEl.textContent || '[]') : [];
             let retryDelay = 2000;
-            let retryTimer = null;
+
+            function renderCurrentEnd(actions) {
+                currentEndActions = Array.isArray(actions) ? actions : [];
+                if (!feed || !feedListTeam1 || !feedListTeam2) return;
+                feedListTeam1.replaceChildren();
+                feedListTeam2.replaceChildren();
+                let renderedCount = 0;
+                currentEndActions.forEach(function(action) {
+                    if (!action || !action.player_name || !action.outcome) return;
+                    const list = action.side === 'team1' ? feedListTeam1 : (action.side === 'team2' ? feedListTeam2 : null);
+                    if (!list) return;
+                    const item = document.createElement('li');
+                    item.className = 'current-end-item';
+                    const player = document.createElement('span');
+                    player.className = 'current-end-player';
+                    player.textContent = action.player_name;
+                    const dash = document.createElement('span');
+                    dash.textContent = '—';
+                    const result = document.createElement('span');
+                    result.className = 'current-end-action';
+                    result.textContent = actionLabels[action.outcome] || action.outcome;
+                    item.append(player, dash, result);
+                    list.appendChild(item);
+                    renderedCount += 1;
+                });
+                feed.hidden = renderedCount === 0;
+            }
+            renderCurrentEnd(currentEndActions);
 
             function connect() {
                 const ws = new WebSocket(wsUrl);
-
-                ws.onopen = function() {
-                    retryDelay = 2000; // reset backoff on successful connect
-                };
-
+                ws.onopen = function() { retryDelay = 2000; };
                 ws.onmessage = function(e) {
                     const data = JSON.parse(e.data);
+                    if (data.type === 'tracking.action') {
+                        if (data.action) renderCurrentEnd(currentEndActions.concat([data.action]));
+                        return;
+                    }
+                    if (data.type === 'tracking.feed.replace') {
+                        renderCurrentEnd(data.actions || []);
+                        return;
+                    }
                     if (data.type !== 'score.updated') return;
-
                     const newT1 = data.team1_score;
                     const newT2 = data.team2_score;
-
-                    if (parseInt(team1El.textContent) !== newT1) {
-                        team1El.textContent = newT1;
-                        flashScore(team1El);
-                    }
-                    if (parseInt(team2El.textContent) !== newT2) {
-                        team2El.textContent = newT2;
-                        flashScore(team2El);
-                    }
-
-                    // Update live/final status badge
-                    if (statusEl) {
-                        statusEl.textContent = data.is_active ? 'LIVE' : 'FINAL';
-                    }
-                    if (statusDot) {
-                        statusDot.className = 'fas fa-circle ' + (data.is_active ? 'text-success' : 'text-secondary') + ' me-2';
-                    }
+                    if (parseInt(team1El.textContent, 10) !== newT1) { team1El.textContent = newT1; flashScore(team1El); }
+                    if (parseInt(team2El.textContent, 10) !== newT2) { team2El.textContent = newT2; flashScore(team2El); }
+                    if (statusEl) statusEl.textContent = data.is_active ? '{% translate "LIVE" %}' : '{% translate "FINAL" %}';
+                    if (statusBox) statusBox.classList.toggle('final', !data.is_active);
+                    // An official score update ends the displayed end. Existing
+                    // Shot history remains intact; only the public projection resets.
+                    renderCurrentEnd([]);
                 };
-
                 ws.onclose = function() {
-                    // Exponential backoff reconnect (max 30s)
-                    retryTimer = setTimeout(connect, retryDelay);
+                    window.setTimeout(connect, retryDelay);
                     retryDelay = Math.min(retryDelay * 2, 30000);
                 };
-
-                ws.onerror = function() {
-                    ws.close();
-                };
+                ws.onerror = function() { ws.close(); };
             }
-
             connect();
         })();
 
-        // ── Share buttons ─────────────────────────────────────────────────────
         (function() {
-            // Build the canonical share URL: the embed page URL itself
-            // (spectators can share the same page they are viewing)
-            var shareUrl = window.location.href;
-            var shareTitle = document.title || 'PFC Live Score';
-            var shareText  = shareTitle + ' — Watch live on PFC';
-
-            // Web Share API (native share sheet on mobile)
-            var btnNative = document.getElementById('btn-native');
-            if (btnNative && navigator.share) {
-                btnNative.style.display = 'inline-flex';
-                btnNative.addEventListener('click', function() {
-                    navigator.share({
-                        title: shareTitle,
-                        text:  shareText,
-                        url:   shareUrl
-                    }).catch(function() {}); // ignore AbortError
+            const shareUrl = window.location.href;
+            const shareTitle = document.title || 'PFC Live Score';
+            const nativeButton = document.getElementById('btn-native');
+            const copyButton = document.getElementById('btn-copy');
+            const copiedMarkup = '<i class="fas fa-check" aria-hidden="true"></i>{% translate "Copied!" %}';
+            const copyMarkup = '<i class="fas fa-link" aria-hidden="true"></i>{% translate "Copy link" %}';
+            if (nativeButton && navigator.share) {
+                nativeButton.style.display = 'inline-flex';
+                nativeButton.addEventListener('click', function() {
+                    navigator.share({ title: shareTitle, text: shareTitle, url: shareUrl }).catch(function() {});
                 });
             }
-
-            // Copy link fallback
-            var btnCopy = document.getElementById('btn-copy');
-            if (btnCopy) {
-                btnCopy.addEventListener('click', function() {
+            function showCopied() {
+                if (!copyButton) return;
+                copyButton.innerHTML = copiedMarkup;
+                window.setTimeout(function() { copyButton.innerHTML = copyMarkup; }, 2000);
+            }
+            function fallbackCopy(text) {
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                try { document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(area);
+                showCopied();
+            }
+            if (copyButton) {
+                copyButton.addEventListener('click', function() {
                     if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(shareUrl).then(function() {
-                            var orig = btnCopy.innerHTML;
-                            btnCopy.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                            setTimeout(function() { btnCopy.innerHTML = orig; }, 2000);
-                        }).catch(function() { fallbackCopy(shareUrl); });
+                        navigator.clipboard.writeText(shareUrl).then(showCopied).catch(function() { fallbackCopy(shareUrl); });
                     } else {
                         fallbackCopy(shareUrl);
                     }
                 });
             }
-
-            function fallbackCopy(text) {
-                var ta = document.createElement('textarea');
-                ta.value = text;
-                ta.style.position = 'fixed';
-                ta.style.opacity  = '0';
-                document.body.appendChild(ta);
-                ta.select();
-                try { document.execCommand('copy'); } catch(e) {}
-                document.body.removeChild(ta);
-                if (btnCopy) {
-                    var orig = btnCopy.innerHTML;
-                    btnCopy.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                    setTimeout(function() { btnCopy.innerHTML = orig; }, 2000);
-                }
-            }
         })();
     </script>
 </body>
 </html>
-

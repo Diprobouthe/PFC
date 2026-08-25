@@ -10,6 +10,8 @@ urlpatterns = [
     path('<str:match_type>/<int:pk>/player/<int:player_id>/stats/', views.player_stats_api, name='player_stats_api'),
     # Participant verification API:    /track/match/<match_id>/verify/
     path('<str:match_type>/<int:pk>/verify/', views.verify_participant, name='verify_participant'),
+    # Broadcast consent API:            /track/match/<match_id>/broadcast-permission/
+    path('<str:match_type>/<int:pk>/broadcast-permission/', views.broadcast_permission, name='broadcast_permission'),
     # Shot recording API:               /track/match/<match_id>/shot/
     path('<str:match_type>/<int:pk>/shot/', views.record_shot, name='record_shot'),
     # Game status poll:                   /track/match/<match_id>/status/

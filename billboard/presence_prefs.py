@@ -58,6 +58,13 @@ class UserPresencePrefs(models.Model):
         help_text="True if the player last declared presence as anonymous."
     )
 
+    # Persistent opt-in.  It is applied only while the player has a current
+    # manual AT_COURTS presence; ending presence never resets this preference.
+    available_for_friendly = models.BooleanField(
+        default=False,
+        help_text="Allow Friendly creators to select this player whenever they are currently present at the same Court Complex."
+    )
+
     # Timestamps
     last_seen = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
