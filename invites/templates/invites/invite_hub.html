@@ -33,8 +33,9 @@
 
   <!-- ── Accepted Invitation history (read-only) ───────────────────── -->
   <section class="ih-section" id="ih-history-section">
-    <div class="ih-section-head">
+    <div class="ih-section-head ih-history-head">
       <span class="ih-section-title">{% translate "Accepted Invitations" %}</span>
+      <button type="button" id="ih-history-toggle" class="ih-history-toggle" hidden aria-expanded="false"></button>
     </div>
     <div id="ih-history-list" class="ih-inbox-list">
       <div class="ih-empty">{% translate "Loading…" %}</div>
@@ -241,6 +242,13 @@
   margin-bottom: 14px;
 }
 .ih-section-title { font-size: 0.95rem; font-weight: 700; color: #1a2a4a; }
+.ih-history-head { justify-content: space-between; }
+.ih-history-toggle {
+  margin-left: auto; padding: 5px 9px; border: 1px solid #c8d4e6;
+  border-radius: 999px; background: #f5f8fc; color: #1a4fa0;
+  font-size: .74rem; font-weight: 700; line-height: 1.2; cursor: pointer;
+}
+.ih-history-toggle:hover { background: #e8f0fe; }
 .ih-badge {
   background: #1a4fa0;
   color: #fff;
@@ -494,6 +502,9 @@
   const inboxList     = document.getElementById("ih-inbox-list");
   const inboxCount    = document.getElementById("ih-inbox-count");
   const historyList   = document.getElementById("ih-history-list");
+  const historyToggle = document.getElementById("ih-history-toggle");
+  let acceptedHistory = [];
+  let acceptedHistoryExpanded = false;
   const sessionSection = document.getElementById("ih-session-section");
   const sessionInfo   = document.getElementById("ih-session-info");
 
@@ -661,24 +672,49 @@
   {% translate "Accepted" as invitation_accepted_label %}
   {% translate "Accepted invitation" as invitation_accepted_history_label %}
   {% translate "No accepted invitations yet." as no_accepted_invitations_label %}
+  {% translate "Show all accepted" as show_all_accepted_label %}
+  {% translate "Hide accepted history" as hide_accepted_history_label %}
   const INVITATION_ACCEPTED_LABEL = '{{ invitation_accepted_label|escapejs }}';
   const INVITATION_ACCEPTED_HISTORY_LABEL = '{{ invitation_accepted_history_label|escapejs }}';
   const NO_ACCEPTED_INVITATIONS_LABEL = '{{ no_accepted_invitations_label|escapejs }}';
+  const SHOW_ALL_ACCEPTED_LABEL = '{{ show_all_accepted_label|escapejs }}';
+  const HIDE_ACCEPTED_HISTORY_LABEL = '{{ hide_accepted_history_label|escapejs }}';
+
+  function renderAcceptedHistory() {
+    if (!historyList) return;
+    if (acceptedHistory.length === 0) {
+      historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>';
+      if (historyToggle) historyToggle.hidden = true;
+      return;
+    }
+    const visible = acceptedHistoryExpanded ? acceptedHistory : acceptedHistory.slice(0, 1);
+    historyList.innerHTML = visible.map(inv => buildAcceptedHistoryCard(inv)).join("");
+    if (historyToggle) {
+      historyToggle.hidden = acceptedHistory.length < 2;
+      historyToggle.setAttribute("aria-expanded", acceptedHistoryExpanded ? "true" : "false");
+      historyToggle.textContent = acceptedHistoryExpanded
+        ? HIDE_ACCEPTED_HISTORY_LABEL
+        : SHOW_ALL_ACCEPTED_LABEL + " (" + acceptedHistory.length + ")";
+    }
+  }
 
   function loadAcceptedHistory() {
     if (!historyList) return;
     fetch("/invites/history/")
       .then(r => r.json())
       .then(data => {
-        if (data.error) { historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>'; return; }
-        const invitations = data.invitations || [];
-        if (invitations.length === 0) {
-          historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>';
-          return;
-        }
-        historyList.innerHTML = invitations.map(inv => buildAcceptedHistoryCard(inv)).join("");
+        if (data.error) { acceptedHistory = []; renderAcceptedHistory(); return; }
+        acceptedHistory = data.invitations || [];
+        renderAcceptedHistory();
       })
-      .catch(() => { historyList.innerHTML = '<div class="ih-empty">' + NO_ACCEPTED_INVITATIONS_LABEL + '</div>'; });
+      .catch(() => { acceptedHistory = []; renderAcceptedHistory(); });
+  }
+
+  if (historyToggle) {
+    historyToggle.addEventListener("click", () => {
+      acceptedHistoryExpanded = !acceptedHistoryExpanded;
+      renderAcceptedHistory();
+    });
   }
 
   function buildAcceptedHistoryCard(inv) {
