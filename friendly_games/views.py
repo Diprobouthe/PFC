@@ -682,6 +682,35 @@ def game_detail(request, game_id):
 
 
 @require_POST
+def creator_remove_player(request, game_id, player_id):
+    """Remove one pre-start Friendly participant at the creator's request.
+
+    This is intentionally available only while the game is still accepting
+    players. It does not alter active matches, results, normal joining rules,
+    or QR authorization. A removed player can be reassigned through the
+    existing creator QR flow before Start Match.
+    """
+    game = get_object_or_404(FriendlyGame, id=game_id)
+    if game.status not in {'WAITING_FOR_PLAYERS', 'DRAFT'}:
+        return JsonResponse({'ok': False, 'error': 'This Friendly Game is no longer accepting player changes.'}, status=409)
+    if not _session_creator_player(request, game):
+        return JsonResponse({'ok': False, 'error': 'Only the game creator can remove players.'}, status=403)
+
+    assignment = get_object_or_404(FriendlyGamePlayer, game=game, player_id=player_id)
+    removed_name = assignment.player.name
+    with transaction.atomic():
+        assignment.delete()
+        game.update_validation_status()
+
+    notify_game_state_changed(game.id, game.status, game=game)
+    return JsonResponse({
+        'ok': True,
+        'message': _('Removed %(player_name)s from the Friendly Game.') % {'player_name': removed_name},
+        'redirect_url': reverse('friendly_games:game_detail', kwargs={'game_id': game.id}),
+    })
+
+
+@require_POST
 def creator_assign_players(request, game_id):
     """Add QR-scanned existing players during the Friendly pre-start setup.
 

@@ -69,9 +69,10 @@ class SimpleTournamentCreationForm(forms.Form):
             except (ValueError, TournamentScenario.DoesNotExist):
                 pass
         else:
-            # Default choices for initial load
-            self.fields['num_courts'].choices = [(i, f"{i} court{'s' if i != 1 else ''}") for i in range(1, 5)]
-            self.fields['num_courts'].initial = 3
+            # Court options are Scenario-defined.  Do not expose a generic
+            # fixed cap before the organizer selects a Scenario.
+            self.fields['num_courts'].choices = []
+            self.fields['num_courts'].initial = None
     
     def clean(self):
         cleaned_data = super().clean()

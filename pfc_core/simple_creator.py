@@ -92,6 +92,9 @@ def get_available_scenarios():
                     'max_singles': scenario.max_singles_players,
                     'max_doubles': scenario.max_doubles_players,
                     'max_triples': scenario.max_triples_players,
+                    # The Scenario is the sole court-cap source for the creator.
+                    'max_courts': scenario.max_courts,
+                    'recommended_courts': scenario.recommended_courts,
                     'pregame_countdown_minutes': getattr(scenario, 'pregame_countdown_minutes', None),
                 }
             return scenarios
@@ -148,6 +151,22 @@ def create_simple_tournament(request):
         if not scenario:
             messages.error(request, 'Invalid scenario selected')
             return redirect('simple_creator_home')
+
+        # The configured Scenario court limit is authoritative in every
+        # creator path.  Do not rely on browser options for this check.
+        scenario_obj = None
+        if USE_DYNAMIC_SCENARIOS:
+            try:
+                scenario_obj = TournamentScenario.objects.get(id=scenario['id'])
+            except TournamentScenario.DoesNotExist:
+                messages.error(request, 'Scenario configuration is no longer available.')
+                return redirect('simple_creator_home')
+            if num_courts < 1 or num_courts > scenario_obj.max_courts:
+                messages.error(
+                    request,
+                    f'This Scenario allows between 1 and {scenario_obj.max_courts} courts.'
+                )
+                return redirect('simple_creator_home')
         
         # Validate voucher for paid scenarios
         if not scenario['is_free']:
@@ -202,14 +221,10 @@ def create_simple_tournament(request):
         timer_minutes = scenario.get('pregame_countdown_minutes', None)  # match time limit
         pregame_countdown = None
         scenario_certifying_entity = None
-        if USE_DYNAMIC_SCENARIOS and 'id' in scenario:
-            try:
-                scenario_obj = TournamentScenario.objects.get(id=scenario['id'])
-                timer_minutes = scenario_obj.default_time_limit_minutes
-                pregame_countdown = scenario_obj.pregame_countdown_minutes  # may be None
-                scenario_certifying_entity = scenario_obj.certifying_entity
-            except TournamentScenario.DoesNotExist:
-                pass
+        if scenario_obj is not None:
+            timer_minutes = scenario_obj.default_time_limit_minutes
+            pregame_countdown = scenario_obj.pregame_countdown_minutes  # may be None
+            scenario_certifying_entity = scenario_obj.certifying_entity
 
         # Build tournament kwargs based on mode.
         # Tournament.save() derives play_format from the boolean flags, so we must set the
@@ -294,7 +309,8 @@ def create_simple_tournament(request):
         # Assign real courts from scenario's default court complex
         from tournaments.models import TournamentCourt
         try:
-            scenario_obj = TournamentScenario.objects.get(name=scenario_key)
+            if scenario_obj is None:
+                scenario_obj = TournamentScenario.objects.get(name=scenario_key)
             if not scenario_obj.default_court_complex:
                 raise ValueError(f"Scenario '{scenario['name']}' does not have a default court complex assigned")
             

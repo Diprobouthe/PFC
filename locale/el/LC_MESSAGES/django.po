@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-25 21:24+0000\n"
+"POT-Creation-Date: 2026-08-29 08:54+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -136,9 +136,9 @@ msgstr "Πλήρως επιβεβαιωμένο"
 
 #: friendly_games/models.py:151 friendly_games/models.py:400
 #: friendly_games/models.py:546 friendly_games/models.py:553
-#: friendly_games/templates/friendly_games/game_detail.html:378
-#: friendly_games/templates/friendly_games/game_detail.html:466
-#: friendly_games/templates/friendly_games/game_detail.html:468
+#: friendly_games/templates/friendly_games/game_detail.html:383
+#: friendly_games/templates/friendly_games/game_detail.html:471
+#: friendly_games/templates/friendly_games/game_detail.html:473
 #: friendly_games/templates/friendly_games/submit_score_list.html:54
 #: friendly_games/templates/friendly_games/submit_score_list.html:118
 #: templates/matches/match_list.html:588
@@ -149,9 +149,9 @@ msgstr "Μαύρη ομάδα"
 
 #: friendly_games/models.py:151 friendly_games/models.py:401
 #: friendly_games/models.py:546 friendly_games/models.py:553
-#: friendly_games/templates/friendly_games/game_detail.html:378
-#: friendly_games/templates/friendly_games/game_detail.html:466
-#: friendly_games/templates/friendly_games/game_detail.html:468
+#: friendly_games/templates/friendly_games/game_detail.html:383
+#: friendly_games/templates/friendly_games/game_detail.html:471
+#: friendly_games/templates/friendly_games/game_detail.html:473
 #: friendly_games/templates/friendly_games/submit_score_list.html:54
 #: friendly_games/templates/friendly_games/submit_score_list.html:118
 #: templates/matches/match_list.html:588
@@ -260,7 +260,7 @@ msgstr "Τυχαία επιλογή παικτών"
 #: friendly_games/templates/friendly_games/create_game.html:126
 #: friendly_games/templates/friendly_games/create_game.html:127
 #: friendly_games/templates/friendly_games/create_game.html:138
-#: friendly_games/templates/friendly_games/game_detail.html:414
+#: friendly_games/templates/friendly_games/game_detail.html:419
 msgid "Random"
 msgstr "Τυχαία"
 
@@ -277,12 +277,12 @@ msgstr ""
 "να συμμετέχετε εσείς."
 
 #: friendly_games/templates/friendly_games/create_game.html:135
-#: friendly_games/templates/friendly_games/game_detail.html:410
+#: friendly_games/templates/friendly_games/game_detail.html:415
 msgid "Creator QR Setup"
 msgstr "Ρύθμιση QR δημιουργού"
 
 #: friendly_games/templates/friendly_games/create_game.html:137
-#: friendly_games/templates/friendly_games/game_detail.html:413
+#: friendly_games/templates/friendly_games/game_detail.html:418
 msgid "Manual"
 msgstr "Χειροκίνητα"
 
@@ -295,7 +295,7 @@ msgid "Even QR teams"
 msgstr "Ισορροπημένες ομάδες QR"
 
 #: friendly_games/templates/friendly_games/create_game.html:139
-#: friendly_games/templates/friendly_games/game_detail.html:415
+#: friendly_games/templates/friendly_games/game_detail.html:420
 msgid "Balanced"
 msgstr "Ισορροπημένα"
 
@@ -305,11 +305,13 @@ msgstr "Αξιολόγηση και θέση"
 
 #: friendly_games/templates/friendly_games/create_game.html:141
 #: friendly_games/templates/friendly_games/create_game.html:182
+#: friendly_games/templates/friendly_games/game_detail.html:416
+#: friendly_games/templates/friendly_games/game_detail.html:602
 msgid "Choose a side, then scan a Player QR to add that player immediately."
 msgstr "Επιλέξτε πλευρά και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
 
 #: friendly_games/templates/friendly_games/create_game.html:143
-#: friendly_games/templates/friendly_games/game_detail.html:421
+#: friendly_games/templates/friendly_games/game_detail.html:422
 #: match_tracking/templates/match_tracking/tracking_page.html:272
 #: signin/templates/signin/tournament_signin.html:145 templates/home.html:467
 #: templates/home.html:472 templates/partials/qr_scanner_modal.html:178
@@ -317,19 +319,19 @@ msgid "Scan Player QR"
 msgstr "Σάρωση QR παίκτη"
 
 #: friendly_games/templates/friendly_games/create_game.html:147
-#: friendly_games/templates/friendly_games/game_detail.html:355
-#: friendly_games/templates/friendly_games/game_detail.html:418
-#: friendly_games/templates/friendly_games/game_detail.html:467
-#: friendly_games/templates/friendly_games/game_detail.html:487
+#: friendly_games/templates/friendly_games/game_detail.html:360
+#: friendly_games/templates/friendly_games/game_detail.html:424
+#: friendly_games/templates/friendly_games/game_detail.html:472
+#: friendly_games/templates/friendly_games/game_detail.html:492
 #: friendly_games/templates/friendly_games/submit_score.html:275
 msgid "Black"
 msgstr "Μαύρη"
 
 #: friendly_games/templates/friendly_games/create_game.html:148
-#: friendly_games/templates/friendly_games/game_detail.html:364
-#: friendly_games/templates/friendly_games/game_detail.html:419
-#: friendly_games/templates/friendly_games/game_detail.html:467
-#: friendly_games/templates/friendly_games/game_detail.html:493
+#: friendly_games/templates/friendly_games/game_detail.html:369
+#: friendly_games/templates/friendly_games/game_detail.html:425
+#: friendly_games/templates/friendly_games/game_detail.html:472
+#: friendly_games/templates/friendly_games/game_detail.html:498
 #: friendly_games/templates/friendly_games/submit_score.html:277
 msgid "White"
 msgstr "Λευκή"
@@ -360,17 +362,17 @@ msgid "Create Game"
 msgstr "Δημιουργία αγώνα"
 
 #: friendly_games/templates/friendly_games/create_game.html:173
+#: friendly_games/templates/friendly_games/game_detail.html:611
 msgid "Empty"
 msgstr "Κενό"
 
 #: friendly_games/templates/friendly_games/create_game.html:175
-#: friendly_games/templates/friendly_games/game_detail.html:423
-#: friendly_games/templates/friendly_games/game_detail.html:601
+#: friendly_games/templates/friendly_games/game_detail.html:428
 msgid "Create Teams"
 msgstr "Δημιουργία ομάδων"
 
 #: friendly_games/templates/friendly_games/create_game.html:176
-#: friendly_games/templates/friendly_games/game_detail.html:592
+#: friendly_games/templates/friendly_games/game_detail.html:601
 #: templates/home.html:661
 msgid "QR scanner is unavailable. Please reload and try again."
 msgstr "Ο σαρωτής QR δεν είναι διαθέσιμος. Επαναφορτώστε και δοκιμάστε ξανά."
@@ -380,7 +382,7 @@ msgid "Choose Black or White before scanning."
 msgstr "Επιλέξτε Μαύρο ή Λευκό πριν από τη σάρωση."
 
 #: friendly_games/templates/friendly_games/create_game.html:178
-#: friendly_games/templates/friendly_games/game_detail.html:598
+#: friendly_games/templates/friendly_games/game_detail.html:607
 msgid "Scanned player added."
 msgstr "Ο σαρωμένος παίκτης προστέθηκε."
 
@@ -391,7 +393,7 @@ msgstr ""
 "έτοιμοι."
 
 #: friendly_games/templates/friendly_games/create_game.html:180
-#: friendly_games/templates/friendly_games/game_detail.html:597
+#: friendly_games/templates/friendly_games/game_detail.html:606
 msgid "This player is already included."
 msgstr "Αυτός ο παίκτης έχει ήδη συμπεριληφθεί."
 
@@ -400,7 +402,7 @@ msgid "That team already has three players."
 msgstr "Αυτή η ομάδα έχει ήδη τρεις παίκτες."
 
 #: friendly_games/templates/friendly_games/create_game.html:183
-#: friendly_games/templates/friendly_games/game_detail.html:594
+#: friendly_games/templates/friendly_games/game_detail.html:603
 msgid ""
 "Scan the participants. Create Teams will distribute them randomly and as "
 "evenly as possible."
@@ -409,7 +411,7 @@ msgstr ""
 "και όσο το δυνατόν ισόρροπα."
 
 #: friendly_games/templates/friendly_games/create_game.html:184
-#: friendly_games/templates/friendly_games/game_detail.html:595
+#: friendly_games/templates/friendly_games/game_detail.html:604
 msgid ""
 "Scan the participants. Create Teams will use existing rating first and "
 "preferred position as an additional balancing factor."
@@ -449,11 +451,14 @@ msgstr "Δεν ήταν δυνατός ο προσδιορισμός της εν
 
 #: friendly_games/templates/friendly_games/create_game.html:207
 #: friendly_games/templates/friendly_games/create_game.html:219
+#: friendly_games/templates/friendly_games/game_detail.html:620
 msgid "You"
 msgstr "Εσείς"
 
 #: friendly_games/templates/friendly_games/create_game.html:207
 #: friendly_games/templates/friendly_games/create_game.html:219
+#: friendly_games/templates/friendly_games/game_detail.html:620
+#: friendly_games/templates/friendly_games/game_detail.html:626
 msgid "Remove"
 msgstr "Αφαίρεση"
 
@@ -466,21 +471,15 @@ msgstr "Συνδεθείτε με το ψευδώνυμο PFC πριν δημι�
 msgid "Friendly Game"
 msgstr "Φιλικός αγώνας"
 
-#: friendly_games/templates/friendly_games/game_detail.html:340
+#: friendly_games/templates/friendly_games/game_detail.html:345
 msgid "Code"
 msgstr "Κωδικός"
 
-#: friendly_games/templates/friendly_games/game_detail.html:378
+#: friendly_games/templates/friendly_games/game_detail.html:383
 msgid "starts first"
 msgstr "ξεκινά πρώτος"
 
-#: friendly_games/templates/friendly_games/game_detail.html:411
-#: friendly_games/templates/friendly_games/game_detail.html:593
-msgid ""
-"Choose Black or White, then scan a Player QR to add that player immediately."
-msgstr "Επιλέξτε Μαύρο ή Λευκό και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
-
-#: friendly_games/templates/friendly_games/game_detail.html:427
+#: friendly_games/templates/friendly_games/game_detail.html:432
 #: templates/matches/match_activate.html:4
 #: templates/matches/match_activate.html:355
 #: templates/matches/match_detail.html:626
@@ -488,41 +487,41 @@ msgstr "Επιλέξτε Μαύρο ή Λευκό και μετά σαρώστε
 msgid "Start Match"
 msgstr "Έναρξη αγώνα"
 
-#: friendly_games/templates/friendly_games/game_detail.html:433
+#: friendly_games/templates/friendly_games/game_detail.html:438
 msgid "Leave Game"
 msgstr "Αποχώρηση από τον αγώνα"
 
-#: friendly_games/templates/friendly_games/game_detail.html:436
+#: friendly_games/templates/friendly_games/game_detail.html:441
 msgid "Joined the wrong side? Leave and re-join on the correct team."
 msgstr ""
 "Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
 
-#: friendly_games/templates/friendly_games/game_detail.html:440
+#: friendly_games/templates/friendly_games/game_detail.html:445
 #: friendly_games/templates/friendly_games/submit_score_list.html:27
 #: templates/home.html:519
 msgid "Join Game"
 msgstr "Συμμετοχή σε αγώνα"
 
-#: friendly_games/templates/friendly_games/game_detail.html:455
+#: friendly_games/templates/friendly_games/game_detail.html:460
 #: templates/matches/scoreboard_detail.html:14
 #: templates/matches/scoreboard_embed.html:9
 #: templates/matches/scoreboard_embed.html:241
 msgid "Live Score"
 msgstr "Ζωντανό σκορ"
 
-#: friendly_games/templates/friendly_games/game_detail.html:459
+#: friendly_games/templates/friendly_games/game_detail.html:464
 msgid "Submit Final Score"
 msgstr "Υποβολή τελικού σκορ"
 
-#: friendly_games/templates/friendly_games/game_detail.html:466
+#: friendly_games/templates/friendly_games/game_detail.html:471
 msgid "submitted"
 msgstr "υπέβαλε"
 
-#: friendly_games/templates/friendly_games/game_detail.html:468
+#: friendly_games/templates/friendly_games/game_detail.html:473
 msgid "must validate."
 msgstr "πρέπει να επιβεβαιώσει."
 
-#: friendly_games/templates/friendly_games/game_detail.html:471
+#: friendly_games/templates/friendly_games/game_detail.html:476
 #: templates/matches/match_detail.html:320
 #: templates/matches/match_detail.html:674
 #: templates/matches/match_detail.html:680
@@ -532,35 +531,40 @@ msgstr "πρέπει να επιβεβαιώσει."
 msgid "Validate Result"
 msgstr "Επιβεβαίωση αποτελέσματος"
 
-#: friendly_games/templates/friendly_games/game_detail.html:480
+#: friendly_games/templates/friendly_games/game_detail.html:485
 msgid "Score Progression History"
 msgstr "Ιστορικό εξέλιξης σκορ"
 
-#: friendly_games/templates/friendly_games/game_detail.html:488
-#: friendly_games/templates/friendly_games/game_detail.html:494
+#: friendly_games/templates/friendly_games/game_detail.html:493
+#: friendly_games/templates/friendly_games/game_detail.html:499
 msgid "Winner"
 msgstr "Νικητής"
 
-#: friendly_games/templates/friendly_games/game_detail.html:500
+#: friendly_games/templates/friendly_games/game_detail.html:505
 msgid "Rematch"
 msgstr "Επαναληπτικός αγώνας"
 
-#: friendly_games/templates/friendly_games/game_detail.html:510
+#: friendly_games/templates/friendly_games/game_detail.html:515
 #: templates/base.html:231 templates/home.html:4
 #: templates/matches/scoreboard_embed.html:226
 #: templates/pfc_core/my_matches.html:155
 msgid "Home"
 msgstr "Αρχική"
 
-#: friendly_games/templates/friendly_games/game_detail.html:596
+#: friendly_games/templates/friendly_games/game_detail.html:605
 msgid "Scan at least one player first."
 msgstr ""
 
-#: friendly_games/templates/friendly_games/game_detail.html:599
+#: friendly_games/templates/friendly_games/game_detail.html:608
 msgid "Scanned players were added to the Friendly Game."
 msgstr ""
 
-#: friendly_games/templates/friendly_games/game_detail.html:600
+#: friendly_games/templates/friendly_games/game_detail.html:609
+msgid ""
+"Player removed. You can scan the player again to place them on either side."
+msgstr "Ο παίκτης αφαιρέθηκε. Μπορείτε να σαρώσετε ξανά το QR του και να τον τοποθετήσετε σε οποιαδήποτε πλευρά."
+
+#: friendly_games/templates/friendly_games/game_detail.html:610
 #, fuzzy
 #| msgid "Could not disable Match Alerts. Please try again."
 msgid "Unable to update the Friendly Game. Please try again."
@@ -693,6 +697,11 @@ msgstr ""
 #, python-format
 msgid "Match Number: %(match_number)s"
 msgstr "Αριθμός αγώνα: %(match_number)s"
+
+#: friendly_games/views.py:708
+#, python-format
+msgid "Removed %(player_name)s from the Friendly Game."
+msgstr ""
 
 #: invites/templates/invites/invite_hub.html:37
 msgid "Accepted Invitations"
@@ -2463,6 +2472,12 @@ msgstr ""
 #: tournaments/registration_services.py:104
 msgid "This tournament is not configured for Mêlée mode."
 msgstr ""
+
+#~ msgid ""
+#~ "Choose Black or White, then scan a Player QR to add that player "
+#~ "immediately."
+#~ msgstr ""
+#~ "Επιλέξτε Μαύρο ή Λευκό και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
 
 #~ msgid "Add selected to setup"
 #~ msgstr "Προσθήκη επιλεγμένων στη σύνθεση"

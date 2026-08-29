@@ -69,6 +69,8 @@
                                     data-max-singles="{{ scenario.max_singles|default:0 }}"
                                     data-max-doubles="{{ scenario.max_doubles|default:0 }}"
                                     data-max-triples="{{ scenario.max_triples|default:0 }}"
+                                    data-max-courts="{{ scenario.max_courts|default:1 }}"
+                                    data-recommended-courts="{{ scenario.recommended_courts|default:1 }}"
                                     data-vs-default-num-matches="{{ scenario.vs_default_num_matches|default:11 }}"
                                     data-image-url="{{ scenario.image_url|default:'' }}"
                                     data-is-free="{% if scenario.is_free %}true{% else %}false{% endif %}"
@@ -195,12 +197,8 @@
                         <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">3</span> Number of Courts</h4>
                         <div class="row">
                             <div class="col-md-6">
-                                <select class="form-select" name="num_courts" id="num_courts" required>
-                                    <option value="">Choose number of courts...</option>
-                                    <option value="1">1 court</option>
-                                    <option value="2">2 courts</option>
-                                    <option value="3" selected>3 courts</option>
-                                    <option value="4">4 courts</option>
+                                <select class="form-select" name="num_courts" id="num_courts" required disabled>
+                                    <option value="">Select a Scenario first...</option>
                                 </select>
                                 <div class="form-text">
                                     <i class="bi bi-info-circle"></i>
@@ -251,13 +249,11 @@
         document.addEventListener('DOMContentLoaded', function() {
             const scenarioCards = document.querySelectorAll('.scenario-card'); // kept for compat
             const formatCards = document.querySelectorAll('.format-card');
-            const courtComplexSelect = document.getElementById('court_complex');
-            const courtInfo = document.getElementById('court-info');
-            const courtList = document.getElementById('court-list');
             const voucherSection = document.getElementById('voucher-section');
             const voucherInput = document.getElementById('voucher_code');
             const voucherFeedback = document.getElementById('voucher-feedback');
             const vsMatchCountInput = document.getElementById('num_vs_matches');
+            const courtsSelect = document.getElementById('num_courts');
 
             // ── Dropdown scenario selector ─────────────────────────────────────────────
             const dropdown   = document.getElementById('scenario-dropdown');
@@ -279,6 +275,30 @@
                 return '<span style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:20px;padding:.25rem .65rem;font-size:.78rem;color:#334155"><i class="bi bi-' + icon + '" style="color:#2563eb"></i>' + text + '</span>';
             }
 
+            function updateCourtOptions(maxCourts, recommendedCourts) {
+                if (!courtsSelect) return;
+                const max = parseInt(maxCourts, 10);
+                const recommended = parseInt(recommendedCourts, 10);
+                const previous = parseInt(courtsSelect.value, 10);
+                courtsSelect.innerHTML = '';
+                if (!Number.isInteger(max) || max < 1) {
+                    courtsSelect.disabled = true;
+                    courtsSelect.innerHTML = '<option value="">No courts configured for this Scenario</option>';
+                    return;
+                }
+                for (let number = 1; number <= max; number += 1) {
+                    const option = document.createElement('option');
+                    option.value = String(number);
+                    option.textContent = number + (number === 1 ? ' court' : ' courts');
+                    courtsSelect.appendChild(option);
+                }
+                courtsSelect.disabled = false;
+                const preferred = Number.isInteger(previous) && previous >= 1 && previous <= max
+                    ? previous
+                    : (Number.isInteger(recommended) && recommended >= 1 && recommended <= max ? recommended : 1);
+                courtsSelect.value = String(preferred);
+            }
+
             function applyScenarioOption(opt) {
                 if (!opt || !opt.value) {
                     detailPanel.style.display = 'none';
@@ -288,6 +308,7 @@
                     voucherSection.style.display = 'none';
                     if (voucherInput) { voucherInput.required = false; voucherInput.value = ''; }
                     if (voucherFeedback) voucherFeedback.innerHTML = '';
+                    updateCourtOptions(0, 0);
                     return;
                 }
                 const d = opt.dataset;
@@ -305,6 +326,7 @@
                 proxyCard.dataset.maxDoubles      = d.maxDoubles;
                 proxyCard.dataset.maxTriples      = d.maxTriples;
                 proxyCard.dataset.vsDefaultNumMatches = d.vsDefaultNumMatches;
+                updateCourtOptions(d.maxCourts, d.recommendedCourts);
 
                 // Render detail panel
                 const isFree = d.isFree === 'true';
@@ -449,35 +471,6 @@
             });
 
                // (On page load, format visibility is driven by applyScenarioOption above)
-            
-            // Handle court complex selection
-            courtComplexSelect.addEventListener('change', function() {
-                const complexId = this.value;
-                if (complexId) {
-                    fetch(`/simple/courts/?complex_id=${complexId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                courtList.innerHTML = `
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span><strong>${data.count}</strong> available courts</span>
-                                        <small class="text-muted">Up to 3 will be randomly selected</small>
-                                    </div>
-                                `;
-                                courtInfo.style.display = 'block';
-                            } else {
-                                courtList.innerHTML = '<div class="text-danger">Error loading courts</div>';
-                                courtInfo.style.display = 'block';
-                            }
-                        })
-                        .catch(error => {
-                            courtList.innerHTML = '<div class="text-danger">Error loading courts</div>';
-                            courtInfo.style.display = 'block';
-                        });
-                } else {
-                    courtInfo.style.display = 'none';
-                }
-            });
             
             // Handle voucher validation
             voucherInput.addEventListener('blur', function() {
