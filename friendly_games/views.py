@@ -10,7 +10,6 @@ from django.db.models import Q
 from django.views.decorators.http import require_GET, require_POST
 from django.urls import reverse
 from datetime import timedelta
-from math import asin, cos, radians, sin, sqrt
 import json
 import logging
 import random
@@ -20,6 +19,7 @@ from pfc_core.session_utils import CodenameSessionManager
 from .court_utils import resolve_court_assignment, get_court_context_for_form, courts_for_complex_json
 from .presence_utils import register_friendly_game_players_at_court, deactivate_friendly_game_presence
 from courts.timezone_utils import get_court_local_now
+from courts.proximity import distance_metres
 from pfc_events.signals import notify_game_state_changed
 
 logger = logging.getLogger(__name__)
@@ -113,17 +113,6 @@ def _eligible_friendly_court_players(court_complex):
     )
 
 
-def _distance_metres(latitude_a, longitude_a, latitude_b, longitude_b):
-    """Return great-circle distance in metres for the explicit GPS proximity gate."""
-    earth_radius_metres = 6_371_000
-    lat_delta = radians(latitude_b - latitude_a)
-    lon_delta = radians(longitude_b - longitude_a)
-    haversine = (
-        sin(lat_delta / 2) ** 2
-        + cos(radians(latitude_a)) * cos(radians(latitude_b)) * sin(lon_delta / 2) ** 2
-    )
-    return 2 * earth_radius_metres * asin(sqrt(haversine))
-
 
 @require_POST
 def available_court_players_api(request):
@@ -152,14 +141,14 @@ def available_court_players_api(request):
             'error': _('This Court Complex does not yet have a location configured for nearby-player access.'),
         }, status=409)
 
-    distance_metres = _distance_metres(
+    proximity_distance_metres = distance_metres(
         device_latitude,
         device_longitude,
         float(court_complex.latitude),
         float(court_complex.longitude),
     )
     permitted_radius_metres = settings.PFC_FRIENDLY_COURT_PROXIMITY_METERS
-    if distance_metres > permitted_radius_metres:
+    if proximity_distance_metres > permitted_radius_metres:
         return JsonResponse({
             'ok': False,
             'error': _('You need to be at these courts to view and use the players currently available here.'),

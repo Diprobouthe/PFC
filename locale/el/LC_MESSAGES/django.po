@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-30 05:27+0000\n"
+"POT-Creation-Date: 2026-08-30 07:55+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -16,6 +16,23 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: billboard/presence_views.py:210
+#: billboard/templates/billboard/billboard_list.html:359
+#: billboard/templates/billboard/billboard_list.html:403
+msgid ""
+"Manual check-in is unavailable because this Court Complex has no location "
+"configured."
+msgstr "Η χειροκίνητη δήλωση παρουσίας δεν είναι διαθέσιμη, επειδή αυτές οι εγκαταστάσεις δεν έχουν διαμορφωμένη τοποθεσία."
+
+#: billboard/presence_views.py:220
+#: billboard/templates/billboard/billboard_list.html:417
+msgid "Location permission is required to check in at these courts."
+msgstr "Απαιτείται άδεια τοποθεσίας για να δηλώσετε παρουσία σε αυτά τα γήπεδα."
+
+#: billboard/presence_views.py:230
+msgid "You are not at the courts yet."
+msgstr "Δεν είστε ακόμα στα γήπεδα."
 
 #: billboard/templates/billboard/billboard_list.html:91
 msgid "Show my name"
@@ -30,19 +47,31 @@ msgid "Available for Friendly"
 msgstr "Διαθέσιμος για φιλικό"
 
 #: billboard/templates/billboard/billboard_list.html:99
-msgid "This saved preference applies only while I am currently here at a Court Complex."
-msgstr "Η αποθηκευμένη προτίμηση ισχύει μόνο όταν βρίσκομαι τώρα σε Εγκαταστάσεις."
+msgid ""
+"This saved preference applies only while I am currently here at a Court "
+"Complex."
+msgstr ""
+"Η αποθηκευμένη προτίμηση ισχύει μόνο όταν βρίσκομαι τώρα σε Εγκαταστάσεις."
 
-#: billboard/templates/billboard/billboard_list.html:443
+#: billboard/templates/billboard/billboard_list.html:418
+msgid "Location is not supported on this device."
+msgstr "Η τοποθεσία δεν υποστηρίζεται σε αυτή τη συσκευή."
+
+#: billboard/templates/billboard/billboard_list.html:419
+#: billboard/templates/billboard/billboard_list.html:420
+msgid "Your location could not be determined. Please try again."
+msgstr "Δεν ήταν δυνατός ο προσδιορισμός της τοποθεσίας σας. Δοκιμάστε ξανά."
+
+#: billboard/templates/billboard/billboard_list.html:478
 msgid "Available for Friendly preference saved."
 msgstr "Η προτίμηση «Διαθέσιμος για φιλικό» αποθηκεύτηκε."
 
-#: billboard/templates/billboard/billboard_list.html:443
+#: billboard/templates/billboard/billboard_list.html:478
 msgid "Available for Friendly preference turned off."
 msgstr "Η προτίμηση «Διαθέσιμος για φιλικό» απενεργοποιήθηκε."
 
-#: billboard/templates/billboard/billboard_list.html:444
-#: billboard/templates/billboard/billboard_list.html:445
+#: billboard/templates/billboard/billboard_list.html:479
+#: billboard/templates/billboard/billboard_list.html:480
 msgid "Unable to update Friendly availability."
 msgstr "Δεν ήταν δυνατή η ενημέρωση της διαθεσιμότητας για φιλικό."
 
@@ -54,7 +83,9 @@ msgstr "Εγκαταστάσεις"
 
 #: courts/templates/courts/court_complex_list.html:11
 msgid "Discover petanque facilities with detailed information and user reviews"
-msgstr "Ανακαλύψτε εγκαταστάσεις πετάνκ με αναλυτικές πληροφορίες και αξιολογήσεις χρηστών"
+msgstr ""
+"Ανακαλύψτε εγκαταστάσεις πετάνκ με αναλυτικές πληροφορίες και αξιολογήσεις "
+"χρηστών"
 
 #: courts/templates/courts/court_complex_list.html:54
 msgctxt "petanque playing areas venue count"
@@ -75,7 +106,9 @@ msgid "No Court Complexes Yet"
 msgstr "Δεν υπάρχουν ακόμη εγκαταστάσεις"
 
 #: courts/templates/courts/court_complex_list.html:86
-msgid "Court complexes will be added soon to help you discover the best petanque facilities."
+msgid ""
+"Court complexes will be added soon to help you discover the best petanque "
+"facilities."
 msgstr ""
 
 #: friendly_games/models.py:70
@@ -185,8 +218,11 @@ msgid "Create Friendly"
 msgstr "Δημιουργία φιλικού αγώνα"
 
 #: friendly_games/templates/friendly_games/create_game.html:74
-msgid "Set up the game, then share the code so players can join their own side."
-msgstr "Ρυθμίστε τον αγώνα και μοιραστείτε τον κωδικό ώστε οι παίκτες να μπορούν να συμμετέχουν στην πλευρά τους."
+msgid ""
+"Set up the game, then share the code so players can join their own side."
+msgstr ""
+"Ρυθμίστε τον αγώνα και μοιραστείτε τον κωδικό ώστε οι παίκτες να μπορούν να "
+"συμμετέχουν στην πλευρά τους."
 
 #: friendly_games/templates/friendly_games/create_game.html:89
 msgid "Your Position"
@@ -228,8 +264,12 @@ msgid "Players at Courts"
 msgstr "Παίκτες στα Γήπεδα"
 
 #: friendly_games/templates/friendly_games/create_game.html:117
-msgid "Only players who are currently here at this Court Complex and enabled Available for Friendly are shown."
-msgstr "Εμφανίζονται μόνο παίκτες που βρίσκονται τώρα σε αυτές τις Εγκαταστάσεις και έχουν ενεργοποιήσει το «Διαθέσιμος για φιλικό»."
+msgid ""
+"Only players who are currently here at this Court Complex and enabled "
+"Available for Friendly are shown."
+msgstr ""
+"Εμφανίζονται μόνο παίκτες που βρίσκονται τώρα σε αυτές τις Εγκαταστάσεις και "
+"έχουν ενεργοποιήσει το «Διαθέσιμος για φιλικό»."
 
 #: friendly_games/templates/friendly_games/create_game.html:119
 msgid "Show available players"
@@ -255,8 +295,12 @@ msgid "Include me in the Friendly Game"
 msgstr "Συμπερίλαβέ με στον φιλικό αγώνα"
 
 #: friendly_games/templates/friendly_games/create_game.html:131
-msgid "Uncheck only when building the game for players at courts without joining it yourself."
-msgstr "Αποεπιλέξτε το μόνο όταν οργανώνετε τον αγώνα για παίκτες στα Γήπεδα χωρίς να συμμετέχετε εσείς."
+msgid ""
+"Uncheck only when building the game for players at courts without joining it "
+"yourself."
+msgstr ""
+"Αποεπιλέξτε το μόνο όταν οργανώνετε τον αγώνα για παίκτες στα Γήπεδα χωρίς "
+"να συμμετέχετε εσείς."
 
 #: friendly_games/templates/friendly_games/create_game.html:135
 #: friendly_games/templates/friendly_games/game_detail.html:415
@@ -325,8 +369,13 @@ msgid "Participants"
 msgstr "Δεν είστε συμμετέχων"
 
 #: friendly_games/templates/friendly_games/create_game.html:156
-msgid "These creator tools do not lock the game. Until Start Match, players can still join normally and choose Black or White if a place is available."
-msgstr "Τα εργαλεία του δημιουργού δεν κλειδώνουν τον αγώνα. Μέχρι την Έναρξη αγώνα, οι παίκτες μπορούν να εγγράφονται κανονικά και να επιλέγουν Μαύρη ή Λευκή πλευρά, αν υπάρχει διαθέσιμη θέση."
+msgid ""
+"These creator tools do not lock the game. Until Start Match, players can "
+"still join normally and choose Black or White if a place is available."
+msgstr ""
+"Τα εργαλεία του δημιουργού δεν κλειδώνουν τον αγώνα. Μέχρι την Έναρξη αγώνα, "
+"οι παίκτες μπορούν να εγγράφονται κανονικά και να επιλέγουν Μαύρη ή Λευκή "
+"πλευρά, αν υπάρχει διαθέσιμη θέση."
 
 #: friendly_games/templates/friendly_games/create_game.html:160
 msgid "Game Name"
@@ -365,7 +414,9 @@ msgstr "Ο σαρωμένος παίκτης προστέθηκε."
 
 #: friendly_games/templates/friendly_games/create_game.html:179
 msgid "Scanned participant added. Press Create Teams when ready."
-msgstr "Ο σαρωμένος συμμετέχων προστέθηκε. Πατήστε Δημιουργία ομάδων όταν είστε έτοιμοι."
+msgstr ""
+"Ο σαρωμένος συμμετέχων προστέθηκε. Πατήστε Δημιουργία ομάδων όταν είστε "
+"έτοιμοι."
 
 #: friendly_games/templates/friendly_games/create_game.html:180
 #: friendly_games/templates/friendly_games/game_detail.html:606
@@ -378,16 +429,24 @@ msgstr "Αυτή η ομάδα έχει ήδη τρεις παίκτες."
 
 #: friendly_games/templates/friendly_games/create_game.html:183
 #: friendly_games/templates/friendly_games/game_detail.html:603
-msgid "Scan the participants. Create Teams will distribute them randomly and as evenly as possible."
-msgstr "Σαρώστε τους συμμετέχοντες. Η Δημιουργία ομάδων θα τους κατανείμει τυχαία και όσο το δυνατόν ισόρροπα."
+msgid ""
+"Scan the participants. Create Teams will distribute them randomly and as "
+"evenly as possible."
+msgstr ""
+"Σαρώστε τους συμμετέχοντες. Η Δημιουργία ομάδων θα τους κατανείμει τυχαία "
+"και όσο το δυνατόν ισόρροπα."
 
 #: friendly_games/templates/friendly_games/create_game.html:184
 #: friendly_games/templates/friendly_games/game_detail.html:604
-msgid "Scan the participants. Create Teams will use existing rating first and preferred position as an additional balancing factor."
-msgstr "Σαρώστε τους συμμετέχοντες. Η Δημιουργία ομάδων χρησιμοποιεί πρώτα την υπάρχουσα αξιολόγηση και τη προτιμώμενη θέση ως πρόσθετο κριτήριο ισορροπίας."
+msgid ""
+"Scan the participants. Create Teams will use existing rating first and "
+"preferred position as an additional balancing factor."
+msgstr ""
+"Σαρώστε τους συμμετέχοντες. Η Δημιουργία ομάδων χρησιμοποιεί πρώτα την "
+"υπάρχουσα αξιολόγηση και τη προτιμώμενη θέση ως πρόσθετο κριτήριο ισορροπίας."
 
 #: friendly_games/templates/friendly_games/create_game.html:185
-#: friendly_games/views.py:136
+#: friendly_games/views.py:125
 #, fuzzy
 #| msgctxt "petanque venue complex empty state"
 #| msgid "No Court Complexes Yet"
@@ -395,7 +454,8 @@ msgid "Select a Court Complex first."
 msgstr "Δεν υπάρχουν ακόμη εγκαταστάσεις"
 
 #: friendly_games/templates/friendly_games/create_game.html:186
-msgid "No currently available Friendly players were found at this Court Complex."
+msgid ""
+"No currently available Friendly players were found at this Court Complex."
 msgstr ""
 
 #: friendly_games/templates/friendly_games/create_game.html:187
@@ -421,17 +481,28 @@ msgid "Checking that you are at these courts…"
 msgstr "Ελέγχουμε ότι βρίσκεστε σε αυτά τα γήπεδα…"
 
 #: friendly_games/templates/friendly_games/create_game.html:192
-msgid "This device cannot provide location. You need to be at these courts to view available players."
-msgstr "Η συσκευή δεν μπορεί να δώσει τοποθεσία. Πρέπει να βρίσκεστε σε αυτά τα γήπεδα για να δείτε τους διαθέσιμους παίκτες."
+msgid ""
+"This device cannot provide location. You need to be at these courts to view "
+"available players."
+msgstr ""
+"Η συσκευή δεν μπορεί να δώσει τοποθεσία. Πρέπει να βρίσκεστε σε αυτά τα "
+"γήπεδα για να δείτε τους διαθέσιμους παίκτες."
 
 #: friendly_games/templates/friendly_games/create_game.html:193
-#: friendly_games/views.py:143
-msgid "Allow location access to view players currently available at these courts."
-msgstr "Επιτρέψτε την πρόσβαση στην τοποθεσία για να δείτε τους παίκτες που είναι τώρα διαθέσιμοι σε αυτά τα γήπεδα."
+#: friendly_games/views.py:132
+msgid ""
+"Allow location access to view players currently available at these courts."
+msgstr ""
+"Επιτρέψτε την πρόσβαση στην τοποθεσία για να δείτε τους παίκτες που είναι "
+"τώρα διαθέσιμοι σε αυτά τα γήπεδα."
 
 #: friendly_games/templates/friendly_games/create_game.html:194
-msgid "Your location could not be determined. Please try again while you are at these courts."
-msgstr "Δεν ήταν δυνατός ο προσδιορισμός της τοποθεσίας σας. Δοκιμάστε ξανά ενώ βρίσκεστε σε αυτά τα γήπεδα."
+msgid ""
+"Your location could not be determined. Please try again while you are at "
+"these courts."
+msgstr ""
+"Δεν ήταν δυνατός ο προσδιορισμός της τοποθεσίας σας. Δοκιμάστε ξανά ενώ "
+"βρίσκεστε σε αυτά τα γήπεδα."
 
 #: friendly_games/templates/friendly_games/create_game.html:211
 #: friendly_games/templates/friendly_games/create_game.html:223
@@ -446,7 +517,7 @@ msgstr "Εσείς"
 msgid "Remove"
 msgstr "Αφαίρεση"
 
-#: friendly_games/templates/friendly_games/create_game.html:374
+#: friendly_games/templates/friendly_games/create_game.html:380
 msgid "Sign in with your PFC codename before creating a Friendly Game."
 msgstr "Συνδεθείτε με το ψευδώνυμο PFC πριν δημιουργήσετε Φιλικό αγώνα."
 
@@ -477,7 +548,8 @@ msgstr "Αποχώρηση από τον αγώνα"
 
 #: friendly_games/templates/friendly_games/game_detail.html:441
 msgid "Joined the wrong side? Leave and re-join on the correct team."
-msgstr "Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
+msgstr ""
+"Επιλέξατε λάθος πλευρά; Αποχωρήστε και συμμετάσχετε ξανά στη σωστή ομάδα."
 
 #: friendly_games/templates/friendly_games/game_detail.html:445
 #: friendly_games/templates/friendly_games/submit_score_list.html:27
@@ -543,14 +615,18 @@ msgid "Scanned players were added to the Friendly Game."
 msgstr ""
 
 #: friendly_games/templates/friendly_games/game_detail.html:609
-msgid "Player removed. You can scan the player again to place them on either side."
-msgstr "Ο παίκτης αφαιρέθηκε. Μπορείτε να σαρώσετε ξανά το QR του και να τον τοποθετήσετε σε οποιαδήποτε πλευρά."
+msgid ""
+"Player removed. You can scan the player again to place them on either side."
+msgstr ""
+"Ο παίκτης αφαιρέθηκε. Μπορείτε να σαρώσετε ξανά το QR του και να τον "
+"τοποθετήσετε σε οποιαδήποτε πλευρά."
 
 #: friendly_games/templates/friendly_games/game_detail.html:610
 #, fuzzy
 #| msgid "Could not disable Match Alerts. Please try again."
 msgid "Unable to update the Friendly Game. Please try again."
-msgstr "Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+msgstr ""
+"Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
 
 #: friendly_games/templates/friendly_games/submit_score.html:267
 msgid "Submitting as"
@@ -620,7 +696,9 @@ msgstr[0] "Αγώνας σε αναμονή επιβεβαίωσης (%(counter)
 msgstr[1] "Αγώνες σε αναμονή επιβεβαίωσης (%(counter)s)"
 
 #: friendly_games/templates/friendly_games/submit_score_list.html:95
-msgid "Scores have been submitted for these games and are waiting for the other team to validate."
+msgid ""
+"Scores have been submitted for these games and are waiting for the other "
+"team to validate."
 msgstr "Τα σκορ υποβλήθηκαν και αναμένουν επιβεβαίωση από την άλλη ομάδα."
 
 #: friendly_games/templates/friendly_games/submit_score_list.html:114
@@ -652,48 +730,61 @@ msgstr "Επιβεβαίωση"
 msgid "Back to Home"
 msgstr "Πίσω στην αρχική"
 
-#: friendly_games/views.py:132
+#: friendly_games/views.py:121
 #, fuzzy
 #| msgid "Unable to resolve the player action."
 msgid "Sign in before viewing players at courts."
 msgstr "Δεν ήταν δυνατός ο προσδιορισμός της ενέργειας του παίκτη."
 
-#: friendly_games/views.py:148
+#: friendly_games/views.py:137
 #, fuzzy
 #| msgctxt "petanque venue complex"
 #| msgid "Court Complex"
 msgid "Court Complex not found."
 msgstr "Εγκαταστάσεις"
 
-#: friendly_games/views.py:152
-msgid "This Court Complex does not yet have a location configured for nearby-player access."
-msgstr "Οι εγκαταστάσεις αυτές δεν έχουν ακόμη ρυθμισμένη τοποθεσία για πρόσβαση σε κοντινούς παίκτες."
+#: friendly_games/views.py:141
+msgid ""
+"This Court Complex does not yet have a location configured for nearby-player "
+"access."
+msgstr ""
+"Οι εγκαταστάσεις αυτές δεν έχουν ακόμη ρυθμισμένη τοποθεσία για πρόσβαση σε "
+"κοντινούς παίκτες."
 
-#: friendly_games/views.py:165
-msgid "You need to be at these courts to view and use the players currently available here."
-msgstr "Πρέπει να βρίσκεστε σε αυτά τα γήπεδα για να δείτε και να χρησιμοποιήσετε τους παίκτες που είναι διαθέσιμοι εδώ."
+#: friendly_games/views.py:154
+msgid ""
+"You need to be at these courts to view and use the players currently "
+"available here."
+msgstr ""
+"Πρέπει να βρίσκεστε σε αυτά τα γήπεδα για να δείτε και να χρησιμοποιήσετε "
+"τους παίκτες που είναι διαθέσιμοι εδώ."
 
-#: friendly_games/views.py:586
+#: friendly_games/views.py:575
 #, python-format
-msgid "Friendly game \"%(game_name)s\" created successfully with %(total_players)s players!"
-msgstr "Ο φιλικός αγώνας \"%(game_name)s\" δημιουργήθηκε επιτυχώς με %(total_players)s παίκτες!"
+msgid ""
+"Friendly game \"%(game_name)s\" created successfully with %(total_players)s "
+"players!"
+msgstr ""
+"Ο φιλικός αγώνας \"%(game_name)s\" δημιουργήθηκε επιτυχώς με "
+"%(total_players)s παίκτες!"
 
-#: friendly_games/views.py:592
+#: friendly_games/views.py:581
 #, python-format
 msgid "Creator validated as %(player_name)s."
 msgstr "Ο δημιουργός επιβεβαιώθηκε ως %(player_name)s."
 
-#: friendly_games/views.py:596
+#: friendly_games/views.py:585
 #, python-format
 msgid "Creator codename \"%(codename)s\" not found - no validation."
-msgstr "Ο κωδικός δημιουργού \"%(codename)s\" δεν βρέθηκε — δεν έγινε επιβεβαίωση."
+msgstr ""
+"Ο κωδικός δημιουργού \"%(codename)s\" δεν βρέθηκε — δεν έγινε επιβεβαίωση."
 
-#: friendly_games/views.py:600
+#: friendly_games/views.py:589
 #, python-format
 msgid "Match Number: %(match_number)s"
 msgstr "Αριθμός αγώνα: %(match_number)s"
 
-#: friendly_games/views.py:749
+#: friendly_games/views.py:738
 #, python-format
 msgid "Removed %(player_name)s from the Friendly Game."
 msgstr ""
@@ -769,8 +860,12 @@ msgid "Failed"
 msgstr "Απέτυχε"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:14
-msgid "End this Match Tracking session? QR permissions and active shooting/pointing sessions will be closed."
-msgstr "Να τερματιστεί αυτή η συνεδρία παρακολούθησης αγώνα; Οι άδειες QR και οι ενεργές συνεδρίες βολών/πόντων θα κλείσουν."
+msgid ""
+"End this Match Tracking session? QR permissions and active shooting/pointing "
+"sessions will be closed."
+msgstr ""
+"Να τερματιστεί αυτή η συνεδρία παρακολούθησης αγώνα; Οι άδειες QR και οι "
+"ενεργές συνεδρίες βολών/πόντων θα κλείσουν."
 
 #: match_tracking/templates/match_tracking/tracking_page.html:15
 msgid "Could not end tracking"
@@ -821,7 +916,8 @@ msgstr "Υποβολή ενός ολοκληρωμένου γύρου"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:279
 msgid "Scan a player QR code to enable controls."
-msgstr "Σαρώστε τον κωδικό QR ενός παίκτη για να ενεργοποιηθούν τα χειριστήρια."
+msgstr ""
+"Σαρώστε τον κωδικό QR ενός παίκτη για να ενεργοποιηθούν τα χειριστήρια."
 
 #: match_tracking/templates/match_tracking/tracking_page.html:297
 #: match_tracking/templates/match_tracking/tracking_page.html:315
@@ -900,7 +996,8 @@ msgstr "Εξαγωγή PDF"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:401
 msgid "End this tracking period and revoke all QR authorizations"
-msgstr "Τερματισμός της περιόδου παρακολούθησης και ανάκληση όλων των αδειών QR"
+msgstr ""
+"Τερματισμός της περιόδου παρακολούθησης και ανάκληση όλων των αδειών QR"
 
 #: match_tracking/templates/match_tracking/tracking_page.html:402
 msgid "End Session"
@@ -957,23 +1054,32 @@ msgid "Rejected"
 msgstr "Απορρίφθηκε"
 
 #: matches/utils.py:67
-msgid "Mixed matches are not allowed in this tournament. Both teams must have the same number of players. Team 1 has {} players, Team 2 has {} players."
+msgid ""
+"Mixed matches are not allowed in this tournament. Both teams must have the "
+"same number of players. Team 1 has {} players, Team 2 has {} players."
 msgstr ""
 
 #: matches/utils.py:77
-msgid "Doublet matches (2 players per team) are not allowed in this tournament. Please select {} players per team."
+msgid ""
+"Doublet matches (2 players per team) are not allowed in this tournament. "
+"Please select {} players per team."
 msgstr ""
 
 #: matches/utils.py:80
-msgid "Triplet matches (3 players per team) are not allowed in this tournament. Please select {} players per team."
+msgid ""
+"Triplet matches (3 players per team) are not allowed in this tournament. "
+"Please select {} players per team."
 msgstr ""
 
 #: matches/utils.py:83
-msgid "Tête-à-tête matches (1 player per team) are not allowed in this tournament. Please select {} players per team."
+msgid ""
+"Tête-à-tête matches (1 player per team) are not allowed in this tournament. "
+"Please select {} players per team."
 msgstr ""
 
 #: matches/utils.py:85
-msgid "This match format ({}) is not allowed in this tournament. Allowed formats: {}"
+msgid ""
+"This match format ({}) is not allowed in this tournament. Allowed formats: {}"
 msgstr ""
 
 #: matches/utils.py:124
@@ -1003,7 +1109,8 @@ msgstr "Αυτή η ομάδα δεν συμμετέχει σε αυτόν το�
 
 #: matches/views.py:752
 msgid "Match initiated successfully. Waiting for the other team to validate."
-msgstr "Ο αγώνας ξεκίνησε επιτυχώς. Αναμονή για επιβεβαίωση από την άλλη ομάδα."
+msgstr ""
+"Ο αγώνας ξεκίνησε επιτυχώς. Αναμονή για επιβεβαίωση από την άλλη ομάδα."
 
 #: matches/views.py:773
 #, python-format
@@ -1011,8 +1118,12 @@ msgid "Match validated and activated! %(status)s"
 msgstr "Ο αγώνας επιβεβαιώθηκε και ενεργοποιήθηκε! %(status)s"
 
 #: matches/views.py:787
-msgid "Match validated successfully. No court is currently available — the match will start automatically as soon as a court becomes free."
-msgstr "Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπάρχει διαθέσιμο γήπεδο· θα ξεκινήσει αυτόματα μόλις ελευθερωθεί γήπεδο."
+msgid ""
+"Match validated successfully. No court is currently available — the match "
+"will start automatically as soon as a court becomes free."
+msgstr ""
+"Ο αγώνας επιβεβαιώθηκε επιτυχώς. Δεν υπάρχει διαθέσιμο γήπεδο· θα ξεκινήσει "
+"αυτόματα μόλις ελευθερωθεί γήπεδο."
 
 #: matches/views.py:890
 msgid "You are not authorised to submit results for this team."
@@ -1102,7 +1213,8 @@ msgstr "Δεν ήταν δυνατός ο προσδιορισμός του σα
 #: pfc_core/smart_router.py:612
 #, python-format
 msgid "%(player_name)s has no current actionable match or game."
-msgstr "Ο παίκτης %(player_name)s δεν έχει τρέχοντα αγώνα με διαθέσιμη ενέργεια."
+msgstr ""
+"Ο παίκτης %(player_name)s δεν έχει τρέχοντα αγώνα με διαθέσιμη ενέργεια."
 
 #: pfc_core/smart_router.py:664 templates/home.html:418
 msgid "No team"
@@ -1154,8 +1266,11 @@ msgstr "Προαιρετικές ειδοποιήσεις στο τηλέφων�
 
 #: teams/templates/teams/edit_player_profile.html:475
 #: teams/templates/teams/edit_player_profile.html:590
-msgid "Receive optional alerts for invitations and when a match needs your action."
-msgstr "Λάβετε προαιρετικές ειδοποιήσεις για προσκλήσεις και όταν ένας αγώνας χρειάζεται τη δική σας ενέργεια."
+msgid ""
+"Receive optional alerts for invitations and when a match needs your action."
+msgstr ""
+"Λάβετε προαιρετικές ειδοποιήσεις για προσκλήσεις και όταν ένας αγώνας "
+"χρειάζεται τη δική σας ενέργεια."
 
 #: teams/templates/teams/edit_player_profile.html:478
 msgid "Enable"
@@ -1175,23 +1290,29 @@ msgstr "Οι ειδοποιήσεις αγώνα θα είναι διαθέσι�
 
 #: teams/templates/teams/edit_player_profile.html:588
 msgid "Notifications are blocked for PFC in this browser."
-msgstr "Οι ειδοποιήσεις για το PFC έχουν αποκλειστεί σε αυτό το πρόγραμμα περιήγησης."
+msgstr ""
+"Οι ειδοποιήσεις για το PFC έχουν αποκλειστεί σε αυτό το πρόγραμμα περιήγησης."
 
 #: teams/templates/teams/edit_player_profile.html:589
 msgid "Match Alerts are enabled on this device."
 msgstr "Οι ειδοποιήσεις αγώνα έχουν ενεργοποιηθεί σε αυτή τη συσκευή."
 
 #: teams/templates/teams/edit_player_profile.html:591
-msgid "Notifications were not enabled. You can allow them in your browser settings."
-msgstr "Οι ειδοποιήσεις δεν ενεργοποιήθηκαν. Μπορείτε να τις επιτρέψετε από τις ρυθμίσεις του προγράμματος περιήγησης."
+msgid ""
+"Notifications were not enabled. You can allow them in your browser settings."
+msgstr ""
+"Οι ειδοποιήσεις δεν ενεργοποιήθηκαν. Μπορείτε να τις επιτρέψετε από τις "
+"ρυθμίσεις του προγράμματος περιήγησης."
 
 #: teams/templates/teams/edit_player_profile.html:592
 msgid "Could not enable Match Alerts. Please try again."
-msgstr "Δεν ήταν δυνατή η ενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+msgstr ""
+"Δεν ήταν δυνατή η ενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:593
 msgid "Could not disable Match Alerts. Please try again."
-msgstr "Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
+msgstr ""
+"Δεν ήταν δυνατή η απενεργοποίηση των ειδοποιήσεων αγώνα. Προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:594
 msgid "Preparing Match Alerts…"
@@ -1199,11 +1320,14 @@ msgstr "Προετοιμασία ειδοποιήσεων αγώνα…"
 
 #: teams/templates/teams/edit_player_profile.html:595
 msgid "PFC could not confirm your player session. Please sign in again."
-msgstr "Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
+msgstr ""
+"Το PFC δεν μπόρεσε να επιβεβαιώσει τη συνεδρία παίκτη σας. Συνδεθείτε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:596
 msgid "PFC could not start its notification worker. Reload PFC and try again."
-msgstr "Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+msgstr ""
+"Το PFC δεν μπόρεσε να ξεκινήσει την υπηρεσία ειδοποιήσεων. Φορτώστε ξανά το "
+"PFC και προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:597
 msgid "PFC could not read Push configuration. Please try again."
@@ -1211,15 +1335,24 @@ msgstr "Το PFC δεν μπόρεσε να διαβάσει τη ρύθμιση
 
 #: teams/templates/teams/edit_player_profile.html:598
 msgid "The server Push key is invalid. Please contact PFC support."
-msgstr "Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την υποστήριξη PFC."
+msgstr ""
+"Το κλειδί Push του διακομιστή δεν είναι έγκυρο. Επικοινωνήστε με την "
+"υποστήριξη PFC."
 
 #: teams/templates/teams/edit_player_profile.html:599
-msgid "The browser could not create a Push subscription. Check that PFC is installed and notifications are allowed, then try again."
-msgstr "Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι ειδοποιήσεις και προσπαθήστε ξανά."
+msgid ""
+"The browser could not create a Push subscription. Check that PFC is "
+"installed and notifications are allowed, then try again."
+msgstr ""
+"Το πρόγραμμα περιήγησης δεν μπόρεσε να δημιουργήσει συνδρομή Push. "
+"Βεβαιωθείτε ότι το PFC είναι εγκατεστημένο και ότι επιτρέπονται οι "
+"ειδοποιήσεις και προσπαθήστε ξανά."
 
 #: teams/templates/teams/edit_player_profile.html:600
 msgid "Match Alerts are taking too long to start. Reload PFC and try again."
-msgstr "Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και προσπαθήστε ξανά."
+msgstr ""
+"Η εκκίνηση των ειδοποιήσεων αγώνα καθυστερεί πολύ. Φορτώστε ξανά το PFC και "
+"προσπαθήστε ξανά."
 
 #: teams/templates/teams/pfc_market.html:4
 #: teams/templates/teams/pfc_market.html:253 templates/home.html:619
@@ -1531,14 +1664,16 @@ msgstr "Πατήστε για προβολή"
 
 #: templates/base.html:638
 msgid "A new match is available and requires action from your side."
-msgstr "Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
+msgstr ""
+"Ένας νέος αγώνας είναι διαθέσιμος και χρειάζεται ενέργεια από την πλευρά σου."
 
 #: templates/base.html:639
 msgid "The opposing team has started the match and is waiting for your side."
 msgstr "Η αντίπαλη ομάδα ξεκίνησε τον αγώνα και περιμένει τη δική σου πλευρά."
 
 #: templates/base.html:640
-msgid "The opposing team submitted a result and is waiting for your validation."
+msgid ""
+"The opposing team submitted a result and is waiting for your validation."
 msgstr "Η αντίπαλη ομάδα υπέβαλε αποτέλεσμα και περιμένει την επιβεβαίωσή σου."
 
 #: templates/base.html:641
@@ -1948,12 +2083,20 @@ msgid "Confirm — Disagree"
 msgstr "Επιβεβαίωση — Διαφωνώ"
 
 #: templates/matches/match_validate_result.html:5
-msgid "Confirm that you agree with the submitted score? The match will be marked as completed."
-msgstr "Επιβεβαιώνετε ότι συμφωνείτε με το υποβληθέν σκορ; Ο αγώνας θα σημειωθεί ως ολοκληρωμένος."
+msgid ""
+"Confirm that you agree with the submitted score? The match will be marked as "
+"completed."
+msgstr ""
+"Επιβεβαιώνετε ότι συμφωνείτε με το υποβληθέν σκορ; Ο αγώνας θα σημειωθεί ως "
+"ολοκληρωμένος."
 
 #: templates/matches/match_validate_result.html:6
-msgid "Confirm that you disagree with the submitted score? The result will be cleared for resubmission."
-msgstr "Επιβεβαιώνετε ότι διαφωνείτε με το υποβληθέν σκορ; Το αποτέλεσμα θα εκκαθαριστεί για νέα υποβολή."
+msgid ""
+"Confirm that you disagree with the submitted score? The result will be "
+"cleared for resubmission."
+msgstr ""
+"Επιβεβαιώνετε ότι διαφωνείτε με το υποβληθέν σκορ; Το αποτέλεσμα θα "
+"εκκαθαριστεί για νέα υποβολή."
 
 #: templates/matches/match_validate_result.html:302
 msgid "Match Evidence"
@@ -1983,8 +2126,12 @@ msgstr "Διαφωνώ"
 
 #: templates/matches/match_validate_result.html:359
 #, python-format
-msgid "Scan a QR card from a player of %(team_name)s to confirm their identity, then choose Agree or Disagree."
-msgstr "Σαρώστε την κάρτα QR ενός παίκτη της ομάδας %(team_name)s για επιβεβαίωση ταυτότητας και επιλέξτε Συμφωνώ ή Διαφωνώ."
+msgid ""
+"Scan a QR card from a player of %(team_name)s to confirm their identity, "
+"then choose Agree or Disagree."
+msgstr ""
+"Σαρώστε την κάρτα QR ενός παίκτη της ομάδας %(team_name)s για επιβεβαίωση "
+"ταυτότητας και επιλέξτε Συμφωνώ ή Διαφωνώ."
 
 #: templates/matches/match_validate_result.html:390
 msgid "Select a decision"
@@ -2152,7 +2299,8 @@ msgstr "Στρέψτε την κάμερα σε μια κάρτα QR παίκτ�
 
 #: templates/partials/qr_scanner_modal.html:13
 msgid "Camera access denied. Please allow camera access."
-msgstr "Η πρόσβαση στην κάμερα δεν επιτράπηκε. Επιτρέψτε την πρόσβαση στην κάμερα."
+msgstr ""
+"Η πρόσβαση στην κάμερα δεν επιτράπηκε. Επιτρέψτε την πρόσβαση στην κάμερα."
 
 #: templates/partials/qr_scanner_modal.html:14
 msgid "Configuration error: resolve URL not set."
@@ -2218,7 +2366,8 @@ msgstr "Δεν έχετε συνδεθεί:"
 
 #: templates/pfc_core/my_matches.html:21
 msgid "Please log in with your player codename to see your active matches."
-msgstr "Συνδεθείτε με τον κωδικό παίκτη σας για να δείτε τους ενεργούς αγώνες σας."
+msgstr ""
+"Συνδεθείτε με τον κωδικό παίκτη σας για να δείτε τους ενεργούς αγώνες σας."
 
 #: templates/pfc_core/my_matches.html:24
 msgid "Login with Codename"
@@ -2229,8 +2378,12 @@ msgid "No Teams:"
 msgstr "Χωρίς ομάδες:"
 
 #: templates/pfc_core/my_matches.html:31
-msgid "You're not currently a member of any team. Join or create a team to participate in matches!"
-msgstr "Δεν είστε μέλος κάποιας ομάδας. Συμμετάσχετε ή δημιουργήστε ομάδα για να παίξετε σε αγώνες!"
+msgid ""
+"You're not currently a member of any team. Join or create a team to "
+"participate in matches!"
+msgstr ""
+"Δεν είστε μέλος κάποιας ομάδας. Συμμετάσχετε ή δημιουργήστε ομάδα για να "
+"παίξετε σε αγώνες!"
 
 #: templates/pfc_core/my_matches.html:41
 msgid "All Clear!"
@@ -2406,8 +2559,11 @@ msgstr ""
 msgid "This tournament is not configured for Mêlée mode."
 msgstr ""
 
-#~ msgid "Choose Black or White, then scan a Player QR to add that player immediately."
-#~ msgstr "Επιλέξτε Μαύρο ή Λευκό και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
+#~ msgid ""
+#~ "Choose Black or White, then scan a Player QR to add that player "
+#~ "immediately."
+#~ msgstr ""
+#~ "Επιλέξτε Μαύρο ή Λευκό και μετά σαρώστε QR παίκτη για άμεση προσθήκη."
 
 #~ msgid "Add selected to setup"
 #~ msgstr "Προσθήκη επιλεγμένων στη σύνθεση"

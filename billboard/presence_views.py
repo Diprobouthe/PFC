@@ -13,13 +13,16 @@ import json
 import logging
 from datetime import timedelta, date
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from courts.models import CourtComplex
 from courts.timezone_utils import get_court_local_now
+from courts.proximity import distance_metres
 from billboard.models import BillboardEntry, BillboardSettings
 from billboard.presence_prefs import UserPresencePrefs
 
@@ -125,7 +128,7 @@ def api_defaults(request):
     """
     codename = _get_codename(request)
     courts = list(
-        CourtComplex.objects.order_by("name").values("id", "name")
+        CourtComplex.objects.order_by("name").values("id", "name", "latitude", "longitude")
     )
     # Resolve court from query param so time slots use court-local time
     court_complex = None
@@ -136,6 +139,10 @@ def api_defaults(request):
         except (ValueError, TypeError):
             pass
     defaults = _get_defaults(codename, court_complex=court_complex)
+    selected_court = court_complex
+    if selected_court is None and defaults.get("court_id"):
+        selected_court = CourtComplex.objects.filter(pk=defaults["court_id"]).first()
+    manual_here_available = bool(selected_court and selected_court.has_coordinates())
     # Include the player's last anonymous choice so the UI can pre-select the toggle
     last_anonymous = False
     if codename:
@@ -156,6 +163,7 @@ def api_defaults(request):
         "last_anonymous": last_anonymous,
         "friendly_presence_active": bool(current_presence),
         "available_for_friendly": friendly_preference,
+        "manual_here_available": manual_here_available,
     })
 
 
@@ -193,6 +201,34 @@ def api_im_here(request):
         court = CourtComplex.objects.order_by("name").first()
     if not court:
         return JsonResponse({"ok": False, "error": "No court complex available"}, status=400)
+
+    # This GPS gate applies only to the explicit manual I'm Here action.
+    # Game- and match-generated presence continues to create Billboard entries
+    # directly through its existing lifecycle helpers without any GPS request.
+    if not court.has_coordinates():
+        return JsonResponse({
+            "ok": False,
+            "error": _("Manual check-in is unavailable because this Court Complex has no location configured."),
+        }, status=409)
+    try:
+        device_latitude = float(data.get("latitude", ""))
+        device_longitude = float(data.get("longitude", ""))
+        if not (-90 <= device_latitude <= 90 and -180 <= device_longitude <= 180):
+            raise ValueError
+    except (TypeError, ValueError):
+        return JsonResponse({
+            "ok": False,
+            "error": _("Location permission is required to check in at these courts."),
+        }, status=400)
+
+    proximity_distance_metres = distance_metres(
+        device_latitude,
+        device_longitude,
+        float(court.latitude),
+        float(court.longitude),
+    )
+    if proximity_distance_metres > settings.PFC_FRIENDLY_COURT_PROXIMITY_METERS:
+        return JsonResponse({"ok": False, "error": _("You are not at the courts yet.")}, status=403)
 
     # No per-player daily limit — unlimited check-ins allowed.
     # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
