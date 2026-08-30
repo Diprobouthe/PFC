@@ -57,6 +57,22 @@ class CourtComplex(models.Model):
     
     # Map and contact info
     google_maps_url = models.URLField(blank=True, help_text="Google Maps link")
+    # Coordinates are stored explicitly for deterministic proximity checks.  A
+    # Google Maps short URL cannot be safely or consistently parsed server-side.
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="Latitude of this physical court complex (decimal degrees, e.g. 37.983810)",
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="Longitude of this physical court complex (decimal degrees, e.g. 23.727539)",
+    )
     public_hours = models.TextField(
         blank=True, 
         help_text="Public access hours (e.g., 'Mon-Fri: 09:00-22:00')"
@@ -93,6 +109,10 @@ class CourtComplex(models.Model):
     def get_court_count(self):
         """Get count of courts assigned to this complex"""
         return self.courts.count()
+
+    def has_coordinates(self):
+        """Return whether this physical complex has an explicit GPS location."""
+        return self.latitude is not None and self.longitude is not None
 
     def get_timezone(self):
         """Return a zoneinfo.ZoneInfo object for this complex's timezone."""

@@ -62,7 +62,8 @@ class CourtComplexAdmin(admin.ModelAdmin):
             'fields': ('distance_to_toilet', 'distance_to_water_hose', 'has_shadow_daytime', 'has_night_lighting', 'public_accessibility')
         }),
         ('Location & Contact', {
-            'fields': ('google_maps_url', 'public_hours')
+            'fields': ('google_maps_url', 'latitude', 'longitude', 'public_hours'),
+            'description': 'Set latitude and longitude for the optional Friendly nearby-player proximity check. Google Maps links remain unchanged.'
         }),
     )
     

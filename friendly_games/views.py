@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.conf import settings
 from .views_submit_score_list import submit_score_list
 from django.http import JsonResponse
 from django.utils import timezone
@@ -9,6 +10,7 @@ from django.db.models import Q
 from django.views.decorators.http import require_GET, require_POST
 from django.urls import reverse
 from datetime import timedelta
+from math import asin, cos, radians, sin, sqrt
 import json
 import logging
 import random
@@ -111,19 +113,58 @@ def _eligible_friendly_court_players(court_complex):
     )
 
 
-@require_GET
+def _distance_metres(latitude_a, longitude_a, latitude_b, longitude_b):
+    """Return great-circle distance in metres for the explicit GPS proximity gate."""
+    earth_radius_metres = 6_371_000
+    lat_delta = radians(latitude_b - latitude_a)
+    lon_delta = radians(longitude_b - longitude_a)
+    haversine = (
+        sin(lat_delta / 2) ** 2
+        + cos(radians(latitude_a)) * cos(radians(latitude_b)) * sin(lon_delta / 2) ** 2
+    )
+    return 2 * earth_radius_metres * asin(sqrt(haversine))
+
+
+@require_POST
 def available_court_players_api(request):
-    """Return current, opted-in, non-active players for Friendly creator setup."""
+    """Return current eligible players only after the creator confirms nearby GPS location."""
     if not CodenameSessionManager.get_logged_in_codename(request):
-        return JsonResponse({'ok': False, 'error': 'Sign in before viewing players at courts.'}, status=401)
+        return JsonResponse({'ok': False, 'error': _('Sign in before viewing players at courts.')}, status=401)
     try:
-        court_complex_id = int(request.GET.get('court_complex_id', ''))
+        court_complex_id = int(request.POST.get('court_complex_id', ''))
     except (TypeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'Select a Court Complex first.'}, status=400)
+        return JsonResponse({'ok': False, 'error': _('Select a Court Complex first.')}, status=400)
+    try:
+        device_latitude = float(request.POST.get('latitude', ''))
+        device_longitude = float(request.POST.get('longitude', ''))
+        if not (-90 <= device_latitude <= 90 and -180 <= device_longitude <= 180):
+            raise ValueError
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': _('Allow location access to view players currently available at these courts.')}, status=400)
+
     from courts.models import CourtComplex
     court_complex = CourtComplex.objects.filter(pk=court_complex_id).first()
     if not court_complex:
-        return JsonResponse({'ok': False, 'error': 'Court Complex not found.'}, status=404)
+        return JsonResponse({'ok': False, 'error': _('Court Complex not found.')}, status=404)
+    if not court_complex.has_coordinates():
+        return JsonResponse({
+            'ok': False,
+            'error': _('This Court Complex does not yet have a location configured for nearby-player access.'),
+        }, status=409)
+
+    distance_metres = _distance_metres(
+        device_latitude,
+        device_longitude,
+        float(court_complex.latitude),
+        float(court_complex.longitude),
+    )
+    permitted_radius_metres = settings.PFC_FRIENDLY_COURT_PROXIMITY_METERS
+    if distance_metres > permitted_radius_metres:
+        return JsonResponse({
+            'ok': False,
+            'error': _('You need to be at these courts to view and use the players currently available here.'),
+        }, status=403)
+
     players = _eligible_friendly_court_players(court_complex)
     return JsonResponse({
         'ok': True,

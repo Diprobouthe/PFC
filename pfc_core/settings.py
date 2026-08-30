@@ -86,6 +86,12 @@ PFC_WEB_PUSH_VAPID_PUBLIC_KEY = os.environ.get('PFC_WEB_PUSH_VAPID_PUBLIC_KEY', 
 PFC_WEB_PUSH_VAPID_PRIVATE_KEY = os.environ.get('PFC_WEB_PUSH_VAPID_PRIVATE_KEY', '')
 PFC_WEB_PUSH_VAPID_SUBJECT = os.environ.get('PFC_WEB_PUSH_VAPID_SUBJECT', '')
 
+# GPS proximity gate used only by Friendly Game “Show available players”.
+# Render can override this without a code change.
+PFC_FRIENDLY_COURT_PROXIMITY_METERS = int(
+    os.environ.get('PFC_FRIENDLY_COURT_PROXIMITY_METERS', '200')
+)
+
 # Application definition
 
 INSTALLED_APPS = [
