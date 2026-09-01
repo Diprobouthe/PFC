@@ -1,27 +1,32 @@
-# PFC Complete Current Source and Render Deployment Backup
+# PFC Complete Current Backup — Friendly Three-Hour Lifetime
 
-**Package date:** 2026-08-29
+**Date:** 2026-09-01
 
-This archive is a complete clean source reference for the current PFC platform. It is intended for Render deployment, rollback, and long-term project reference.
+This is a complete source and Render deployment backup of the current PFC project after the isolated Friendly Game lifetime update.
+
+## Targeted change in this version
+
+New Friendly Games now set `expires_at` to three hours after creation rather than twenty-four hours. No other Friendly behavior was changed.
 
 ## Included
 
-The archive includes all current Django application source, templates, source static assets, migrations, locale catalogs, package manifests, deployment configuration, `requirements.txt`, `Procfile`, `render.yaml`, `runtime.txt`, PWA/service-worker source, Push implementation, current Friendly Game creator and Players-at-Courts work, Manual/Random/Balanced team-building work, Match Tracking/Broadcast work, Live Score work, Invitation work, and Tournament/Pool/Multi-Stage/Scenario-limit work.
+- Complete Django application source
+- Templates and source static assets
+- Migrations and locale catalogs
+- PWA and Push source
+- Friendly, Tournament, Match Tracking, Broadcast, Invitation, and Scenario-limit work
+- Requirements and Render deployment configuration
 
-## Excluded deliberately
+## Excluded
 
-The archive excludes runtime and sensitive/generated artifacts: `db.sqlite3`, uploaded media, `staticfiles`, `.env` files, cookies, logs, caches, `__pycache__`, compiled Python files, virtual environments, `node_modules`, Git metadata, and prior ZIP archives.
+- Database and uploaded media
+- Secret environment files and credentials
+- Virtual environments, dependency folders, caches, logs, generated static output, Git metadata, and prior archives
 
-## Render deployment
+## Deployment
 
-Extract the archive and deploy the contents of the top-level project directory. Configure production secrets as Render environment variables. Run the existing release migration process:
+Extract the package root, configure Render environment variables, and run the normal release migration command:
 
 ```bash
 python manage.py migrate
 ```
-
-Use the included `Procfile`, `render.yaml`, and `requirements.txt` for the current project configuration.
-
-## Revision note
-
-The restored source tree does not contain a `.git` directory, so no commit hash is available for this package.

@@ -209,8 +209,8 @@ class FriendlyGame(models.Model):
         # Generate match number for new games
         if not self.match_number and not self.game_pin:
             self.match_number = self.generate_match_number()
-            # Set expiration to 24 hours from now
-            self.expires_at = timezone.now() + timedelta(hours=24)
+            # Set expiration to 3 hours from now.
+            self.expires_at = timezone.now() + timedelta(hours=3)
             self.status = 'WAITING_FOR_PLAYERS'
         
         # Legacy: Generate game PIN if needed (for compatibility)

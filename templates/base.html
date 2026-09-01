@@ -641,6 +641,8 @@
     {% translate "Your side was selected to start the Friendly Game." as match_alert_friendly_starts_label %}
     {% translate "There is a new action for your match." as match_alert_generic_label %}
     {% translate "Tap the central button to continue." as match_alert_continue_label %}
+    {% translate "Have you arrived at the courts?" as arrival_reminder_label %}
+    {% translate "Tap to check in." as arrival_reminder_checkin_label %}
     <!-- Toast container (hidden until an invite arrives) -->
     <div id="pfc-notify-toast" role="alert" aria-live="polite"></div>
     <script>
@@ -657,7 +659,12 @@
         var MATCH_ALERT_FRIENDLY_STARTS_LABEL = '{{ match_alert_friendly_starts_label|escapejs }}';
         var MATCH_ALERT_GENERIC_LABEL = '{{ match_alert_generic_label|escapejs }}';
         var MATCH_ALERT_CONTINUE_LABEL = '{{ match_alert_continue_label|escapejs }}';
+        var ARRIVAL_REMINDER_LABEL = '{{ arrival_reminder_label|escapejs }}';
+        var ARRIVAL_REMINDER_CHECKIN_LABEL = '{{ arrival_reminder_checkin_label|escapejs }}';
         var FALLBACK_MS = 180000;   // 3-minute slow fallback poll
+        var ARRIVAL_REMINDER_FALLBACK_MS = 60000;
+        var arrivalReminderTimer = null;
+        var arrivalPromptedEntryId = null;
         var badge       = document.getElementById('pfc-invite-badge');
         var toast       = document.getElementById('pfc-notify-toast');
         var toastTimer  = null;
@@ -735,13 +742,51 @@
             fallbackTimer = setInterval(pollInbox, FALLBACK_MS);
         }
 
+        // Zero-infrastructure arrival reminder. It runs only while PFC is open
+        // and visible, plus immediately when the user returns to the app. The
+        // API is read-only: clicking the toast enters the existing manual
+        // GPS-protected I’m Here flow and never checks the player in itself.
+        function scheduleArrivalReminder(nextArrivalAt) {
+            clearTimeout(arrivalReminderTimer);
+            if (!nextArrivalAt || document.visibilityState === 'hidden') return;
+            var wait = new Date(nextArrivalAt).getTime() - Date.now() + 300;
+            if (!Number.isFinite(wait) || wait < 500) wait = ARRIVAL_REMINDER_FALLBACK_MS;
+            arrivalReminderTimer = setTimeout(checkArrivalReminder, Math.min(wait, ARRIVAL_REMINDER_FALLBACK_MS));
+        }
+
+        function checkArrivalReminder() {
+            if (document.visibilityState === 'hidden') return;
+            if (new URLSearchParams(window.location.search).get('action') === 'arrival') return;
+            fetch('/billboard/api/arrival-reminder/')
+                .then(function (response) { return response.ok ? response.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    var due = data.due;
+                    if (!due) {
+                        arrivalPromptedEntryId = null;
+                        scheduleArrivalReminder(data.next_arrival_at);
+                        return;
+                    }
+                    scheduleArrivalReminder(null);
+                    if (String(arrivalPromptedEntryId) === String(due.entry_id)) return;
+                    arrivalPromptedEntryId = due.entry_id;
+                    showToast('PFC', ARRIVAL_REMINDER_LABEL + ' ' + ARRIVAL_REMINDER_CHECKIN_LABEL, {
+                        icon: 'fa-map-marker-alt',
+                        url: due.check_in_url
+                    });
+                })
+                .catch(function () { scheduleArrivalReminder(null); });
+        }
+
         // Pause fallback when tab is hidden, resume on visibility
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') {
                 pollInbox();        // immediate check on tab focus
+                checkArrivalReminder();
                 startFallback();
             } else {
                 clearInterval(fallbackTimer);
+                clearTimeout(arrivalReminderTimer);
             }
         });
 
@@ -789,8 +834,9 @@
 
         // ── Boot ─────────────────────────────────────────────────────
         connectWS();
-        pollInbox();        // immediate badge state on page load
-        startFallback();    // slow safety-net poll
+        pollInbox();
+        checkArrivalReminder();
+        startFallback();
     })();
     </script>
     {% endif %}

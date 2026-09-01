@@ -13,6 +13,15 @@ class BillboardEntry(models.Model):
         ('GOING_TO_COURTS', 'I\'m going to the courts'),
         ('LOOKING_FOR_MATCH', 'Looking to complete a PFC tournament match'),
     ]
+
+    GOING_STATUS_ACTIVE = 'active'
+    GOING_STATUS_ARRIVED = 'arrived'
+    GOING_STATUS_CANCELED = 'canceled'
+    GOING_STATUS_CHOICES = [
+        (GOING_STATUS_ACTIVE, 'Active'),
+        (GOING_STATUS_ARRIVED, 'Arrived'),
+        (GOING_STATUS_CANCELED, 'Canceled'),
+    ]
     
     TIME_SLOTS = [
         ('09:00', '09:00'),
@@ -63,6 +72,29 @@ class BillboardEntry(models.Model):
     court_complex = models.ForeignKey(CourtComplex, on_delete=models.CASCADE, help_text="Select court complex")
     scheduled_time = models.CharField(max_length=5, choices=TIME_SLOTS, blank=True, null=True, help_text="For 'going to courts' entries")
     scheduled_date = models.DateField(blank=True, null=True, help_text="Date for scheduled appointments")
+    arrival_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Exact expected arrival moment, stored in UTC and interpreted in the Court Complex timezone.",
+    )
+    going_status = models.CharField(
+        max_length=12,
+        choices=GOING_STATUS_CHOICES,
+        default=GOING_STATUS_ACTIVE,
+        db_index=True,
+        help_text="Active, arrived, or canceled state for Going to courts declarations.",
+    )
+    canceled_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When a Going to courts declaration was canceled by its player.",
+    )
+    arrived_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When an active Going declaration was completed by a successful manual check-in.",
+    )
     opponent_team = models.CharField(max_length=100, blank=True, null=True, help_text="For tournament match requests")
     message = models.TextField(blank=True, null=True, help_text="Optional message")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,11 +130,29 @@ class BillboardEntry(models.Model):
         default=False,
         help_text="If True, the player is counted as verified-present but their name is not shown publicly."
     )
+    # Legacy schema compatibility: migration 0013 already created this required
+    # database column. Persistent Friendly availability is authoritative on
+    # UserPresencePrefs; this field is never used for eligibility decisions.
+    available_for_friendly = models.BooleanField(
+        default=False,
+        help_text="Allow Friendly creators at this Court Complex to add this present player during pre-start setup."
+    )
 
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Billboard Entry"
         verbose_name_plural = "Billboard Entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["codename", "court_complex"],
+                condition=models.Q(
+                    action_type="GOING_TO_COURTS",
+                    is_active=True,
+                    going_status="active",
+                ),
+                name="unique_active_going_per_player_court",
+            ),
+        ]
     
     def __str__(self):
         return f"{self.get_player_name()} - {self.get_action_type_display()} at {self.court_complex.name}"

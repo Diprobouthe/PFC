@@ -67,6 +67,9 @@
 .bb-stat-lbl{font-size:11px;color:#94a3b8;margin-top:2px}
 .bb-chart-label{font-size:12px;font-weight:600;color:#64748b;margin:12px 0 6px;text-transform:uppercase;letter-spacing:.06em}
 canvas.bb-chart{width:100%!important;max-height:180px}
+.bb-going-status{margin-top:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:9px 10px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bb-going-status-canceled{margin-top:8px;color:rgba(255,255,255,.85);font-size:12px}
+.bb-cancel-going{border:1px solid rgba(255,255,255,.55);background:transparent;color:#fff;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 </style>
 
 <div class="bb-wrap">
@@ -117,16 +120,12 @@ canvas.bb-chart{width:100%!important;max-height:180px}
       </div>
       <input type="date" class="bb-select" id="custom-date" style="display:none">
       <div id="time-section" style="display:none">
-        <div class="bb-field-label">Time</div>
+        <div class="bb-field-label">{% translate "Expected arrival" %}</div>
         <div class="bb-chip-row">
-          <button class="bb-chip active" onclick="setTime('now',this)">Now</button>
-          <button class="bb-chip" onclick="setTime('plus30',this)">+30 min</button>
-          <button class="bb-chip" onclick="setTime('preferred',this)">Last used</button>
-          <button class="bb-chip" onclick="setTime('custom',this)">Custom</button>
+          <button class="bb-chip active" onclick="setTime('plus30',this)">{% translate "In 30 minutes" %}</button>
+          <button class="bb-chip" onclick="setTime('custom',this)">{% translate "Choose time" %}</button>
         </div>
-        <select class="bb-select" id="custom-time" style="display:none">
-          {% for slot in time_slots %}<option value="{{ slot.0 }}">{{ slot.1 }}</option>{% endfor %}
-        </select>
+        <input class="bb-select" id="custom-time" type="time" step="60" style="display:none" aria-label="{% translate "Expected arrival time" %}">
       </div>
       <div class="bb-field-label">Message (optional)</div>
       <textarea class="bb-msg-input" id="expand-message" rows="2" placeholder="e.g. Looking for a game…"></textarea>
@@ -134,6 +133,7 @@ canvas.bb-chart{width:100%!important;max-height:180px}
         <span>🚶</span><span>Post — I'm going</span>
       </button>
     </div>
+    <div id="going-status" aria-live="polite"></div>
   </div>
 
   <!-- ── At courts — compact chip grid ──────────────────────────── -->
@@ -309,16 +309,23 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const BB={defaults:{},courts:[],dateMode:'today',timeMode:'now',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false};
-document.addEventListener('DOMContentLoaded',()=>{
-  fetchDefaults();
+const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,activeGoing:[],recentCanceledGoing:null};
+document.addEventListener('DOMContentLoaded',async()=>{
+  const params = new URLSearchParams(window.location.search);
+  const requestedCourt = params.get('court_id');
+  await fetchDefaults(requestedCourt || undefined);
   {% if courts %}loadAnalytics({{ courts.0.id }});{% endif %}
 
   // The Welcome Screen's “I'm Coming” button intentionally lands in this
-  // existing arrival flow. It only opens the existing time-selection controls;
-  // creating, cancelling, and leaving presence all remain unchanged here.
-  if (new URLSearchParams(window.location.search).get('action') === 'going') {
+  // existing arrival flow. It only opens the existing time-selection controls.
+  if (params.get('action') === 'going') {
     setTimeout(oneTapGoingOpen, 0);
+  }
+  // An arrival reminder never checks the player in automatically. It only
+  // invokes the established GPS-protected manual I’m Here flow after the user
+  // deliberately taps the reminder.
+  if (params.get('action') === 'arrival') {
+    setTimeout(oneTapHere, 150);
   }
 });
 async function fetchDefaults(courtId){
@@ -334,6 +341,9 @@ async function fetchDefaults(courtId){
     }
     BB.friendlyPresenceActive = Boolean(d.friendly_presence_active);
     BB.manualHereAvailable = Boolean(d.manual_here_available);
+    BB.activeGoing = d.active_going || [];
+    BB.recentCanceledGoing = d.recent_canceled_going || null;
+    renderGoingStatus();
     updateManualHereAvailability();
     const friendlyToggle = document.getElementById('friendly-available-toggle');
     if (friendlyToggle) friendlyToggle.checked = Boolean(d.available_for_friendly);
@@ -369,11 +379,35 @@ function onCourtChange(){
   // are recalculated in that court's local timezone.
   fetchDefaults(cid);
 }
+function escapeStatusText(value){return String(value||'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+function renderGoingStatus(){
+  const root=document.getElementById('going-status');
+  if(!root) return;
+  let html='';
+  (BB.activeGoing||[]).forEach(function(entry){
+    const when=[entry.scheduled_date,entry.scheduled_time].filter(Boolean).join(' · ');
+    html+='<div class="bb-going-status"><span><strong>{% translate "I am going" %}</strong> · '+escapeStatusText(entry.court_name)+(when?' · '+escapeStatusText(when):'')+'</span><button class="bb-cancel-going" onclick="cancelGoing('+Number(entry.entry_id)+')">{% translate "Cancel" %}</button></div>';
+  });
+  if(BB.recentCanceledGoing){
+    const entry=BB.recentCanceledGoing;
+    html+='<div class="bb-going-status-canceled"><strong>{% translate "Canceled" %}</strong> · '+escapeStatusText(entry.court_name)+'</div>';
+  }
+  root.innerHTML=html;
+}
+async function cancelGoing(entryId){
+  try{
+    const r=await fetch('{% url "billboard:api_cancel_going" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({entry_id:entryId})});
+    const d=await r.json();
+    if(!d.ok){toast('⚠️ '+(d.error||'{% translate "Unable to cancel your arrival." %}'));return;}
+    toast('✓ {% translate "Canceled" %}');
+    await fetchDefaults(document.getElementById('sel-court')?.value);
+  }catch(e){toast('⚠️ {% translate "Unable to cancel your arrival." %}');}
+}
 function updateChip(){
   const d=BB.defaults;
   const c=d.court_name||'Select court';
   const dt=BB.dateMode==='today'?'Today':BB.dateMode==='tomorrow'?'Tomorrow':(document.getElementById('custom-date')?.value||'Custom');
-  const tm=BB.timeMode==='now'?'Now':BB.timeMode==='plus30'?'+30min':BB.timeMode==='preferred'?(d.preferred_time||'Last used'):(document.getElementById('custom-time')?.value||'Custom');
+  const tm=BB.timeMode==='plus30'?'{% translate "In 30 minutes" %}':(document.getElementById('custom-time')?.value||'{% translate "Choose time" %}');
   document.getElementById('defaults-summary').textContent=`${c} · ${dt} · ${tm}`;
 }
 function toggleExpand(){
@@ -382,14 +416,23 @@ function toggleExpand(){
   document.getElementById('expand-arrow').style.transform=BB.expandOpen?'rotate(180deg)':'';
 }
 function setDate(m,btn){BB.dateMode=m;document.querySelectorAll('#expand-panel .bb-chip-row:nth-of-type(1) .bb-chip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('custom-date').style.display=m==='custom'?'block':'none';updateChip();}
-function setTime(m,btn){BB.timeMode=m;document.querySelectorAll('#time-section .bb-chip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('custom-time').style.display=m==='custom'?'block':'none';updateChip();}
+function setTime(m,btn){
+  BB.timeMode=m;
+  document.querySelectorAll('#time-section .bb-chip').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const custom=document.getElementById('custom-time');
+  custom.style.display=m==='custom'?'block':'none';
+  if(m==='custom' && !custom.value) custom.value=BB.defaults.plus30_time || '';
+  updateChip();
+}
 function getPayload(){
   const d=BB.defaults;
   const courtId=parseInt(document.getElementById('sel-court')?.value)||d.court_id;
-  let date=BB.dateMode==='today'?d.today:BB.dateMode==='tomorrow'?d.tomorrow:(document.getElementById('custom-date')?.value||d.today);
-  let time=BB.timeMode==='now'?d.now_slot:BB.timeMode==='plus30'?d.plus30_slot:BB.timeMode==='preferred'?(d.preferred_time||d.now_slot):(document.getElementById('custom-time')?.value||d.now_slot);
+  const date=BB.dateMode==='today'?d.today:BB.dateMode==='tomorrow'?d.tomorrow:(document.getElementById('custom-date')?.value||d.today);
+  const customTime=document.getElementById('custom-time')?.value||'';
+  const arrivalMode=BB.timeMode==='plus30'?'plus30':'manual';
   const msg=document.getElementById('expand-message')?.value||'';
-  return{court_id:courtId,scheduled_date:date,scheduled_time:time,message:msg};
+  return{court_id:courtId,scheduled_date:date,scheduled_time:customTime,arrival_mode:arrivalMode,message:msg};
 }
 function requestManualHereLocation(){
   return new Promise((resolve, reject) => {
@@ -411,8 +454,23 @@ async function oneTapHere(){
     payload.longitude=position.coords.longitude;
     const showName=document.getElementById('anon-toggle')?.checked ?? true;
     payload.is_anonymous = !showName;
+    // A due arrival reminder carries one specific Going declaration.  Pass it
+    // through only to the established manual check-in success path so that the
+    // server can complete exactly that declaration after GPS verification.
+    const goingEntryId = Number(new URLSearchParams(window.location.search).get('going_entry_id'));
+    if (Number.isInteger(goingEntryId) && goingEntryId > 0) {
+      payload.going_entry_id = goingEntryId;
+    }
     const r=await fetch('/billboard/api/im-here/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(payload)});
-    const d=await r.json();if(d.ok){toast('✅ You\'re at '+d.court+'!');setTimeout(()=>location.reload(),1200);}else toast('⚠️ '+(d.error||'Error'));
+    const d=await r.json();if(d.ok){
+      if (d.completed_going_entry_id) {
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete('action');
+        clean.searchParams.delete('going_entry_id');
+        window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash);
+      }
+      toast('✅ You\'re at '+d.court+'!');setTimeout(()=>location.reload(),1200);
+    }else toast('⚠️ '+(d.error||'Error'));
   }catch(e){
     if(e && e.code === 1) toast('⚠️ {% translate "Location permission is required to check in at these courts." %}');
     else if(e && e.code === 'unsupported') toast('⚠️ {% translate "Location is not supported on this device." %}');
@@ -428,7 +486,7 @@ function oneTapGoingOpen(){
 async function oneTapGoing(){
   const btn=document.getElementById('btn-going-submit');btn.disabled=true;btn.style.opacity='.6';
   try{const r=await fetch('/billboard/api/going/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(getPayload())});
-  const d=await r.json();if(d.ok){toast('🚶 Going to '+d.court+' at '+d.time);setTimeout(()=>location.reload(),1200);}else toast('⚠️ '+(d.error||'Error'));}
+  const d=await r.json();if(d.ok){toast('🚶 {% translate "Going to" %} '+d.court+' {% translate "at" %} '+d.time);setTimeout(()=>location.reload(),1200);}else toast('⚠️ '+(d.error||'Error'));}
   catch(e){toast('⚠️ Network error');}finally{btn.disabled=false;btn.style.opacity='1';}
 }
 async function respond(id){

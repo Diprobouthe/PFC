@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PFC controlled interface\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-30 07:55+0000\n"
+"POT-Creation-Date: 2026-08-31 06:36+0000\n"
 "PO-Revision-Date: 2026-08-15 05:14+0000\n"
 "Last-Translator: PFC Translation Team\n"
 "Language-Team: Greek\n"
@@ -17,61 +17,124 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: billboard/presence_views.py:210
-#: billboard/templates/billboard/billboard_list.html:359
-#: billboard/templates/billboard/billboard_list.html:403
+#: billboard/presence_views.py:237
+#: billboard/templates/billboard/billboard_list.html:369
+#: billboard/templates/billboard/billboard_list.html:446
 msgid ""
 "Manual check-in is unavailable because this Court Complex has no location "
 "configured."
-msgstr "Η χειροκίνητη δήλωση παρουσίας δεν είναι διαθέσιμη, επειδή αυτές οι εγκαταστάσεις δεν έχουν διαμορφωμένη τοποθεσία."
+msgstr ""
+"Η χειροκίνητη δήλωση παρουσίας δεν είναι διαθέσιμη, επειδή αυτές οι "
+"εγκαταστάσεις δεν έχουν διαμορφωμένη τοποθεσία."
 
-#: billboard/presence_views.py:220
-#: billboard/templates/billboard/billboard_list.html:417
+#: billboard/presence_views.py:247
+#: billboard/templates/billboard/billboard_list.html:460
 msgid "Location permission is required to check in at these courts."
-msgstr "Απαιτείται άδεια τοποθεσίας για να δηλώσετε παρουσία σε αυτά τα γήπεδα."
+msgstr ""
+"Απαιτείται άδεια τοποθεσίας για να δηλώσετε παρουσία σε αυτά τα γήπεδα."
 
-#: billboard/presence_views.py:230
+#: billboard/presence_views.py:257
 msgid "You are not at the courts yet."
 msgstr "Δεν είστε ακόμα στα γήπεδα."
 
-#: billboard/templates/billboard/billboard_list.html:91
+#: billboard/presence_views.py:410
+msgid "Enter a valid arrival time."
+msgstr "Εισαγάγετε έγκυρη ώρα άφιξης."
+
+#: billboard/presence_views.py:457
+#, fuzzy
+#| msgid "Login required"
+msgid "Codename required"
+msgstr "Απαιτείται σύνδεση"
+
+#: billboard/presence_views.py:461 billboard/presence_views.py:471
+msgid "Going declaration not found."
+msgstr "Δεν βρέθηκε δήλωση μετάβασης."
+
+#: billboard/templates/billboard/billboard_list.html:94
 msgid "Show my name"
 msgstr "Εμφάνιση του ονόματός μου"
 
-#: billboard/templates/billboard/billboard_list.html:93
+#: billboard/templates/billboard/billboard_list.html:96
 msgid "Your presence is still verified either way"
 msgstr "Η παρουσία σας παραμένει επιβεβαιωμένη σε κάθε περίπτωση"
 
-#: billboard/templates/billboard/billboard_list.html:98
+#: billboard/templates/billboard/billboard_list.html:101
 msgid "Available for Friendly"
 msgstr "Διαθέσιμος για φιλικό"
 
-#: billboard/templates/billboard/billboard_list.html:99
+#: billboard/templates/billboard/billboard_list.html:102
 msgid ""
 "This saved preference applies only while I am currently here at a Court "
 "Complex."
 msgstr ""
 "Η αποθηκευμένη προτίμηση ισχύει μόνο όταν βρίσκομαι τώρα σε Εγκαταστάσεις."
 
-#: billboard/templates/billboard/billboard_list.html:418
+#: billboard/templates/billboard/billboard_list.html:123
+msgid "Expected arrival"
+msgstr "Αναμενόμενη άφιξη"
+
+#: billboard/templates/billboard/billboard_list.html:125
+#: billboard/templates/billboard/billboard_list.html:410
+msgid "In 30 minutes"
+msgstr "Σε 30 λεπτά"
+
+#: billboard/templates/billboard/billboard_list.html:126
+#: billboard/templates/billboard/billboard_list.html:410
+msgid "Choose time"
+msgstr "Επιλογή ώρας"
+
+#: billboard/templates/billboard/billboard_list.html:128
+msgid "Expected arrival time"
+msgstr "Ώρα αναμενόμενης άφιξης"
+
+#: billboard/templates/billboard/billboard_list.html:389
+msgid "I am going"
+msgstr "Πηγαίνω στα γήπεδα"
+
+#: billboard/templates/billboard/billboard_list.html:389
+#: templates/partials/qr_scanner_modal.html:187
+#: templates/partials/qr_scanner_modal.html:206
+msgid "Cancel"
+msgstr "Ακύρωση"
+
+#: billboard/templates/billboard/billboard_list.html:393
+#: billboard/templates/billboard/billboard_list.html:402
+msgid "Canceled"
+msgstr "Ακυρώθηκε"
+
+#: billboard/templates/billboard/billboard_list.html:401
+#: billboard/templates/billboard/billboard_list.html:404
+msgid "Unable to cancel your arrival."
+msgstr "Αδυναμία ακύρωσης της άφιξής σας."
+
+#: billboard/templates/billboard/billboard_list.html:461
 msgid "Location is not supported on this device."
 msgstr "Η τοποθεσία δεν υποστηρίζεται σε αυτή τη συσκευή."
 
-#: billboard/templates/billboard/billboard_list.html:419
-#: billboard/templates/billboard/billboard_list.html:420
+#: billboard/templates/billboard/billboard_list.html:462
+#: billboard/templates/billboard/billboard_list.html:463
 msgid "Your location could not be determined. Please try again."
 msgstr "Δεν ήταν δυνατός ο προσδιορισμός της τοποθεσίας σας. Δοκιμάστε ξανά."
 
-#: billboard/templates/billboard/billboard_list.html:478
+#: billboard/templates/billboard/billboard_list.html:474
+msgid "Going to"
+msgstr "Πηγαίνω στα"
+
+#: billboard/templates/billboard/billboard_list.html:474
+msgid "at"
+msgstr "στις"
+
+#: billboard/templates/billboard/billboard_list.html:521
 msgid "Available for Friendly preference saved."
 msgstr "Η προτίμηση «Διαθέσιμος για φιλικό» αποθηκεύτηκε."
 
-#: billboard/templates/billboard/billboard_list.html:478
+#: billboard/templates/billboard/billboard_list.html:521
 msgid "Available for Friendly preference turned off."
 msgstr "Η προτίμηση «Διαθέσιμος για φιλικό» απενεργοποιήθηκε."
 
-#: billboard/templates/billboard/billboard_list.html:479
-#: billboard/templates/billboard/billboard_list.html:480
+#: billboard/templates/billboard/billboard_list.html:522
+#: billboard/templates/billboard/billboard_list.html:523
 msgid "Unable to update Friendly availability."
 msgstr "Δεν ήταν δυνατή η ενημέρωση της διαθεσιμότητας για φιλικό."
 
@@ -1688,6 +1751,14 @@ msgstr "Υπάρχει νέα ενέργεια για τον αγώνα σου."
 msgid "Tap the central button to continue."
 msgstr "Πάτησε το κεντρικό κουμπί για να συνεχίσεις."
 
+#: templates/base.html:644
+msgid "Have you arrived at the courts?"
+msgstr "Έφτασες στα γήπεδα;"
+
+#: templates/base.html:645
+msgid "Tap to check in."
+msgstr "Πατήστε για επιβεβαίωση παρουσίας."
+
 #: templates/courts/court_list.html:4 templates/courts/court_list.html:10
 msgctxt "petanque playing areas page"
 msgid "Courts"
@@ -2313,11 +2384,6 @@ msgstr "Επαλήθευση κωδικού QR…"
 #: templates/partials/qr_scanner_modal.html:16
 msgid "Invalid QR code"
 msgstr "Μη έγκυρος κωδικός QR"
-
-#: templates/partials/qr_scanner_modal.html:187
-#: templates/partials/qr_scanner_modal.html:206
-msgid "Cancel"
-msgstr "Ακύρωση"
 
 #: templates/partials/qr_scanner_modal.html:193
 #: templates/partials/qr_scanner_modal.html:203
