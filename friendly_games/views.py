@@ -14,9 +14,16 @@ import json
 import logging
 import random
 from teams.models import Player, Team
-from .models import FriendlyGame, FriendlyGamePlayer, PlayerCodename, FriendlyGameStatistics
+from .models import (
+    FriendlyGame,
+    FriendlyGameActivationConflict,
+    FriendlyGamePlayer,
+    PlayerCodename,
+    FriendlyGameStatistics,
+)
 from pfc_core.session_utils import CodenameSessionManager
 from .court_utils import resolve_court_assignment, get_court_context_for_form, courts_for_complex_json
+from .venue_utils import FriendlyVenueError, get_allowed_friendly_complexes
 from .presence_utils import register_friendly_game_players_at_court, deactivate_friendly_game_presence
 from courts.timezone_utils import get_court_local_now
 from courts.proximity import distance_metres
@@ -25,6 +32,16 @@ from pfc_events.signals import notify_game_state_changed
 logger = logging.getLogger(__name__)
 
 MAX_FRIENDLY_TEAM_SIZE = 3
+
+
+def _friendly_activation_conflict_message(conflict):
+    """Return a clear, player-specific message for a blocked Friendly start."""
+    player_names = ', '.join(conflict.player_names)
+    if player_names:
+        return _(
+            'This Friendly Game cannot start because %(players)s is already participating in another active or unresolved Friendly Game.'
+        ) % {'players': player_names}
+    return _('This Friendly Game cannot start because one or more players are already participating in another active or unresolved Friendly Game.')
 
 
 def _session_creator_player(request, game):
@@ -135,6 +152,17 @@ def available_court_players_api(request):
     court_complex = CourtComplex.objects.filter(pk=court_complex_id).first()
     if not court_complex:
         return JsonResponse({'ok': False, 'error': _('Court Complex not found.')}, status=404)
+    try:
+        allowed_complex_ids = {
+            allowed_complex.pk for allowed_complex in get_allowed_friendly_complexes(request)
+        }
+    except FriendlyVenueError as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=409)
+    if court_complex.pk not in allowed_complex_ids:
+        return JsonResponse({
+            'ok': False,
+            'error': _('This Court Complex is not permitted for your Friendly Game.'),
+        }, status=403)
     if not court_complex.has_coordinates():
         return JsonResponse({
             'ok': False,
@@ -404,8 +432,15 @@ def create_game(request):
                 court_id = int(court_id) if court_id else None
             except (ValueError, TypeError):
                 court_id = None
+            allowed_complexes = get_allowed_friendly_complexes(
+                request,
+                creator_codename=creator_player_codename.codename,
+            )
             assigned_complex, assigned_court = resolve_court_assignment(
-                request, complex_id=complex_id, court_id=court_id
+                request,
+                allowed_complexes=allowed_complexes,
+                complex_id=complex_id,
+                court_id=court_id,
             )
 
             if not isinstance(court_player_ids, list):
@@ -595,6 +630,8 @@ def create_game(request):
             
         except json.JSONDecodeError:
             messages.error(request, 'Invalid player selection data')
+        except FriendlyVenueError as exc:
+            messages.error(request, str(exc))
         except Exception as e:
             messages.error(request, f'Error creating game: {str(e)}')
     
@@ -863,15 +900,18 @@ def creator_assign_players(request, game_id):
 
 
 def activate_game(request, game_id):
-    """Activate a friendly game to start playing"""
+    """Legacy Friendly activation path protected by the shared overlap guard."""
     game = get_object_or_404(FriendlyGame, id=game_id)
-    
+
     if game.status == 'READY':
-        game.status = 'ACTIVE'
-        game.save()
+        try:
+            game.activate()
+        except FriendlyGameActivationConflict as conflict:
+            messages.error(request, _friendly_activation_conflict_message(conflict))
+            return redirect('friendly_games:game_detail', game_id=game.id)
         notify_game_state_changed(game.id, game.status)
         messages.success(request, f'Game "{game.name}" is now active!')
-    
+
     return redirect('friendly_games:game_detail', game_id=game.id)
 
 
@@ -1328,21 +1368,22 @@ def start_match(request, game_id):
         messages.error(request, f'Cannot start game: {reason}')
         return redirect('friendly_games:game_detail', game_id=game.id)
     
-    # Select the opening side once at activation. This is only a setup prompt;
-    # score state, validation, and the existing Live Score system remain unchanged.
-    game.starting_team = random.choice(['BLACK', 'WHITE'])
-    starting_side_players = list(game.players.filter(team=game.starting_team).values_list('player_id', flat=True))
-
-    # Start the game
-    game.status = 'ACTIVE'
-    # Use court-local time so started_at reflects the venue's local clock
+    # Use court-local time so started_at reflects the venue's local clock.
+    # The shared model method locks all participants and checks every other
+    # ACTIVE/PENDING_VALIDATION Friendly before this game can become ACTIVE.
     _game_complex = game.court_complex
     _game_now = get_court_local_now(_game_complex) if _game_complex else timezone.now()
-    game.started_at = _game_now
-    # Start timer if timed game
-    if game.is_timed and game.time_limit_minutes:
-        game.timer_started_at = _game_now
-    game.save()
+    try:
+        game.activate(
+            started_at=_game_now,
+            start_timer=True,
+            choose_starting_team=True,
+        )
+    except FriendlyGameActivationConflict as conflict:
+        messages.error(request, _friendly_activation_conflict_message(conflict))
+        return redirect('friendly_games:game_detail', game_id=game.id)
+
+    starting_side_players = list(game.players.filter(team=game.starting_team).values_list('player_id', flat=True))
     notify_game_state_changed(game.id, game.status, game=game)
     try:
         from pfc_events.push_notifications import notify_match_action_required
@@ -1465,12 +1506,17 @@ def validate_result(request, game_id):
             # Session player not on validating team — redirect silently
             return redirect('friendly_games:validate_result', game_id=game.id)
 
-        # Perform validation
-        result.validate_result(
-            validating_team=validating_team,
-            action=validation_action,
-            validator_codename=validator_codename
-        )
+        # Perform validation. A disagreement re-enters ACTIVE, so it must
+        # respect the same one-player/one-unresolved-Friendly activation guard.
+        try:
+            result.validate_result(
+                validating_team=validating_team,
+                action=validation_action,
+                validator_codename=validator_codename
+            )
+        except FriendlyGameActivationConflict as conflict:
+            messages.error(request, _friendly_activation_conflict_message(conflict))
+            return redirect('friendly_games:validate_result', game_id=game.id)
         # Notify all connected clients that game state changed
         game.refresh_from_db()
         notify_game_state_changed(game.id, game.status)
