@@ -106,17 +106,13 @@
 
         <section class="fgc-card">
             <label class="fgc-label">{% translate "Court" %}</label>
-            {% if friendly_venue_error %}
-                <p class="fgc-feedback error" role="alert">{{ friendly_venue_error }}</p>
-            {% else %}
-                <div class="fgc-courts">
-                    <select name="court_complex_id" id="courtComplex" required>{% for cx in all_complexes %}<option value="{{ cx.id }}" {% if cx.id == preferred_complex_id %}selected{% endif %}>{{ cx.name }}</option>{% endfor %}</select>
-                    <select name="court_id" id="court"><option value="">{% translate "Court — any" %}</option>{% for cx in all_complexes %}{% for ct in cx.courts.all %}<option value="{{ ct.id }}" data-complex="{{ cx.id }}" {% if ct.id == preferred_court_id %}selected{% endif %}>#{{ ct.number }}</option>{% endfor %}{% endfor %}</select>
-                </div>
-            {% endif %}
+            <div class="fgc-courts">
+                <select name="court_complex_id" id="courtComplex"><option value="">{% translate "Complex — any" %}</option>{% for cx in all_complexes %}<option value="{{ cx.id }}" {% if cx.id == preferred_complex_id %}selected{% endif %}>{{ cx.name }}</option>{% endfor %}</select>
+                <select name="court_id" id="court"><option value="">{% translate "Court — any" %}</option>{% for cx in all_complexes %}{% for ct in cx.courts.all %}<option value="{{ ct.id }}" data-complex="{{ cx.id }}" {% if ct.id == preferred_court_id %}selected{% endif %}>#{{ ct.number }}</option>{% endfor %}{% endfor %}</select>
+            </div>
         </section>
 
-        <section class="fgc-card fgc-court-players" id="courtPlayersPanel" aria-labelledby="courtPlayersHeading" {% if friendly_venue_error %}hidden{% endif %}>
+        <section class="fgc-card fgc-court-players" id="courtPlayersPanel" aria-labelledby="courtPlayersHeading">
             <label class="fgc-label" id="courtPlayersHeading">{% translate "Players at Courts" %}</label>
             <p class="fgc-court-helper">{% translate "Only players who are currently here at this Court Complex and enabled Available for Friendly are shown." %}</p>
             <div class="fgc-court-actions">
@@ -167,7 +163,7 @@
     </form>
 </div>
 
-<div class="fgc-sticky"><button form="friendlyCreateForm" type="submit" class="fgc-submit" id="createGameButton" {% if friendly_venue_error %}disabled{% endif %}><i class="fas fa-play-circle" aria-hidden="true"></i><span>{% translate "Create Game" %}</span></button></div>
+<div class="fgc-sticky"><button form="friendlyCreateForm" type="submit" class="fgc-submit" id="createGameButton"><i class="fas fa-play-circle" aria-hidden="true"></i><span>{% translate "Create Game" %}</span></button></div>
 
 <script>
 window.QR_RESOLVE_URL = "{% url 'friendly_games:qr_resolve_player' %}";
@@ -339,21 +335,14 @@ document.querySelectorAll('.fgc-team-selector').forEach(button => button.addEven
 document.getElementById('timedGame').addEventListener('change', function() { document.getElementById('durationChoices').classList.toggle('visible', this.checked); });
 document.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-minutes]').forEach(item => item.classList.remove('active')); button.classList.add('active'); document.getElementById('timeLimitMinutes').value = button.dataset.minutes; }));
 document.getElementById('gameNameInput').addEventListener('input', function() { document.getElementById('gameName').value = this.value || 'Friendly Game'; });
-function syncCourtOptions(clearPlayers) {
-    const complex = document.getElementById('courtComplex');
-    const court = document.getElementById('court');
-    if (!complex || !court) return;
-    const value = complex.value;
-    [...court.options].forEach(option => { if (!option.value) return; option.hidden = Boolean(option.dataset.complex !== value); });
+document.getElementById('courtComplex').addEventListener('change', function() {
+    const value = this.value; const court = document.getElementById('court');
+    [...court.options].forEach(option => { if (!option.value) return; option.hidden = Boolean(value && option.dataset.complex !== value); });
     if (court.selectedOptions[0] && court.selectedOptions[0].hidden) court.value = '';
     document.getElementById('courtPlayersPanel').classList.toggle('visible', Boolean(value));
-    if (clearPlayers) {
-        state.courtEligible = []; state.courtSelected = [];
-        document.getElementById('courtPlayersList').innerHTML = ''; setCourtFeedback('', false); syncPayloads();
-    }
-}
-const courtComplexSelect = document.getElementById('courtComplex');
-if (courtComplexSelect) courtComplexSelect.addEventListener('change', function() { syncCourtOptions(true); });
+    state.courtEligible = []; state.courtSelected = [];
+    document.getElementById('courtPlayersList').innerHTML = ''; setCourtFeedback('', false); syncPayloads();
+});
 document.getElementById('loadCourtPlayers').addEventListener('click', loadCourtPlayers);
 document.querySelectorAll('[data-court-pull]').forEach(button => button.addEventListener('click', () => randomCourtPull(Number(button.dataset.courtPull))));
 document.getElementById('includeCreatorToggle').addEventListener('change', function() {
@@ -389,7 +378,7 @@ document.addEventListener('click', function(event) {
     }
 });
 document.getElementById('friendlyCreateForm').addEventListener('submit', function(event) { if (!document.querySelector('[name="creator_codename"]').value) { event.preventDefault(); setFeedback('{% translate "Sign in with your PFC codename before creating a Friendly Game." %}', true); } syncPayloads(); });
-syncCourtOptions(false);
+if (document.getElementById('courtComplex').value) document.getElementById('courtPlayersPanel').classList.add('visible');
 render(); syncPayloads();
 </script>
 {% include 'partials/qr_scanner_modal.html' %}
