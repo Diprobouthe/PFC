@@ -1,7 +1,7 @@
 import random
 import string
 import logging
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from datetime import timedelta
@@ -19,6 +19,14 @@ def generate_codename():
 def generate_match_number():
     """Generate a unique 4-digit match number"""
     return ''.join(random.choices(string.digits, k=4))
+
+
+class FriendlyGameActivationConflict(Exception):
+    """Raised when Friendly participants are already in another unresolved game."""
+
+    def __init__(self, player_names):
+        self.player_names = tuple(player_names)
+        super().__init__(', '.join(self.player_names))
 
 
 class PlayerCodename(models.Model):
@@ -204,8 +212,101 @@ class FriendlyGame(models.Model):
         else:
             return f"{self.name}"
     
+    ACTIVE_OR_UNRESOLVED_STATUSES = ('ACTIVE', 'PENDING_VALIDATION')
+
+    def _raise_if_active_friendly_conflicts_locked(self):
+        """Raise when a participant is already in another unresolved Friendly.
+
+        The caller must hold a transaction.  Participating Player rows are locked
+        in a stable order so two overlapping activation attempts cannot both pass
+        the availability check before either game is marked ACTIVE.
+        """
+        participant_ids = list(
+            self.players.order_by('player_id').values_list('player_id', flat=True)
+        )
+        if not participant_ids:
+            return
+
+        # The player-row locks are the cross-game serialization point.  Every
+        # first-party transition into ACTIVE uses this same guard.
+        list(
+            Player.objects.filter(id__in=participant_ids)
+            .order_by('id')
+            .select_for_update()
+            .values_list('id', flat=True)
+        )
+
+        conflicts = (
+            FriendlyGamePlayer.objects.filter(
+                player_id__in=participant_ids,
+                game__status__in=self.ACTIVE_OR_UNRESOLVED_STATUSES,
+            )
+            .exclude(game_id=self.pk)
+            .select_related('player')
+            .order_by('player__name', 'player_id')
+        )
+        player_names = []
+        seen_player_ids = set()
+        for conflict in conflicts:
+            if conflict.player_id in seen_player_ids:
+                continue
+            seen_player_ids.add(conflict.player_id)
+            player_names.append(conflict.player.name)
+
+        if player_names:
+            raise FriendlyGameActivationConflict(player_names)
+
+    def activate(self, *, started_at=None, start_timer=False, choose_starting_team=False):
+        """Atomically transition this Friendly to ACTIVE after overlap protection.
+
+        Pre-game setup remains unrestricted.  This is the authoritative
+        first-party transition for every path that makes a Friendly active.
+        """
+        if not self.pk:
+            raise ValueError('A Friendly Game must be saved before activation.')
+
+        with transaction.atomic():
+            locked_game = type(self).objects.select_for_update().get(pk=self.pk)
+            if locked_game.status != 'ACTIVE':
+                locked_game._raise_if_active_friendly_conflicts_locked()
+                locked_game.status = 'ACTIVE'
+                update_fields = ['status']
+                if choose_starting_team:
+                    locked_game.starting_team = random.choice(['BLACK', 'WHITE'])
+                    update_fields.append('starting_team')
+                if started_at is not None:
+                    locked_game.started_at = started_at
+                    update_fields.append('started_at')
+                    if start_timer and locked_game.is_timed and locked_game.time_limit_minutes:
+                        locked_game.timer_started_at = started_at
+                        update_fields.append('timer_started_at')
+                locked_game.save(
+                    update_fields=update_fields,
+                    _activation_guard_held=True,
+                )
+
+        self.refresh_from_db()
+        return self
+
     def save(self, *args, **kwargs):
-        """Generate unique identifiers and set expiration"""
+        """Generate identifiers and protect direct transitions into ACTIVE."""
+        activation_guard_held = kwargs.pop('_activation_guard_held', False)
+
+        # Direct model/admin saves that move an existing Friendly into ACTIVE use
+        # the same locked conflict check as the public activation paths.  The
+        # dedicated activate() method holds these locks for the full transition.
+        if self.pk and self.status == 'ACTIVE' and not activation_guard_held:
+            with transaction.atomic():
+                current_status = (
+                    type(self).objects.select_for_update()
+                    .filter(pk=self.pk)
+                    .values_list('status', flat=True)
+                    .first()
+                )
+                if current_status is not None and current_status != 'ACTIVE':
+                    self._raise_if_active_friendly_conflicts_locked()
+                return super().save(*args, **kwargs)
+
         # Generate match number for new games
         if not self.match_number and not self.game_pin:
             self.match_number = self.generate_match_number()
@@ -628,6 +729,14 @@ class FriendlyGameResult(models.Model):
         # Use court-local time if the game has a court complex assigned
         _result_complex = self.game.court_complex if self.game else None
         _result_now = get_court_local_now(_result_complex) if _result_complex else timezone.now()
+
+        # A disagreement reopens play.  Use the same authoritative activation
+        # guard before changing or deleting the pending result, so a conflict
+        # leaves the unresolved result intact rather than partially mutating it.
+        if action == 'disagree':
+            self.game.activate()
+            self.delete()
+            return
         
         self.validated_by_team = validating_team
         self.validation_action = action
@@ -688,12 +797,6 @@ class FriendlyGameResult(models.Model):
                 # Continue with normal game completion - rating failures don't break games
             # ===== END RATING SYSTEM INTEGRATION =====
             
-        elif action == 'disagree':
-            # Disagreement resets the game to ACTIVE and removes the result
-            self.game.status = 'ACTIVE'
-            self.game.save()
-            # Delete this result so a new one can be submitted
-            self.delete()
     
     def _update_three_tier_validation_status(self):
         """
