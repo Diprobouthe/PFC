@@ -1,400 +1,349 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n court_tz_tags %}
 
-{% block title %}{{ complex.name }} - Court Complex{% endblock %}
+{% block title %}{{ complex.name }} · PFC{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <!-- Header Section -->
-    <div class="row mb-4">
-        <div class="col">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'court_complex_list' %}">Court Complexes</a></li>
-                    <li class="breadcrumb-item active">{{ complex.name }}</li>
-                </ol>
-            </nav>
-            
-            <h1 class="display-4 mb-3">
-                <i class="fas fa-building me-3"></i>{{ complex.name }}
-            </h1>
-        </div>
+<style>
+:root {
+  --venue-blue: #1457b8;
+  --venue-deep-blue: #0d3d87;
+  --venue-sky: #edf5ff;
+  --venue-ink: #172033;
+  --venue-muted: #667085;
+  --venue-line: #e7edf5;
+  --venue-green: #12a150;
+  --venue-amber: #d88900;
+  --venue-card: #ffffff;
+  --venue-radius: 20px;
+}
+.venue-page { max-width: 1040px; margin: 0 auto; padding: 14px 14px 76px; color: var(--venue-ink); }
+.venue-back { display: inline-flex; align-items: center; gap: 7px; margin: 2px 0 13px; color: var(--venue-blue); font-size: 13px; font-weight: 700; text-decoration: none; }
+.venue-back:hover { color: var(--venue-deep-blue); }
+.venue-hero { overflow: hidden; border-radius: 24px; background: var(--venue-deep-blue); box-shadow: 0 10px 28px rgba(21, 63, 135, .16); }
+.venue-hero-photo { position: relative; height: clamp(190px, 37vw, 330px); background: linear-gradient(135deg, #1055ad, #082a63); }
+.venue-hero-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.venue-photo-fallback { display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,.96); font-size: 58px; background: radial-gradient(circle at 72% 25%, rgba(255,255,255,.24), transparent 28%), linear-gradient(135deg, #2470cd 0%, #0d438f 72%); }
+.venue-photo-shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(7, 30, 73, .78) 0%, rgba(7, 30, 73, .12) 55%, transparent 100%); }
+.venue-hero-copy { position: absolute; left: 19px; right: 19px; bottom: 18px; color: #fff; }
+.venue-hero-kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; color: rgba(255,255,255,.84); font-size: 11px; font-weight: 800; letter-spacing: .095em; text-transform: uppercase; }
+.venue-hero-name { margin: 0; font-size: clamp(25px, 6vw, 39px); font-weight: 800; line-height: 1.05; letter-spacing: -.025em; }
+.venue-hero-location { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 14px; color: rgba(255,255,255,.9); }
+.venue-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,.18); }
+.venue-stat { min-height: 78px; padding: 13px 10px; background: #fff; text-align: center; }
+.venue-stat-num { display: block; color: var(--venue-blue); font-size: 20px; font-weight: 800; line-height: 1.05; }
+.venue-stat-num.here { color: var(--venue-green); }
+.venue-stat-label { display: block; margin-top: 4px; color: var(--venue-muted); font-size: 11px; font-weight: 700; letter-spacing: .035em; text-transform: uppercase; }
+.venue-tabs { display: flex; gap: 0; margin: 20px 0 13px; border-bottom: 1px solid var(--venue-line); overflow-x: auto; scrollbar-width: none; }
+.venue-tabs::-webkit-scrollbar { display: none; }
+.venue-tab { flex: 1 0 auto; border: 0; border-bottom: 3px solid transparent; padding: 11px 14px 10px; background: transparent; color: var(--venue-muted); font-size: 13px; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.venue-tab.active { border-bottom-color: var(--venue-blue); color: var(--venue-blue); }
+.venue-panel { display: none; }
+.venue-panel.active { display: block; }
+.venue-live-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .9fr); gap: 14px; }
+.venue-section-card { overflow: hidden; margin-bottom: 15px; border: 1px solid var(--venue-line); border-radius: var(--venue-radius); background: var(--venue-card); box-shadow: 0 3px 12px rgba(16, 49, 103, .045); }
+.venue-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 15px 11px; border-bottom: 1px solid var(--venue-line); }
+.venue-card-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 800; }
+.venue-card-title i { color: var(--venue-blue); }
+.venue-count-pill { min-width: 25px; padding: 3px 8px; border-radius: 100px; background: var(--venue-sky); color: var(--venue-blue); font-size: 11px; font-weight: 800; text-align: center; }
+.venue-live-list { padding: 2px 15px; }
+.venue-person { display: flex; align-items: center; gap: 10px; min-height: 58px; border-bottom: 1px solid #eff3f8; }
+.venue-person:last-child { border-bottom: 0; }
+.venue-avatar { display: flex; align-items: center; justify-content: center; width: 33px; height: 33px; flex: 0 0 33px; border-radius: 50%; background: #e7f0ff; color: var(--venue-blue); font-size: 14px; font-weight: 800; }
+.venue-person-copy { min-width: 0; flex: 1; }
+.venue-person-name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.venue-person-meta { display: flex; align-items: center; gap: 5px; margin-top: 2px; color: var(--venue-muted); font-size: 11px; }
+.venue-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--venue-green); }
+.venue-status-dot.going { background: var(--venue-amber); }
+.venue-availability { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: #168143; font-size: 10px; font-weight: 800; }
+.venue-person-time { color: var(--venue-muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.venue-empty { padding: 23px 16px; color: var(--venue-muted); font-size: 13px; text-align: center; }
+.venue-empty i { display: block; margin-bottom: 7px; color: #b7c5d8; font-size: 22px; }
+.venue-community { padding: 15px; background: linear-gradient(135deg, #f5f8ff, #fff); }
+.venue-community-number { color: var(--venue-blue); font-size: 27px; font-weight: 850; letter-spacing: -.04em; line-height: 1; }
+.venue-community-label { margin-top: 4px; color: var(--venue-ink); font-size: 13px; font-weight: 800; }
+.venue-community-meta { margin-top: 5px; color: var(--venue-muted); font-size: 11px; }
+.venue-community-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; color: var(--venue-blue); font-size: 12px; font-weight: 800; text-decoration: none; }
+.venue-info-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(250px, .8fr); gap: 16px; }
+.venue-info-card { padding: 17px; }
+.venue-info-title { display: flex; align-items: center; gap: 8px; margin: 0 0 11px; color: var(--venue-ink); font-size: 15px; font-weight: 850; }
+.venue-info-title i { color: var(--venue-blue); }
+.venue-description { margin: 0; color: #46546b; font-size: 14px; line-height: 1.65; }
+.venue-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.venue-gallery-item { position: relative; display: block; min-height: 135px; overflow: hidden; border: 0; border-radius: 13px; background: #e6eef9; }
+.venue-gallery-item img { display: block; width: 100%; height: 100%; min-height: 135px; object-fit: cover; transition: transform .2s ease; }
+.venue-gallery-item:hover img { transform: scale(1.035); }
+.venue-gallery-caption { position: absolute; right: 0; bottom: 0; left: 0; padding: 18px 8px 7px; background: linear-gradient(transparent, rgba(0,0,0,.64)); color: #fff; font-size: 10px; font-weight: 700; }
+.venue-court-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.venue-court { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 10px; border: 1px solid var(--venue-line); border-radius: 12px; color: var(--venue-ink); font-size: 12px; font-weight: 750; text-decoration: none; }
+.venue-court:hover { border-color: #b6cdf0; color: var(--venue-blue); }
+.venue-court-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--venue-green); }
+.venue-court-dot.busy { background: #e55858; }
+.venue-court-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.venue-facility-list { margin: 0; padding: 0; list-style: none; }
+.venue-facility-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #eef2f6; font-size: 13px; }
+.venue-facility-row:last-child { border-bottom: 0; }
+.venue-facility-label { display: flex; align-items: center; gap: 7px; color: #475569; }
+.venue-facility-label i { width: 16px; color: var(--venue-blue); text-align: center; }
+.venue-facility-value { color: var(--venue-ink); font-weight: 750; text-align: right; }
+.venue-yes { color: var(--venue-green); }
+.venue-no { color: var(--venue-muted); }
+.venue-map-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 2px 0 13px; padding: 10px 12px; border-radius: 11px; background: var(--venue-sky); color: var(--venue-blue); font-size: 13px; font-weight: 800; text-decoration: none; }
+.venue-map-link:hover { background: #dfecff; color: var(--venue-deep-blue); }
+.venue-rating-summary { display: flex; align-items: center; gap: 16px; }
+.venue-rating-number { min-width: 62px; color: #d18b00; font-size: 29px; font-weight: 850; letter-spacing: -.04em; text-align: center; }
+.venue-stars { color: #e7a500; font-size: 14px; white-space: nowrap; }
+.venue-rating-meta { margin-top: 4px; color: var(--venue-muted); font-size: 12px; }
+.venue-outline-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 15px; padding: 10px 12px; border: 1.5px solid #e7a500; border-radius: 11px; background: #fff; color: #a66b00; font-size: 13px; font-weight: 800; }
+.venue-review { padding: 12px 0; border-bottom: 1px solid #eef2f6; }
+.venue-review:last-child { border-bottom: 0; }
+.venue-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.venue-review-name { font-size: 13px; font-weight: 800; }
+.venue-review-comment { margin: 6px 0 0; color: #536177; font-size: 13px; line-height: 1.45; }
+.venue-review-date { margin-top: 6px; color: #98a4b5; font-size: 11px; }
+.venue-physical-note { display: flex; align-items: center; gap: 7px; margin: 0 0 15px; padding: 11px 13px; border: 1px solid #e6edf8; border-radius: 13px; background: #f9fbff; color: var(--venue-muted); font-size: 12px; }
+.venue-physical-note i { color: var(--venue-blue); }
+@media (max-width: 720px) {
+  .venue-page { padding-right: 10px; padding-left: 10px; }
+  .venue-live-grid, .venue-info-layout { grid-template-columns: 1fr; }
+  .venue-info-layout > .venue-section-card:nth-child(2) { order: -1; }
+  .venue-stat { min-height: 72px; }
+}
+@media (min-width: 721px) {
+  .venue-gallery { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+</style>
+
+<div class="venue-page">
+  <a class="venue-back" href="{% url 'court_complex_list' %}"><i class="fas fa-arrow-left" aria-hidden="true"></i>{% translate "All Court Complexes" %}</a>
+
+  <header class="venue-hero">
+    <div class="venue-hero-photo">
+      {% if photos %}
+        <img src="{{ photos.0.image.url }}" alt="{{ photos.0.caption|default:complex.name }}">
+      {% else %}
+        <div class="venue-photo-fallback"><i class="fas fa-bowling-ball" aria-hidden="true"></i></div>
+      {% endif %}
+      <div class="venue-photo-shade"></div>
+      <div class="venue-hero-copy">
+        <div class="venue-hero-kicker"><i class="fas fa-map-marker-alt" aria-hidden="true"></i>{% if live_venue.is_physical %}{% translate "Physical court complex" %}{% else %}{% translate "Court complex" %}{% endif %}</div>
+        <h1 class="venue-hero-name">{{ complex.name }}</h1>
+        {% if complex.location_description %}<div class="venue-hero-location"><i class="fas fa-location-dot" aria-hidden="true"></i>{{ complex.location_description }}</div>{% endif %}
+      </div>
     </div>
-
-    <div class="row">
-        <!-- Main Content -->
-        <div class="col-lg-8">
-            <!-- Description -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Description</h5>
-                </div>
-                <div class="card-body">
-                    <p class="mb-0">{{ complex.description|linebreaks }}</p>
-                </div>
-            </div>
-
-            <!-- Photo Gallery -->
-            {% if photos %}
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-camera me-2"></i>Photo Gallery</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        {% for photo in photos %}
-                        <div class="col-6 col-md-3 mb-3">
-                            <img src="{{ photo.image.url }}" 
-                                 class="img-fluid rounded shadow-sm" 
-                                 style="height: 150px; width: 100%; object-fit: cover; cursor: pointer;"
-                                 alt="{{ photo.caption|default:complex.name }}"
-                                 data-bs-toggle="modal" 
-                                 data-bs-target="#photoModal{{ forloop.counter }}">
-                        </div>
-                        
-                        <!-- Photo Modal -->
-                        <div class="modal fade" id="photoModal{{ forloop.counter }}" tabindex="-1">
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">{{ photo.caption|default:complex.name }}</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body text-center">
-                                        <img src="{{ photo.image.url }}" class="img-fluid" alt="{{ photo.caption|default:complex.name }}">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- User Ratings -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0"><i class="fas fa-star me-2"></i>User Ratings</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="text-center">
-                                <h3 class="text-warning mb-1">
-                                    {% if average_rating > 0 %}
-                                        {{ average_rating|floatformat:1 }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </h3>
-                                <div class="text-warning mb-2">
-                                    {% if average_rating > 0 %}
-                                        {% for i in "12345" %}
-                                            {% if forloop.counter <= average_rating %}
-                                                <i class="fas fa-star"></i>
-                                            {% elif forloop.counter <= average_rating|add:0.5 %}
-                                                <i class="fas fa-star-half-alt"></i>
-                                            {% else %}
-                                                <i class="far fa-star"></i>
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% else %}
-                                        <span class="text-muted">No ratings yet</span>
-                                    {% endif %}
-                                </div>
-                                <small class="text-muted">{{ rating_count }} review{{ rating_count|pluralize }}</small>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <button class="btn btn-outline-warning w-100" data-bs-toggle="modal" data-bs-target="#ratingModal">
-                                <i class="fas fa-plus me-1"></i> Add Your Rating
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Individual Ratings -->
-                    {% if ratings %}
-                        <hr>
-                        <h6>Recent Reviews:</h6>
-                        {% for rating in ratings|slice:":5" %}
-                        <div class="border-bottom pb-2 mb-2">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <strong>{{ rating.get_player_name }}</strong>
-                                <div class="text-warning">
-                                    {% for i in "12345" %}
-                                        {% if forloop.counter <= rating.stars %}
-                                            <i class="fas fa-star"></i>
-                                        {% elif forloop.counter <= rating.stars|add:0.5 %}
-                                            <i class="fas fa-star-half-alt"></i>
-                                        {% else %}
-                                            <i class="far fa-star"></i>
-                                        {% endif %}
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            {% if rating.comment %}
-                                <p class="mb-1 text-muted">{{ rating.comment }}</p>
-                            {% endif %}
-                            <small class="text-muted">{{ rating.created_at|date:"M d, Y" }}</small>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar -->
-        <div class="col-lg-4">
-            <!-- Assigned Courts -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Assigned Courts</h5>
-                </div>
-                <div class="card-body">
-                    {% if complex.courts.exists %}
-                        <div class="row">
-                            {% for court in complex.courts.all %}
-                            <div class="col-6 mb-2">
-                                <a href="{% url 'court_detail' court.number %}" class="btn btn-outline-info btn-sm w-100">
-                                    <i class="fas fa-circle me-1"></i>Court {{ court.number }}
-                                    {% if court.name %}
-                                        <br><small>{{ court.name }}</small>
-                                    {% endif %}
-                                </a>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        <hr>
-                        <div class="text-center">
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
-                                {{ complex.get_court_count }} court{{ complex.get_court_count|pluralize }} assigned
-                            </small>
-                        </div>
-                    {% else %}
-                        <div class="text-center text-muted">
-                            <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
-                            <p>No courts assigned to this complex yet.</p>
-                            <small>Courts can be assigned through the admin interface.</small>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <!-- Map & Accessibility -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Location & Access</h5>
-                </div>
-                <div class="card-body">
-                    {% if complex.google_maps_url %}
-                        <a href="{{ complex.google_maps_url }}" target="_blank" class="btn btn-outline-primary w-100 mb-3">
-                            <i class="fas fa-external-link-alt me-1"></i> Open in Google Maps
-                        </a>
-                    {% endif %}
-                    
-                    {% if complex.public_hours %}
-                        <div class="mb-3">
-                            <strong><i class="fas fa-clock me-1"></i> Public Hours:</strong><br>
-                            <small>{{ complex.public_hours|linebreaks }}</small>
-                        </div>
-                    {% endif %}
-                    
-                    <div class="mb-2">
-                        <strong><i class="fas fa-universal-access me-1"></i> Public Access:</strong>
-                        <div class="text-warning">
-                            {% for i in "12345" %}
-                                {% if forloop.counter <= complex.public_accessibility %}
-                                    <i class="fas fa-star"></i>
-                                {% else %}
-                                    <i class="far fa-star"></i>
-                                {% endif %}
-                            {% endfor %}
-                            <span class="text-muted">({{ complex.public_accessibility }}/5)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Facility Info -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Facility Info</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm">
-                        <tbody>
-                            <tr>
-                                <td><i class="fas fa-restroom me-2"></i> Toilet Distance</td>
-                                <td>
-                                    {% if complex.distance_to_toilet %}
-                                        {{ complex.distance_to_toilet }} m
-                                    {% else %}
-                                        <span class="text-muted">Unknown</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><i class="fas fa-tint me-2"></i> Water Hose</td>
-                                <td>
-                                    {% if complex.distance_to_water_hose %}
-                                        {{ complex.distance_to_water_hose }} m
-                                    {% else %}
-                                        <span class="text-muted">Unknown</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><i class="fas fa-tree me-2"></i> Daylight Shade</td>
-                                <td>
-                                    {% if complex.has_shadow_daytime %}
-                                        <span class="text-success"><i class="fas fa-check"></i> Yes</span>
-                                    {% else %}
-                                        <span class="text-danger"><i class="fas fa-times"></i> No</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><i class="fas fa-lightbulb me-2"></i> Night Lighting</td>
-                                <td>
-                                    {% if complex.has_night_lighting %}
-                                        <span class="text-success"><i class="fas fa-check"></i> Yes</span>
-                                    {% else %}
-                                        <span class="text-danger"><i class="fas fa-times"></i> No</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Courts in Complex -->
-            {% if courts %}
-            <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0"><i class="fas fa-map me-2"></i>Courts ({{ courts.count }})</h5>
-                </div>
-                <div class="card-body">
-                    {% for court in courts %}
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span>
-                                <i class="fas fa-circle me-1 {% if court.is_active %}text-danger{% else %}text-success{% endif %}"></i>
-                                {{ court }}
-                            </span>
-                            <a href="{% url 'court_detail' court.id %}" class="btn btn-sm btn-outline-primary">
-                                View
-                            </a>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-        </div>
+    <div class="venue-stats">
+      <div class="venue-stat"><span class="venue-stat-num">{{ courts|length }}</span><span class="venue-stat-label">{% translate "Courts" %}</span></div>
+      {% if live_venue.is_physical %}
+      <div class="venue-stat"><span class="venue-stat-num here">{{ live_venue.now_here|length }}</span><span class="venue-stat-label">{% translate "Here now" %}</span></div>
+      <div class="venue-stat"><span class="venue-stat-num">{{ live_venue.going|length }}</span><span class="venue-stat-label">{% translate "Going" %}</span></div>
+      {% else %}
+      <div class="venue-stat"><span class="venue-stat-num">{{ rating_count }}</span><span class="venue-stat-label">{% translate "Reviews" %}</span></div>
+      <div class="venue-stat"><span class="venue-stat-num">{% if average_rating > 0 %}{{ average_rating|floatformat:1 }}{% else %}—{% endif %}</span><span class="venue-stat-label">{% translate "Rating" %}</span></div>
+      {% endif %}
     </div>
+  </header>
+
+  {% if live_venue.is_physical %}
+  <div class="venue-tabs" role="tablist" aria-label="{% translate 'Court Complex information' %}">
+    <button class="venue-tab active" id="tab-now" type="button" role="tab" aria-selected="true" aria-controls="panel-now" data-venue-tab="now">{% translate "Now Here" %}</button>
+    <button class="venue-tab" id="tab-going" type="button" role="tab" aria-selected="false" aria-controls="panel-going" data-venue-tab="going">{% translate "Going" %}{% if live_venue.going %}<span class="venue-count-pill ms-1">{{ live_venue.going|length }}</span>{% endif %}</button>
+    <button class="venue-tab" id="tab-info" type="button" role="tab" aria-selected="false" aria-controls="panel-info" data-venue-tab="info">{% translate "General Info" %}</button>
+  </div>
+
+  <section class="venue-panel active" id="panel-now" role="tabpanel" aria-labelledby="tab-now" data-venue-panel="now">
+    <div class="venue-live-grid">
+      <div class="venue-section-card">
+        <div class="venue-card-heading">
+          <h2 class="venue-card-title"><i class="fas fa-users" aria-hidden="true"></i>{% translate "Players at the courts" %}</h2>
+          <span class="venue-count-pill">{{ live_venue.now_here|length }}</span>
+        </div>
+        {% if live_venue.now_here %}
+        <div class="venue-live-list">
+          {% for entry in live_venue.now_here %}
+          <div class="venue-person">
+            <div class="venue-avatar">{{ entry.get_player_name|first|upper }}</div>
+            <div class="venue-person-copy">
+              <div class="venue-person-name">{{ entry.get_player_name }}</div>
+              <div class="venue-person-meta"><span class="venue-status-dot"></span>{% translate "Here now" %}{% if entry.is_available_for_friendly %}<span class="venue-availability"><i class="fas fa-user-plus" aria-hidden="true"></i>{% translate "Available for Friendly" %}</span>{% endif %}</div>
+            </div>
+            <time class="venue-person-time" datetime="{{ entry.created_at|date:'c' }}">{{ entry.created_at|court_time:complex }}</time>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="venue-empty"><i class="fas fa-users" aria-hidden="true"></i>{% translate "No verified PFC players are currently shown here." %}</div>
+        {% endif %}
+      </div>
+
+      <aside class="venue-section-card">
+        <div class="venue-card-heading"><h2 class="venue-card-title"><i class="fas fa-chart-pie" aria-hidden="true"></i>{% translate "Community presence" %}</h2></div>
+        {% if live_venue.community_report %}
+        <div class="venue-community">
+          <div class="venue-community-number">~{{ live_venue.community_report.reported_count }}</div>
+          <div class="venue-community-label">{% translate "people on site" %}</div>
+          <div class="venue-community-meta">{% blocktranslate with confirmations=live_venue.community_report.confirmation_count minutes=live_venue.community_report.minutes_ago %}Confirmed by {{ confirmations }} PFC users · updated {{ minutes }} min ago{% endblocktranslate %}</div>
+          <a class="venue-community-link" href="{% url 'billboard:list' %}?court_id={{ complex.id }}"><i class="fas fa-arrow-right" aria-hidden="true"></i>{% translate "Open Court presence" %}</a>
+        </div>
+        {% else %}
+        <div class="venue-empty"><i class="fas fa-chart-pie" aria-hidden="true"></i>{% translate "No current community report for this venue." %}</div>
+        {% endif %}
+      </aside>
+    </div>
+  </section>
+
+  <section class="venue-panel" id="panel-going" role="tabpanel" aria-labelledby="tab-going" data-venue-panel="going">
+    <div class="venue-section-card">
+      <div class="venue-card-heading"><h2 class="venue-card-title"><i class="fas fa-person-walking" aria-hidden="true"></i>{% translate "Going to this venue" %}</h2><span class="venue-count-pill">{{ live_venue.going|length }}</span></div>
+      {% if live_venue.going %}
+      <div class="venue-live-list">
+        {% for entry in live_venue.going %}
+        <div class="venue-person">
+          <div class="venue-avatar">{{ entry.get_player_name|first|upper }}</div>
+          <div class="venue-person-copy">
+            <div class="venue-person-name">{{ entry.get_player_name }}</div>
+            <div class="venue-person-meta"><span class="venue-status-dot going"></span>{% translate "Going" %}{% if entry.message %}<span>· {{ entry.message }}</span>{% endif %}</div>
+          </div>
+          <time class="venue-person-time" datetime="{% if entry.arrival_at %}{{ entry.arrival_at|date:'c' }}{% endif %}">{% if entry.arrival_at %}{{ entry.arrival_at|court_time:complex }}{% elif entry.scheduled_time %}{{ entry.scheduled_time }}{% else %}—{% endif %}</time>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="venue-empty"><i class="fas fa-person-walking" aria-hidden="true"></i>{% translate "Nobody is currently going to this venue." %}</div>
+      {% endif %}
+    </div>
+  </section>
+  {% else %}
+  <div class="venue-physical-note"><i class="fas fa-info-circle" aria-hidden="true"></i>{% translate "Live physical-presence information is available only for Court Complexes with a configured location." %}</div>
+  {% endif %}
+
+  <section class="venue-panel{% if not live_venue.is_physical %} active{% endif %}" id="panel-info" role="tabpanel" aria-labelledby="tab-info" data-venue-panel="info">
+    <div class="venue-info-layout">
+      <div>
+        <div class="venue-section-card venue-info-card">
+          <h2 class="venue-info-title"><i class="fas fa-circle-info" aria-hidden="true"></i>{% translate "About this venue" %}</h2>
+          {% if complex.description %}<div class="venue-description">{{ complex.description|linebreaks }}</div>{% else %}<p class="venue-description">{% translate "No venue description has been added yet." %}</p>{% endif %}
+        </div>
+
+        {% if photos %}
+        <div class="venue-section-card venue-info-card">
+          <h2 class="venue-info-title"><i class="fas fa-images" aria-hidden="true"></i>{% translate "Photo gallery" %}</h2>
+          <div class="venue-gallery">
+            {% for photo in photos %}
+            <button type="button" class="venue-gallery-item" data-bs-toggle="modal" data-bs-target="#photoModal{{ forloop.counter }}" aria-label="{% translate 'Open photo' %}: {{ photo.caption|default:complex.name }}">
+              <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:complex.name }}">
+              {% if photo.caption %}<span class="venue-gallery-caption">{{ photo.caption }}</span>{% endif %}
+            </button>
+            <div class="modal fade" id="photoModal{{ forloop.counter }}" tabindex="-1" aria-labelledby="photoModalTitle{{ forloop.counter }}" aria-hidden="true">
+              <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h3 class="modal-title fs-5" id="photoModalTitle{{ forloop.counter }}">{{ photo.caption|default:complex.name }}</h3><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div><div class="modal-body text-center"><img src="{{ photo.image.url }}" class="img-fluid rounded" alt="{{ photo.caption|default:complex.name }}"></div></div></div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="venue-section-card venue-info-card">
+          <h2 class="venue-info-title"><i class="fas fa-star" aria-hidden="true"></i>{% translate "Ratings and reviews" %}</h2>
+          <div class="venue-rating-summary">
+            <div class="venue-rating-number">{% if average_rating > 0 %}{{ average_rating|floatformat:1 }}{% else %}—{% endif %}</div>
+            <div>
+              <div class="venue-stars" aria-label="{% translate 'Average rating' %}">
+                {% if average_rating > 0 %}{% for i in "12345" %}{% if forloop.counter <= average_rating %}<i class="fas fa-star"></i>{% elif forloop.counter <= average_rating|add:0.5 %}<i class="fas fa-star-half-alt"></i>{% else %}<i class="far fa-star"></i>{% endif %}{% endfor %}{% else %}<span class="text-muted">{% translate "No ratings yet" %}</span>{% endif %}
+              </div>
+              <div class="venue-rating-meta">{{ rating_count }} {% if rating_count == 1 %}{% translate "review" %}{% else %}{% translate "reviews" %}{% endif %}</div>
+            </div>
+          </div>
+          <button class="venue-outline-button" type="button" data-bs-toggle="modal" data-bs-target="#ratingModal"><i class="fas fa-star" aria-hidden="true"></i>{% translate "Add your rating" %}</button>
+          {% if ratings %}
+          <div class="mt-3">
+            {% for rating in ratings|slice:":5" %}
+            <article class="venue-review">
+              <div class="venue-review-head"><div class="venue-review-name">{{ rating.get_player_name }}</div><div class="venue-stars">{% for i in "12345" %}{% if forloop.counter <= rating.stars %}<i class="fas fa-star"></i>{% elif forloop.counter <= rating.stars|add:0.5 %}<i class="fas fa-star-half-alt"></i>{% else %}<i class="far fa-star"></i>{% endif %}{% endfor %}</div></div>
+              {% if rating.comment %}<p class="venue-review-comment">{{ rating.comment }}</p>{% endif %}
+              <div class="venue-review-date">{{ rating.created_at|date:"M d, Y" }}</div>
+            </article>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <aside>
+        <div class="venue-section-card venue-info-card">
+          <h2 class="venue-info-title"><i class="fas fa-location-dot" aria-hidden="true"></i>{% translate "Location and access" %}</h2>
+          {% if complex.google_maps_url %}<a class="venue-map-link" href="{{ complex.google_maps_url }}" target="_blank" rel="noopener"><i class="fas fa-map-location-dot" aria-hidden="true"></i>{% translate "Open in Google Maps" %}</a>{% endif %}
+          {% if complex.public_hours %}<div class="mb-3"><div class="venue-facility-label mb-1"><i class="fas fa-clock" aria-hidden="true"></i>{% translate "Public hours" %}</div><div class="venue-description" style="font-size:13px;">{{ complex.public_hours|linebreaks }}</div></div>{% endif %}
+          <div class="venue-facility-row"><span class="venue-facility-label"><i class="fas fa-universal-access" aria-hidden="true"></i>{% translate "Public access" %}</span><span class="venue-facility-value"><span class="venue-stars">{% for i in "12345" %}{% if forloop.counter <= complex.public_accessibility %}<i class="fas fa-star"></i>{% else %}<i class="far fa-star"></i>{% endif %}{% endfor %}</span></span></div>
+        </div>
+
+        <div class="venue-section-card venue-info-card">
+          <h2 class="venue-info-title"><i class="fas fa-bowling-ball" aria-hidden="true"></i>{% translate "Courts" %} <span class="venue-count-pill">{{ courts|length }}</span></h2>
+          {% if courts %}
+          <div class="venue-court-list">
+            {% for court in courts %}
+            <a class="venue-court" href="{% url 'court_detail' court.id %}"><span class="venue-court-dot{% if not court.is_available %} busy{% endif %}"></span><span class="venue-court-name">{% if court.name %}{{ court.name }}{% else %}{% blocktranslate with number=court.number %}Court {{ number }}{% endblocktranslate %}{% endif %}</span></a>
+            {% endfor %}
+          </div>
+          {% else %}<div class="venue-empty"><i class="fas fa-map" aria-hidden="true"></i>{% translate "No courts have been assigned to this complex yet." %}</div>{% endif %}
+        </div>
+
+        <div class="venue-section-card venue-info-card">
+          <h2 class="venue-info-title"><i class="fas fa-screwdriver-wrench" aria-hidden="true"></i>{% translate "Facilities" %}</h2>
+          <ul class="venue-facility-list">
+            <li class="venue-facility-row"><span class="venue-facility-label"><i class="fas fa-restroom" aria-hidden="true"></i>{% translate "Toilet distance" %}</span><span class="venue-facility-value">{% if complex.distance_to_toilet %}{{ complex.distance_to_toilet }} m{% else %}{% translate "Unknown" %}{% endif %}</span></li>
+            <li class="venue-facility-row"><span class="venue-facility-label"><i class="fas fa-faucet-drip" aria-hidden="true"></i>{% translate "Water hose" %}</span><span class="venue-facility-value">{% if complex.distance_to_water_hose %}{{ complex.distance_to_water_hose }} m{% else %}{% translate "Unknown" %}{% endif %}</span></li>
+            <li class="venue-facility-row"><span class="venue-facility-label"><i class="fas fa-tree" aria-hidden="true"></i>{% translate "Daylight shade" %}</span><span class="venue-facility-value {% if complex.has_shadow_daytime %}venue-yes{% else %}venue-no{% endif %}">{% if complex.has_shadow_daytime %}<i class="fas fa-check" aria-hidden="true"></i> {% translate "Yes" %}{% else %}{% translate "No" %}{% endif %}</span></li>
+            <li class="venue-facility-row"><span class="venue-facility-label"><i class="fas fa-lightbulb" aria-hidden="true"></i>{% translate "Night lighting" %}</span><span class="venue-facility-value {% if complex.has_night_lighting %}venue-yes{% else %}venue-no{% endif %}">{% if complex.has_night_lighting %}<i class="fas fa-check" aria-hidden="true"></i> {% translate "Yes" %}{% else %}{% translate "No" %}{% endif %}</span></li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </section>
 </div>
 
-<!-- Rating Modal -->
-<div class="modal fade" id="ratingModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Rate {{ complex.name }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="ratingForm">
-                    <div class="mb-3">
-                        <label class="form-label">Rating</label>
-                        <div class="rating-stars" style="font-size: 2rem;">
-                            <i class="far fa-star" data-rating="1"></i>
-                            <i class="far fa-star" data-rating="2"></i>
-                            <i class="far fa-star" data-rating="3"></i>
-                            <i class="far fa-star" data-rating="4"></i>
-                            <i class="far fa-star" data-rating="5"></i>
-                        </div>
-                        <input type="hidden" id="rating" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="comment" class="form-label">Comment (Optional)</label>
-                        <textarea class="form-control" id="comment" rows="3" 
-                                  placeholder="Share your experience..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" onclick="submitRating()">Submit Rating</button>
-            </div>
-        </div>
-    </div>
+<div class="modal fade" id="ratingModal" tabindex="-1" aria-labelledby="ratingModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title fs-5" id="ratingModalTitle">{% blocktranslate with name=complex.name %}Rate {{ name }}{% endblocktranslate %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div><div class="modal-body"><form id="ratingForm"><div class="mb-3"><label class="form-label">{% translate "Rating" %}</label><div class="rating-stars" style="font-size:2rem;cursor:pointer;" aria-label="{% translate 'Select rating' %}">{% for i in "12345" %}<i class="far fa-star" data-rating="{{ forloop.counter }}"></i>{% endfor %}</div><input type="hidden" id="rating" required></div><div class="mb-3"><label for="comment" class="form-label">{% translate "Comment" %} <span class="text-muted">({% translate "optional" %})</span></label><textarea class="form-control" id="comment" rows="3" placeholder="{% translate 'Share your experience...' %}"></textarea></div></form></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">{% translate "Cancel" %}</button><button type="button" class="btn btn-primary" onclick="submitRating()">{% translate "Submit rating" %}</button></div></div></div>
 </div>
 
 <script>
-// Star rating functionality
-document.querySelectorAll('.rating-stars i').forEach(star => {
-    star.addEventListener('click', function() {
-        const rating = this.dataset.rating;
-        document.getElementById('rating').value = rating;
-        
-        // Update star display
-        document.querySelectorAll('.rating-stars i').forEach((s, index) => {
-            if (index < rating) {
-                s.className = 'fas fa-star text-warning';
-            } else {
-                s.className = 'far fa-star';
-            }
-        });
+(function () {
+  const tabs = document.querySelectorAll('[data-venue-tab]');
+  const panels = document.querySelectorAll('[data-venue-panel]');
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      const target = tab.dataset.venueTab;
+      tabs.forEach(function (item) { item.classList.toggle('active', item === tab); item.setAttribute('aria-selected', item === tab ? 'true' : 'false'); });
+      panels.forEach(function (panel) { panel.classList.toggle('active', panel.dataset.venuePanel === target); });
     });
-    
-    star.addEventListener('mouseover', function() {
-        const rating = this.dataset.rating;
-        document.querySelectorAll('.rating-stars i').forEach((s, index) => {
-            if (index < rating) {
-                s.className = 'fas fa-star text-warning';
-            } else {
-                s.className = 'far fa-star';
-            }
-        });
-    });
-});
+  });
 
-// Submit rating
+  document.querySelectorAll('.rating-stars i').forEach(function (star) {
+    star.addEventListener('click', function () {
+      const rating = Number(this.dataset.rating);
+      document.getElementById('rating').value = rating;
+      document.querySelectorAll('.rating-stars i').forEach(function (item, index) { item.className = index < rating ? 'fas fa-star text-warning' : 'far fa-star'; });
+    });
+    star.addEventListener('mouseover', function () {
+      const rating = Number(this.dataset.rating);
+      document.querySelectorAll('.rating-stars i').forEach(function (item, index) { item.className = index < rating ? 'fas fa-star text-warning' : 'far fa-star'; });
+    });
+  });
+})();
+
 function submitRating() {
-    const rating = document.getElementById('rating').value;
-    const comment = document.getElementById('comment').value.trim();
-
-    if (!rating) {
-        alert('Please select a star rating.');
-        return;
-    }
-
-    fetch('{% url "submit_rating" complex.id %}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: JSON.stringify({
-            stars: parseFloat(rating),
-            comment: comment
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Rating submitted successfully!');
-            location.reload();
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('An error occurred. Please try again.');
-    });
+  const rating = document.getElementById('rating').value;
+  const comment = document.getElementById('comment').value.trim();
+  if (!rating) { alert('{% translate "Please select a star rating." %}'); return; }
+  fetch('{% url "submit_rating" complex.id %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+    body: JSON.stringify({ stars: parseFloat(rating), comment: comment })
+  })
+  .then(function (response) { return response.json(); })
+  .then(function (data) {
+    if (data.success) { location.reload(); }
+    else { alert('{% translate "Error:" %} ' + data.error); }
+  })
+  .catch(function () { alert('{% translate "An error occurred. Please try again." %}'); });
 }
 </script>
 {% endblock %}
-

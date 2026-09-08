@@ -1,6 +1,11 @@
-from django.shortcuts import render, get_object_or_404, redirect
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
+from django.db.models import Q
+from django.shortcuts import render, get_object_or_404, redirect
+from django.utils import timezone
+
 from .models import Court, CourtComplex
 from .utils import get_court_complex_for_court
 from matches.models import Match
@@ -134,13 +139,111 @@ def court_complex_list(request):
         'complexes': complexes
     })
 
+def _current_billboard_presence_for_complex(court_complex):
+    """Return the current, deduplicated Billboard presence for one venue.
+
+    This is a read-only Court Complex presentation helper.  It applies the
+    existing Billboard current-presence windows to the canonical
+    ``BillboardEntry`` source without creating or changing any presence data.
+    """
+    from billboard.models import BillboardEntry
+    from courts.timezone_utils import get_court_local_now
+
+    now = timezone.now()
+    manual_cutoff = get_court_local_now(court_complex) - timedelta(hours=2)
+    game_cutoff = now - timedelta(hours=6)
+    candidates = (
+        BillboardEntry.objects.filter(
+            court_complex=court_complex,
+            action_type='AT_COURTS',
+            is_active=True,
+        )
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+        .filter(
+            Q(
+                presence_source__in=(
+                    BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                    BillboardEntry.PRESENCE_SOURCE_MATCH,
+                ),
+                created_at__gte=game_cutoff,
+            )
+            | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME)
+            | Q(
+                presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+                created_at__gte=manual_cutoff,
+            )
+            | Q(presence_source__isnull=True, created_at__gte=manual_cutoff)
+        )
+        .order_by('-created_at')
+    )
+
+    present = []
+    seen_codenames = set()
+    for entry in candidates:
+        codename = (entry.codename or '').upper()
+        if codename and codename in seen_codenames:
+            continue
+        if codename:
+            seen_codenames.add(codename)
+        present.append(entry)
+    return present
+
+
+def _live_venue_context(court_complex):
+    """Build presentation-only live data for a physical Court Complex."""
+    if not court_complex.has_coordinates():
+        return {
+            'is_physical': False,
+            'now_here': [],
+            'going': [],
+            'available_friendly_codenames': set(),
+            'community_report': None,
+        }
+
+    from billboard.community_presence import CommunityPresenceReport
+    from billboard.models import BillboardEntry
+    from courts.timezone_utils import get_court_local_now
+    from friendly_games.views import _eligible_friendly_court_players
+
+    now_here = _current_billboard_presence_for_complex(court_complex)
+    today = get_court_local_now(court_complex).date()
+    going = list(
+        BillboardEntry.objects.filter(
+            court_complex=court_complex,
+            action_type='GOING_TO_COURTS',
+            is_active=True,
+            going_status=BillboardEntry.GOING_STATUS_ACTIVE,
+        )
+        .filter(Q(scheduled_date__isnull=True) | Q(scheduled_date__gte=today))
+        .order_by('arrival_at', 'created_at')
+    )
+    available_friendly_codenames = {
+        player.codename_profile.codename.upper()
+        for player in _eligible_friendly_court_players(court_complex)
+        if getattr(player, 'codename_profile', None)
+    }
+    for entry in now_here:
+        entry.is_available_for_friendly = (
+            (entry.codename or '').upper() in available_friendly_codenames
+        )
+
+    return {
+        'is_physical': True,
+        'now_here': now_here,
+        'going': going,
+        'available_friendly_codenames': available_friendly_codenames,
+        'community_report': CommunityPresenceReport.get_active_for_court(court_complex),
+    }
+
+
 def court_complex_detail(request, complex_id):
-    """Detailed view of a court complex"""
+    """Detailed view of a court complex with read-only, per-venue live context."""
     complex_obj = get_object_or_404(CourtComplex, id=complex_id)
     ratings = complex_obj.ratings.all()
     photos = complex_obj.photos.all()[:4]  # Limit to 4 photos
     courts = complex_obj.courts.all()
-    
+    live_venue = _live_venue_context(complex_obj)
+
     return render(request, 'courts/court_complex_detail.html', {
         'complex': complex_obj,
         'ratings': ratings,
@@ -148,6 +251,7 @@ def court_complex_detail(request, complex_id):
         'courts': courts,
         'average_rating': complex_obj.average_rating(),
         'rating_count': complex_obj.rating_count(),
+        'live_venue': live_venue,
     })
 
 @require_POST
