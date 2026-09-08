@@ -103,6 +103,15 @@
 .venue-review-date { margin-top: 6px; color: #98a4b5; font-size: 11px; }
 .venue-physical-note { display: flex; align-items: center; gap: 7px; margin: 0 0 15px; padding: 11px 13px; border: 1px solid #e6edf8; border-radius: 13px; background: #f9fbff; color: var(--venue-muted); font-size: 12px; }
 .venue-physical-note i { color: var(--venue-blue); }
+.venue-usage-intro { margin: -3px 0 14px; color: var(--venue-muted); font-size: 12px; line-height: 1.45; }
+.venue-usage-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+.venue-usage-stat { padding: 11px 7px; border-radius: 12px; background: #f7faff; text-align: center; }
+.venue-usage-num { color: var(--venue-blue); font-size: 22px; font-weight: 850; line-height: 1; }
+.venue-usage-label { margin-top: 4px; color: var(--venue-muted); font-size: 10px; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
+.venue-chart-label { margin: 14px 0 6px; color: #526174; font-size: 11px; font-weight: 800; letter-spacing: .065em; text-transform: uppercase; }
+.venue-usage-chart { position: relative; min-height: 165px; }
+.venue-usage-chart canvas { width: 100% !important; max-height: 180px; }
+.venue-usage-status { padding: 17px 0 4px; color: var(--venue-muted); font-size: 12px; text-align: center; }
 @media (max-width: 720px) {
   .venue-page { padding-right: 10px; padding-left: 10px; }
   .venue-live-grid, .venue-info-layout { grid-template-columns: 1fr; }
@@ -219,6 +228,25 @@
   <section class="venue-panel{% if not live_venue.is_physical %} active{% endif %}" id="panel-info" role="tabpanel" aria-labelledby="tab-info" data-venue-panel="info">
     <div class="venue-info-layout">
       <div>
+        {% if live_venue.is_physical %}
+        <div class="venue-section-card venue-info-card" id="when-people-play">
+          <h2 class="venue-info-title"><i class="fas fa-chart-column" aria-hidden="true"></i>{% translate "When People Play" %}</h2>
+          <p class="venue-usage-intro">{% translate "Court usage from existing PFC presence data for this venue." %}</p>
+          <div class="venue-usage-stats" aria-live="polite">
+            <div class="venue-usage-stat"><div class="venue-usage-num" id="venue-usage-now">—</div><div class="venue-usage-label">{% translate "Now" %}</div></div>
+            <div class="venue-usage-stat"><div class="venue-usage-num" id="venue-usage-7d">—</div><div class="venue-usage-label">{% translate "7-day" %}</div></div>
+            <div class="venue-usage-stat"><div class="venue-usage-num" id="venue-usage-30d">—</div><div class="venue-usage-label">{% translate "30-day" %}</div></div>
+          </div>
+          <div class="venue-chart-label">{% translate "Peak Hours" %}</div>
+          <div class="venue-usage-chart"><canvas id="venue-usage-hourly" height="160"></canvas></div>
+          <div class="venue-chart-label">{% translate "Day of Week" %}</div>
+          <div class="venue-usage-chart"><canvas id="venue-usage-daily" height="140"></canvas></div>
+          <div class="venue-chart-label">{% translate "Weekly Trend" %}</div>
+          <div class="venue-usage-chart"><canvas id="venue-usage-weekly" height="140"></canvas></div>
+          <div class="venue-usage-status" id="venue-usage-status" hidden>{% translate "Usage information could not be loaded." %}</div>
+        </div>
+        {% endif %}
+
         <div class="venue-section-card venue-info-card">
           <h2 class="venue-info-title"><i class="fas fa-circle-info" aria-hidden="true"></i>{% translate "About this venue" %}</h2>
           {% if complex.description %}<div class="venue-description">{{ complex.description|linebreaks }}</div>{% else %}<p class="venue-description">{% translate "No venue description has been added yet." %}</p>{% endif %}
@@ -304,7 +332,61 @@
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title fs-5" id="ratingModalTitle">{% blocktranslate with name=complex.name %}Rate {{ name }}{% endblocktranslate %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div><div class="modal-body"><form id="ratingForm"><div class="mb-3"><label class="form-label">{% translate "Rating" %}</label><div class="rating-stars" style="font-size:2rem;cursor:pointer;" aria-label="{% translate 'Select rating' %}">{% for i in "12345" %}<i class="far fa-star" data-rating="{{ forloop.counter }}"></i>{% endfor %}</div><input type="hidden" id="rating" required></div><div class="mb-3"><label for="comment" class="form-label">{% translate "Comment" %} <span class="text-muted">({% translate "optional" %})</span></label><textarea class="form-control" id="comment" rows="3" placeholder="{% translate 'Share your experience...' %}"></textarea></div></form></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">{% translate "Cancel" %}</button><button type="button" class="btn btn-primary" onclick="submitRating()">{% translate "Submit rating" %}</button></div></div></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+const venueUsageCharts = {};
+let venueUsageLoaded = false;
+
+function renderVenueUsageChart(id, type, labels, data, color) {
+  const canvas = document.getElementById(id);
+  if (!canvas || !window.Chart) return;
+  if (venueUsageCharts[id]) venueUsageCharts[id].destroy();
+  venueUsageCharts[id] = new Chart(canvas.getContext('2d'), {
+    type: type,
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: type === 'line' ? color + '20' : color + '99',
+        borderColor: color,
+        borderWidth: type === 'line' ? 2 : 1.5,
+        borderRadius: type === 'bar' ? 4 : 0,
+        pointRadius: type === 'line' ? 3 : 0,
+        fill: type === 'line',
+        tension: type === 'line' ? 0.3 : 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: type === 'line' ? 10 : 11 }, maxTicksLimit: type === 'line' ? 8 : undefined } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+      },
+    },
+  });
+}
+
+function loadVenueUsage() {
+  if (venueUsageLoaded || !document.getElementById('when-people-play')) return;
+  venueUsageLoaded = true;
+  fetch('/billboard/api/analytics/court/{{ complex.id }}/')
+    .then(function (response) { return response.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error('analytics unavailable');
+      document.getElementById('venue-usage-now').textContent = data.current;
+      document.getElementById('venue-usage-7d').textContent = data.total_7d;
+      document.getElementById('venue-usage-30d').textContent = data.total_30d;
+      renderVenueUsageChart('venue-usage-hourly', 'bar', data.hourly.map(function (item) { return item.label; }), data.hourly.map(function (item) { return item.count; }), '#3b82f6');
+      renderVenueUsageChart('venue-usage-daily', 'bar', data.daily.map(function (item) { return item.label; }), data.daily.map(function (item) { return item.count; }), '#f59e0b');
+      renderVenueUsageChart('venue-usage-weekly', 'line', data.weekly.map(function (item) { return item.date; }), data.weekly.map(function (item) { return item.count; }), '#6366f1');
+    })
+    .catch(function () {
+      const status = document.getElementById('venue-usage-status');
+      if (status) status.hidden = false;
+    });
+}
+
 (function () {
   const tabs = document.querySelectorAll('[data-venue-tab]');
   const panels = document.querySelectorAll('[data-venue-panel]');
@@ -313,8 +395,12 @@
       const target = tab.dataset.venueTab;
       tabs.forEach(function (item) { item.classList.toggle('active', item === tab); item.setAttribute('aria-selected', item === tab ? 'true' : 'false'); });
       panels.forEach(function (panel) { panel.classList.toggle('active', panel.dataset.venuePanel === target); });
+      if (target === 'info') window.setTimeout(loadVenueUsage, 0);
     });
   });
+  if (document.getElementById('panel-info') && document.getElementById('panel-info').classList.contains('active')) {
+    window.setTimeout(loadVenueUsage, 0);
+  }
 
   document.querySelectorAll('.rating-stars i').forEach(function (star) {
     star.addEventListener('click', function () {
