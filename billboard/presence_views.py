@@ -23,7 +23,13 @@ from django.views.decorators.http import require_GET, require_POST
 
 from courts.models import CourtComplex
 from courts.timezone_utils import get_court_local_now
-from courts.proximity import distance_metres
+from courts.proximity import (
+    VERIFICATION_ACCURACY_ASSISTED,
+    VERIFICATION_AMBIGUOUS,
+    VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
+    assess_court_proximity,
+    assessment_payload,
+)
 from billboard.models import BillboardEntry, BillboardSettings
 from billboard.presence_prefs import UserPresencePrefs
 
@@ -248,14 +254,31 @@ def api_im_here(request):
             "error": _("Location permission is required to check in at these courts."),
         }, status=400)
 
-    proximity_distance_metres = distance_metres(
-        device_latitude,
-        device_longitude,
-        float(court.latitude),
-        float(court.longitude),
+    # Browser accuracy is a one-request uncertainty measurement. It never
+    # alters the configured Court Complex radius and missing/invalid values
+    # retain the established strict-radius behavior.
+    venue_confirmed = str(data.get("confirm_ambiguous_venue", "")).lower() in {"1", "true", "yes"}
+    proximity = assess_court_proximity(
+        latitude=device_latitude,
+        longitude=device_longitude,
+        selected_complex=court,
+        reported_accuracy=data.get("accuracy"),
+        venue_confirmed=venue_confirmed,
     )
-    if proximity_distance_metres > settings.PFC_FRIENDLY_COURT_PROXIMITY_METERS:
-        return JsonResponse({"ok": False, "error": _("You are not at the courts yet.")}, status=403)
+    verification = assessment_payload(proximity)
+    if proximity.outcome == VERIFICATION_AMBIGUOUS:
+        return JsonResponse({
+            "ok": False,
+            "requires_venue_confirmation": True,
+            "error": _("Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at."),
+            "verification": verification,
+        }, status=409)
+    if not proximity.allowed:
+        return JsonResponse({
+            "ok": False,
+            "error": _("You are not at the courts yet."),
+            "verification": verification,
+        }, status=403)
 
     # No per-player daily limit — unlimited check-ins allowed.
     # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
@@ -294,6 +317,7 @@ def api_im_here(request):
         scheduled_date=sched_date,
         message=message,
         is_anonymous=is_anonymous,
+        location_verification=proximity.outcome,
     )
 
     # Completing a GPS-protected manual check-in means the player has arrived
@@ -325,14 +349,23 @@ def api_im_here(request):
     except Exception:
         pass
 
-    return JsonResponse({
+    response = {
         "ok": True,
         "entry_id": entry.pk,
         "court": court.name,
         "date": sched_date.isoformat(),
         "completed_going_entry_id": completed_going_entry_ids[0] if completed_going_entry_ids else None,
         "completed_going_entry_ids": completed_going_entry_ids,
-    })
+        "verification": verification,
+    }
+    if proximity.outcome in {
+        VERIFICATION_ACCURACY_ASSISTED,
+        VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
+    }:
+        response["accuracy_notice"] = _(
+            "Your device reports low location accuracy (±%(accuracy)s m). Your presence has been accepted because the reported location uncertainty includes this Court Complex."
+        ) % {"accuracy": f"{proximity.reported_accuracy_metres:.0f}"}
+    return JsonResponse(response)
 
 
 @csrf_exempt

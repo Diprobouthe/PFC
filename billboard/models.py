@@ -67,6 +67,15 @@ class BillboardEntry(models.Model):
         (PRESENCE_SOURCE_POST_GAME, 'Post-game (30 min grace)'),
     ]
 
+    LOCATION_VERIFICATION_NORMAL_RADIUS = 'normal_radius'
+    LOCATION_VERIFICATION_ACCURACY_ASSISTED = 'accuracy_assisted'
+    LOCATION_VERIFICATION_USER_CONFIRMED_AMBIGUOUS = 'user_confirmed_ambiguous'
+    LOCATION_VERIFICATION_CHOICES = [
+        (LOCATION_VERIFICATION_NORMAL_RADIUS, 'Normal radius pass'),
+        (LOCATION_VERIFICATION_ACCURACY_ASSISTED, 'Accuracy-assisted pass'),
+        (LOCATION_VERIFICATION_USER_CONFIRMED_AMBIGUOUS, 'User-confirmed ambiguous venue'),
+    ]
+
     codename = models.CharField(max_length=6, help_text="Player codename (required)")
     action_type = models.CharField(max_length=20, choices=ACTION_CHOICES)
     court_complex = models.ForeignKey(CourtComplex, on_delete=models.CASCADE, help_text="Select court complex")
@@ -107,6 +116,16 @@ class BillboardEntry(models.Model):
         choices=PRESENCE_SOURCE_CHOICES,
         default=PRESENCE_SOURCE_MANUAL,
         help_text="How this presence entry was created."
+    )
+    # Internal provenance for a GPS-protected manual check-in.  It is not
+    # displayed publicly and does not record a user's raw coordinates/accuracy.
+    location_verification = models.CharField(
+        max_length=32,
+        choices=LOCATION_VERIFICATION_CHOICES,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text="How the manual Court Complex proximity check was verified."
     )
     # Opaque game reference: 'friendly:<id>' or 'match:<id>'.
     # Used to deactivate all entries for a specific game when it ends.
