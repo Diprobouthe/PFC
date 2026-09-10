@@ -2676,3 +2676,51 @@ msgstr "Η συσκευή σας αναφέρει χαμηλή ακρίβεια 
 #: friendly_games/views.py friendly_games/templates/friendly_games/create_game.html
 msgid "Your device reports low location accuracy (±%(accuracy)s m). Your location has been accepted because the reported location uncertainty includes this Court Complex."
 msgstr "Η συσκευή σας αναφέρει χαμηλή ακρίβεια τοποθεσίας (±%(accuracy)s μ.). Η τοποθεσία σας έγινε δεκτή επειδή η αναφερόμενη αβεβαιότητα τοποθεσίας περιλαμβάνει αυτό το Συγκρότημα Γηπέδων."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "unknown"
+msgstr "άγνωστο"
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "No browser error message was provided."
+msgstr "Δεν δόθηκε μήνυμα σφάλματος από το πρόγραμμα περιήγησης."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "Diagnostic"
+msgstr "Διάγνωση"
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "browser error.code"
+msgstr "κωδικός σφάλματος προγράμματος περιήγησης"
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "browser error.message"
+msgstr "μήνυμα σφάλματος προγράμματος περιήγησης"
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "initial attempt"
+msgstr "αρχική προσπάθεια"
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "PFC obtained your location, but the check-in request could not be completed. Check your connection and try again."
+msgstr "Το PFC έλαβε την τοποθεσία σας, αλλά το αίτημα δήλωσης παρουσίας δεν ολοκληρώθηκε. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "No request error message was provided."
+msgstr "Δεν δόθηκε μήνυμα σφάλματος αιτήματος."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "PFC does not currently have location permission. Allow location access in your browser settings, then try again."
+msgstr "Το PFC δεν έχει αυτήν τη στιγμή άδεια τοποθεσίας. Επιτρέψτε την πρόσβαση στην τοποθεσία στις ρυθμίσεις του προγράμματος περιήγησης και δοκιμάστε ξανά."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "Your device or browser could not currently provide a location after one retry. Check location services and try again."
+msgstr "Η συσκευή ή το πρόγραμμα περιήγησης δεν μπόρεσε να δώσει τοποθεσία μετά από μία επανάληψη. Ελέγξτε τις υπηρεσίες τοποθεσίας και δοκιμάστε ξανά."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "PFC could not obtain your location before the timeout, even after one retry. Try again with a clearer signal."
+msgstr "Το PFC δεν μπόρεσε να λάβει την τοποθεσία σας πριν από τη λήξη του χρονικού ορίου, ακόμη και μετά από μία επανάληψη. Δοκιμάστε ξανά με καλύτερο σήμα."
+
+#: billboard/templates/billboard/billboard_list.html
+msgid "PFC encountered an unexpected location error. Please try again."
+msgstr "Το PFC αντιμετώπισε ένα απρόσμενο σφάλμα τοποθεσίας. Δοκιμάστε ξανά."

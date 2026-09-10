@@ -27,7 +27,7 @@
 .bb-select option{color:#111;background:#fff}
 .bb-msg-input{width:100%;padding:8px 12px;border-radius:10px;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.1);color:#fff;font-size:14px;resize:none;margin-bottom:4px}
 .bb-msg-input::placeholder{color:rgba(255,255,255,.5)}
-#bb-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transition:opacity .25s,transform .25s;z-index:9999;pointer-events:none;white-space:nowrap}
+#bb-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);max-width:min(92vw,560px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transition:opacity .25s,transform .25s;z-index:9999;pointer-events:none;text-align:center;line-height:1.35}
 #bb-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .bb-section-hdr{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#64748b;margin:20px 0 10px}
 .bb-count{background:#e2e8f0;color:#475569;border-radius:10px;padding:1px 8px;font-size:12px}
@@ -134,6 +134,7 @@ canvas.bb-chart{width:100%!important;max-height:180px}
       </button>
     </div>
     <div id="going-status" aria-live="polite"></div>
+    <div id="bb-venue-confirmation" class="bb-going-status" style="display:none;align-items:stretch;flex-direction:column;gap:8px;" aria-live="polite"></div>
   </div>
 
   <!-- ── At courts — compact chip grid ──────────────────────────── -->
@@ -434,11 +435,103 @@ function getPayload(){
   const msg=document.getElementById('expand-message')?.value||'';
   return{court_id:courtId,scheduled_date:date,scheduled_time:customTime,arrival_mode:arrivalMode,message:msg};
 }
-function requestManualHereLocation(){
+const MANUAL_HERE_INITIAL_TIMEOUT_MS=15000;
+const MANUAL_HERE_RETRY_TIMEOUT_MS=20000;
+function requestManualHereLocation(timeoutMs){
   return new Promise((resolve, reject) => {
     if(!navigator.geolocation){ reject({code:'unsupported'}); return; }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy:true,
+      timeout:timeoutMs,
+      maximumAge:0,
+    });
   });
+}
+function locationFailure(error, initialError){
+  return {
+    pfcLocationFailure:true,
+    code:error&&typeof error.code==='number'?error.code:null,
+    message:String((error&&error.message)||''),
+    initialCode:initialError&&typeof initialError.code==='number'?initialError.code:null,
+    initialMessage:String((initialError&&initialError.message)||''),
+  };
+}
+async function requestManualHereLocationWithRetry(){
+  try{return await requestManualHereLocation(MANUAL_HERE_INITIAL_TIMEOUT_MS);}
+  catch(firstError){
+    const firstCode=firstError&&firstError.code;
+    if(firstCode!==2&&firstCode!==3) throw firstError;
+    try{return await requestManualHereLocation(MANUAL_HERE_RETRY_TIMEOUT_MS);}
+    catch(retryError){throw locationFailure(retryError,firstError);}
+  }
+}
+function locationDiagnostic(error){
+  const code=error&&error.code!==null&&typeof error.code!=='undefined'?String(error.code):'{% translate "unknown" %}';
+  const message=String((error&&error.message)||'')||'{% translate "No browser error message was provided." %}';
+  let diagnostic='{% translate "Diagnostic" %}: {% translate "browser error.code" %}='+code+'; {% translate "browser error.message" %}='+message;
+  if(error&&error.initialCode!==null&&typeof error.initialCode!=='undefined'){
+    diagnostic+='; {% translate "initial attempt" %}: {% translate "browser error.code" %}='+error.initialCode+'; {% translate "browser error.message" %}='+(error.initialMessage||'{% translate "No browser error message was provided." %}');
+  }
+  return diagnostic;
+}
+function clearVenueConfirmation(){
+  const panel=document.getElementById('bb-venue-confirmation');
+  if(panel){panel.innerHTML='';panel.style.display='none';}
+}
+function showVenueConfirmation(verification, retry){
+  const panel=document.getElementById('bb-venue-confirmation');
+  const venues=(verification&&verification.venues)||[];
+  if(!panel||!venues.length)return;
+  const accuracy=Math.round(Number(verification.reported_accuracy_metres)||0);
+  panel.innerHTML='<strong>{% translate "Confirm your Court Complex" %}</strong><span>{% translate "Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at." %} '+(accuracy?'(±'+accuracy+' m)':'')+'</span><div style="display:grid;gap:6px">'+venues.map(v=>'<button type="button" class="bb-cancel-going" style="text-align:left" data-confirm-venue="'+Number(v.id)+'">'+escapeStatusText(v.name)+'</button>').join('')+'</div>';
+  panel.style.display='flex';
+  panel.querySelectorAll('[data-confirm-venue]').forEach(button=>button.addEventListener('click',()=>{
+    const courtSelect=document.getElementById('sel-court');
+    if(courtSelect)courtSelect.value=button.dataset.confirmVenue;
+    onCourtChange();
+    clearVenueConfirmation();
+    retry(Number(button.dataset.confirmVenue));
+  }));
+}
+async function submitManualHere(position, confirmedCourtId){
+  const payload=getPayload();
+  if(confirmedCourtId)payload.court_id=confirmedCourtId;
+  payload.latitude=position.coords.latitude;
+  payload.longitude=position.coords.longitude;
+  payload.accuracy=position.coords.accuracy;
+  payload.position_timestamp=position.timestamp;
+  const showName=document.getElementById('anon-toggle')?.checked ?? true;
+  payload.is_anonymous = !showName;
+  if(confirmedCourtId)payload.confirm_ambiguous_venue=true;
+  // A due arrival reminder carries one specific Going declaration.  Pass it
+  // through only to the established manual check-in success path so that the
+  // server can complete exactly that declaration after GPS verification.
+  const goingEntryId = Number(new URLSearchParams(window.location.search).get('going_entry_id'));
+  if (Number.isInteger(goingEntryId) && goingEntryId > 0)payload.going_entry_id = goingEntryId;
+  let r;
+  try{
+    r=await fetch('/billboard/api/im-here/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(payload)});
+  }catch(error){
+    throw {pfcRequestFailure:true,message:String((error&&error.message)||''),stage:'fetch'};
+  }
+  const d=await r.json().catch(()=>null);
+  if(!d){
+    throw {pfcRequestFailure:true,message:'HTTP '+r.status+' '+r.statusText,stage:'response'};
+  }
+  if(d.ok){
+    if (d.completed_going_entry_id) {
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('action');
+      clean.searchParams.delete('going_entry_id');
+      window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash);
+    }
+    toast('✅ You\'re at '+d.court+'!');
+    if(d.accuracy_notice)setTimeout(()=>toast('ℹ️ '+d.accuracy_notice),350);
+    setTimeout(()=>location.reload(),d.accuracy_notice?3300:1200);
+    return;
+  }
+  if(d.requires_venue_confirmation){showVenueConfirmation(d.verification,(courtId)=>submitManualHere(position,courtId));return;}
+  toast('⚠️ '+(d.error||'Error'));
 }
 async function oneTapHere(){
   const btn=document.getElementById('btn-im-here');
@@ -446,36 +539,22 @@ async function oneTapHere(){
     toast('⚠️ {% translate "Manual check-in is unavailable because this Court Complex has no location configured." %}');
     return;
   }
-  btn.disabled=true;btn.style.opacity='.6';
-  try{
-    const position=await requestManualHereLocation();
-    const payload=getPayload();
-    payload.latitude=position.coords.latitude;
-    payload.longitude=position.coords.longitude;
-    const showName=document.getElementById('anon-toggle')?.checked ?? true;
-    payload.is_anonymous = !showName;
-    // A due arrival reminder carries one specific Going declaration.  Pass it
-    // through only to the established manual check-in success path so that the
-    // server can complete exactly that declaration after GPS verification.
-    const goingEntryId = Number(new URLSearchParams(window.location.search).get('going_entry_id'));
-    if (Number.isInteger(goingEntryId) && goingEntryId > 0) {
-      payload.going_entry_id = goingEntryId;
+  clearVenueConfirmation();btn.disabled=true;btn.style.opacity='.6';
+  try{const position=await requestManualHereLocationWithRetry();await submitManualHere(position,null);}
+  catch(e){
+    if(e&&e.pfcRequestFailure){
+      toast('⚠️ {% translate "PFC obtained your location, but the check-in request could not be completed. Check your connection and try again." %} {% translate "Diagnostic" %}: '+(e.message||'{% translate "No request error message was provided." %}'));
+    }else if(e&&e.code===1){
+      toast('⚠️ {% translate "PFC does not currently have location permission. Allow location access in your browser settings, then try again." %} '+locationDiagnostic(e));
+    }else if(e&&e.code==='unsupported'){
+      toast('⚠️ {% translate "Location is not supported on this device." %}');
+    }else if(e&&e.code===2){
+      toast('⚠️ {% translate "Your device or browser could not currently provide a location after one retry. Check location services and try again." %} '+locationDiagnostic(e));
+    }else if(e&&e.code===3){
+      toast('⚠️ {% translate "PFC could not obtain your location before the timeout, even after one retry. Try again with a clearer signal." %} '+locationDiagnostic(e));
+    }else{
+      toast('⚠️ {% translate "PFC encountered an unexpected location error. Please try again." %} '+locationDiagnostic(e));
     }
-    const r=await fetch('/billboard/api/im-here/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(payload)});
-    const d=await r.json();if(d.ok){
-      if (d.completed_going_entry_id) {
-        const clean = new URL(window.location.href);
-        clean.searchParams.delete('action');
-        clean.searchParams.delete('going_entry_id');
-        window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash);
-      }
-      toast('✅ You\'re at '+d.court+'!');setTimeout(()=>location.reload(),1200);
-    }else toast('⚠️ '+(d.error||'Error'));
-  }catch(e){
-    if(e && e.code === 1) toast('⚠️ {% translate "Location permission is required to check in at these courts." %}');
-    else if(e && e.code === 'unsupported') toast('⚠️ {% translate "Location is not supported on this device." %}');
-    else if(e && typeof e.code === 'number') toast('⚠️ {% translate "Your location could not be determined. Please try again." %}');
-    else toast('⚠️ {% translate "Your location could not be determined. Please try again." %}');
   }finally{btn.disabled=!BB.manualHereAvailable;btn.style.opacity=BB.manualHereAvailable?'1':'.45';}
 }
 function oneTapGoingOpen(){
