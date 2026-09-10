@@ -9,6 +9,7 @@ from friendly_games.models import (
     PlayerCodename,
 )
 from teams.models import Player, Team
+from matches.models import ScoreUpdate
 
 
 class FriendlyActivationGuardTests(TestCase):
@@ -17,6 +18,7 @@ class FriendlyActivationGuardTests(TestCase):
         self.player_one = Player.objects.create(name='Player One', team=self.team)
         self.player_two = Player.objects.create(name='Player Two', team=self.team)
         PlayerCodename.objects.create(player=self.player_one, codename='PLYR01')
+        PlayerCodename.objects.create(player=self.player_two, codename='PLYR02')
 
     def make_game(self, name, status='WAITING_FOR_PLAYERS'):
         game = FriendlyGame.objects.create(name=name, creator_player=self.player_one)
@@ -108,6 +110,60 @@ class FriendlyActivationGuardTests(TestCase):
 
         waiting_game.refresh_from_db()
         self.assertEqual(waiting_game.status, 'WAITING_FOR_PLAYERS')
+
+    def test_starting_side_banner_remains_for_selected_side_until_the_first_real_score(self):
+        game = self.make_game('Draw visibility game')
+        game.activate(choose_starting_team=True)
+        scoreboard = game.live_scoreboard
+        selected_codename = 'PLYR01' if game.starting_team == 'BLACK' else 'PLYR02'
+        other_codename = 'PLYR02' if selected_codename == 'PLYR01' else 'PLYR01'
+
+        session = self.client.session
+        session['player_codename'] = selected_codename
+        session['session_active'] = True
+        session.save()
+        response = self.client.get(reverse('friendly_games:game_detail', args=[game.id]))
+        self.assertContains(response, 'friendly-starting-side-banner')
+        self.assertContains(response, 'starts first')
+        response = self.client.get(reverse('scoreboard_detail', args=[scoreboard.id]))
+        self.assertContains(response, 'friendly-starting-side-banner')
+
+        session = self.client.session
+        session['player_codename'] = other_codename
+        session['session_active'] = True
+        session.save()
+        response = self.client.get(reverse('friendly_games:game_detail', args=[game.id]))
+        self.assertNotContains(response, 'id="friendly-starting-side-banner"')
+        response = self.client.get(reverse('scoreboard_detail', args=[scoreboard.id]))
+        self.assertNotContains(response, 'id="friendly-starting-side-banner"')
+
+        # A 0–0 record is not an actual score and must not hide the draw result.
+        ScoreUpdate.objects.create(
+            scoreboard=scoreboard,
+            team1_score=0,
+            team2_score=0,
+            scorekeeper_codename=selected_codename,
+            update_type='correction',
+        )
+        session = self.client.session
+        session['player_codename'] = selected_codename
+        session.save()
+        response = self.client.get(reverse('friendly_games:game_detail', args=[game.id]))
+        self.assertContains(response, 'friendly-starting-side-banner')
+        response = self.client.get(reverse('scoreboard_detail', args=[scoreboard.id]))
+        self.assertContains(response, 'friendly-starting-side-banner')
+
+        ScoreUpdate.objects.create(
+            scoreboard=scoreboard,
+            team1_score=1,
+            team2_score=0,
+            scorekeeper_codename=selected_codename,
+            update_type='increment',
+        )
+        response = self.client.get(reverse('friendly_games:game_detail', args=[game.id]))
+        self.assertNotContains(response, 'id="friendly-starting-side-banner"')
+        response = self.client.get(reverse('scoreboard_detail', args=[scoreboard.id]))
+        self.assertNotContains(response, 'id="friendly-starting-side-banner"')
 
     def test_disputed_result_cannot_reopen_while_players_are_active_elsewhere(self):
         disputed_game = self.make_game('Disputed game')

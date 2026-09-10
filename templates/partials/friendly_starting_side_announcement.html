@@ -1,0 +1,96 @@
+{% load i18n %}
+{% if friendly_game.starting_team and starting_side_is_recipient and not starting_side_has_score %}
+<style>
+    .friendly-starting-side-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 12px;
+        padding: 12px 13px;
+        border: 1px solid #8bc4f4;
+        border-radius: 13px;
+        background: linear-gradient(135deg, #eaf6ff, #f6fbff);
+        color: #123f70;
+        box-shadow: 0 4px 14px rgba(24, 105, 177, .10);
+    }
+    .friendly-starting-side-banner__icon {
+        display: grid;
+        flex: 0 0 32px;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border-radius: 50%;
+        background: #1b70c4;
+        color: #fff;
+        font-size: .9rem;
+    }
+    .friendly-starting-side-banner__copy { min-width: 0; flex: 1; }
+    .friendly-starting-side-banner__eyebrow {
+        display: block;
+        margin-bottom: 2px;
+        color: #52769d;
+        font-size: .66rem;
+        font-weight: 850;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+    .friendly-starting-side-banner__message {
+        font-size: .93rem;
+        font-weight: 850;
+        line-height: 1.25;
+    }
+</style>
+<section id="friendly-starting-side-banner" class="friendly-starting-side-banner" aria-live="polite">
+    <span class="friendly-starting-side-banner__icon" aria-hidden="true"><i class="fas fa-flag-checkered"></i></span>
+    <div class="friendly-starting-side-banner__copy">
+        <span class="friendly-starting-side-banner__eyebrow">{% translate "Starting side" %}</span>
+        <div class="friendly-starting-side-banner__message">
+            {% if friendly_game.starting_team == 'BLACK' %}{% translate "Black Team" %}{% else %}{% translate "White Team" %}{% endif %} {% translate "starts first" %}
+        </div>
+    </div>
+</section>
+<script>
+(function () {
+    var banner = document.getElementById('friendly-starting-side-banner');
+    if (!banner) return;
+    window.PFCFriendlyStartingSideAnnouncement = {
+        hideForFirstScore: function (scoreUpdate) {
+            if (!scoreUpdate) return;
+            if (Number(scoreUpdate.team1_score) > 0 || Number(scoreUpdate.team2_score) > 0) banner.remove();
+        }
+    };
+
+    {% if listen_for_score_updates %}
+    var scoreboardId = '{{ starting_side_scoreboard_id|default:"" }}';
+    if (!scoreboardId || !window.WebSocket) return;
+    var retryDelay = 1500;
+    var scoreSocket = null;
+    function connectScoreSocket() {
+        if (!document.getElementById('friendly-starting-side-banner') || (scoreSocket && (scoreSocket.readyState === WebSocket.OPEN || scoreSocket.readyState === WebSocket.CONNECTING))) return;
+        var scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        try {
+            scoreSocket = new WebSocket(scheme + '://' + window.location.host + '/ws/scoreboard/' + scoreboardId + '/');
+            scoreSocket.onmessage = function (event) {
+                try {
+                    var payload = JSON.parse(event.data);
+                    if (payload.type === 'score.updated') window.PFCFriendlyStartingSideAnnouncement.hideForFirstScore(payload);
+                } catch (error) {}
+            };
+            scoreSocket.onclose = function () {
+                scoreSocket = null;
+                if (document.getElementById('friendly-starting-side-banner')) {
+                    window.setTimeout(connectScoreSocket, retryDelay);
+                    retryDelay = Math.min(retryDelay * 2, 30000);
+                }
+            };
+            scoreSocket.onerror = function () { if (scoreSocket) scoreSocket.close(); };
+        } catch (error) {
+            window.setTimeout(connectScoreSocket, retryDelay);
+            retryDelay = Math.min(retryDelay * 2, 30000);
+        }
+    }
+    connectScoreSocket();
+    {% endif %}
+})();
+</script>
+{% endif %}

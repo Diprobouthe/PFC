@@ -241,6 +241,10 @@
     </div>
     {% endif %}
 
+    {% if scoreboard.friendly_game %}
+        {% include 'partials/friendly_starting_side_announcement.html' with friendly_game=scoreboard.friendly_game listen_for_score_updates=False %}
+    {% endif %}
+
     <!-- Timer (friendly timed games only) -->
     {% if scoreboard.friendly_game and scoreboard.friendly_game.is_timed and scoreboard.friendly_game.timer_started_at %}
         {% with remaining=scoreboard.friendly_game.time_remaining_seconds total=scoreboard.friendly_game.timer_total_seconds %}
@@ -599,6 +603,12 @@
 
             var newT1 = data.team1_score;
             var newT2 = data.team2_score;
+
+            // The existing stored Friendly draw announcement ends globally only
+            // after the first real official score update, never on activation.
+            if (window.PFCFriendlyStartingSideAnnouncement) {
+                window.PFCFriendlyStartingSideAnnouncement.hideForFirstScore(data);
+            }
 
             // Update live display
             if (team1El && parseInt(team1El.textContent) !== newT1) {

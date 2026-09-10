@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static practice_display %}
 
 {% block title %}Session Summary - Petanque Platform{% endblock %}
 
-{% block extra_css %}
+{% block content %}
 <style>
 /* Session summary specific styles */
 .summary-container {
@@ -257,22 +257,77 @@
     .session-actions { flex-direction: column; }
     .shot-badge { width: 32px; height: 32px; line-height: 32px; }
 }
-</style>
-{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-    <div class="summary-container">
+/* ============================================================
+   COMPLETED PRACTICE — COMPACT MOBILE-FIRST PRESENTATION
+   Presentation only; all existing context values and branches remain.
+   ============================================================ */
+.summary-page { max-width: 720px; margin: 0 auto; padding-bottom: 30px; }
+.summary-page *, .summary-page *::before, .summary-page *::after { box-sizing: border-box; }
+.summary-back { margin-bottom: 9px; }
+.summary-back .btn { min-height: 38px; border-radius: 10px; font-weight: 700; }
+.summary-header {
+    padding: 15px; margin: 0 0 10px; text-align: left; border-radius: 17px;
+    box-shadow: 0 6px 18px rgba(10, 75, 145, .16);
+}
+.summary-header h1 { margin: 0; font-size: clamp(1.35rem, 5.5vw, 1.8rem); font-weight: 850; line-height: 1.12; }
+.summary-header .summary-date { margin: 5px 0 0; opacity: .84; font-size: .82rem; }
+.summary-session-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.summary-meta-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.42); border-radius: 999px; color: #fff; font-size: .72rem; font-weight: 750; }
+.summary-meta-chip strong { color: #fff; }
+.summary-page .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 0 0 10px; }
+.summary-page .stat-card { min-width: 0; padding: 10px 5px; border: 0; border-radius: 13px; box-shadow: 0 3px 12px rgba(15,55,110,.09); }
+.summary-page .stat-card.highlight { background: #f2f7ff; box-shadow: inset 0 0 0 1px #d7e7ff; }
+.summary-page .stat-value { margin: 0; font-size: clamp(1.15rem, 5vw, 1.55rem); line-height: 1.1; font-weight: 850; overflow: hidden; text-overflow: ellipsis; }
+.summary-page .stat-label { margin: 4px 0 0; font-size: .62rem; font-weight: 800; line-height: 1.1; letter-spacing: .04em; }
+.summary-page .stat-description { margin-top: 2px; font-size: .64rem; line-height: 1.1; }
+.summary-card { border: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 3px 14px rgba(15,55,110,.10); margin: 0 0 10px; }
+.summary-card .card-header { padding: 11px 13px; background: #f8faff; border-bottom: 1px solid #e6edf7; color: #264b78; }
+.summary-card .card-header h5, .summary-card .card-header h6 { margin: 0; font-size: 1rem; font-weight: 850; }
+.summary-card .card-body { padding: 13px; }
+.summary-breakdown-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.summary-breakdown-item { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 8px; border-radius: 11px; background: #f7faff; }
+.summary-breakdown-item .badge { flex: 0 0 auto; min-width: 26px; font-size: .75rem; }
+.summary-breakdown-item-text { min-width: 0; color: #4c6078; font-size: .76rem; line-height: 1.2; }
+.summary-breakdown-item-text strong { display: block; color: #263b58; font-size: .79rem; }
+.summary-key-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.summary-key-metric { min-width: 0; padding: 8px; border-radius: 11px; background: #f6f8fb; color: #4c6078; font-size: .75rem; line-height: 1.25; }
+.summary-key-metric i { color: #2563b9; margin-right: 4px; }
+.performance-note { margin: 10px 0 0; padding: 10px 11px; border: 0; border-left: 4px solid #2563b9; border-radius: 10px; background: #eef6ff; color: #294b70; font-size: .83rem; line-height: 1.38; }
+.performance-note h6 { margin: 0 0 3px; color: #1d4f8f; font-size: .82rem; font-weight: 850; }
+.summary-page .shot-sequence { margin: 0; padding: 4px 0; background: transparent; border-radius: 0; text-align: center; }
+.summary-page .shot-badge { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; line-height: 1; margin: 3px; border: 0; box-shadow: 0 2px 5px rgba(0,0,0,.12); }
+/* Pointing sequence badges mirror the compact outcome-button cards. */
+.summary-page .shot-badge.pointing-sequence-badge { width: 45px; height: 35px; border: 2px solid; border-radius: 10px; font-size: .96rem; }
+.summary-page .pointing-sequence-perfect { color: #1f6a37; background: #effcf3; border-color: #28a45b; }
+.summary-page .pointing-sequence-good { color: #9a6900; background: #fffbea; border-color: #e4ad16; }
+.summary-page .pointing-sequence-fair { color: #b3262a; background: #fff3f3; border-color: #dc3e42; }
+.summary-page .pointing-sequence-far { color: #475569; background: #f7f8fb; border-color: #64748b; }
+.summary-sequence-note { display: block; margin-top: 6px; color: #74849a; font-size: .73rem; text-align: center; }
+.summary-motivation { padding: 13px; text-align: center; border-radius: 15px; background: #f1f8f4; color: #2b6243; }
+.summary-motivation h5 { margin: 0 0 3px; font-size: 1rem; font-weight: 850; }
+.summary-motivation p { margin: 0; font-size: .83rem; line-height: 1.35; }
+.summary-page .session-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin: 2px 0 0; }
+.summary-page .session-actions .btn { min-height: 41px; padding: 7px 5px; border-radius: 10px; font-size: .76rem; font-weight: 800; }
+@media (max-width: 470px) {
+    .summary-page .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .summary-page .stat-card { padding: 10px; }
+    .summary-page .stat-label { font-size: .67rem; }
+    .summary-page .session-actions { grid-template-columns: 1fr; }
+}
+</style>
+<div class="container mt-2 mb-4">
+    <div class="summary-container summary-page">
         <!-- Back Navigation -->
-        <div class="mb-3">
+        <div class="summary-back">
             <a href="{% url 'practice:shooting_practice' %}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left me-2"></i>Back to Practice
             </a>
         </div>
 
         <!-- Session Summary Header -->
-        <div class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% elif session.drill_type == 'tactical' %}tactical-header{% elif session.drill_type == 'sequence' %}sequence-header{% elif session.drill_type == 'hidden_target' %}hidden-target-header{% endif %}">
-            <h1 class="h2 mb-3">
+        <header class="summary-header {% if session.drill_type == 'tir_de_precision' %}tdp-header{% elif session.drill_type == 'tactical' %}tactical-header{% elif session.drill_type == 'sequence' %}sequence-header{% elif session.drill_type == 'hidden_target' %}hidden-target-header{% endif %}">
+            <h1>
                 {% if session.drill_type == 'tir_de_precision' %}
                     <i class="fas fa-trophy me-2"></i>Tir de Précision — Session Complete!
                 {% elif session.drill_type == 'tactical' %}
@@ -285,29 +340,27 @@
                     <i class="fas fa-chart-line me-2"></i>Session Complete!
                 {% endif %}
             </h1>
-            <p class="mb-2 opacity-75">{{ session.started_at|date:"F d, Y" }} at {{ session.started_at|time:"H:i" }}</p>
-            <p class="mb-1">
-                <strong>{{ player_name|default:session.player_codename }}</strong> •
-                Duration: {{ summary.duration }}
-            </p>
-            <p class="mb-0 opacity-75">
+            <p class="summary-date">{{ session.started_at|date:"F d, Y" }} at {{ session.started_at|time:"H:i" }}</p>
+            <div class="summary-session-meta">
+                <span class="summary-meta-chip"><i class="fas fa-user"></i><strong>{{ player_name|default:session.player_codename }}</strong></span>
+                <span class="summary-meta-chip"><i class="fas fa-clock"></i>Duration: <strong>{{ summary.duration }}</strong></span>
                 {% if session.drill_type == 'tir_de_precision' %}
-                    <i class="fas fa-trophy me-1"></i>Tir de Précision
+                    <span class="summary-meta-chip"><i class="fas fa-trophy"></i>Tir de Précision</span>
                 {% elif session.drill_type == 'tactical' %}
-                    <i class="fas fa-chess me-1"></i>Tactical Situations
+                    <span class="summary-meta-chip"><i class="fas fa-chess"></i>Tactical Situations</span>
                 {% elif session.drill_type == 'sequence' %}
-                    <i class="fas fa-list-ol me-1"></i>Sequence Drill
+                    <span class="summary-meta-chip"><i class="fas fa-list-ol"></i>Sequence Drill</span>
                 {% elif session.drill_type == 'hidden_target' %}
-                    <i class="fas fa-eye-slash me-1"></i>Hidden Target
+                    <span class="summary-meta-chip"><i class="fas fa-eye-slash"></i>Hidden Target</span>
                 {% else %}
-                    <i class="fas fa-ruler me-1"></i>Distance: <strong>{{ session.distance }}</strong> •
-                    <i class="fas fa-sort-numeric-down me-1"></i>Sequence Tracking: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong>
+                    <span class="summary-meta-chip"><i class="fas fa-ruler"></i>Distance: <strong>{{ session.distance }}</strong></span>
+                    <span class="summary-meta-chip"><i class="fas fa-sort-numeric-down"></i>Sequence: <strong>{% if session.sequence_tracking %}ON{% else %}OFF{% endif %}</strong></span>
                 {% endif %}
                 {% if session.court_complex %}
-                    &nbsp;•&nbsp;<i class="fas fa-map-marker-alt me-1"></i><strong>{{ session.court_complex.name }}</strong>
+                    <span class="summary-meta-chip"><i class="fas fa-map-marker-alt"></i><strong>{{ session.court_complex.name }}</strong></span>
                 {% endif %}
-            </p>
-        </div>
+            </div>
+        </header>
 
         {% if session.drill_type == 'tir_de_precision' or session.drill_type == 'tactical' or session.drill_type == 'sequence' or session.drill_type == 'hidden_target' %}
         <!-- =====================================================
@@ -511,123 +564,61 @@
         </div>
 
         <!-- Performance Insights -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-lightbulb me-2"></i>Performance Insights
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6 class="text-muted">Session Breakdown</h6>
-                                <ul class="list-unstyled">
-                                    {% if session.practice_type == 'shooting' %}
-                                        <li class="mb-2">
-                                            <span class="badge bg-warning text-dark me-2">{{ session.carreaux }}</span>
-                                            🤩 Carreaux ({{ session.carreau_percentage|floatformat:1 }}%)
-                                        </li>
-                                        <li class="mb-2">
-                                            <span class="badge bg-info me-2">{{ session.petit_carreaux }}</span>
-                                            💪 Petit Carreaux ({{ session.petit_carreau_percentage|floatformat:1 }}%)
-                                        </li>
-                                        <li class="mb-2">
-                                            <span class="badge bg-success me-2">{{ session.hits }}</span>
-                                            👍 Hits ({{ session.hit_percentage|floatformat:1 }}%)
-                                        </li>
-                                        <li class="mb-2">
-                                            <span class="badge bg-danger me-2">{{ session.misses }}</span>
-                                            😳 Misses ({{ session.miss_percentage|floatformat:1 }}%)
-                                        </li>
-                                    {% else %}
-                                        <li class="mb-2">
-                                            <span class="badge bg-warning text-dark me-2">{{ session.perfects }}</span>
-                                            🤩 Perfect ({{ session.perfect_percentage|floatformat:1 }}%)
-                                        </li>
-                                        <li class="mb-2">
-                                            <span class="badge bg-info me-2">{{ session.goods }}</span>
-                                            💪 Good ({{ session.good_percentage|floatformat:1 }}%)
-                                        </li>
-                                        <li class="mb-2">
-                                            <span class="badge bg-success me-2">{{ session.fairs }}</span>
-                                            👍 Fair ({{ session.fair_percentage|floatformat:1 }}%)
-                                        </li>
-                                        <li class="mb-2">
-                                            <span class="badge bg-danger me-2">{{ session.fars }}</span>
-                                            😳 Far ({{ session.far_percentage|floatformat:1 }}%)
-                                        </li>
-                                    {% endif %}
-                                </ul>
-                            </div>
-                            <div class="col-md-6">
-                                <h6 class="text-muted">Key Metrics</h6>
-                                <ul class="list-unstyled">
-                                    {% if summary.first_miss_position %}
-                                        <li class="mb-2">
-                                            <i class="fas fa-crosshairs text-warning me-2"></i>
-                                            First miss at shot #{{ summary.first_miss_position }}
-                                        </li>
-                                    {% endif %}
-                                    <li class="mb-2">
-                                        <i class="fas fa-fire text-danger me-2"></i>
-                                        Longest streak: {{ summary.longest_streak }} shots
-                                    </li>
-                                    <li class="mb-2">
-                                        <i class="fas fa-clock text-info me-2"></i>
-                                        Session duration: {{ summary.duration }}
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        {% if summary.performance_note %}
-                            <div class="performance-note">
-                                <h6 class="mb-2">
-                                    <i class="fas fa-chart-line me-2"></i>Performance Pattern
-                                </h6>
-                                <p class="mb-0">{{ summary.performance_note }}</p>
-                            </div>
-                        {% endif %}
-                    </div>
+        <section class="card summary-card">
+            <div class="card-header"><h5><i class="fas fa-lightbulb me-2"></i>Performance Insights</h5></div>
+            <div class="card-body">
+                <div class="summary-breakdown-grid">
+                    {% if session.practice_type == 'shooting' %}
+                        <div class="summary-breakdown-item"><span class="badge bg-warning text-dark">{{ session.carreaux }}</span><div class="summary-breakdown-item-text"><strong>🤩 Carreaux</strong>{{ session.carreau_percentage|floatformat:1 }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-info">{{ session.petit_carreaux }}</span><div class="summary-breakdown-item-text"><strong>💪 Petit Carreaux</strong>{{ session.petit_carreau_percentage|floatformat:1 }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-success">{{ session.hits }}</span><div class="summary-breakdown-item-text"><strong>👍 Hits</strong>{{ session.hit_percentage|floatformat:1 }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-danger">{{ session.misses }}</span><div class="summary-breakdown-item-text"><strong>😳 Misses</strong>{{ session.miss_percentage|floatformat:1 }}%</div></div>
+                    {% else %}
+                        <div class="summary-breakdown-item"><span class="badge bg-warning text-dark">{{ session.perfects }}</span><div class="summary-breakdown-item-text"><strong>🤩 Perfect</strong>{{ session.perfects|percentage_of:summary.total_shots }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-info">{{ session.goods }}</span><div class="summary-breakdown-item-text"><strong>💪 Good</strong>{{ session.goods|percentage_of:summary.total_shots }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-success">{{ session.fairs }}</span><div class="summary-breakdown-item-text"><strong>👍 Fair</strong>{{ session.fairs|percentage_of:summary.total_shots }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-danger">{{ session.fars }}</span><div class="summary-breakdown-item-text"><strong>😳 Far</strong>{{ session.fars|percentage_of:summary.total_shots }}%</div></div>
+                    {% endif %}
                 </div>
+                <div class="summary-key-metrics">
+                    {% if summary.first_miss_position %}
+                    <div class="summary-key-metric"><i class="fas fa-crosshairs"></i>First miss at shot #{{ summary.first_miss_position }}</div>
+                    {% endif %}
+                    <div class="summary-key-metric"><i class="fas fa-fire"></i>Longest streak: {{ summary.longest_streak }} shots</div>
+                    <div class="summary-key-metric"><i class="fas fa-clock"></i>Session duration: {{ summary.duration }}</div>
+                </div>
+                {% if summary.performance_note %}
+                <div class="performance-note">
+                    <h6><i class="fas fa-chart-line me-2"></i>Performance Pattern</h6>
+                    <p class="mb-0">{{ summary.performance_note }}</p>
+                </div>
+                {% endif %}
             </div>
-        </div>
+        </section>
 
         <!-- Shot Sequence -->
         {% if shots %}
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-list-ol me-2"></i>Shot Sequence
-                    </h5>
-                </div>
+            <section class="card summary-card">
+                <div class="card-header"><h5><i class="fas fa-list-ol me-2"></i>Shot Sequence</h5></div>
                 <div class="card-body">
                     <div class="shot-sequence">
                         {% for shot in shots %}
-                            <span class="shot-badge shot-badge-{{ shot.outcome }}"
+                            <span class="shot-badge {% if session.practice_type == 'pointing' %}pointing-sequence-badge pointing-sequence-{{ shot.outcome }}{% else %}shot-badge-{{ shot.outcome }}{% endif %}"
                                   title="Shot #{{ shot.sequence_number }}: {{ shot.get_outcome_display }} at {{ shot.timestamp|time:'H:i:s' }}">
-                                {% if shot.outcome == 'carreau' or shot.outcome == 'perfect' %}🤩{% elif shot.outcome == 'petit_carreau' or shot.outcome == 'petit_perfect' %}💪{% elif shot.outcome == 'hit' or shot.outcome == 'good' %}👍{% elif shot.outcome == 'fair' %}😊{% elif shot.outcome == 'far' or shot.outcome == 'very_far' %}😳{% else %}😳{% endif %}
+                                {% if shot.outcome == 'carreau' or shot.outcome == 'perfect' %}🤩{% elif shot.outcome == 'petit_carreau' or shot.outcome == 'petit_perfect' %}💪{% elif shot.outcome == 'hit' %}👍{% elif shot.outcome == 'good' %}💪{% elif shot.outcome == 'fair' %}👍{% elif shot.outcome == 'far' or shot.outcome == 'very_far' %}😳{% else %}😳{% endif %}
                             </span>
                             {% if forloop.counter|divisibleby:20 and not forloop.last %}
                                 <br><br>
                             {% endif %}
                         {% endfor %}
                     </div>
-                    <div class="text-center mt-3">
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle me-1"></i>
-                            Hover over badges to see shot details
-                        </small>
-                    </div>
+                    <small class="summary-sequence-note"><i class="fas fa-info-circle me-1"></i>Tap or hover a badge to see shot details</small>
                 </div>
-            </div>
+            </section>
         {% endif %}
 
         <!-- Motivational Message -->
-        <div class="card mt-4 border-success">
-            <div class="card-body text-center">
+        <div class="summary-motivation">
                 {% if summary.hit_percentage >= 80 %}
                     <h5 class="text-success mb-2">
                         <i class="fas fa-trophy me-2"></i>Excellent Performance!
@@ -644,7 +635,6 @@
                     </h5>
                     <p class="text-muted mb-0">Every session helps you improve. Focus on consistency.</p>
                 {% endif %}
-            </div>
         </div>
         {% endif %}
 

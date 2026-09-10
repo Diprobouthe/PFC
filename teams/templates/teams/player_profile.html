@@ -27,42 +27,45 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
 /* ---- HERO CARD ---- */
 .pp-hero {
     background: #fff !important;
-    border-radius: 20px !important;
-    box-shadow: 0 3px 20px rgba(13,71,161,.12) !important;
-    padding: 20px 16px 18px !important;
-    margin-bottom: 12px !important;
-    display: flex !important;
-    align-items: flex-start !important;
-    gap: 14px !important;
+    border-radius: 18px !important;
+    box-shadow: 0 3px 18px rgba(13,71,161,.11) !important;
+    padding: 14px !important;
+    margin-bottom: 10px !important;
+}
+.pp-hero-main { min-width: 0 !important; }
+.pp-identity-row {
+    display: grid !important;
+    grid-template-columns: 68px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 11px !important;
 }
 .pp-avatar {
-    flex-shrink: 0 !important;
-    width: 80px !important; height: 80px !important;
+    width: 68px !important; height: 68px !important;
     border-radius: 50% !important;
     object-fit: cover !important;
-    border: 4px solid #1565c0 !important;
+    border: 3px solid #1565c0 !important;
 }
 .pp-avatar-placeholder {
-    flex-shrink: 0 !important;
-    width: 80px !important; height: 80px !important;
+    width: 68px !important; height: 68px !important;
     border-radius: 50% !important;
     background: #e8eaf6 !important;
-    border: 4px solid #c5cae9 !important;
+    border: 3px solid #c5cae9 !important;
     display: flex !important; align-items: center !important; justify-content: center !important;
-    color: #9fa8da !important; font-size: 36px !important;
+    color: #9fa8da !important; font-size: 29px !important;
 }
-.pp-hero-info { flex: 1 !important; min-width: 0 !important; }
+.pp-hero-info { min-width: 0 !important; }
 .pp-hero-name {
-    font-size: 24px !important; font-weight: 900 !important;
-    color: #0d47a1 !important; margin: 0 0 6px !important;
-    line-height: 1.15 !important;
-    word-break: break-word !important;
+    font-size: clamp(20px, 6vw, 25px) !important; font-weight: 900 !important;
+    color: #0d47a1 !important; margin: 0 0 3px !important;
+    line-height: 1.1 !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
 }
 .pp-hero-meta {
-    font-size: 15px !important; color: #546e7a !important;
-    margin: 0 0 10px !important; line-height: 1.5 !important;
+    font-size: 14px !important; color: #546e7a !important;
+    margin: 0 0 7px !important; line-height: 1.35 !important;
 }
-.pp-hero-badges { display: flex !important; flex-wrap: wrap !important; gap: 8px !important; }
+.pp-hero-badges { display: flex !important; flex-wrap: wrap !important; gap: 5px !important; }
 .pp-badge {
     display: inline-block !important;
     padding: 5px 12px !important;
@@ -72,23 +75,37 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     white-space: nowrap !important;
 }
 .pp-badge.pin { background: #f3e5f5 !important; color: #6a1b9a !important; }
-.pp-edit-btn {
-    flex-shrink: 0 !important;
-    display: inline-flex !important; align-items: center !important; gap: 6px !important;
-    padding: 10px 16px !important; border-radius: 14px !important;
-    border: 2px solid #1565c0 !important; color: #1565c0 !important;
-    font-size: 16px !important; font-weight: 700 !important;
-    text-decoration: none !important; background: #fff !important;
+.pp-profile-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    margin-top: 12px !important;
+}
+.pp-edit-btn, .pp-ai-report-btn, .pp-qr-btn, .pp-cert-btn, .pp-practice-btn {
+    display: flex !important; align-items: center !important; justify-content: center !important; gap: 6px !important;
+    min-height: 40px !important;
+    padding: 8px 9px !important; border-radius: 11px !important;
+    font-size: 13px !important; font-weight: 800 !important;
+    text-decoration: none !important; text-align: center !important;
     white-space: nowrap !important;
 }
+.pp-edit-btn {
+    border: 2px solid #1565c0 !important; color: #1565c0 !important;
+    background: #fff !important;
+}
+.pp-practice-btn {
+    border: 2px solid #2563eb !important; color: #1d4ed8 !important;
+    background: #eff6ff !important;
+}
+.pp-practice-btn:hover { background: #dbeafe !important; color: #1e40af !important; border-color: #1e40af !important; }
 .pp-ai-report-btn {
     flex-shrink: 0 !important;
     display: inline-flex !important; align-items: center !important; gap: 6px !important;
     padding: 10px 16px !important; border-radius: 14px !important;
     border: 2px solid #7c3aed !important; color: #7c3aed !important;
-    font-size: 14px !important; font-weight: 700 !important;
+    font-size: 13px !important; font-weight: 700 !important;
     text-decoration: none !important; background: #faf5ff !important;
-    white-space: nowrap !important; margin-top: 6px !important;
+    white-space: nowrap !important; margin-top: 0 !important;
 }
 .pp-ai-report-btn:hover { background: #ede9fe !important; color: #5b21b6 !important; border-color: #5b21b6 !important; }
 .pp-qr-btn {
@@ -96,9 +113,9 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     display: inline-flex !important; align-items: center !important; gap: 6px !important;
     padding: 10px 16px !important; border-radius: 14px !important;
     border: 2px solid #0f766e !important; color: #0f766e !important;
-    font-size: 14px !important; font-weight: 700 !important;
+    font-size: 13px !important; font-weight: 700 !important;
     text-decoration: none !important; background: #f0fdfa !important;
-    white-space: nowrap !important; margin-top: 6px !important;
+    white-space: nowrap !important; margin-top: 0 !important;
 }
 .pp-qr-btn:hover { background: #ccfbf1 !important; color: #134e4a !important; border-color: #134e4a !important; }
 .pp-cert-btn {
@@ -106,11 +123,16 @@ main.py-4 { padding-left: 0 !important; padding-right: 0 !important; }
     display: inline-flex !important; align-items: center !important; gap: 6px !important;
     padding: 10px 16px !important; border-radius: 14px !important;
     border: 2px solid #b45309 !important; color: #b45309 !important;
-    font-size: 14px !important; font-weight: 700 !important;
+    font-size: 13px !important; font-weight: 700 !important;
     text-decoration: none !important; background: #fffbeb !important;
-    white-space: nowrap !important; margin-top: 6px !important;
+    white-space: nowrap !important; margin-top: 0 !important;
 }
 	.pp-cert-btn:hover { background: #fef3c7 !important; color: #92400e !important; border-color: #92400e !important; }
+    .pp-profile-actions .pp-edit-btn, .pp-profile-actions .pp-ai-report-btn, .pp-profile-actions .pp-qr-btn, .pp-profile-actions .pp-cert-btn, .pp-profile-actions .pp-practice-btn {
+        display: flex !important; align-items: center !important; justify-content: center !important;
+        min-height: 40px !important; padding: 8px 9px !important; border-radius: 11px !important;
+        margin-top: 0 !important; font-size: 13px !important;
+    }
 	.pp-boules {
 	    margin-top: 10px !important;
 	    padding: 9px 11px !important;
@@ -404,23 +426,27 @@ a.mh-card::after {
 
     <!-- ===== HERO ===== -->
     <div class="pp-hero">
-        {% if player.profile.profile_picture %}
-            <img src="{{ player.profile.profile_picture.url }}" alt="{{ player.name }}" class="pp-avatar">
-        {% else %}
-            <div class="pp-avatar-placeholder"><i class="fas fa-user"></i></div>
-        {% endif %}
-        <div class="pp-hero-info">
-            <div class="pp-hero-name">{{ player.name }}</div>
-            <div class="pp-hero-meta">
-                {% if player.profile and show_public_statistics %}{{ player.profile.get_level_display.0 }} &middot; {{ player.profile.value|floatformat:2 }} &middot;{% endif %}
-                Joined {{ player.created_at|date:"M Y" }}
-            </div>
-            <div class="pp-hero-badges">
-                <span class="pp-badge">{{ player.team.name }}</span>
-                {% if is_own_profile and player.team.pin %}<span class="pp-badge pin">PIN: {{ player.team.pin }}</span>{% endif %}
-                {% if player.profile.get_preferred_position_display %}
-                    <span class="pp-badge">{{ player.profile.get_preferred_position_display }}</span>
+        <div class="pp-hero-main">
+            <div class="pp-identity-row">
+                {% if player.profile.profile_picture %}
+                    <img src="{{ player.profile.profile_picture.url }}" alt="{{ player.name }}" class="pp-avatar">
+                {% else %}
+                    <div class="pp-avatar-placeholder"><i class="fas fa-user"></i></div>
                 {% endif %}
+                <div class="pp-hero-info">
+                    <div class="pp-hero-name">{{ player.name }}</div>
+                    <div class="pp-hero-meta">
+                        {% if player.profile and show_public_statistics %}{{ player.profile.get_level_display.0 }} &middot; {{ player.profile.value|floatformat:2 }} &middot;{% endif %}
+                        Joined {{ player.created_at|date:"M Y" }}
+                    </div>
+                    <div class="pp-hero-badges">
+                        <span class="pp-badge">{{ player.team.name }}</span>
+                        {% if is_own_profile and player.team.pin %}<span class="pp-badge pin">PIN: {{ player.team.pin }}</span>{% endif %}
+                        {% if player.profile.get_preferred_position_display %}
+                            <span class="pp-badge">{{ player.profile.get_preferred_position_display }}</span>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
             {% if player.profile.boule_brand or player.profile.boule_diameter_mm or player.profile.boule_weight_g %}
             <section class="pp-boules" aria-label="{% translate 'Boules' %}">
@@ -433,20 +459,13 @@ a.mh-card::after {
             {% endif %}
         </div>
         {% if is_own_profile %}
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
-            <a href="{% url 'edit_player_profile' %}" class="pp-edit-btn">
-                <i class="fas fa-edit"></i> Edit
-            </a>
-            <a href="{% url 'ai_coach_report' player.id %}" class="pp-ai-report-btn" title="Download your full performance dossier for AI coaching analysis">
-                <i class="fas fa-robot"></i> AI Coach Report
-            </a>
-            <a href="{% url 'player_qr_card' player.id %}" class="pp-qr-btn" title="View and print your QR card for game participation">
-                <i class="fas fa-qrcode"></i> My QR Card
-            </a>
-            <a href="{% url 'cert_ratings:player_cert_ratings' player.id %}" class="pp-cert-btn" title="View your Certifying Entity ratings">
-                <i class="fas fa-certificate"></i> Certifying Entities
-            </a>
-        </div>
+        <nav class="pp-profile-actions" aria-label="{% translate 'Profile actions' %}">
+            <a href="{% url 'edit_player_profile' %}" class="pp-edit-btn"><i class="fas fa-edit"></i> {% translate "Edit" %}</a>
+            <a href="{% url 'practice:practice_home' %}" class="pp-practice-btn"><i class="fas fa-bullseye"></i> {% translate "My Practice" %}</a>
+            <a href="{% url 'ai_coach_report' player.id %}" class="pp-ai-report-btn" title="Download your full performance dossier for AI coaching analysis"><i class="fas fa-robot"></i> {% translate "AI Coach Report" %}</a>
+            <a href="{% url 'player_qr_card' player.id %}" class="pp-qr-btn" title="View and print your QR card for game participation"><i class="fas fa-qrcode"></i> {% translate "My QR Card" %}</a>
+            <a href="{% url 'cert_ratings:player_cert_ratings' player.id %}" class="pp-cert-btn" title="View your Certifying Entity ratings"><i class="fas fa-certificate"></i> {% translate "Certifying Entities" %}</a>
+        </nav>
         {% endif %}
     </div>
 

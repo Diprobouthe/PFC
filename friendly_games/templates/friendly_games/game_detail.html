@@ -376,12 +376,10 @@
         </div>
     </div>
 
+    {% include 'partials/friendly_starting_side_announcement.html' with friendly_game=game listen_for_score_updates=True %}
+
     <!-- PRIMARY ACTION AREA -->
     <div class="fg-action">
-
-        {% if game.status == 'ACTIVE' and game.starting_team %}
-        <div class="fg-opening-side"><i class="fas fa-flag-checkered"></i> {% if game.starting_team == 'BLACK' %}{% translate "Black Team" %}{% else %}{% translate "White Team" %}{% endif %} {% translate "starts first" %}</div>
-        {% endif %}
 
         {% if game.status == 'WAITING_FOR_PLAYERS' %}
             <!-- ── BEFORE MATCH: START (creator only) or LEAVE (joined players) ── -->

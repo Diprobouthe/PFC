@@ -276,6 +276,31 @@ def scoreboard_detail(request, scoreboard_id):
             }),
         )
 
+    # Friendly draw communication is presentation-only. The stored starting side
+    # is announced until an actual score (not a 0–0 correction/reset) exists.
+    friendly_starting_side_has_score = bool(
+        scoreboard.friendly_game_id and any(
+            update.team1_score > 0 or update.team2_score > 0
+            for update in score_history
+        )
+    )
+    friendly_starting_side_is_recipient = False
+    if scoreboard.friendly_game_id and scoreboard.friendly_game.starting_team:
+        try:
+            starting_player = qr_action_player
+            if starting_player is None:
+                starting_codename = (session_context.get('session_codename') or '').upper()
+                if starting_codename:
+                    starting_player = PlayerCodename.objects.get(codename=starting_codename).player
+            if starting_player is not None:
+                friendly_starting_side_is_recipient = FriendlyGamePlayer.objects.filter(
+                    game=scoreboard.friendly_game,
+                    player=starting_player,
+                    team=scoreboard.friendly_game.starting_team,
+                ).exists()
+        except (PlayerCodename.DoesNotExist, AttributeError):
+            pass
+
     context = {
         'scoreboard': scoreboard,
         'recent_updates': recent_updates,
@@ -298,6 +323,9 @@ def scoreboard_detail(request, scoreboard_id):
         'scorekeeper_names': scorekeeper_names,
         'qr_score_action_token': qr_score_action_token,
         'qr_submit_action_token': qr_submit_action_token,
+        'starting_side_has_score': friendly_starting_side_has_score,
+        'starting_side_scoreboard_id': scoreboard.id if scoreboard.friendly_game_id else None,
+        'starting_side_is_recipient': friendly_starting_side_is_recipient,
     }
     
     return render(request, 'matches/scoreboard_detail.html', context)

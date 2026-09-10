@@ -4,204 +4,153 @@
 {% block title %}Practice - Petanque Platform{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <h1 class="h2 mb-1">
-                        <i class="fas fa-target text-primary me-2"></i>Practice
-                    </h1>
-                    <p class="text-muted mb-0">Improve your shooting skills with structured practice sessions</p>
-                </div>
-                {% if player_logged_in %}
-                    <div class="text-end">
-                        <a href="{% url 'practice:session_history' %}" class="btn btn-outline-primary mb-2">
-                            <i class="fas fa-history me-2"></i>View All Sessions
-                        </a>
-                        <div>
-                            <small class="text-muted d-block">Logged in as</small>
-                            <strong class="text-primary">{{ player_name|default:session_codename }}</strong>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
+<style>
+    .practice-hub { max-width: 760px; margin: 0 auto; padding: 10px 4px 36px; }
+    .practice-hub *, .practice-hub *::before, .practice-hub *::after { box-sizing: border-box; }
+    .practice-hub-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 14px 15px; margin-bottom: 12px; border-radius: 16px;
+        background: linear-gradient(135deg, #0f4da5, #1769d1); color: #fff;
+        box-shadow: 0 6px 18px rgba(13, 71, 161, .18);
+    }
+    .practice-hub-title { min-width: 0; }
+    .practice-hub-title h1 { margin: 0; font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 800; line-height: 1.15; }
+    .practice-hub-title p { margin: 3px 0 0; font-size: .86rem; opacity: .84; }
+    .practice-history-link {
+        flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        min-height: 38px; padding: 8px 10px; color: #fff; border: 1px solid rgba(255,255,255,.58);
+        border-radius: 10px; text-decoration: none; font-size: .8rem; font-weight: 700;
+    }
+    .practice-history-link:hover { color: #fff; background: rgba(255,255,255,.14); }
+    .practice-login-card, .practice-progress-card, .practice-recent-card {
+        border: 0; border-radius: 16px; box-shadow: 0 3px 14px rgba(15, 55, 110, .09); overflow: hidden;
+    }
+    .practice-login-card { background: #fff8e5; border: 1px solid #f7d889; padding: 20px; text-align: center; }
+    .practice-login-card h2 { font-size: 1.1rem; font-weight: 800; margin-bottom: 7px; color: #775100; }
+    .practice-login-card p { color: #6b5a2f; margin-bottom: 14px; font-size: .92rem; }
+    .practice-choice-label { margin: 17px 2px 8px; font-size: .9rem; color: #52647b; font-weight: 800; letter-spacing: .02em; }
+    .practice-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .practice-choice-card {
+        min-width: 0; min-height: 198px; padding: 14px; border-radius: 17px; color: #fff;
+        display: flex; flex-direction: column; text-decoration: none; box-shadow: 0 5px 16px rgba(15,55,110,.14);
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .practice-choice-card:active { transform: scale(.98); }
+    .practice-choice-card:hover { color: #fff; transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15,55,110,.18); }
+    .practice-choice-card.shooting { background: linear-gradient(145deg, #0d5fc5, #123c8a); }
+    .practice-choice-card.pointing { background: linear-gradient(145deg, #7c3aed, #4c1d95); }
+    .practice-choice-icon {
+        display: grid; place-items: center; width: 41px; height: 41px; border-radius: 12px;
+        background: rgba(255,255,255,.16); font-size: 1.25rem; margin-bottom: 12px;
+    }
+    .practice-choice-card h2 { font-size: clamp(1rem, 4.3vw, 1.2rem); line-height: 1.12; margin: 0 0 6px; font-weight: 800; }
+    .practice-choice-card p { margin: 0; font-size: .79rem; line-height: 1.35; color: rgba(255,255,255,.88); }
+    .practice-choice-cta {
+        margin-top: auto; padding-top: 12px; font-size: .82rem; font-weight: 800; display: flex; align-items: center; gap: 6px;
+    }
+    .practice-progress-heading { margin: 20px 2px 8px; font-size: 1rem; font-weight: 800; color: #213a5b; }
+    .practice-progress-card .card-body { padding: 13px; }
+    .practice-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; text-align: center; }
+    .practice-stat { min-width: 0; padding: 7px 3px; border-right: 1px solid #e7edf5; }
+    .practice-stat:last-child { border-right: 0; }
+    .practice-stat-value { display: block; font-size: clamp(1.05rem, 5vw, 1.45rem); font-weight: 850; line-height: 1.1; color: #145ab5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .practice-stat-value.success { color: #168252; }
+    .practice-stat-value.warm { color: #ad6c00; }
+    .practice-stat-label { display: block; margin-top: 3px; font-size: .66rem; color: #718096; font-weight: 700; text-transform: uppercase; line-height: 1.15; }
+    .practice-recent-card { margin-top: 10px; background: #fff; }
+    .practice-recent-card .card-header, .practice-progress-card .card-header { padding: 11px 13px; background: #f7faff; border-bottom: 1px solid #e6eef9; font-weight: 800; color: #244c80; }
+    .practice-recent-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; }
+    .practice-recent-main { min-width: 0; }
+    .practice-recent-main strong { display: block; font-size: .83rem; color: #263c5c; }
+    .practice-recent-main span { display: block; margin-top: 2px; color: #738198; font-size: .75rem; }
+    .practice-recent-side { flex: 0 0 auto; text-align: right; }
+    .practice-recent-side .badge { font-size: .72rem; }
+    .practice-recent-side a { display: block; margin-top: 3px; font-size: .72rem; text-decoration: none; }
+    @media (max-width: 360px) {
+        .practice-hub-head { align-items: flex-start; }
+        .practice-history-link span { display: none; }
+        .practice-choice-grid { gap: 7px; }
+        .practice-choice-card { padding: 11px; min-height: 184px; }
+        .practice-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .practice-stat:nth-child(2) { border-right: 0; }
+        .practice-stat:nth-child(-n+2) { border-bottom: 1px solid #e7edf5; }
+    }
+</style>
+
+<div class="practice-hub">
+    <header class="practice-hub-head">
+        <div class="practice-hub-title">
+            <h1><i class="fas fa-bullseye me-2"></i>Practice</h1>
+            {% if player_logged_in %}
+                <p>{{ player_name|default:session_codename }}</p>
+            {% else %}
+                <p>Build your shooting and pointing consistency.</p>
+            {% endif %}
         </div>
-    </div>
+        {% if player_logged_in %}
+        <a href="{% url 'practice:session_history' %}" class="practice-history-link"><i class="fas fa-history"></i><span>History</span></a>
+        {% endif %}
+    </header>
 
     {% if not player_logged_in %}
-        <!-- Login Required Card -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card border-warning">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-sign-in-alt me-2"></i>Login Required
-                        </h5>
-                    </div>
-                    <div class="card-body text-center">
-                        <p class="card-text mb-3">Please log in with your codename to start practice sessions.</p>
-                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickLoginModal">
-                            <i class="fas fa-user me-2"></i>Login with Codename
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <section class="practice-login-card" aria-label="Practice login required">
+            <h2><i class="fas fa-sign-in-alt me-2"></i>Login Required</h2>
+            <p>Please log in with your codename to start a practice session.</p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickLoginModal"><i class="fas fa-user me-2"></i>Login with Codename</button>
+        </section>
     {% else %}
-        <!-- Practice Types -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <h3 class="h4 mb-3">
-                    <i class="fas fa-list-ul text-secondary me-2"></i>Practice Types
-                </h3>
-            </div>
-        </div>
-
-        <div class="row">
-            <!-- Shooting Practice Card -->
-            <div class="col-lg-6 col-md-12 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-bullseye me-2"></i>Shooting Practice
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-text">Record your shooting attempts (Miss / Hit / Carreau) and track your accuracy over time.</p>
-                        
-                        <div class="mb-3">
-                            <h6 class="text-muted">Features:</h6>
-                            <ul class="list-unstyled small">
-                                <li><i class="fas fa-check text-success me-2"></i>Sequence tracking</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Real-time statistics</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Performance analysis</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Session history</li>
-                            </ul>
-                        </div>
-                        
-                        <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary">
-                            <i class="fas fa-play me-2"></i>Start Shooting Practice
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pointing Practice Card -->
-            <div class="col-lg-6 col-md-12 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-dot-circle me-2"></i>Pointing Practice
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-text">Record your pointing attempts (Far / Good / Perfect) and track your distance control.</p>
-                        
-                        <div class="mb-3">
-                            <h6 class="text-muted">Features:</h6>
-                            <ul class="list-unstyled small">
-                                <li><i class="fas fa-check text-success me-2"></i>Distance measurement</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Precision tracking</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Target zones</li>
-                                <li><i class="fas fa-check text-success me-2"></i>Consistency metrics</li>
-                            </ul>
-                        </div>
-                        
-                        <a href="{% url 'practice:pointing_practice' %}" class="btn btn-success">
-                            <i class="fas fa-play me-2"></i>Start Pointing Practice
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div class="practice-choice-label">Choose your practice</div>
+        <section class="practice-choice-grid" aria-label="Practice choices">
+            <a href="{% url 'practice:shooting_practice' %}" class="practice-choice-card shooting">
+                <span class="practice-choice-icon"><i class="fas fa-crosshairs"></i></span>
+                <h2>Shooting Practice</h2>
+                <p>Record shots and follow your accuracy across sessions.</p>
+                <span class="practice-choice-cta">Start Shooting <i class="fas fa-arrow-right"></i></span>
+            </a>
+            <a href="{% url 'practice:pointing_practice' %}" class="practice-choice-card pointing">
+                <span class="practice-choice-icon"><i class="fas fa-dot-circle"></i></span>
+                <h2>Pointing Practice</h2>
+                <p>Build distance control with four clear placement outcomes.</p>
+                <span class="practice-choice-cta">Start Pointing <i class="fas fa-arrow-right"></i></span>
+            </a>
+        </section>
 
         {% if player_stats or recent_sessions %}
-            <!-- Player Statistics Section -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <h3 class="h4 mb-3">
-                        <i class="fas fa-chart-bar text-secondary me-2"></i>Your Progress
-                    </h3>
+            <h2 class="practice-progress-heading"><i class="fas fa-chart-line me-2"></i>Your Progress</h2>
+            {% if player_stats %}
+            <section class="card practice-progress-card">
+                <div class="card-header"><i class="fas fa-chart-bar me-2"></i>Overall Statistics</div>
+                <div class="card-body">
+                    <div class="practice-stat-grid">
+                        <div class="practice-stat"><span class="practice-stat-value">{{ player_stats.total_sessions }}</span><span class="practice-stat-label">Sessions</span></div>
+                        <div class="practice-stat"><span class="practice-stat-value success">{{ player_stats.total_shots }}</span><span class="practice-stat-label">Shots</span></div>
+                        <div class="practice-stat"><span class="practice-stat-value">{{ player_stats.overall_hit_percentage|floatformat:1 }}%</span><span class="practice-stat-label">Hit Rate</span></div>
+                        <div class="practice-stat"><span class="practice-stat-value warm">{{ player_stats.best_hit_streak }}</span><span class="practice-stat-label">Best Streak</span></div>
+                    </div>
                 </div>
-            </div>
+            </section>
+            {% endif %}
 
-            <div class="row">
-                {% if player_stats %}
-                    <!-- Overall Statistics -->
-                    <div class="col-lg-8 col-md-12 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">
-                                    <i class="fas fa-trophy me-2"></i>Overall Statistics
-                                </h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row text-center">
-                                    <div class="col-6 col-md-3 mb-3">
-                                        <div class="border-end">
-                                            <h4 class="text-primary mb-1">{{ player_stats.total_sessions }}</h4>
-                                            <small class="text-muted">Sessions</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-3 mb-3">
-                                        <div class="border-end">
-                                            <h4 class="text-success mb-1">{{ player_stats.total_shots }}</h4>
-                                            <small class="text-muted">Total Shots</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-3 mb-3">
-                                        <div class="border-end">
-                                            <h4 class="text-info mb-1">{{ player_stats.overall_hit_percentage|floatformat:1 }}%</h4>
-                                            <small class="text-muted">Hit Rate</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-3 mb-3">
-                                        <h4 class="text-warning mb-1">{{ player_stats.best_hit_streak }}</h4>
-                                        <small class="text-muted">Best Streak</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            {% if recent_sessions %}
+            <section class="card practice-recent-card">
+                <div class="card-header"><i class="fas fa-history me-2"></i>Recent Sessions</div>
+                {% for session in recent_sessions %}
+                <div class="practice-recent-row {% if not forloop.last %}border-bottom{% endif %}">
+                    <div class="practice-recent-main">
+                        <strong>{{ session.started_at|date:"M d, H:i" }}</strong>
+                        <span>{{ session.total_shots }} shots</span>
                     </div>
-                {% endif %}
-
-                {% if recent_sessions %}
-                    <!-- Recent Sessions -->
-                    <div class="col-lg-4 col-md-12 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">
-                                    <i class="fas fa-history me-2"></i>Recent Sessions
-                                </h5>
-                            </div>
-                            <div class="card-body">
-                                {% for session in recent_sessions %}
-                                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
-                                        <div>
-                                            <small class="text-muted d-block">{{ session.started_at|date:"M d, H:i" }}</small>
-                                            <span class="small">{{ session.total_shots }} shots</span>
-                                        </div>
-                                        <div class="text-end">
-                                            <span class="badge bg-success">{{ session.hit_percentage|floatformat:0 }}%</span>
-                                            <div>
-                                                <a href="{% url 'practice:session_summary' session.id %}" class="small text-decoration-none">
-                                                    View <i class="fas fa-external-link-alt"></i>
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        </div>
+                    <div class="practice-recent-side">
+                        <span class="badge bg-success">{{ session.hit_percentage|floatformat:0 }}%</span>
+                        <a href="{% url 'practice:session_summary' session.id %}">View <i class="fas fa-external-link-alt"></i></a>
                     </div>
-                {% endif %}
-            </div>
+                </div>
+                {% endfor %}
+            </section>
+            {% endif %}
         {% endif %}
     {% endif %}
 </div>
 
-<!-- Quick Login Modal (included from base template) -->
 {% include 'modals/quick_login_modal.html' %}
 {% endblock %}

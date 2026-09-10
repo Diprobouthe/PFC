@@ -1,40 +1,35 @@
-# PFC Complete Current Source — Render Parity Package
+# PFC Complete Render Deployment Package
 
-**Package date:** 2026-09-10  
-**Source root:** `/home/ubuntu/merge/project`  
-**Purpose:** Full current PFC application-source package for restoring source parity with the working sandbox on Render.
+**Package date:** 2026-09-10
 
-## Included application contents
+## Purpose
 
-This package contains the complete current Django/ASGI PFC source tree, including application modules, templates, source static assets, locale catalogs, migrations, requirements, and Render deployment configuration. It includes the current Court Complex live-detail redesign, per-Complex Billboard data integration, accuracy-aware location verification and ambiguity handling, robust manual geolocation retry/error handling, Friendly venue/activation protections, PWA/Push source, Tournament/Pool/Multi-Stage source, Match Tracking/Broadcast source, Invitations, and all other current source present in the sandbox project.
+This is a complete current PFC source and deployment package prepared from the working sandbox project at `/home/ubuntu/merge/project`.
 
-## Deliberate exclusions
+It includes all current Django application source, templates, source static assets, migrations, locale catalogs, PWA and Push components, Render configuration, dependency manifests, and deployment entry files.
 
-The package excludes local runtime and non-deployable artifacts: `db.sqlite3`, `media/`, `.env` and credential files, cache directories, Python bytecode, virtual environments, `node_modules`, generated `staticfiles/`, Git metadata, logs, existing archives, and root-level legacy developer utility scripts (`test_*.py`). These exclusions do not remove application migrations or maintained application tests.
+## Included current feature state
 
-## Render architecture and deployment
+The package includes the latest Court Complex live-detail and Billboard integrations, Practice UI refreshes, Pointing Practice fixes, Friendly overlap and creator-GPS venue protections, accuracy-aware proximity verification, PWA/Push components, Match Tracking/Broadcast features, Invitations, Tournament/Pool/Multi-Stage features, registration/voucher work, and the Friendly starting-side communication update.
 
-`render.yaml` retains the existing PostgreSQL database, Redis channel-layer service, persistent `/var/media` disk, Daphne ASGI start command, and Render build flow:
+For the Friendly starting-side update, the existing random draw and selected-side-only Push behavior remain unchanged. The existing selected side sees the stored draw result after activation, until the first official non-zero score update is recorded. No manual dismissal, new recipient path, or Match scoring/lifecycle change is included.
 
-```text
-pip install -r requirements.txt
-python manage.py collectstatic --noinput
+## Render deployment
+
+Use the existing `render.yaml`, `Procfile`, `requirements.txt`, and `runtime.txt` in the project root. Preserve existing production environment variables and Render service architecture, including PostgreSQL, Redis, persistent media storage, PWA/Push VAPID settings, and Django secrets.
+
+Run the normal deployment migration command:
+
+```bash
 python manage.py migrate
-daphne -b 0.0.0.0 -p $PORT pfc_core.asgi:application
 ```
 
-Run `python manage.py migrate` against the existing Render PostgreSQL database after deployment. This package includes all current migrations, including:
+No database reset, data deletion, or media replacement is required.
 
-- `billboard.0017_billboardentry_location_verification`;
-- `match_tracking.0003_rename_match_track_match_t_579c20_idx_match_track_match_t_37e104_idx`;
-- `invites.0004_alter_invitation_message_alter_invitation_play_court_and_more`.
+## Excluded by design
 
-No database reset, schema deletion, media deletion, or data migration outside Django migrations is required.
+The archive excludes `db.sqlite3`, uploaded `media/`, `.env` and credential files, logs, cookies/sessions, caches, `__pycache__`, `*.pyc`, virtual environments, `node_modules`, generated `staticfiles`, `.git`, nested ZIP archives, test/runtime artifacts, and temporary developer scripts.
 
-## Environment variables
+## Validation
 
-Keep the existing production values for `SECRET_KEY`, `DATABASE_URL`, `REDIS_URL`, `MEDIA_ROOT`, Google OAuth variables where used, and the existing PWA Web Push VAPID variables. Do not upload a `.env` file. The current source accepts the existing optional `PFC_FRIENDLY_COURT_PROXIMITY_METERS` value; its source default is 200 metres. There is no new environment variable required by the current accuracy-aware location logic.
-
-## Validation record
-
-Before packaging, the current source passed Django checks, reported no pending model migration changes, and passed 27 maintained application tests. The local runtime database had the current migrations applied. The project has no Git metadata, so a commit hash is unavailable.
+The package is validated with `unzip -t` and a SHA-256 checksum before delivery. No Git commit is recorded because the restored project has no Git metadata.

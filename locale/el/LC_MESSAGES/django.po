@@ -2724,3 +2724,7 @@ msgstr "Το PFC δεν μπόρεσε να λάβει την τοποθεσία
 #: billboard/templates/billboard/billboard_list.html
 msgid "PFC encountered an unexpected location error. Please try again."
 msgstr "Το PFC αντιμετώπισε ένα απρόσμενο σφάλμα τοποθεσίας. Δοκιμάστε ξανά."
+
+#: templates/partials/friendly_starting_side_announcement.html
+msgid "Starting side"
+msgstr "Ομάδα που ξεκινά"

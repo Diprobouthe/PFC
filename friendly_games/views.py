@@ -763,6 +763,21 @@ def game_detail(request, game_id):
             except Exception:
                 pass
 
+    # The starting-side draw remains a stored FriendlyGame value. This read-only
+    # context only controls its participant announcement: it ends after the first
+    # real score, never on the ACTIVE transition itself.
+    starting_side_has_score = False
+    starting_side_scoreboard_id = None
+    if game.starting_team:
+        try:
+            _scoreboard = game.live_scoreboard
+            starting_side_scoreboard_id = _scoreboard.id
+            starting_side_has_score = _scoreboard.score_updates.filter(
+                Q(team1_score__gt=0) | Q(team2_score__gt=0)
+            ).exists()
+        except Exception:
+            pass
+
     context = {
         'game': game,
         'players': players,
@@ -770,6 +785,11 @@ def game_detail(request, game_id):
         'is_creator': is_creator,
         'is_joined': is_joined,
         'qr_action_token': get_qr_action_token(request),
+        'starting_side_has_score': starting_side_has_score,
+        'starting_side_scoreboard_id': starting_side_scoreboard_id,
+        'starting_side_is_recipient': bool(
+            session_team and game.starting_team and session_team == game.starting_team
+        ),
     }
 
     return render(request, 'friendly_games/game_detail.html', context)
@@ -1410,6 +1430,7 @@ def start_match(request, game_id):
         messages.error(request, _friendly_activation_conflict_message(conflict))
         return redirect('friendly_games:game_detail', game_id=game.id)
 
+    # Preserve the existing selected-side-only Friendly-start notification.
     starting_side_players = list(game.players.filter(team=game.starting_team).values_list('player_id', flat=True))
     notify_game_state_changed(game.id, game.status, game=game)
     try:

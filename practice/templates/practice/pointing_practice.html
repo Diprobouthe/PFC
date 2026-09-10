@@ -3,7 +3,7 @@
 
 {% block title %}Pointing Practice - Petanque Platform{% endblock %}
 
-{% block extra_css %}
+{% block content %}
 <style>
 /* Practice-specific styles following PFC design language */
 .practice-container {
@@ -343,40 +343,127 @@
         font-size: 1.1rem;
     }
 }
+/* ============================================================
+   POINTING PRACTICE — COMPACT MATCH-TRACKING-INSPIRED OVERRIDES
+   Presentation only: existing controls, IDs, and JavaScript remain.
+   ============================================================ */
+.pointing-page { max-width: 620px; margin: 0 auto; padding-bottom: 28px; }
+.pointing-page *, .pointing-page *::before, .pointing-page *::after { box-sizing: border-box; }
+.pointing-back { margin-bottom: 9px; }
+.pointing-back .btn { border-radius: 10px; font-weight: 700; min-height: 38px; }
+.pointing-hero {
+    padding: 14px 15px; margin-bottom: 11px; border-radius: 17px;
+    color: #fff; background: linear-gradient(135deg, #5b21b6, #7c3aed 58%, #2563eb);
+    box-shadow: 0 6px 18px rgba(76, 29, 149, .19);
+}
+.pointing-hero h1 { margin: 0; font-size: clamp(1.3rem, 5.5vw, 1.75rem); font-weight: 850; line-height: 1.12; }
+.pointing-hero p { margin: 4px 0 0; font-size: .86rem; opacity: .86; }
+.pointing-session-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.pointing-session-tag { padding: 4px 8px; border: 1px solid rgba(255,255,255,.45); border-radius: 999px; font-size: .72rem; font-weight: 750; }
+.pointing-card { border: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 3px 14px rgba(15, 55, 110, .10); }
+.pointing-card .card-header { padding: 11px 13px; background: #f8faff; border-bottom: 1px solid #e7edf6; color: #25456d; }
+.pointing-card .card-body { padding: 13px; }
+.pointing-card-title { margin: 0; font-size: 1rem; font-weight: 800; }
+.pointing-start-copy { margin: 0 0 13px; text-align: center; color: #65748a; font-size: .9rem; }
+.pointing-settings { display: grid; gap: 11px; }
+.pointing-settings .form-label { margin-bottom: 5px; color: #34516f; font-size: .88rem; }
+.pointing-settings .form-text { font-size: .75rem; }
+.pointing-start-btn { min-height: 43px; padding-inline: 24px; border-radius: 11px; font-weight: 800; }
+.pointing-recent { margin-top: 11px; }
+.pointing-recent-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13px; }
+.pointing-recent-row strong { display: block; color: #2b405e; font-size: .84rem; }
+.pointing-recent-row small { display: block; margin-top: 2px; color: #738198; }
+.pointing-recent-side { flex: 0 0 auto; text-align: right; }
+.pointing-recent-side a { display: block; margin-top: 3px; font-size: .74rem; text-decoration: none; }
+.pointing-outcome-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 0 0 10px; }
+.pointing-page .shot-btn {
+    min-height: 122px; padding: 12px 8px; border: 2px solid transparent !important; border-radius: 17px !important;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    box-shadow: none !important; transition: transform .12s ease, filter .12s ease, box-shadow .12s ease !important;
+}
+.pointing-page .shot-btn:active { transform: scale(.97); }
+.pointing-page .shot-btn:focus-visible { outline: 3px solid rgba(37,99,235,.28); outline-offset: 2px; }
+.pointing-page .shot-btn:disabled { opacity: .62; }
+/* Applied only to the actual selected outcome during the existing record request. */
+.pointing-page .shot-btn.is-recording {
+    transform: scale(.96) !important;
+    filter: brightness(1.07) saturate(1.12) !important;
+    box-shadow: 0 0 0 4px rgba(255,255,255,.96), 0 0 0 7px rgba(37,99,235,.54), 0 7px 17px rgba(15,55,110,.22) !important;
+    z-index: 1;
+}
+/* Other buttons are only temporarily unavailable; they never receive the selected outline. */
+.pointing-page .shot-btn.is-pending { opacity: .46 !important; filter: saturate(.68) !important; box-shadow: none !important; }
+.pointing-outcome-dot { width: 27px; height: 27px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(0,0,0,.08), 0 2px 5px rgba(0,0,0,.14); }
+.pointing-outcome-title { font-weight: 850; font-size: clamp(1rem, 4.4vw, 1.2rem); line-height: 1.1; }
+.pointing-outcome-note { font-size: .73rem; font-weight: 650; opacity: .82; line-height: 1.2; }
+.pointing-page .shot-btn-perfect { color: #1f6a37 !important; background: #effcf3 !important; border-color: #28a45b !important; }
+.pointing-page .shot-btn-good { color: #9a6900 !important; background: #fffbea !important; border-color: #e4ad16 !important; }
+.pointing-page .shot-btn-fair { color: #b3262a !important; background: #fff3f3 !important; border-color: #dc3e42 !important; }
+.pointing-page .shot-btn-far { color: #475569 !important; background: #f7f8fb !important; border-color: #64748b !important; }
+.shot-btn-perfect .pointing-outcome-dot { background: #69ba45; }
+.shot-btn-good .pointing-outcome-dot { background: #f5c430; }
+.shot-btn-fair .pointing-outcome-dot { background: #ef4444; }
+.shot-btn-far .pointing-outcome-dot { background: #3f4650; }
+.pointing-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 10px; }
+.pointing-controls .btn { min-height: 42px; border-radius: 11px; font-size: .84rem; font-weight: 800; }
+.pointing-stats-card { margin-bottom: 10px; }
+.pointing-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.pointing-summary-stat { padding: 10px; border-radius: 12px; background: #f4f8ff; }
+.pointing-summary-stat span { display: block; font-size: .72rem; font-weight: 750; color: #6b7c94; text-transform: uppercase; }
+.pointing-summary-stat strong { display: block; margin-top: 2px; font-size: 1.35rem; line-height: 1.1; color: #175db6; }
+.pointing-summary-stat.success strong { color: #168252; }
+.pointing-outcome-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.pointing-outcome-stat { min-width: 0; padding: 8px 2px; border-radius: 10px; text-align: center; }
+.pointing-outcome-stat span { display: block; color: #69798e; font-size: .63rem; font-weight: 750; text-transform: uppercase; }
+.pointing-outcome-stat strong { display: block; margin-top: 2px; font-size: 1.1rem; line-height: 1; }
+.pointing-outcome-stat.perfect { background: #effcf3; } .pointing-outcome-stat.perfect strong { color: #26884b; }
+.pointing-outcome-stat.good { background: #fffbea; } .pointing-outcome-stat.good strong { color: #ae7800; }
+.pointing-outcome-stat.fair { background: #fff3f3; } .pointing-outcome-stat.fair strong { color: #c13438; }
+.pointing-outcome-stat.far { background: #f3f5f8; } .pointing-outcome-stat.far strong { color: #475569; }
+.pointing-history-card { margin-top: 0; }
+.pointing-page .shot-history { min-height: 54px; padding: 5px 0; margin: 0; background: transparent; }
+.pointing-page .shot-badges-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 3px 0; }
+.pointing-page .shot-badge { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; color: #fff; font-size: .85rem; box-shadow: 0 2px 5px rgba(0,0,0,.12); }
+.pointing-page .shot-badge-perfect { background: #69ba45; } .pointing-page .shot-badge-good { background: #f5c430; } .pointing-page .shot-badge-fair { background: #ef4444; } .pointing-page .shot-badge-far { background: #3f4650; }
+@media (max-width: 370px) {
+    .pointing-page { padding-left: 0; padding-right: 0; }
+    .pointing-page .shot-btn { min-height: 110px; }
+    .pointing-outcome-title { font-size: 1rem; }
+    .pointing-controls .btn { padding-inline: 6px; font-size: .76rem; }
+}
 </style>
-{% endblock %}
-
-{% block content %}
-<div class="container mt-4">
-    <div class="practice-container">
+<div class="container mt-2 mb-4">
+    <div class="pointing-page">
         <!-- Back Navigation -->
-        <div class="mb-3">
+        <div class="pointing-back">
             <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left me-2"></i>Back to Practice
             </a>
         </div>
 
         <!-- Session Header -->
-        <div class="session-header text-center">
-            <h1 class="h3 mb-2">
-                <i class="fas fa-bullseye me-2"></i>Pointing Practice
-            </h1>
-            <p class="mb-0 opacity-75">{{ player_name|default:session_codename }}</p>
-        </div>
+        <header class="pointing-hero">
+            <h1><i class="fas fa-dot-circle me-2"></i>Pointing Practice</h1>
+            <p>{{ player_name|default:session_codename }}</p>
+            {% if active_session %}
+            <div class="pointing-session-tags">
+                <span class="pointing-session-tag"><i class="fas fa-ruler me-1"></i>{{ active_session.distance }}</span>
+                {% if active_session.court_complex %}<span class="pointing-session-tag"><i class="fas fa-map-marker-alt me-1"></i>{{ active_session.court_complex.name }}</span>{% endif %}
+            </div>
+            {% endif %}
+        </header>
 
         {% if not active_session %}
             <!-- Start Session Card -->
-            <div class="card">
+            <div class="card pointing-card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-play me-2"></i>Start New Session
-                    </h5>
+                    <h5 class="pointing-card-title"><i class="fas fa-play me-2"></i>Start New Session</h5>
                 </div>
                 <div class="card-body">
-                    <p class="card-text mb-4 text-center">Configure your practice session settings before starting.</p>
+                    <p class="pointing-start-copy">Choose your settings, then record each placement with one touch.</p>
                     
                     <!-- Session Attributes Form -->
-                    <div class="mb-4">
+                    <div class="pointing-settings">
                         <!-- Distance Selection -->
                         <div class="mb-3">
                             <label for="sessionDistance" class="form-label fw-bold">
@@ -411,8 +498,8 @@
                         </div>
                     </div>
                     
-                    <div class="text-center">
-                        <button id="startSessionBtn" class="btn btn-primary btn-lg">
+                    <div class="text-center mt-1">
+                        <button id="startSessionBtn" class="btn btn-primary pointing-start-btn">
                             <i class="fas fa-play me-2"></i>Start Session
                         </button>
                     </div>
@@ -421,127 +508,82 @@
 
             {% if recent_sessions %}
                 <!-- Recent Sessions -->
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-history me-2"></i>Recent Sessions
-                        </h5>
+                <div class="card pointing-card pointing-recent">
+                    <div class="card-header"><h5 class="pointing-card-title"><i class="fas fa-history me-2"></i>Recent Sessions</h5></div>
+                    {% for session in recent_sessions %}
+                    <div class="pointing-recent-row {% if not forloop.last %}border-bottom{% endif %}">
+                        <div>
+                            <strong>{{ session.started_at|date:"M d, Y H:i" }}</strong>
+                            <small>{{ session.total_shots }} shots • {{ session.duration }}</small>
+                        </div>
+                        <div class="pointing-recent-side">
+                            <span class="badge bg-success">{{ session.hit_percentage|floatformat:1 }}%</span>
+                            <a href="{% url 'practice:session_summary' session.id %}">View Details <i class="fas fa-external-link-alt"></i></a>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        {% for session in recent_sessions %}
-                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
-                                <div>
-                                    <strong>{{ session.started_at|date:"M d, Y H:i" }}</strong>
-                                    <div class="small text-muted">
-                                        {{ session.total_shots }} shots • {{ session.duration }}
-                                    </div>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-success">{{ session.hit_percentage|floatformat:1 }}%</span>
-                                    <div>
-                                        <a href="{% url 'practice:session_summary' session.id %}" class="small text-decoration-none">
-                                            View Details <i class="fas fa-external-link-alt"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
+                    {% endfor %}
                 </div>
             {% endif %}
         {% else %}
             <!-- Active Session Interface -->
             <div id="practiceInterface">
-                <!-- Shot History -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-list me-2"></i>Recent Shots
-                        </h6>
+                <!-- Four preserved Pointing outcomes, presented as a compact touch grid -->
+                <div class="pointing-outcome-grid" aria-label="Pointing outcomes">
+                    <button id="perfectBtn" class="btn shot-btn shot-btn-perfect" data-outcome="perfect">
+                        <span class="pointing-outcome-dot" aria-hidden="true"></span>
+                        <span class="pointing-outcome-title">Perfect</span>
+                        <span class="pointing-outcome-note">0–10 cm from target</span>
+                    </button>
+                    <button id="goodBtn" class="btn shot-btn shot-btn-good" data-outcome="good">
+                        <span class="pointing-outcome-dot" aria-hidden="true"></span>
+                        <span class="pointing-outcome-title">Good</span>
+                        <span class="pointing-outcome-note">10–30 cm from target</span>
+                    </button>
+                    <button id="fairBtn" class="btn shot-btn shot-btn-fair" data-outcome="fair">
+                        <span class="pointing-outcome-dot" aria-hidden="true"></span>
+                        <span class="pointing-outcome-title">Fair</span>
+                        <span class="pointing-outcome-note">30–50 cm from target</span>
+                    </button>
+                    <button id="farBtn" class="btn shot-btn shot-btn-far" data-outcome="far">
+                        <span class="pointing-outcome-dot" aria-hidden="true"></span>
+                        <span class="pointing-outcome-title">Far</span>
+                        <span class="pointing-outcome-note">Over 50 cm from target</span>
+                    </button>
+                </div>
+
+                <!-- Existing controls, now compactly paired -->
+                <div class="pointing-controls">
+                    <button id="undoBtn" class="btn btn-outline-warning"><i class="fas fa-undo me-1"></i>Undo Last Shot</button>
+                    <button id="endSessionBtn" class="btn btn-outline-danger"><i class="fas fa-stop me-1"></i>End Session</button>
+                </div>
+
+                <!-- Existing statistics, now summarized in a compact card -->
+                <section class="card pointing-card pointing-stats-card">
+                    <div class="card-header"><h6 class="pointing-card-title"><i class="fas fa-chart-bar me-2"></i>Session Statistics</h6></div>
+                    <div class="card-body">
+                        <div class="pointing-summary-grid">
+                            <div class="pointing-summary-stat"><span>Total shots</span><strong id="totalShots">{{ active_session.total_shots }}</strong></div>
+                            <div class="pointing-summary-stat success"><span>Success Rate</span><strong id="successPercentage">{{ active_session.hit_percentage|floatformat:1 }}%</strong></div>
+                        </div>
+                        <div class="pointing-outcome-stats">
+                            <div class="pointing-outcome-stat perfect"><span>Perfect</span><strong id="perfectCount">{{ active_session.perfects }}</strong></div>
+                            <div class="pointing-outcome-stat good"><span>Good</span><strong id="goodCount">{{ active_session.goods }}</strong></div>
+                            <div class="pointing-outcome-stat fair"><span>Fair</span><strong id="fairCount">{{ active_session.fairs }}</strong></div>
+                            <div class="pointing-outcome-stat far"><span>Far</span><strong id="farCount">{{ active_session.fars }}</strong></div>
+                        </div>
+                        <span id="currentStreak" class="visually-hidden">0</span>
                     </div>
+                </section>
+
+                <!-- Existing recent-shot display -->
+                <section class="card pointing-card pointing-history-card">
+                    <div class="card-header"><h6 class="pointing-card-title"><i class="fas fa-list me-2"></i>Recent Shots</h6></div>
                     <div class="card-body">
                         <div id="shotHistory" class="shot-history">
-                            <div class="text-center text-muted">
-                                <i class="fas fa-info-circle me-2"></i>No shots recorded yet
-                            </div>
+                            <div class="text-center text-muted"><i class="fas fa-info-circle me-2"></i>No shots recorded yet</div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Statistics Card -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="fas fa-chart-bar me-2"></i>Session Statistics
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="stats-list">
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Total shots:</span>
-                                <span id="totalShots" class="stat-value-clear text-primary fw-bold">{{ active_session.total_shots }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Success rate:</span>
-                                <span id="successPercentage" class="stat-value-clear text-success fw-bold">{{ active_session.hit_percentage|floatformat:1 }}%</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Perfect:</span>
-                                <span id="perfectCount" class="stat-value-clear text-warning fw-bold">{{ active_session.perfects }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Good:</span>
-                                <span id="goodCount" class="stat-value-clear text-warning fw-bold">{{ active_session.goods }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Fair:</span>
-                                <span id="fairCount" class="stat-value-clear text-info fw-bold">{{ active_session.fairs }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Far:</span>
-                                <span id="farCount" class="stat-value-clear text-danger fw-bold">{{ active_session.fars }}</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label-clear">Streak:</span>
-                                <span id="currentStreak" class="stat-value-clear text-info fw-bold">0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Shot Buttons - Full Width, Vertically Stacked -->
-                <div class="shot-buttons-mobile">
-                    <button id="perfectBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-perfect" data-outcome="perfect">
-                        🟢
-                        <div class="fs-4 fw-bold">Perfect</div>
-                        <div class="small">0-10cm from target</div>
-                    </button>
-                    <button id="goodBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-good" data-outcome="good">
-                        🟡
-                        <div class="fs-4 fw-bold">Good</div>
-                        <div class="small">10-30cm from target</div>
-                    </button>
-                    <button id="fairBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-fair" data-outcome="fair">
-                        🔴
-                        <div class="fs-4 fw-bold">Fair</div>
-                        <div class="small">30-50cm from target</div>
-                    </button>
-                    <button id="farBtn" class="btn btn-lg w-100 mb-3 shot-btn shot-btn-far" data-outcome="far">
-                        ⚫
-                        <div class="fs-4 fw-bold">Far</div>
-                        <div class="small">>50cm from target</div>
-                    </button>
-                </div>
-
-                <!-- Control Buttons -->
-                <div class="control-buttons">
-                    <button id="undoBtn" class="btn btn-outline-warning">
-                        <i class="fas fa-undo me-2"></i>Undo Last Shot
-                    </button>
-                    <button id="endSessionBtn" class="btn btn-outline-danger">
-                        <i class="fas fa-stop me-2"></i>End Session
-                    </button>
-                </div>
+                </section>
             </div>
         {% endif %}
     </div>
@@ -664,17 +706,15 @@ class PointingPractice {
     async recordShot(outcome) {
         if (!this.sessionActive) return;
         
-        // Get the clicked button for visual feedback
+        // Mark only the selected outcome. This avoids inline style resets that could
+        // make non-selected buttons appear to own the recording feedback.
         const button = document.querySelector(`[data-outcome="${outcome}"]`);
         if (button) {
-            // Instant highlight on click
-            button.style.transform = 'scale(0.95)';
-            button.style.filter = 'brightness(1.4)';
-            button.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.9), inset 0 0 25px rgba(255, 255, 255, 0.4)';
-            button.style.transition = 'all 0.1s ease';
+            button.classList.add('is-recording');
         }
         
-        // Disable buttons temporarily (excluding the clicked button)
+        // Disable the outcome grid during the existing request while retaining the
+        // selected button's explicit feedback state.
         this.setButtonsEnabled(false, button);
         
         try {
@@ -698,13 +738,8 @@ class PointingPractice {
         } catch (error) {
             this.showError('Network error occurred');
         } finally {
-            // Reset button styles
             if (button) {
-                setTimeout(() => {
-                    button.style.transform = '';
-                    button.style.filter = '';
-                    button.style.boxShadow = '';
-                }, 400);
+                setTimeout(() => button.classList.remove('is-recording'), 400);
             }
             this.setButtonsEnabled(true);
         }
@@ -784,7 +819,10 @@ class PointingPractice {
         if (data.session_stats) {
             const stats = data.session_stats;
             document.getElementById('totalShots').textContent = stats.total_shots;
-            document.getElementById('successPercentage').textContent = stats.success_percentage + '%';
+            // record_shot returns success_percentage; the established undo response returns hit_percentage.
+            // Both are the existing server-calculated Pointing success rate, so preserve it for display.
+            const successPercentage = stats.success_percentage ?? stats.hit_percentage ?? 0;
+            document.getElementById('successPercentage').textContent = successPercentage + '%';
             document.getElementById('currentStreak').textContent = stats.current_streak;
             document.getElementById('perfectCount').textContent = stats.perfects || 0;
             document.getElementById('goodCount').textContent = stats.goods || 0;
@@ -849,41 +887,16 @@ class PointingPractice {
     }
     
     showShotFeedback(outcome) {
-        // Brief visual feedback for shot recording
-        const button = document.querySelector(`[data-outcome="${outcome}"]`);
-        if (button) {
-            button.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                button.style.transform = '';
-            }, 150);
-        }
+        // The selected outcome already owns the temporary .is-recording state.
+        // Keep this method for the existing call contract without styling another button.
     }
     
-    setButtonsEnabled(enabled, excludeButton = null) {
+    setButtonsEnabled(enabled, selectedButton = null) {
         document.querySelectorAll('.shot-btn').forEach(btn => {
             btn.disabled = !enabled;
-            
-            // ALWAYS remove borders and outlines from ALL buttons
-            btn.style.border = 'none';
-            btn.style.outline = 'none';
-            
-            // Skip styling changes for the excluded button (the one being clicked)
-            if (excludeButton && btn === excludeButton) {
-                return; // Keep the clicked button's highlight visible
-            }
-            
-            if (!enabled) {
-                btn.style.opacity = '0.6';
-                btn.style.cursor = 'not-allowed';
-                // Extra enforcement: remove borders when disabled
-                btn.style.border = 'none';
-                btn.style.outline = 'none';
-            } else {
-                btn.style.opacity = '';
-                btn.style.cursor = '';
-                // Extra enforcement: remove borders when enabled
-                btn.style.border = 'none';
-                btn.style.outline = 'none';
+            btn.classList.toggle('is-pending', !enabled && btn !== selectedButton);
+            if (enabled) {
+                btn.classList.remove('is-pending');
             }
         });
     }
