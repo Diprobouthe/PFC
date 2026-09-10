@@ -62,6 +62,10 @@
     .fgc-court-player.selected { border-color: #1754bf; background: #eaf2ff; box-shadow: inset 0 0 0 1px #1754bf; }
     .fgc-court-player small { color: #70849e; font-size: .68rem; font-weight: 650; }
     .fgc-court-empty { color: #6d8098; font-size: .76rem; font-style: italic; }
+    .fgc-venue-confirmation { display: none; margin: 9px 0; padding: 10px; border: 1.5px solid #e7c97c; border-radius: 10px; background: #fffaf0; color: #735300; font-size: .75rem; line-height: 1.35; }
+    .fgc-venue-confirmation.visible { display: block; }
+    .fgc-venue-confirmation strong { display: block; margin-bottom: 5px; }
+    .fgc-venue-choice { display: block; width: 100%; margin-top: 6px; padding: 7px 9px; border: 1px solid #d3a842; border-radius: 8px; background: #fff; color: #6a4a00; font: inherit; font-weight: 800; text-align: left; cursor: pointer; }
     .fgc-include-creator { display: flex; align-items: flex-start; gap: 7px; margin-top: 9px; color: #405a78; font-size: .76rem; line-height: 1.3; cursor: pointer; }
     .fgc-sticky { position: fixed; right: 0; bottom: 0; left: 0; z-index: 100; max-width: 520px; margin: 0 auto; padding: 12px 14px max(16px, env(safe-area-inset-bottom)); background: linear-gradient(to top, #fff 76%, rgba(255,255,255,0)); }
     .fgc-submit { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 53px; border: none; border-radius: 13px; background: #087d32; color: #fff; font-size: 1rem; font-weight: 900; box-shadow: 0 5px 16px rgba(8, 125, 50, .26); cursor: pointer; }
@@ -131,6 +135,7 @@
                 <button type="button" class="fgc-pull-button" data-court-pull="6">{% translate "Random" %}: 6</button>
             </div>
             <div id="courtPlayersFeedback" class="fgc-feedback" aria-live="polite"></div>
+            <div id="courtVenueConfirmation" class="fgc-venue-confirmation" aria-live="polite"></div>
             <div id="courtPlayersList" class="fgc-court-players-list"></div>
             <label class="fgc-include-creator"><input type="checkbox" id="includeCreatorToggle" checked> <span>{% translate "Include me in the Friendly Game" %}<small style="display:block;color:#72839a">{% translate "Uncheck only when building the game for players at courts without joining it yourself." %}</small></span></label>
         </section>
@@ -279,34 +284,65 @@ function requestCourtLocation() {
         });
     });
 }
+function clearCourtVenueConfirmation() {
+    const panel = document.getElementById('courtVenueConfirmation');
+    if (panel) { panel.innerHTML = ''; panel.classList.remove('visible'); }
+}
+function showCourtVenueConfirmation(verification, retry) {
+    const panel = document.getElementById('courtVenueConfirmation');
+    const venues = (verification && verification.venues) || [];
+    if (!panel || !venues.length) return;
+    const accuracy = Math.round(Number(verification.reported_accuracy_metres) || 0);
+    panel.innerHTML = '<strong>{% translate "Confirm your Court Complex" %}</strong><span>{% translate "Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at." %} ' + (accuracy ? '(±' + accuracy + ' m)' : '') + '</span>' + venues.map(venue => '<button type="button" class="fgc-venue-choice" data-court-venue="' + Number(venue.id) + '">' + escapeHtml(venue.name) + '</button>').join('');
+    panel.classList.add('visible');
+    panel.querySelectorAll('[data-court-venue]').forEach(button => button.addEventListener('click', () => {
+        const courtSelect = document.getElementById('courtComplex');
+        if (courtSelect) courtSelect.value = button.dataset.courtVenue;
+        syncCourtOptions(true);
+        clearCourtVenueConfirmation();
+        retry(Number(button.dataset.courtVenue));
+    }));
+}
+async function submitCourtPlayerLocation(position, confirmedCourtId) {
+    const complexId = confirmedCourtId || Number(document.getElementById('courtComplex').value);
+    if (!complexId) throw new Error(labels.selectComplex);
+    const formToken = document.querySelector('#friendlyCreateForm [name="csrfmiddlewaretoken"]').value;
+    const payload = new URLSearchParams({
+        court_complex_id: String(complexId),
+        latitude: String(position.coords.latitude),
+        longitude: String(position.coords.longitude),
+        accuracy: String(position.coords.accuracy),
+        position_timestamp: String(position.timestamp),
+    });
+    if (confirmedCourtId) payload.set('confirm_ambiguous_venue', 'true');
+    const response = await fetch('{% url "friendly_games:available_court_players_api" %}', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-CSRFToken': formToken,
+        },
+        body: payload.toString(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!data.ok && data.requires_venue_confirmation) {
+        showCourtVenueConfirmation(data.verification, courtId => submitCourtPlayerLocation(position, courtId));
+        return;
+    }
+    if (!response.ok || !data.ok) throw new Error(data.error || labels.courtPlayersError);
+    state.courtEligible = data.players || [];
+    renderCourtPlayers();
+    setCourtFeedback(data.accuracy_notice || (state.courtEligible.length ? labels.loadedCourtPlayers : labels.noCourtPlayers), !state.courtEligible.length);
+}
 async function loadCourtPlayers() {
     const complexId = document.getElementById('courtComplex').value;
     if (!complexId) { setCourtFeedback(labels.selectComplex, true); return; }
     // Location is requested only from this explicit Show available players action.
-    clearCourtPlayersDisplay();
+    clearCourtPlayersDisplay(); clearCourtVenueConfirmation();
     setCourtFeedback(labels.checkingLocation, false);
     try {
         const position = await requestCourtLocation();
-        const formToken = document.querySelector('#friendlyCreateForm [name="csrfmiddlewaretoken"]').value;
-        const payload = new URLSearchParams({
-            court_complex_id: complexId,
-            latitude: String(position.coords.latitude),
-            longitude: String(position.coords.longitude),
-        });
-        const response = await fetch('{% url "friendly_games:available_court_players_api" %}', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-                'X-CSRFToken': formToken,
-            },
-            body: payload.toString(),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) throw new Error(data.error || labels.courtPlayersError);
-        state.courtEligible = data.players || [];
-        renderCourtPlayers();
-        setCourtFeedback(state.courtEligible.length ? labels.loadedCourtPlayers : labels.noCourtPlayers, !state.courtEligible.length);
+        await submitCourtPlayerLocation(position, null);
     } catch (error) {
         clearCourtPlayersDisplay();
         if (error && error.code === 'unsupported') { setCourtFeedback(labels.locationUnsupported, true); return; }

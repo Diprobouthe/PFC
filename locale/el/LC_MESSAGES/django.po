@@ -2660,3 +2660,19 @@ msgstr ""
 
 #~ msgid "Professional"
 #~ msgstr "Επαγγελματίας"
+
+#: billboard/templates/billboard/billboard_list.html friendly_games/templates/friendly_games/create_game.html
+msgid "Confirm your Court Complex"
+msgstr "Επιβεβαιώστε το Συγκρότημα Γηπέδων σας"
+
+#: billboard/presence_views.py billboard/templates/billboard/billboard_list.html friendly_games/views.py friendly_games/templates/friendly_games/create_game.html
+msgid "Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at."
+msgstr "Η τοποθεσία της συσκευής σας δεν είναι αρκετά ακριβής για να διακρίνει μεταξύ κοντινών εγκαταστάσεων PFC. Επιβεβαιώστε σε ποιο Συγκρότημα Γηπέδων βρίσκεστε."
+
+#: billboard/presence_views.py billboard/templates/billboard/billboard_list.html
+msgid "Your device reports low location accuracy (±%(accuracy)s m). Your presence has been accepted because the reported location uncertainty includes this Court Complex."
+msgstr "Η συσκευή σας αναφέρει χαμηλή ακρίβεια τοποθεσίας (±%(accuracy)s μ.). Η παρουσία σας έγινε δεκτή επειδή η αναφερόμενη αβεβαιότητα τοποθεσίας περιλαμβάνει αυτό το Συγκρότημα Γηπέδων."
+
+#: friendly_games/views.py friendly_games/templates/friendly_games/create_game.html
+msgid "Your device reports low location accuracy (±%(accuracy)s m). Your location has been accepted because the reported location uncertainty includes this Court Complex."
+msgstr "Η συσκευή σας αναφέρει χαμηλή ακρίβεια τοποθεσίας (±%(accuracy)s μ.). Η τοποθεσία σας έγινε δεκτή επειδή η αναφερόμενη αβεβαιότητα τοποθεσίας περιλαμβάνει αυτό το Συγκρότημα Γηπέδων."

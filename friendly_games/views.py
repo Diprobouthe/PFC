@@ -26,7 +26,13 @@ from .court_utils import resolve_court_assignment, get_court_context_for_form, c
 from .venue_utils import FriendlyVenueError, get_allowed_friendly_complexes
 from .presence_utils import register_friendly_game_players_at_court, deactivate_friendly_game_presence
 from courts.timezone_utils import get_court_local_now
-from courts.proximity import distance_metres
+from courts.proximity import (
+    VERIFICATION_ACCURACY_ASSISTED,
+    VERIFICATION_AMBIGUOUS,
+    VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
+    assess_court_proximity,
+    assessment_payload,
+)
 from pfc_events.signals import notify_game_state_changed
 
 logger = logging.getLogger(__name__)
@@ -153,9 +159,8 @@ def available_court_players_api(request):
     if not court_complex:
         return JsonResponse({'ok': False, 'error': _('Court Complex not found.')}, status=404)
     try:
-        allowed_complex_ids = {
-            allowed_complex.pk for allowed_complex in get_allowed_friendly_complexes(request)
-        }
+        allowed_complexes = get_allowed_friendly_complexes(request)
+        allowed_complex_ids = {allowed_complex.pk for allowed_complex in allowed_complexes}
     except FriendlyVenueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=409)
     if court_complex.pk not in allowed_complex_ids:
@@ -169,23 +174,37 @@ def available_court_players_api(request):
             'error': _('This Court Complex does not yet have a location configured for nearby-player access.'),
         }, status=409)
 
-    proximity_distance_metres = distance_metres(
-        device_latitude,
-        device_longitude,
-        float(court_complex.latitude),
-        float(court_complex.longitude),
+    venue_confirmed = str(request.POST.get('confirm_ambiguous_venue', '')).lower() in {'1', 'true', 'yes'}
+    # Friendly selection keeps its existing creator-GPS venue boundary.  Any
+    # ambiguity choices must therefore also be Friendly-permitted venues.
+    proximity = assess_court_proximity(
+        latitude=device_latitude,
+        longitude=device_longitude,
+        selected_complex=court_complex,
+        reported_accuracy=request.POST.get('accuracy'),
+        candidate_complexes=allowed_complexes,
+        venue_confirmed=venue_confirmed,
     )
-    permitted_radius_metres = settings.PFC_FRIENDLY_COURT_PROXIMITY_METERS
-    if proximity_distance_metres > permitted_radius_metres:
+    verification = assessment_payload(proximity)
+    if proximity.outcome == VERIFICATION_AMBIGUOUS:
+        return JsonResponse({
+            'ok': False,
+            'requires_venue_confirmation': True,
+            'error': _('Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at.'),
+            'verification': verification,
+        }, status=409)
+    if not proximity.allowed:
         return JsonResponse({
             'ok': False,
             'error': _('You need to be at these courts to view and use the players currently available here.'),
+            'verification': verification,
         }, status=403)
 
     players = _eligible_friendly_court_players(court_complex)
-    return JsonResponse({
+    response = {
         'ok': True,
         'court_complex': {'id': court_complex.id, 'name': court_complex.name},
+        'verification': verification,
         'players': [
             {
                 'id': player.id,
@@ -195,7 +214,15 @@ def available_court_players_api(request):
             }
             for player in players
         ],
-    })
+    }
+    if proximity.outcome in {
+        VERIFICATION_ACCURACY_ASSISTED,
+        VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
+    }:
+        response['accuracy_notice'] = _(
+            'Your device reports low location accuracy (±%(accuracy)s m). Your location has been accepted because the reported location uncertainty includes this Court Complex.'
+        ) % {'accuracy': f'{proximity.reported_accuracy_metres:.0f}'}
+    return JsonResponse(response)
 
 
 def _friendly_position_for_player(player):
