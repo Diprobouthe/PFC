@@ -12,6 +12,9 @@
         .header-section { background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; padding: 2rem; border-radius: 20px 20px 0 0; text-align: center; }
         .info-card { background: white; border: 2px solid #e2e8f0; border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem; }
         .player-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; margin-bottom: 0.5rem; }
+        .registration-remove-form { margin: 0; }
+        .registration-remove-button { width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #94a3b8; font-size: 1.5rem; line-height: 1; }
+        .registration-remove-button:hover, .registration-remove-button:focus { background: #fee2e2; color: #dc2626; }
         .team-card { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 1rem; margin-bottom: 0.5rem; }
         .pin-code { font-family: 'Courier New', monospace; font-size: 1.2rem; font-weight: bold; color: #2563eb; }
         .btn-primary { background: linear-gradient(135deg, #2563eb, #3b82f6); border: none; border-radius: 10px; padding: 0.75rem 2rem; font-weight: 600; }
@@ -92,9 +95,17 @@
                                 <div class="row g-2">
                                     {% for melee_player in registered_players %}
                                     <div class="col-md-6">
-                                        <div class="player-card">
-                                            <strong>{{ melee_player.player.name }}</strong>
-                                            <small class="text-muted d-block">{{ melee_player.player.codename }}</small>
+                                        <div class="player-card d-flex align-items-center justify-content-between gap-2">
+                                            <div class="min-w-0">
+                                                <strong>{{ melee_player.player.name }}</strong>
+                                                <small class="text-muted d-block">{{ melee_player.player.codename }}</small>
+                                            </div>
+                                            {% if can_remove_players %}
+                                            <form class="registration-remove-form" method="post" action="{% url 'remove_simple_tournament_player' tournament.id melee_player.id %}">
+                                                {% csrf_token %}
+                                                <button class="registration-remove-button" type="submit" aria-label="Remove {{ melee_player.player.name }} from this tournament" title="Remove registration">&times;</button>
+                                            </form>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     {% endfor %}

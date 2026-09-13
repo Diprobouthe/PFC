@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_protect
 from django.utils import timezone
 from django.db import transaction
 from datetime import datetime, timedelta
@@ -409,6 +410,23 @@ def simple_creator_success(request):
     })
 
 
+def _has_simple_tournament_management_access(request, tournament):
+    """Return whether this request has the existing creator-session or staff access."""
+    if request.user.is_staff:
+        return True
+    tournament_info = request.session.get('simple_tournament_info') or {}
+    return tournament_info.get('tournament_id') == tournament.id
+
+
+def _simple_melee_registration_removal_is_open(tournament):
+    """Mirror the existing pre-generation Mêlée registration lifecycle boundary."""
+    return bool(
+        tournament.is_melee
+        and tournament.is_active
+        and not tournament.melee_teams_generated
+    )
+
+
 def manage_tournament(request, tournament_id):
     """Tournament management page for game creator"""
     try:
@@ -468,6 +486,10 @@ def manage_tournament(request, tournament_id):
             'team_pins': team_pins,
             'can_start': can_start,
             'is_started': is_started,
+            'can_remove_players': (
+                _has_simple_tournament_management_access(request, tournament)
+                and _simple_melee_registration_removal_is_open(tournament)
+            ),
         }
 
         return render(request, 'simple_tournament_manage.html', context)
@@ -475,6 +497,48 @@ def manage_tournament(request, tournament_id):
     except Tournament.DoesNotExist:
         messages.error(request, 'Tournament not found')
         return redirect('simple_creator_home')
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def remove_simple_tournament_player(request, tournament_id, melee_player_id):
+    """Remove one pre-start Mêlée registration without modifying the Player or Team."""
+    from tournaments.models import MeleePlayer
+
+    try:
+        with transaction.atomic():
+            tournament = Tournament.objects.select_for_update().get(id=tournament_id)
+            if not _has_simple_tournament_management_access(request, tournament):
+                messages.error(request, 'Tournament management access is required to remove a registration.')
+                return redirect('manage_tournament', tournament_id=tournament.id)
+
+            if not _simple_melee_registration_removal_is_open(tournament):
+                messages.error(request, 'Player registration can no longer be removed after teams have been generated or registration has closed.')
+                return redirect('manage_tournament', tournament_id=tournament.id)
+
+            registration = MeleePlayer.objects.select_for_update().select_related('player').filter(
+                id=melee_player_id,
+                tournament=tournament,
+            ).first()
+            if registration is None:
+                messages.error(request, 'Player registration was not found for this tournament.')
+                return redirect('manage_tournament', tournament_id=tournament.id)
+
+            # A generated assignment is a defensive lifecycle boundary even if
+            # the tournament flag has not yet been refreshed by another process.
+            if registration.assigned_team_id is not None:
+                messages.error(request, 'Player registration can no longer be removed after teams have been generated.')
+                return redirect('manage_tournament', tournament_id=tournament.id)
+
+            player_name = registration.player.name
+            registration.delete()
+
+        messages.success(request, f'{player_name} was removed from this tournament registration.')
+    except Tournament.DoesNotExist:
+        messages.error(request, 'Tournament not found')
+        return redirect('simple_creator_home')
+
+    return redirect('manage_tournament', tournament_id=tournament_id)
 
 
 def start_tournament(request, tournament_id):

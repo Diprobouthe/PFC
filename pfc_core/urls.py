@@ -53,6 +53,7 @@ urlpatterns = [
     path('simple/create/', simple_creator.create_simple_tournament, name='create_simple_tournament'),
     path('simple/success/', simple_creator.simple_creator_success, name='simple_creator_success'),
     path('simple/manage/<int:tournament_id>/', simple_creator.manage_tournament, name='manage_tournament'),
+    path('simple/manage/<int:tournament_id>/players/<int:melee_player_id>/remove/', simple_creator.remove_simple_tournament_player, name='remove_simple_tournament_player'),
     path('simple/start/<int:tournament_id>/', simple_creator.start_tournament, name='start_tournament'),
     path('simple/courts/', simple_creator.get_available_courts, name='get_available_courts'),
     path('simple/validate-voucher/', simple_creator.validate_voucher, name='validate_voucher'),
