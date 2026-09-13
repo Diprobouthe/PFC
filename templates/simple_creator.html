@@ -20,6 +20,7 @@
         .form-control, .form-select { border-radius: 10px; border: 2px solid #e2e8f0; padding: 0.75rem 1rem; }
         .voucher-section { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; }
         .court-info { background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; }
+        .continue-management-card { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 1.25rem; }
         @keyframes fadeInPanel { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
     </style>
 </head>
@@ -40,6 +41,18 @@
                         </div>
                     {% endfor %}
                 {% endif %}
+
+                <section id="continue-management-card" class="continue-management-card" hidden aria-live="polite">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                        <div>
+                            <div class="fw-semibold text-primary"><i class="bi bi-arrow-repeat me-1"></i>Continue Tournament Management</div>
+                            <small id="continue-management-name" class="text-muted"></small>
+                        </div>
+                        <a id="continue-management-link" class="btn btn-primary" href="#">
+                            <i class="bi bi-gear"></i> Continue Tournament Management
+                        </a>
+                    </div>
+                </section>
                 
                 <form method="post" action="{% url 'create_simple_tournament' %}" id="tournament-form">
                     {% csrf_token %}
@@ -254,6 +267,30 @@
             const voucherFeedback = document.getElementById('voucher-feedback');
             const vsMatchCountInput = document.getElementById('num_vs_matches');
             const courtsSelect = document.getElementById('num_courts');
+
+            // The live Management page stores only its existing relative URL and
+            // optional display name. This survives PWA/browser restarts without
+            // introducing a new server-side ownership or authorization model.
+            const managementStorageKey = 'pfc.simpleTournamentManagement.v1';
+            const continueCard = document.getElementById('continue-management-card');
+            const continueLink = document.getElementById('continue-management-link');
+            const continueName = document.getElementById('continue-management-name');
+            try {
+                const savedManagement = JSON.parse(window.localStorage.getItem(managementStorageKey));
+                const isManagementPath = savedManagement
+                    && typeof savedManagement.path === 'string'
+                    && /^\/simple\/manage\/\d+\/(?:[?#].*)?$/.test(savedManagement.path);
+                if (isManagementPath && continueCard && continueLink) {
+                    continueLink.href = savedManagement.path;
+                    if (continueName && savedManagement.tournamentName) {
+                        continueName.textContent = savedManagement.tournamentName;
+                    }
+                    continueCard.hidden = false;
+                }
+            } catch (error) {
+                // Local storage can be unavailable in privacy-restricted browsers.
+                // The live creator remains fully usable without the convenience action.
+            }
 
             // ── Dropdown scenario selector ─────────────────────────────────────────────
             const dropdown   = document.getElementById('scenario-dropdown');

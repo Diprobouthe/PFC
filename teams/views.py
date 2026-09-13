@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from .views_market import pfc_market
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Q, Count, Prefetch
 from django.http import JsonResponse
 from django.utils.translation import gettext as _
@@ -10,6 +11,7 @@ from .forms import TeamForm, PlayerForm, TeamAvailabilityForm, PublicPlayerForm,
 from .utils import get_recent_matches_with_participation, get_player_participation_summary
 from matches.models import Match, MatchActivation
 from pfc_core.session_utils import CodenameSessionManager
+from pfc_core.team_access import request_has_team_access
 from friendly_games.models import PlayerCodename
 
 # Enhanced public team views
@@ -198,9 +200,10 @@ def team_create(request):
                 
                 # Store team creation success info for PIN display
                 request.session['team_created'] = {
+                    'team_id': team.id,
                     'team_name': team.name,
                     'player_name': pending_player["name"],
-                    'player_id': player.id
+                    'player_id': player.id,
                 }
                 
                 messages.success(request, f'Team {team.name} created successfully! Welcome {pending_player["name"]}, your player profile has been completed.')
@@ -284,20 +287,31 @@ def team_availability_create(request, team_id):
 
 def show_team_pin(request, team_id):
     team = get_object_or_404(Team, id=team_id)
-    
-    # Check if this is from team creation during player registration
+
+    # The post-creation screen is a one-time, server-side session grant.  New
+    # sessions include the immutable Team id.  The narrow legacy fallback
+    # preserves an in-flight pre-deployment creation session only when its
+    # player identity and Team name also match this exact request.
     team_created_info = request.session.get('team_created')
-    is_team_creation = team_created_info is not None
-    
-    # If it's from team creation, clear the session data after use
+    legacy_creation_match = bool(
+        team_created_info
+        and team_created_info.get('team_id') is None
+        and team_created_info.get('team_name') == team.name
+        and str(team_created_info.get('player_id')) == str(request.session.get('player_id'))
+    )
+    is_team_creation = bool(
+        team_created_info
+        and (
+            str(team_created_info.get('team_id')) == str(team.pk)
+            or legacy_creation_match
+        )
+    )
+
     if is_team_creation:
-        del request.session['team_created']
-    
-    # For regular admin access, require login
-    elif not request.user.is_authenticated:
-        messages.error(request, 'You need to be logged in to view team PINs.')
-        return redirect('admin:login')
-    
+        request.session.pop('team_created', None)
+    elif not request_has_team_access(request, team):
+        raise PermissionDenied('You are not authorised to view this Team PIN.')
+
     context = {
         'team': team,
         'is_team_creation': is_team_creation,

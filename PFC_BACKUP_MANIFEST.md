@@ -1,35 +1,27 @@
-# PFC Complete Render Deployment Package
+# PFC Complete Current Source and Render Deployment Backup
 
-**Package date:** 2026-09-10
+**Package date:** 2026-08-29
 
-## Purpose
+This archive is a complete clean source reference for the current PFC platform. It is intended for Render deployment, rollback, and long-term project reference.
 
-This is a complete current PFC source and deployment package prepared from the working sandbox project at `/home/ubuntu/merge/project`.
+## Included
 
-It includes all current Django application source, templates, source static assets, migrations, locale catalogs, PWA and Push components, Render configuration, dependency manifests, and deployment entry files.
+The archive includes all current Django application source, templates, source static assets, migrations, locale catalogs, package manifests, deployment configuration, `requirements.txt`, `Procfile`, `render.yaml`, `runtime.txt`, PWA/service-worker source, Push implementation, current Friendly Game creator and Players-at-Courts work, Manual/Random/Balanced team-building work, Match Tracking/Broadcast work, Live Score work, Invitation work, and Tournament/Pool/Multi-Stage/Scenario-limit work.
 
-## Included current feature state
+## Excluded deliberately
 
-The package includes the latest Court Complex live-detail and Billboard integrations, Practice UI refreshes, Pointing Practice fixes, Friendly overlap and creator-GPS venue protections, accuracy-aware proximity verification, PWA/Push components, Match Tracking/Broadcast features, Invitations, Tournament/Pool/Multi-Stage features, registration/voucher work, and the Friendly starting-side communication update.
-
-For the Friendly starting-side update, the existing random draw and selected-side-only Push behavior remain unchanged. The existing selected side sees the stored draw result after activation, until the first official non-zero score update is recorded. No manual dismissal, new recipient path, or Match scoring/lifecycle change is included.
+The archive excludes runtime and sensitive/generated artifacts: `db.sqlite3`, uploaded media, `staticfiles`, `.env` files, cookies, logs, caches, `__pycache__`, compiled Python files, virtual environments, `node_modules`, Git metadata, and prior ZIP archives.
 
 ## Render deployment
 
-Use the existing `render.yaml`, `Procfile`, `requirements.txt`, and `runtime.txt` in the project root. Preserve existing production environment variables and Render service architecture, including PostgreSQL, Redis, persistent media storage, PWA/Push VAPID settings, and Django secrets.
-
-Run the normal deployment migration command:
+Extract the archive and deploy the contents of the top-level project directory. Configure production secrets as Render environment variables. Run the existing release migration process:
 
 ```bash
 python manage.py migrate
 ```
 
-No database reset, data deletion, or media replacement is required.
+Use the included `Procfile`, `render.yaml`, and `requirements.txt` for the current project configuration.
 
-## Excluded by design
+## Revision note
 
-The archive excludes `db.sqlite3`, uploaded `media/`, `.env` and credential files, logs, cookies/sessions, caches, `__pycache__`, `*.pyc`, virtual environments, `node_modules`, generated `staticfiles`, `.git`, nested ZIP archives, test/runtime artifacts, and temporary developer scripts.
-
-## Validation
-
-The package is validated with `unzip -t` and a SHA-256 checksum before delivery. No Git commit is recorded because the restored project has no Git metadata.
+The restored source tree does not contain a `.git` directory, so no commit hash is available for this package.

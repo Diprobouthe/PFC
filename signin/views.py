@@ -1,10 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from tournaments.models import Tournament, MeleePlayer
 from teams.models import Team
 from friendly_games.models import PlayerCodename
 from pfc_core.session_utils import CodenameSessionManager
+from pfc_core.team_access import establish_team_access_session, request_has_team_access
 from .forms import TournamentSigninForm
 from .models import TeamTournamentSignin
 from .services import activate_team_tournament_signin
@@ -161,7 +164,9 @@ def tournament_signin(request):
                     })
                 messages.success(request, f"Successfully signed in to {tournament.name}.")
             
-            # Redirect to team dashboard
+            # A successful Team PIN sign-in is the existing authoritative
+            # proof required for the subsequent dashboard and sign-out actions.
+            establish_team_access_session(request, team)
             return redirect('team_tournament_dashboard', team_id=team.id, tournament_id=tournament.id)
     else:
         form = TournamentSigninForm()
@@ -185,10 +190,12 @@ def tournament_signin(request):
     return render(request, 'signin/tournament_signin.html', context)
 
 def team_tournament_dashboard(request, team_id, tournament_id):
-    """Dashboard view for a team signed in to a tournament"""
+    """Dashboard view for an authorised team signed in to a tournament."""
     team = get_object_or_404(Team, id=team_id)
     tournament = get_object_or_404(Tournament, id=tournament_id)
-    
+    if not request_has_team_access(request, team):
+        raise PermissionDenied("You are not authorised to view this team dashboard.")
+
     # Verify team is signed in to this tournament
     signin = get_object_or_404(TeamTournamentSignin, team=team, tournament=tournament, is_active=True)
     
@@ -199,11 +206,14 @@ def team_tournament_dashboard(request, team_id, tournament_id):
     }
     return render(request, 'signin/team_tournament_dashboard.html', context)
 
+@require_POST
 def tournament_signout(request, team_id, tournament_id):
-    """View for teams to sign out from tournaments"""
+    """Sign an authorised team out of a tournament."""
     team = get_object_or_404(Team, id=team_id)
     tournament = get_object_or_404(Tournament, id=tournament_id)
-    
+    if not request_has_team_access(request, team):
+        raise PermissionDenied("You are not authorised to sign this team out.")
+
     # Find and deactivate sign-in record
     signin = get_object_or_404(TeamTournamentSignin, team=team, tournament=tournament, is_active=True)
     signin.is_active = False

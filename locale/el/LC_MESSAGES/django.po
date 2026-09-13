@@ -2728,3 +2728,19 @@ msgstr "Το PFC αντιμετώπισε ένα απρόσμενο σφάλμα
 #: templates/partials/friendly_starting_side_announcement.html
 msgid "Starting side"
 msgstr "Ομάδα που ξεκινά"
+
+#: billboard/presence_views.py
+msgid "Sign in before checking in."
+msgstr "Συνδεθείτε πριν δηλώσετε παρουσία."
+
+#: billboard/presence_views.py
+msgid "Sign in before creating an arrival declaration."
+msgstr "Συνδεθείτε πριν δηλώσετε ότι πηγαίνετε στα γήπεδα."
+
+#: billboard/presence_views.py
+msgid "Sign in before canceling an arrival declaration."
+msgstr "Συνδεθείτε πριν ακυρώσετε τη δήλωση άφιξης."
+
+#: billboard/presence_views.py
+msgid "Sign in before leaving the courts."
+msgstr "Συνδεθείτε πριν δηλώσετε αποχώρηση από τα γήπεδα."

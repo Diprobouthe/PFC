@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
@@ -134,6 +134,7 @@ def respond_to_match(request, entry_id):
         })
 
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class BillboardListView(ListView):
     """Main Billboard view showing all active entries"""
     model = BillboardEntry

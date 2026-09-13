@@ -18,7 +18,6 @@ from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.translation import gettext as _
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from courts.models import CourtComplex
@@ -200,7 +199,6 @@ def api_defaults(request):
     })
 
 
-@csrf_exempt
 @require_POST
 def api_im_here(request):
     """
@@ -217,11 +215,8 @@ def api_im_here(request):
     except (json.JSONDecodeError, ValueError):
         data = {}
 
-    # Allow codename override from body (for unauthenticated flow)
     if not codename:
-        codename = str(data.get("codename", "")).upper()
-    if not codename or len(codename) != 6:
-        return JsonResponse({"ok": False, "error": "Codename required (6 chars)"}, status=400)
+        return JsonResponse({"ok": False, "error": _("Sign in before checking in.")}, status=401)
 
     # Resolve court
     court_id = data.get("court_id")
@@ -368,7 +363,6 @@ def api_im_here(request):
     return JsonResponse(response)
 
 
-@csrf_exempt
 @require_POST
 def api_friendly_availability(request):
     """Persist the caller's Friendly pull preference independently of presence.
@@ -392,7 +386,6 @@ def api_friendly_availability(request):
     })
 
 
-@csrf_exempt
 @require_POST
 def api_going(request):
     """
@@ -411,9 +404,7 @@ def api_going(request):
         data = {}
 
     if not codename:
-        codename = str(data.get("codename", "")).upper()
-    if not codename or len(codename) != 6:
-        return JsonResponse({"ok": False, "error": "Codename required (6 chars)"}, status=400)
+        return JsonResponse({"ok": False, "error": _("Sign in before creating an arrival declaration.")}, status=401)
 
     # Resolve court
     court_id = data.get("court_id")
@@ -531,7 +522,6 @@ def api_going(request):
     })
 
 
-@csrf_exempt
 @require_POST
 def api_cancel_going(request):
     """Persistently cancel one active Going declaration owned by the player."""
@@ -541,9 +531,7 @@ def api_cancel_going(request):
     except (json.JSONDecodeError, ValueError):
         data = {}
     if not codename:
-        codename = str(data.get("codename", "")).upper()
-    if not codename or len(codename) != 6:
-        return JsonResponse({"ok": False, "error": _("Codename required")}, status=400)
+        return JsonResponse({"ok": False, "error": _("Sign in before canceling an arrival declaration.")}, status=401)
     try:
         entry_id = int(data.get("entry_id"))
     except (TypeError, ValueError):
@@ -612,7 +600,6 @@ def api_arrival_reminder(request):
     })
 
 
-@csrf_exempt
 @require_POST
 def api_leave(request):
     """
@@ -628,9 +615,7 @@ def api_leave(request):
         data = {}
 
     if not codename:
-        codename = str(data.get("codename", "")).upper()
-    if not codename or len(codename) != 6:
-        return JsonResponse({"ok": False, "error": "Codename required"}, status=400)
+        return JsonResponse({"ok": False, "error": _("Sign in before leaving the courts.")}, status=401)
 
     # Deactivate ALL active AT_COURTS entries for this player, regardless of age or source.
     # This includes manual check-ins, game-generated entries, and post-game grace entries.

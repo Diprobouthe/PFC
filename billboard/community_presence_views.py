@@ -12,7 +12,6 @@ import json
 import logging
 
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from courts.models import CourtComplex
@@ -43,7 +42,6 @@ def _report_to_dict(report):
     }
 
 
-@csrf_exempt
 @require_POST
 def api_community_report(request):
     """
@@ -62,9 +60,7 @@ def api_community_report(request):
         data = {}
 
     if not codename:
-        codename = str(data.get("codename", "")).upper()
-    if not codename or len(codename) != 6:
-        return JsonResponse({"ok": False, "error": "Codename required"}, status=400)
+        return JsonResponse({"ok": False, "error": "Sign in before reporting community presence."}, status=401)
 
     court_id = data.get("court_id")
     if not court_id:
@@ -84,7 +80,6 @@ def api_community_report(request):
     return JsonResponse({"ok": True, "report": _report_to_dict(report)})
 
 
-@csrf_exempt
 @require_POST
 def api_community_confirm(request):
     """
@@ -102,9 +97,7 @@ def api_community_confirm(request):
         data = {}
 
     if not codename:
-        codename = str(data.get("codename", "")).upper()
-    if not codename or len(codename) != 6:
-        return JsonResponse({"ok": False, "error": "Codename required"}, status=400)
+        return JsonResponse({"ok": False, "error": "Sign in before confirming community presence."}, status=401)
 
     court_id = data.get("court_id")
     if not court_id:

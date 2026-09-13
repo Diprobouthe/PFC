@@ -60,9 +60,12 @@
             </div>
             
             <div class="mt-4">
-                <a href="{% url 'tournament_signout' team.id tournament.id %}" class="btn btn-danger">
-                    <i class="fas fa-sign-out-alt me-2"></i> Sign Out
-                </a>
+                <form method="post" action="{% url 'tournament_signout' team.id tournament.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-sign-out-alt me-2"></i> Sign Out
+                    </button>
+                </form>
                 <a href="{% url 'tournament_signin_list' %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left me-2"></i> Back to Tournaments
                 </a>
