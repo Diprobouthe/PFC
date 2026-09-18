@@ -10,12 +10,16 @@ from django.views.decorators.csrf import csrf_protect
 from django.utils import timezone
 from django.db import transaction
 from datetime import datetime, timedelta
+import logging
 import random
 import string
 
 from tournaments.models import Tournament, Stage
 from teams.models import Team, Player
 from courts.models import CourtComplex, Court
+
+
+logger = logging.getLogger(__name__)
 
 # Import Simple Creator models for dynamic scenario loading
 try:
@@ -47,6 +51,47 @@ FALLBACK_SCENARIOS = {
         'max_triples': 18,
     }
 }
+
+
+# TournamentScenario owns the user-facing Scenario vocabulary, while
+# Tournament.generate_melee_teams() owns the canonical generator vocabulary.
+# Keep their compatibility mapping at this live handoff so Scenario changes
+# cannot silently select the generator's random fallback.
+_SCENARIO_DRAFT_ALGORITHM_ALIASES = {
+    'snake': 'snake_draft',
+    'snake_draft': 'snake_draft',
+    'balance': 'balanced',
+    'balanced': 'balanced',
+    'random': 'random',
+}
+
+
+def normalize_melee_draft_algorithm(draft_type):
+    """Return a canonical Tournament.generate_melee_teams() algorithm token.
+
+    Scenario records use ``snake`` and ``balance``. Direct administrative
+    generation already uses the generator's canonical ``snake_draft`` and
+    ``balanced`` values, which are retained as safe aliases here. An unknown
+    Scenario value retains the generator's historic random fallback, but emits
+    a warning so it cannot be mistaken for a configured Snake or Balance run.
+    """
+    token = str(draft_type or '').strip().lower()
+    if not token:
+        logger.warning(
+            'Simple Creator Mêlée draft type is missing; using the legacy balanced default.'
+        )
+        return 'balanced'
+
+    algorithm = _SCENARIO_DRAFT_ALGORITHM_ALIASES.get(token)
+    if algorithm:
+        return algorithm
+
+    logger.warning(
+        'Unknown Simple Creator Mêlée draft type %r; using the generator random fallback.',
+        draft_type,
+    )
+    return 'random'
+
 
 # Fallback hardcoded voucher codes (if models not available)
 VOUCHER_CODES = {
@@ -441,15 +486,38 @@ def manage_tournament(request, tournament_id):
             registered_teams = None
             team_count = 0
 
-            # Collect generated team PINs
+            # Collect generated temporary Team PINs and their most recent
+            # explicit Mêlée assignment roster. Under P4 these Teams correctly
+            # have no Team.players membership.
             team_pins = []
             if tournament.melee_teams_generated:
-                for team in tournament.teams.all():
-                    if team.pin and team.name.startswith('Mêlée Team'):
+                from tournaments.models import MeleeRoundAssignment
+
+                current_assignment_round = (
+                    tournament.rounds.filter(melee_assignments__isnull=False)
+                    .order_by('-number', '-id')
+                    .first()
+                )
+                players_by_team_id = {}
+                if current_assignment_round is not None:
+                    for assignment in MeleeRoundAssignment.objects.filter(
+                        tournament=tournament,
+                        round=current_assignment_round,
+                        state=MeleeRoundAssignment.ASSIGNED,
+                    ).select_related('player'):
+                        players_by_team_id.setdefault(assignment.team_id, []).append(
+                            assignment.player.name
+                        )
+                for registration in TournamentTeam.objects.filter(
+                    tournament=tournament,
+                    team__is_tournament_temp=True,
+                ).select_related('team'):
+                    team = registration.team
+                    if team.pin:
                         team_pins.append({
                             'name': team.name,
                             'pin': team.pin,
-                            'players': [p.name for p in team.players.all()]
+                            'players': players_by_team_id.get(team.id, []),
                         })
 
             can_start = registered_players.count() >= 4 and not tournament.melee_teams_generated
@@ -563,7 +631,8 @@ def start_tournament(request, tournament_id):
                 if key in tournament.name or s.get('name', '') in tournament.name:
                     scenario = s
                     break
-            algorithm = scenario.get('draft_type', 'balance') if scenario else 'balance'
+            scenario_draft_type = scenario.get('draft_type', 'balance') if scenario else 'balance'
+            algorithm = normalize_melee_draft_algorithm(scenario_draft_type)
 
             try:
                 teams_created = tournament.generate_melee_teams(algorithm)
@@ -674,36 +743,22 @@ def cleanup_empty_mele_teams(request, tournament_id):
     try:
         tournament = Tournament.objects.get(id=tournament_id)
         
-        # Step 1: Restore players to their original teams first.
-        # This must happen before any team deletion attempt.
+        # Step 1: restore only a genuine legacy transfer. P4 Mêlée Players
+        # remain affiliated with their normal Team throughout and need no
+        # restoration before temporary competition Team cleanup.
         if tournament.is_melee:
             tournament.restore_melee_players_to_original_teams()
         
-        # Step 2: Delete only temp teams that are now empty.
-        mele_teams = tournament.teams.filter(is_tournament_temp=True)
-        deleted_count = 0
-        skipped_count = 0
-        
-        for team in mele_teams:
-            remaining = team.players.count()
-            if remaining == 0:
-                team_name = team.name
-                team.delete()
-                deleted_count += 1
-            else:
-                # Safety guard: players not fully restored — do NOT delete.
-                _cc_logger.error(
-                    f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
-                    f"(id={team.id}) — {remaining} player(s) still belong to it."
-                )
-                skipped_count += 1
+        # Step 2: P4 Teams intentionally have no Team.players membership.
+        # Delete only a Team that is provably absent from Match/MRA history.
+        from tournaments.melee_lifecycle import delete_unreferenced_temporary_teams
+        deleted_count, skipped_count = delete_unreferenced_temporary_teams(tournament)
         
         if skipped_count:
             messages.warning(
                 request,
                 f'Deleted {deleted_count} empty temp teams from "{tournament.name}". '
-                f'WARNING: {skipped_count} team(s) skipped — they still had players attached. '
-                'Check server logs for details.'
+                f'{skipped_count} team(s) were retained because tournament history references them.'
             )
         else:
             messages.success(request, f'Deleted {deleted_count} empty temp teams from tournament "{tournament.name}"')
@@ -714,4 +769,3 @@ def cleanup_empty_mele_teams(request, tournament_id):
         messages.error(request, f'Error cleaning up teams: {str(e)}')
     
     return redirect('simple_creator_home')
-

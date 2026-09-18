@@ -44,9 +44,13 @@ def notify_new_actionable_match(sender, instance, created, **kwargs):
         try:
             from pfc_events.signals import notify_match_state_changed
             from pfc_events.push_notifications import notify_match_action_required
+            from .melee_roster_resolution import players_for_match_team
             match = Match.objects.select_related("team1", "team2").get(pk=match_id)
             notify_match_state_changed(match_id, match.status, match=match)
-            players = list(match.team1.players.all()) + list(match.team2.players.all())
+            players = (
+                list(players_for_match_team(match, match.team1))
+                + list(players_for_match_team(match, match.team2))
+            )
             notify_match_action_required(players, "new_match", "match", match_id)
         except Exception as exc:
             logger.warning("Failed to announce new actionable match %s: %s", match_id, exc)

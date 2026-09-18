@@ -11,21 +11,22 @@ SAFETY GUARANTEES
 -----------------
 1. Runs inside a single database transaction — if anything fails, nothing
    is changed.
-2. Only works BEFORE teams are generated OR between rounds (never while a
-   match is actively being played or awaiting validation — pending matches
-   are allowed since PFC auto-generates next matches).
+2. Works only BEFORE Mêlée team generation. Once a concrete round roster
+   exists, an immutable assignment/substitution protocol is required; P4 does
+   not silently rewrite historic MRA, MatchPlayer, stats, or partnerships.
 3. Validates that the incoming player is not already registered in the
    tournament.
 4. Updates every table that references the departing player:
       • MeleePlayer          — the tournament registration record
-      • Player.team          — live team assignment (if teams already generated)
+      • Player.team          — legacy-only restoration when a pre-P4 player is
+                               still physically transferred to a temporary Team
       • MeleePlayerStats     — per-tournament stats row
       • MeleePartnership     — past-round partnership history
       • MeleeShuffleHistory  — not player-specific, no change needed
 5. Does NOT touch completed Match records or PlayerProfile ratings —
    those belong to the departing player's history and must not be altered.
-6. Refreshes the incoming player's session so they see the correct team
-   immediately without logging out.
+6. Preserves an incoming player's normal Team affiliation and refreshes only
+   transient Mêlée Smart polling context.
 """
 
 import logging
@@ -102,7 +103,6 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
     """
     from tournaments.models import MeleePlayer
     from tournaments.partnership_models import MeleePlayerStats, MeleePartnership
-    from pfc_core.session_refresh import refresh_player_team_session
 
     try:
         with transaction.atomic():
@@ -121,26 +121,15 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
                     ),
                 }
 
-            # ── 2. Guard: don't swap while a match is actively being played ─
-            # "pending" matches are OK — PFC auto-generates next matches, so
-            # there will almost always be pending matches between rounds.
-            # Only truly in-progress statuses block the swap.
+            # ── 2. Guard: immutable round history after generation ─────────
             if tournament.melee_teams_generated:
-                from matches.models import Match
-                active_matches = Match.objects.filter(
-                    tournament=tournament,
-                    status__in=["active", "waiting_validation"],
-                )
-                if active_matches.exists():
-                    active_count = active_matches.count()
-                    return {
-                        "success": False,
-                        "message": (
-                            f"Cannot swap players while {active_count} match(es) "
-                            f"are actively being played or awaiting validation. "
-                            f"Wait for them to complete first."
-                        ),
-                    }
+                return {
+                    "success": False,
+                    "message": (
+                        "Player replacement is available only before Mêlée teams are generated. "
+                        "After generation, exact round assignments and match history are immutable."
+                    ),
+                }
 
             # ── 3. Guard: incoming player not already registered ──────────
             if MeleePlayer.objects.filter(
@@ -154,41 +143,16 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
                     ),
                 }
 
-            assigned_team = melee_reg.assigned_team
-            original_team = melee_reg.original_team
-
             # ── 4. Update MeleePlayer registration ────────────────────────
             melee_reg.player = incoming_player
-            # Keep assigned_team and original_team as-is so the incoming
-            # player slots directly into the same team position.
-            melee_reg.save()
+            # Pre-generation has no team/round/match history. Snapshot the
+            # new participant's normal affiliation only as legacy metadata;
+            # never mutate either Player.team.
+            melee_reg.original_team = incoming_player.team
+            melee_reg.assigned_team = None
+            melee_reg.save(update_fields=["player", "original_team", "assigned_team"])
 
-            # ── 5. Transfer live team assignment (if teams generated) ──────
-            if tournament.melee_teams_generated and assigned_team:
-                # Move outgoing player back to their original team
-                if original_team:
-                    outgoing_player.team = original_team
-                    outgoing_player.save()
-                    # Outgoing player is restored → stop fast polling
-                    refresh_player_team_session(outgoing_player, in_melee_assignment=False)
-                    logger.info(
-                        f"Restored {outgoing_player.name} → {original_team.name}"
-                    )
-
-                # Move incoming player to the mêlée team
-                # Store their current team as the "original" so restoration works
-                melee_reg.original_team = incoming_player.team
-                melee_reg.save(update_fields=["original_team"])
-
-                incoming_player.team = assigned_team
-                incoming_player.save()
-                # Incoming player is now in Mêlée → activate fast polling
-                refresh_player_team_session(incoming_player, in_melee_assignment=True)
-                logger.info(
-                    f"Assigned {incoming_player.name} → {assigned_team.name}"
-                )
-
-            # ── 6. Migrate MeleePlayerStats ───────────────────────────────
+            # ── 5. Migrate pre-generation metadata (normally no rows) ──────
             # If a stats row exists for the outgoing player, reassign it to
             # the incoming player (preserving wins/losses/points from rounds
             # already played — the incoming player inherits the slot's history).
@@ -203,7 +167,7 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
                     f"to {incoming_player.name}"
                 )
 
-            # ── 7. Migrate MeleePartnership history ───────────────────────
+            # ── 6. Migrate pre-generation metadata (normally no rows) ──────
             # Partnerships record who played together in past rounds.
             # Reassign so the leaderboard correctly reflects the slot.
             updated_p1 = MeleePartnership.objects.filter(
@@ -219,7 +183,7 @@ def perform_melee_swap(tournament, outgoing_player, incoming_player, admin_user,
                 f"({outgoing_player.name} → {incoming_player.name})"
             )
 
-            # ── 8. Log the swap ───────────────────────────────────────────
+            # ── 7. Log the swap ───────────────────────────────────────────
             logger.info(
                 f"[MELEE SWAP] Tournament='{tournament.name}' | "
                 f"OUT={outgoing_player.name} | IN={incoming_player.name} | "

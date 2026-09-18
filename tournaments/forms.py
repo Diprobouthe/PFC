@@ -252,15 +252,13 @@ class MeleePlayerRegistrationForm(forms.Form):
         return codename
     
     def save(self):
-        """Register the player for the Mêlée tournament"""
-        from .models import MeleePlayer
-        
-        melee_player = MeleePlayer.objects.create(
+        """Register through the transactional centralized eligibility service."""
+        from .registration_services import register_melee_player_for_tournament
+
+        melee_player, _, _ = register_melee_player_for_tournament(
             tournament=self.tournament,
             player=self.player,
-            original_team=self.player.team  # Store original team for restoration
         )
-        
         return melee_player
 
 

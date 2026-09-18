@@ -348,9 +348,22 @@ class TournamentEngine:
             if existing_matches > 0:
                 logger.warning(f"🔒 Round {next_round_num} already exists with {existing_matches} matches - skipping generation")
                 return True
+
+            # A coordinated Super Mêlée transition intentionally creates the
+            # next Round and its immutable roster before this generic engine
+            # creates Matches. Continue below so this empty, prepared Round is
+            # populated from those new assignments.
+            logger.info(
+                "Using pre-prepared empty Round %s for Match generation",
+                existing_round.id,
+            )
         
         # Safeguard 2: Check if we've exceeded the maximum rounds for this stage
-        if hasattr(self.current_stage, 'num_rounds_in_stage') and self.current_stage.num_rounds_in_stage:
+        if (
+            existing_round is None
+            and hasattr(self.current_stage, 'num_rounds_in_stage')
+            and self.current_stage.num_rounds_in_stage
+        ):
             current_stage_rounds = Round.objects.filter(
                 tournament=self.tournament,
                 stage=self.current_stage
@@ -421,6 +434,37 @@ class TournamentEngine:
                 
                 if created:
                     logger.info(f"📝 Created round {round_number} for stage {stage.stage_number}")
+
+                # A normal Mêlée keeps its prior temporary competition Teams
+                # between rounds. Super Mêlée may already have written the
+                # exact next roster during its shuffle; the writer is
+                # idempotent for that identical state. Either way, P4 requires
+                # an explicit MRA set before Match creation/activation.
+                if (
+                    self.tournament.is_melee
+                    and self.tournament.melee_roster_mode
+                    == self.tournament.MELEE_ROSTER_MODE_ASSIGNMENT
+                ):
+                    from tournaments.melee_assignments import MeleeRoundAssignmentWriter
+                    from tournaments.melee_lifecycle import assignment_inputs_from_melee_players
+                    from tournaments.partnership_models import MeleePartnership
+
+                    rows = MeleeRoundAssignmentWriter.write_complete_round(
+                        tournament=self.tournament,
+                        round=round_obj,
+                        assignments=assignment_inputs_from_melee_players(
+                            self.tournament
+                        ),
+                    )
+                    MeleePartnership.record_partnerships_for_round(
+                        self.tournament,
+                        round_obj=round_obj,
+                    )
+                    logger.info(
+                        "Prepared %s exact Mêlée assignments for generated Round %s",
+                        len(rows),
+                        round_obj.id,
+                    )
                 
                 # Generate matches based on format
                 if stage.format == 'smart_swiss':
@@ -482,11 +526,12 @@ class TournamentEngine:
                 except Exception as e:
                     logger.exception(f"Error assigning badges: {e}")
                 
-                # Restore players to original teams if this is a Mêlée tournament
+                # P4 Mêlée Players retain their normal affiliation. Restore only
+                # genuinely legacy transfers that are still on a temp Team.
                 if self.tournament.is_melee:
                     try:
                         self._restore_melee_players()
-                        logger.info(f"👥 Players restored to original teams")
+                        logger.info("Completed legacy-only Mêlée restoration check")
                     except Exception as e:
                         logger.exception(f"Error restoring players: {e}")
                     
@@ -501,32 +546,24 @@ class TournamentEngine:
             return False
     
     def _restore_melee_players(self):
-        """Restore players from Mêlée teams back to their original teams"""
-        from tournaments.models import MeleePlayer
-        from teams.models import Player
-        
-        # Get all Mêlée players for this tournament
-        melee_players = MeleePlayer.objects.filter(tournament=self.tournament)
-        restored_count = 0
-        
-        for melee_player in melee_players:
-            try:
-                # Get the actual player object
-                player = melee_player.player
-                original_team = melee_player.original_team
-                
-                if player and original_team:
-                    # Move player back to original team
-                    player.team = original_team
-                    player.save()
-                    
-                    logger.info(f"Restored player {player.name} from {player.team.name if player.team else 'None'} back to {original_team.name}")
-                    restored_count += 1
-                    
-            except Exception as e:
-                logger.error(f"Error restoring player {melee_player.player.name}: {e}")
-        
-        logger.info(f"Restored {restored_count} players to their original teams for tournament {self.tournament.name}")
+        """Restore only pre-P4 Players still physically on temporary Teams."""
+        from tournaments.melee_lifecycle import restore_legacy_transferred_melee_players
+
+        restored_count = restore_legacy_transferred_melee_players(self.tournament)
+        if self.tournament.melee_roster_mode == self.tournament.MELEE_ROSTER_MODE_ASSIGNMENT:
+            from tournaments.melee_lifecycle import clear_assignment_context_sessions
+            clear_assignment_context_sessions(
+                [
+                    registration.player
+                    for registration in self.tournament.melee_players.select_related('player')
+                ]
+            )
+        logger.info(
+            "Restored %s legacy transferred Mêlée players for tournament %s",
+            restored_count,
+            self.tournament.name,
+        )
+        return restored_count
     
     
     def handle_automation_error(self, error):
@@ -986,4 +1023,3 @@ class IncompleteRoundRobinGenerator(MatchGenerator):
     def have_played_before(self, team1_tt, team2_tt):
         """Check if teams have played in this tournament"""
         return team2_tt.team in team1_tt.opponents_played.all()
-

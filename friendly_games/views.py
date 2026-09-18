@@ -1193,54 +1193,35 @@ def join_game(request):
                 messages.error(request, f'{team.title()} team is full (3 players maximum).')
                 return render(request, 'friendly_games/join_game.html')
             
-            # Find or create a special team for friendly games
-            friendly_team, created = Team.objects.get_or_create(
-                name="Friendly Games",
-                defaults={'pin': '000000'}  # Special PIN for friendly games team
-            )
-            
-            # Find player by codename instead of creating duplicates
+            # Resolve existing Players only through a supplied codename or a
+            # server-side QR resolution. A FriendlyGamePlayer stores the
+            # game-specific side, so joining must never overwrite a Player's
+            # durable Team affiliation.
             player = None
             if codename:
                 try:
-                    # Look up player by codename first
                     player_codename = PlayerCodename.objects.get(codename=codename.upper())
                     player = player_codename.player
-                    
-                    # Auto-transfer player to friendly games team if they're not already there
-                    if player.team != friendly_team:
-                        old_team = player.team
-                        player.team = friendly_team
-                        player.save()
-                        logger.info(f"Auto-transferred player {player.name} from {old_team.name} to {friendly_team.name}")
-                        
                 except PlayerCodename.DoesNotExist:
-                    # If codename doesn't exist, create new player with codename
+                    # A genuinely new Player still needs the existing holding
+                    # Team because Player.team remains non-nullable.
+                    friendly_team, _ = Team.objects.get_or_create(
+                        name="Friendly Games",
+                        defaults={'pin': '000000'}
+                    )
                     player = Player.objects.create(name=player_name, team=friendly_team)
                     PlayerCodename.objects.create(player=player, codename=codename.upper())
                     logger.info(f"Created new player {player_name} with codename {codename}")
             else:
-                # If no codename provided, try to find existing player by name or create new one
-                try:
-                    player = Player.objects.get(name=player_name, team=friendly_team)
-                except Player.DoesNotExist:
-                    # Check if player exists in other teams
-                    existing_players = Player.objects.filter(name=player_name)
-                    if existing_players.exists():
-                        # Use the first existing player and transfer them
-                        player = existing_players.first()
-                        old_team = player.team
-                        player.team = friendly_team
-                        player.save()
-                        logger.info(f"Auto-transferred existing player {player.name} from {old_team.name} to {friendly_team.name}")
-                    else:
-                        # Create new player without codename
-                        player = Player.objects.create(name=player_name, team=friendly_team)
-                        logger.info(f"Created new player {player_name} without codename")
-                except Player.MultipleObjectsReturned:
-                    # Handle duplicate players - use the first one and log the issue
-                    player = Player.objects.filter(name=player_name, team=friendly_team).first()
-                    logger.warning(f"Multiple players found with name {player_name} in {friendly_team.name}, using first one")
+                # Do not attach an unverified name to an existing Player. A
+                # new name-only guest remains supported, but an existing
+                # Player must join through codename or the QR session flow.
+                friendly_team, _ = Team.objects.get_or_create(
+                    name="Friendly Games",
+                    defaults={'pin': '000000'}
+                )
+                player = Player.objects.create(name=player_name, team=friendly_team)
+                logger.info(f"Created new name-only Friendly player {player_name}")
             
             # Check if player is already in this game
             if game.players.filter(player=player).exists():

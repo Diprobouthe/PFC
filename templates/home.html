@@ -451,7 +451,7 @@ button.home-qr-panel { border-color: #c8d6f8; cursor: pointer; }
                 <div class="home-court-count"><i class="fas fa-users" aria-hidden="true"></i>{% blocktranslate count counter=currently_at_courts %}{{ counter }} player now{% plural %}{{ counter }} players now{% endblocktranslate %}</div>
             </a>
             <div class="home-court-meta">
-                <span class="home-temperature">{% if weather_data %}<span class="weather-icon" aria-hidden="true">{{ weather_data.icon }}</span>{{ weather_data.temperature }}&deg;C{% else %}<span class="weather-icon" aria-hidden="true">☁️</span>{% translate "Unavailable" %}{% endif %}</span>
+                <span id="homeWeather" class="home-temperature" aria-live="polite"><span class="weather-icon" aria-hidden="true">☁️</span>{% translate "Unavailable" %}</span>
             </div>
             {% if request.session.player_codename %}
             <a href="{% url 'billboard:list' %}?action=going" class="home-coming-btn">{% translate "I'm Coming" %}</a>
@@ -654,6 +654,34 @@ document.addEventListener('DOMContentLoaded', function () {
     var forms = document.querySelectorAll('.pin-form-hidden');
     forms.forEach(function(f){ f.style.display = 'block'; });
     {% endif %}
+
+    var weather = document.getElementById('homeWeather');
+    if (!weather) return;
+
+    fetch("{% url 'home_weather' %}", {
+        headers: {'Accept': 'application/json'},
+        credentials: 'same-origin',
+        cache: 'no-store'
+    })
+    .then(function(response) {
+        if (!response.ok) throw new Error('Weather unavailable');
+        return response.json();
+    })
+    .then(function(payload) {
+        if (!payload.weather || typeof payload.weather.temperature !== 'number') return;
+
+        var icon = document.createElement('span');
+        icon.className = 'weather-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = payload.weather.icon || '🌡️';
+        weather.replaceChildren(icon, document.createTextNode(payload.weather.temperature + '°C'));
+        if (payload.weather.updated_at) {
+            weather.title = "{% translate 'Updated' %}: " + payload.weather.updated_at;
+        }
+    })
+    .catch(function() {
+        // Weather is supplementary. Keep the neutral server-rendered state.
+    });
 });
 </script>
 {% if request.session.player_codename %}

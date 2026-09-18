@@ -1,5 +1,5 @@
 from django import forms
-from .models import Match, MatchResult, MatchPlayer
+from .models import Match, MatchResult
 from teams.models import Player
 
 
@@ -7,26 +7,16 @@ def _get_team_players_for_match(match, team):
     """
     Return the correct Player queryset for a team in the context of a specific match.
 
-    Normal teams: players whose Player.team FK points to this team.
-    Mêlée teams:  Player.team is reassigned to the Mêlée team, so the FK query
-                  already works.  However, if the match already has MatchPlayer
-                  records for this team (second-activation path), we use those
-                  to guarantee consistency.
+    P3 precedence for Mêlée is MatchPlayer snapshot, then the exact
+    Tournament/Round MeleeRoundAssignment, then the legacy Player.team
+    compatibility fallback. Non-Mêlée behavior remains Player.team based.
 
     The function always returns a *queryset* (not a list) so it can be assigned
     directly to a ModelMultipleChoiceField.queryset.
     """
-    # If the match already has MatchPlayer records for this team, use those
-    # players as the authoritative source (handles Mêlée re-shuffle edge cases).
-    existing_mp_ids = MatchPlayer.objects.filter(
-        match=match, team=team
-    ).values_list('player_id', flat=True)
+    from .melee_roster_resolution import players_for_match_team
 
-    if existing_mp_ids:
-        return Player.objects.filter(id__in=existing_mp_ids)
-
-    # Standard path: players whose primary team FK is this team.
-    return Player.objects.filter(team=team)
+    return players_for_match_team(match, team)
 
 
 class MatchActivationForm(forms.Form):

@@ -39,7 +39,7 @@ logger = logging.getLogger('pfc_events')
 # Internal: compute next_url for a single player
 # ---------------------------------------------------------------------------
 
-def _next_url_for_player(player, player_team, match_type):
+def _next_url_for_player(player, match_type):
     """
     Delegate to smart_router helpers to compute the single best next_url
     for this player right now.  Returns a URL string or None.
@@ -51,9 +51,9 @@ def _next_url_for_player(player, player_team, match_type):
         )
         candidates = []
         if match_type == 'match':
-            candidates.extend(_resolve_tournament_matches(player_team))
+            candidates.extend(_resolve_tournament_matches(player))
         else:
-            candidates.extend(_resolve_friendly_games(player, player_team))
+            candidates.extend(_resolve_friendly_games(player))
 
         if not candidates:
             return None
@@ -81,13 +81,16 @@ def _group_send(channel_layer, group_name: str, payload: dict):
 # ---------------------------------------------------------------------------
 
 def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
-                      team1=None, team2=None, player_list=None):
+                      team1=None, team2=None, player_list=None, match=None):
     """
     1. Push a shared payload to the match/game group (spectators).
     2. For each player, compute their next_url and push to "player_{codename}".
 
-    player_list: [(player, player_team), ...] — used for friendly games.
+    player_list: [(player, optional_legacy_team), ...] — used for friendly games.
     team1/team2: Team model instances — used for tournament matches.
+    match: concrete Match when broadcasting a tournament state change. P3 uses
+           it to build each side's MatchPlayer → exact Mêlée-round → legacy
+           roster in the correct Match context.
     """
     channel_layer = get_channel_layer()
     if channel_layer is None:
@@ -116,17 +119,38 @@ def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
     # 2. Build player list from team rosters if not supplied directly
     if player_list is None:
         player_list = []
-        for team in [team1, team2]:
-            if team is None:
-                continue
+        if match is not None:
             try:
-                for p in team.players.select_related('team').all():
-                    player_list.append((p, team))
+                from matches.melee_roster_resolution import players_for_match_team
+                for team in (team1, team2):
+                    if team is None:
+                        continue
+                    for player in players_for_match_team(match, team):
+                        player_list.append((player, team))
             except Exception as exc:
-                logger.warning("Could not iterate team %s players: %s", getattr(team, 'id', '?'), exc)
+                logger.warning(
+                    "Could not resolve Match %s recipients: %s",
+                    getattr(match, 'id', '?'),
+                    exc,
+                )
+        else:
+            # Defensive compatibility branch for any older direct caller that
+            # has teams but no concrete Match context.
+            for team in [team1, team2]:
+                if team is None:
+                    continue
+                try:
+                    for player in team.players.all():
+                        player_list.append((player, team))
+                except Exception as exc:
+                    logger.warning("Could not iterate team %s players: %s", getattr(team, 'id', '?'), exc)
 
     # 3. Personal broadcast per player
-    for player, player_team in player_list:
+    sent_player_ids = set()
+    for player, _legacy_player_team in player_list:
+        if player.id in sent_player_ids:
+            continue
+        sent_player_ids.add(player.id)
         try:
             codenames = list(player.codenames.values_list('codename', flat=True))
         except Exception:
@@ -134,7 +158,7 @@ def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
         if not codenames:
             continue
 
-        next_url = _next_url_for_player(player, player_team, match_type)
+        next_url = _next_url_for_player(player, match_type)
         personal_payload = {
             "type":       "match.state_changed",
             "match_type": match_type,
@@ -182,6 +206,7 @@ def notify_match_state_changed(match_id: int, new_status: str, match=None):
         new_status=new_status,
         team1=getattr(match, 'team1', None),
         team2=getattr(match, 'team2', None),
+        match=match,
     )
 
 

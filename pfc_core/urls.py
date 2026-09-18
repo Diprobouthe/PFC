@@ -18,6 +18,7 @@ urlpatterns = [
     path('manifest.webmanifest', pwa_views.web_app_manifest, name='pwa_manifest'),
     path('service-worker.js', pwa_views.service_worker, name='pwa_service_worker'),
     path('', views.home, name='home'),
+    path('api/home-weather/', views.home_weather, name='home_weather'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('my-matches/', smart_router.resolve_decision_url, name='my_active_matches'),
     path('my-matches/next-url/', smart_router.resolve_next_url, name='pfc_next_url'),

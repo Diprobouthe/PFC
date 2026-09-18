@@ -146,6 +146,24 @@ else:
         }
     }
 
+# Home weather is shared, supplementary data. Reuse the existing Redis service
+# in deployed environments so the 60-minute value and refresh lock are shared
+# across users and web processes. Local development keeps Django's in-process
+# cache without requiring a Redis installation.
+CACHES = {
+    "default": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _REDIS_URL,
+        }
+        if _REDIS_URL
+        else {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "pfc-local-cache",
+        }
+    )
+}
+
 ASGI_APPLICATION = "pfc_core.asgi.application"
 
 MIDDLEWARE = [

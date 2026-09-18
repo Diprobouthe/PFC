@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.db import models
 import json
 from .models import Tournament, TournamentTeam, Round, Bracket
 from .forms import TournamentForm, TeamAssignmentForm
@@ -42,7 +43,28 @@ def tournament_detail(request, tournament_id):
     """View for displaying tournament details"""
     tournament = get_object_or_404(Tournament, id=tournament_id)
     rounds = tournament.rounds.all().order_by('number')
-    teams = tournament.teams.all()
+    teams = list(tournament.teams.all())
+    if tournament.is_melee and tournament.melee_teams_generated:
+        from .models import MeleeRoundAssignment
+
+        roster_round = (
+            tournament.rounds.filter(melee_assignments__isnull=False)
+            .order_by('-number', '-id')
+            .first()
+        )
+        roster_counts = {}
+        if roster_round is not None:
+            for row in MeleeRoundAssignment.objects.filter(
+                tournament=tournament,
+                round=roster_round,
+                state=MeleeRoundAssignment.ASSIGNED,
+            ).values('team_id').annotate(count=models.Count('id')):
+                roster_counts[row['team_id']] = row['count']
+        for team in teams:
+            team.display_player_count = roster_counts.get(team.id, 0)
+    else:
+        for team in teams:
+            team.display_player_count = team.players.count()
     
     # Import the update_tournament_leaderboard function
     from leaderboards.views import update_tournament_leaderboard
@@ -556,7 +578,8 @@ def tournament_overview(request, tournament_id):
     Full-screen tournament overview showing all active matches with live scores.
     This bundles all active games of a tournament into one consolidated display.
     """
-    from matches.models import LiveScoreboard, MatchPlayer
+    from matches.models import LiveScoreboard
+    from matches.melee_roster_resolution import players_for_match_team
     from django.shortcuts import render, get_object_or_404
     
     tournament = get_object_or_404(Tournament, id=tournament_id)
@@ -576,9 +599,11 @@ def tournament_overview(request, tournament_id):
                 is_active=True
             )
             
-            # Get MatchPlayer data with positions for both teams
-            team1_players = MatchPlayer.objects.filter(match=match, team=match.team1).select_related('player')
-            team2_players = MatchPlayer.objects.filter(match=match, team=match.team2).select_related('player')
+            # P3 resolves each Match side independently: an activated side has
+            # a MatchPlayer snapshot while an unactivated Mêlée opponent still
+            # resolves from that Match's exact round assignment.
+            team1_players = players_for_match_team(match, match.team1)
+            team2_players = players_for_match_team(match, match.team2)
             
             tournament_scoreboards.append({
                 'match': match,
@@ -595,8 +620,8 @@ def tournament_overview(request, tournament_id):
                 'scoreboard': None,
                 'team1_name': match.team1.name if match.team1 else 'Team 1',
                 'team2_name': match.team2.name if match.team2 else 'Team 2',
-                'team1_players': match.team1.players.all() if match.team1 and hasattr(match.team1, 'players') else [],
-                'team2_players': match.team2.players.all() if match.team2 and hasattr(match.team2, 'players') else [],
+                'team1_players': players_for_match_team(match, match.team1),
+                'team2_players': players_for_match_team(match, match.team2),
             })
     
     context = {
@@ -890,17 +915,21 @@ def tournament_restore_melee_players(request, tournament_id):
         
         return redirect('tournament_detail', tournament_id=tournament.id)
     
-    # GET request - show confirmation page
+    # GET request: only legacy-transferred records can require restoration.
+    # P4 assignment-based tournaments retain Player.team and show an empty
+    # confirmation list rather than implying a restoration action is needed.
     melee_players = tournament.melee_players.all()
     players_to_restore = []
-    
-    for mp in melee_players:
-        if mp.original_team and mp.player.team != mp.original_team:
-            players_to_restore.append({
-                'player': mp.player,
-                'current_team': mp.player.team,
-                'original_team': mp.original_team
-            })
+    if tournament.melee_roster_mode == tournament.MELEE_ROSTER_MODE_LEGACY:
+        from tournaments.melee_lifecycle import temporary_team_ids
+        legacy_temp_ids = temporary_team_ids(tournament)
+        for mp in melee_players.select_related('player__team', 'original_team'):
+            if mp.original_team and mp.player.team_id in legacy_temp_ids:
+                players_to_restore.append({
+                    'player': mp.player,
+                    'current_team': mp.player.team,
+                    'original_team': mp.original_team
+                })
     
     context = {
         'tournament': tournament,

@@ -183,6 +183,12 @@ class Command(BaseCommand):
             match.status = "cancelled"
             match.court = None  # clear the FK so the court is fully released
             match.save(update_fields=["status", "court"])
+            # A cancellation has no result and deliberately does not trigger a
+            # Super Mêlée shuffle or next Round. If it is the final terminal
+            # Match, finish only the safe completion lifecycle (legacy restore
+            # or P4 session-context cleanup) without altering Player.team.
+            if match.tournament_id and match.tournament.is_melee:
+                match.tournament.auto_restore_players_on_completion()
             logger.info(
                 f"expire_stale_match_presence: match {match.id} → cancelled "
                 f"(was active for {age_hours:.1f}h with no result submitted)."

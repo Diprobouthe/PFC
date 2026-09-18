@@ -325,22 +325,11 @@ class SimpleTournament(models.Model):
                 self.tournament.restore_melee_players_to_original_teams()
                 self.players_restored = True
             
-            # Delete empty temporary tournament teams (Mêlée / Tête-à-tête)
+            # P4 temporary Teams have no Player.team membership; retain every
+            # Team referenced by Match or round-assignment history.
             if not self.mele_teams_deleted:
-                # Delete only the temp teams created for this tournament
-                mele_teams = self.tournament.teams.filter(is_tournament_temp=True)
-                for team in mele_teams:
-                    remaining = team.players.count()
-                    if remaining == 0:
-                        team.delete()
-                    else:
-                        # Safety guard: players were not fully restored — do NOT delete.
-                        import logging as _logging
-                        _logging.getLogger('simple_creator').error(
-                            f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
-                            f"(id={team.id}) — {remaining} player(s) still belong to it. "
-                            "Players must be restored before the team can be removed."
-                        )
+                from tournaments.melee_lifecycle import delete_unreferenced_temporary_teams
+                delete_unreferenced_temporary_teams(self.tournament)
                 self.mele_teams_deleted = True
             
             self.save()
@@ -385,4 +374,3 @@ class VirtualCourt(models.Model):
         if self.name.startswith('VC-'):
             return int(self.name.split('-')[1])
         return self.order
-

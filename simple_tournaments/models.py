@@ -161,10 +161,16 @@ class SimpleTournament(models.Model):
         pass
     
     def _cleanup_melee_teams(self):
-        """Delete empty mêlée teams created for this tournament."""
+        """Delete only unreferenced temporary Mêlée teams.
+
+        P4 Mêlée Teams intentionally have no Team.players members, so the
+        historic Match/MRA graph—not a zero membership count—controls safety.
+        """
+        from tournaments.melee_lifecycle import team_has_competition_history
+
         for team in self.created_teams.all():
-            if team.name.startswith('Mêlée Team') and team.players.count() == 0:
-                logger.info(f"Deleting empty mêlée team: {team.name}")
+            if team.is_tournament_temp and not team_has_competition_history(team):
+                logger.info(f"Deleting unreferenced mêlée team: {team.name}")
                 team.delete()
 
 
@@ -197,4 +203,3 @@ def create_default_scenarios():
         )
         if created:
             logger.info(f"Created scenario: {scenario.name}")
-

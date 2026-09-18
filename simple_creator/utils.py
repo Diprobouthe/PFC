@@ -150,32 +150,17 @@ def cleanup_tournament_data(simple_tournament):
             simple_tournament.players_restored = True
             cleanup_summary['players_restored'] = restored_count
         
-        # Delete empty temporary tournament teams (Mêlée / Tête-à-tête)
+        # P4 temporary Teams intentionally have no Team.players membership.
+        # Retain all Teams referenced by Match/MRA history.
         if not simple_tournament.mele_teams_deleted:
-            import logging as _logging
-            _cleanup_logger = _logging.getLogger('simple_creator')
-            mele_teams = tournament.teams.filter(is_tournament_temp=True)
-            deleted_count = 0
-            skipped_count = 0
-            for team in mele_teams:
-                remaining = team.players.count()
-                if remaining == 0:
-                    team.delete()
-                    deleted_count += 1
-                else:
-                    # Safety guard: players not fully restored — do NOT delete.
-                    _cleanup_logger.error(
-                        f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
-                        f"(id={team.id}) — {remaining} player(s) still belong to it. "
-                        "Players must be restored before the team can be removed."
-                    )
-                    skipped_count += 1
+            from tournaments.melee_lifecycle import delete_unreferenced_temporary_teams
+            deleted_count, skipped_count = delete_unreferenced_temporary_teams(tournament)
             
             simple_tournament.mele_teams_deleted = True
             cleanup_summary['teams_deleted'] = deleted_count
             if skipped_count:
                 cleanup_summary['errors'].append(
-                    f"{skipped_count} temp team(s) skipped — still had players attached."
+                    f"{skipped_count} temp team(s) retained because history references them."
                 )
         
         # Save the updated status
@@ -185,4 +170,3 @@ def cleanup_tournament_data(simple_tournament):
         cleanup_summary['errors'].append(str(e))
     
     return cleanup_summary
-

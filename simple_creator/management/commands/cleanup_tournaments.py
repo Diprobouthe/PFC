@@ -99,18 +99,23 @@ class Command(BaseCommand):
             else:
                 self.stdout.write('  👥 No mêlée players to restore')
         
-        # Check team deletion
+        # Check temporary Team deletion. P4 Team.players is intentionally empty,
+        # so Match/MRA references decide whether cleanup is safe.
         if not simple_tournament.mele_teams_deleted:
-            mele_teams = tournament.teams.filter(name__startswith='Mêlée Team')
-            empty_teams = [team for team in mele_teams if team.players.count() == 0]
-            if empty_teams:
-                self.stdout.write(f'  🗑️  Would delete {len(empty_teams)} empty mêlée teams')
-                for team in empty_teams[:3]:  # Show first 3 as example
+            from tournaments.melee_lifecycle import team_has_competition_history
+            mele_teams = tournament.teams.filter(is_tournament_temp=True)
+            deletable_teams = [
+                team for team in mele_teams
+                if not team_has_competition_history(team)
+            ]
+            if deletable_teams:
+                self.stdout.write(f'  🗑️  Would delete {len(deletable_teams)} unreferenced temp teams')
+                for team in deletable_teams[:3]:  # Show first 3 as example
                     self.stdout.write(f'    - {team.name}')
-                if len(empty_teams) > 3:
-                    self.stdout.write(f'    ... and {len(empty_teams) - 3} more')
+                if len(deletable_teams) > 3:
+                    self.stdout.write(f'    ... and {len(deletable_teams) - 3} more')
             else:
-                self.stdout.write('  🗑️  No empty mêlée teams to delete')
+                self.stdout.write('  🗑️  No unreferenced temp teams to delete')
     
     def _perform_cleanup(self, simple_tournament):
         """Actually perform the cleanup"""
@@ -128,32 +133,17 @@ class Command(BaseCommand):
             simple_tournament.players_restored = True
             self.stdout.write(f'  👥 Restored {restored_count} players to original teams')
         
-        # Delete empty temporary tournament teams (Mêlée / Tête-à-tête)
+        # Delete only temporary Teams with no Match/MRA history reference.
         if not simple_tournament.mele_teams_deleted:
-            mele_teams = tournament.teams.filter(is_tournament_temp=True)
-            deleted_count = 0
-            skipped_count = 0
-            for team in mele_teams:
-                remaining = team.players.count()
-                if remaining == 0:
-                    team_name = team.name
-                    team.delete()
-                    deleted_count += 1
-                    self.stdout.write(f'    🗑️  Deleted empty team: {team_name}')
-                else:
-                    # Safety guard: players not fully restored — do NOT delete.
-                    self.stdout.write(
-                        self.style.ERROR(
-                            f'    SAFETY ABORT: Cannot delete temp team "{team.name}" '
-                            f'(id={team.id}) — {remaining} player(s) still belong to it.'
-                        )
-                    )
-                    skipped_count += 1
+            from tournaments.melee_lifecycle import delete_unreferenced_temporary_teams
+            deleted_count, skipped_count = delete_unreferenced_temporary_teams(tournament)
             
             simple_tournament.mele_teams_deleted = True
-            self.stdout.write(f'  🗑️  Deleted {deleted_count} empty temp teams ({skipped_count} skipped — still had players)')
+            self.stdout.write(
+                f'  🗑️  Deleted {deleted_count} unreferenced temp teams '
+                f'({skipped_count} retained — history references them)'
+            )
         
         # Save the updated status
         simple_tournament.save()
         self.stdout.write('  ✅ Cleanup completed successfully')
-

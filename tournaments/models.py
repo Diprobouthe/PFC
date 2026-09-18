@@ -1,5 +1,5 @@
 from pfc_core.media_uploads import tournament_banner_path
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
 from teams.models import Team
@@ -83,6 +83,27 @@ class Tournament(models.Model):
     melee_teams_generated = models.BooleanField(
         default=False,
         help_text="Whether Mêlée teams have been automatically generated"
+    )
+    MELEE_ROSTER_MODE_LEGACY = "legacy_transferred"
+    MELEE_ROSTER_MODE_ASSIGNMENT = "assignment_based"
+    MELEE_ROSTER_MODE_CHOICES = [
+        (
+            MELEE_ROSTER_MODE_LEGACY,
+            "Legacy temporary Player.team transfer",
+        ),
+        (
+            MELEE_ROSTER_MODE_ASSIGNMENT,
+            "Round-assignment roster",
+        ),
+    ]
+    melee_roster_mode = models.CharField(
+        max_length=32,
+        choices=MELEE_ROSTER_MODE_CHOICES,
+        default=MELEE_ROSTER_MODE_LEGACY,
+        help_text=(
+            "Persisted Mêlée roster implementation. Existing tournaments remain "
+            "legacy-compatible; P4 generation sets assignment_based."
+        ),
     )
     shuffle_players_after_round = models.BooleanField(
         default=False,
@@ -352,6 +373,7 @@ class Tournament(models.Model):
         # Return the number of matches created for admin feedback
         return matches_created
 
+    @transaction.atomic
     def generate_melee_teams(self, algorithm='random'):
         """
         Generate teams automatically from individual Mêlée player registrations.
@@ -362,6 +384,12 @@ class Tournament(models.Model):
                 - 'balanced': Balance teams by skill level
                 - 'snake_draft': Snake draft style assignment
         """
+        # Serialize generation for this tournament so a concurrent start cannot
+        # create a second legacy projection before the P2 writer checks whether
+        # the corresponding immutable assignment roster already exists.
+        Tournament.objects.select_for_update().get(pk=self.pk)
+        self.refresh_from_db()
+
         if not self.is_melee:
             raise ValueError("Tournament is not configured for Mêlée mode")
         
@@ -395,6 +423,13 @@ class Tournament(models.Model):
             logger.error(f"Not enough players ({len(melee_players)}) for team size {team_size}")
             return 0
         
+        # P4 must be persisted before any temporary competition Team is created
+        # so a rollback-safe cleanup never mistakes this new flow for a legacy
+        # transfer lifecycle. The outer atomic generation transaction reverts
+        # it if any following assignment write fails.
+        self.melee_roster_mode = self.MELEE_ROSTER_MODE_ASSIGNMENT
+        self.save(update_fields=['melee_roster_mode'])
+
         # Generate teams based on algorithm
         if algorithm == 'balanced':
             teams_created = self._generate_balanced_teams(melee_players, team_size)
@@ -403,22 +438,54 @@ class Tournament(models.Model):
         else:  # default to random
             teams_created = self._generate_random_teams(melee_players, team_size)
         
-        # Mark teams as generated
+        # Mark Teams as generated after their assignment state is prepared.
         self.melee_teams_generated = True
-        self.save()
+        self.save(update_fields=['melee_teams_generated'])
+
+        # P4 assignment write. The initial Round roster exists before Match
+        # consumers run, while Player.team remains the Player's normal Team.
+        from tournaments.melee_assignments import MeleeRoundAssignmentWriter
+        initial_round = MeleeRoundAssignmentWriter.initial_round_for_generation(
+            tournament=self,
+        )
+        if initial_round is None:
+            raise ValueError(
+                "Mêlée generation requires a concrete first Round before teams can be used."
+            )
+        assignment_rows = (
+            MeleeRoundAssignmentWriter.write_current_generation_assignments(
+                tournament=self,
+                round=initial_round,
+            )
+        )
+        logger.info(
+            "Wrote %s explicit Mêlée assignment row(s) for tournament %s, round %s.",
+            len(assignment_rows),
+            self.pk,
+            initial_round.pk,
+        )
+        # _create_team_from_players starts transient Smart polling before
+        # the concrete Round is known. Refresh the same context with the
+        # exact Round without replacing normal Team session identity.
+        from pfc_core.session_refresh import refresh_multiple_players_team_sessions
+        refresh_multiple_players_team_sessions(
+            [assignment.player for assignment in assignment_rows],
+            in_melee_assignment=True,
+            tournament=self,
+            round=initial_round,
+        )
         
-        # Record partnerships for Round 1
+        # Record partnerships from the immutable concrete Round roster.
         from tournaments.partnership_models import MeleePartnership
-        partnerships_created = MeleePartnership.record_partnerships_for_round(self, round_number=1)
-        logger.info(f"Recorded {partnerships_created} partnerships for Round 1")
-        
-        # Sync team assignments with partnerships to ensure consistency
-        from tournaments.sync_team_assignments import sync_team_assignments_with_partnerships
-        sync_result = sync_team_assignments_with_partnerships(self, round_number=1)
-        if sync_result['success']:
-            logger.info(f"Synced team assignments: {sync_result['message']}")
-        else:
-            logger.warning(f"Failed to sync team assignments: {sync_result['message']}")
+        partnerships_created = MeleePartnership.record_partnerships_for_round(
+            self,
+            round_obj=initial_round,
+        )
+        logger.info(
+            "Recorded %s partnerships for exact Mêlée Round %s",
+            partnerships_created,
+            initial_round.pk,
+        )
         
         # Initialize player stats for the tournament
         from tournaments.melee_stats_updater import initialize_melee_player_stats
@@ -429,51 +496,21 @@ class Tournament(models.Model):
         return teams_created
 
     def _clear_existing_melee_teams(self):
-        """Clear any existing mêlée teams for this tournament"""
-        # Get all TournamentTeam objects for this tournament where the team is a tournament temp team
-        from .models import TournamentTeam
-        tournament_teams = TournamentTeam.objects.filter(
-            tournament=self,
-            team__is_tournament_temp=True
+        """Clear only unreferenced setup residue before a new generation."""
+        from tournaments.melee_lifecycle import (
+            delete_unreferenced_temporary_teams,
+            restore_legacy_transferred_melee_players,
         )
-        
-        for tournament_team in tournament_teams:
-            team = tournament_team.team
-            
-            # Restore players to their original teams before deleting the mêlée team
-            players_in_team = team.players.all()
-            for player in players_in_team:
-                # Find the MeleePlayer record to get original team
-                try:
-                    melee_player = self.melee_players.get(player=player)
-                    if melee_player.original_team:
-                        player.team = melee_player.original_team
-                        player.save()
-                        logger.info(f"Restored player {player.name} to original team {melee_player.original_team.name}")
-                        
-                        # Refresh the player's session (restore → stop fast polling)
-                        from pfc_core.session_refresh import restore_player_team_session
-                        restore_player_team_session(player)
-                except:
-                    logger.warning(f"Could not restore player {player.name} to original team")
-            
-            # Delete the tournament team association
-            tournament_team.delete()
-            
-            # Safety guard: NEVER delete a team that still has players.
-            # If restoration above failed for any player, the team will still
-            # have players attached and must NOT be deleted.
-            remaining_players = team.players.count()
-            if remaining_players > 0:
-                logger.error(
-                    f"SAFETY ABORT: Cannot delete temp team '{team.name}' "
-                    f"(id={team.id}) — {remaining_players} player(s) still belong to it. "
-                    "Restoration must have failed. Team is left intact."
-                )
-                # Do not delete; leave the team in place so no player is orphaned.
-            else:
-                team.delete()
-                logger.info(f"Deleted mêlée team: {team.name}")
+
+        # A true pre-P4 transfer still needs recovery before any cleanup.
+        restore_legacy_transferred_melee_players(self)
+        deleted_count, retained_count = delete_unreferenced_temporary_teams(self)
+        if retained_count:
+            raise ValueError(
+                "Cannot regenerate Mêlée teams while temporary Team history is retained."
+            )
+        if deleted_count:
+            logger.info("Deleted %s unreferenced Mêlée setup team(s)", deleted_count)
 
     def _generate_random_teams(self, melee_players, team_size):
         """Generate teams using random assignment"""
@@ -608,7 +645,7 @@ class Tournament(models.Model):
     
     def _create_team_from_players(self, melee_players, team_name):
         """Helper method to create a team from a list of MeleePlayer objects"""
-        from teams.models import Team, Player
+        from teams.models import Team
         
         # For tete_a_tete (single-player teams), use the player's name as the team name
         if len(melee_players) == 1:
@@ -617,28 +654,32 @@ class Tournament(models.Model):
         # Create the mêlée team for tournament purposes, flagged as temporary
         team = Team.objects.create(name=team_name, is_tournament_temp=True)
         
-        # Transfer players to the mêlée team temporarily, storing original team for restoration
+        # P4 creates only a temporary competition container. A Player's normal
+        # affiliation is never transferred; current tournament state lives on
+        # MeleePlayer and exact Round state is written immediately afterward.
         for mp in melee_players:
             original_player = mp.player
             
-            # Store the original team if not already stored
-            if not mp.original_team:
-                mp.original_team = original_player.team
-            
-            # Transfer the player to the mêlée team
-            original_player.team = team
-            original_player.save()
-            
-            # Update the MeleePlayer record to track the assigned team
+            # Update tournament-level Mêlée state only.
             mp.assigned_team = team
-            mp.save()
+            mp.save(update_fields=['assigned_team'])
             
-            logger.info(f"Transferred player {original_player.name} from {mp.original_team.name if mp.original_team else 'No Team'} to mêlée team {team_name}")
+            logger.info(
+                "Assigned player %s to Mêlée competition Team %s without "
+                "changing Player.team %s",
+                original_player.name,
+                team_name,
+                original_player.team_id,
+            )
             
-            # Refresh the player's session so they don't need to logout/login
-            # in_melee_assignment=True → client activates fast 10-second polling
+            # Preserve existing Smart Button fast polling without replacing the
+            # normal Team session identity.
             from pfc_core.session_refresh import refresh_player_team_session
-            refresh_player_team_session(original_player, in_melee_assignment=True)
+            refresh_player_team_session(
+                original_player,
+                in_melee_assignment=True,
+                tournament=self,
+            )
         
         # Add team to tournament
         TournamentTeam.objects.create(tournament=self, team=team)
@@ -646,25 +687,17 @@ class Tournament(models.Model):
         return team
 
     def restore_melee_players_to_original_teams(self):
-        """Restore all mêlée players to their original teams after tournament completion"""
+        """Restore only pre-P4 Players actually transferred to temp Teams.
+
+        P4 Mêlée tournaments retain Player.team throughout their lifecycle, so
+        this method is a safe no-op for new assignment-based tournaments.
+        """
         if not self.is_melee:
             logger.warning(f"Tournament {self.name} is not a mêlée tournament")
             return 0
-        
-        restored_count = 0
-        for mp in self.melee_players.all():
-            if mp.original_team and mp.player.team != mp.original_team:
-                old_melee_team = mp.player.team
-                mp.player.team = mp.original_team
-                mp.player.save()
-                
-                logger.info(f"Restored player {mp.player.name} from {old_melee_team.name} back to {mp.original_team.name}")
-                
-                # Refresh the player's session (restore → stop fast polling)
-                from pfc_core.session_refresh import restore_player_team_session
-                restore_player_team_session(mp.player)
-                
-                restored_count += 1
+
+        from tournaments.melee_lifecycle import restore_legacy_transferred_melee_players
+        restored_count = restore_legacy_transferred_melee_players(self)
         
         logger.info(f"Restored {restored_count} players to their original teams for tournament {self.name}")
         return restored_count
@@ -683,9 +716,17 @@ class Tournament(models.Model):
         return pending_matches == 0
 
     def auto_restore_players_on_completion(self):
-        """Automatically restore mêlée players if tournament is complete"""
+        """Finish legacy restoration or P4 transient session context safely."""
         if self.is_melee and self.is_tournament_complete():
             restored_count = self.restore_melee_players_to_original_teams()
+            if self.melee_roster_mode == self.MELEE_ROSTER_MODE_ASSIGNMENT:
+                from tournaments.melee_lifecycle import clear_assignment_context_sessions
+                clear_assignment_context_sessions(
+                    [
+                        registration.player
+                        for registration in self.melee_players.select_related('player')
+                    ]
+                )
             if restored_count > 0:
                 logger.info(f"Auto-restored {restored_count} players for completed tournament {self.name}")
             return restored_count
@@ -1220,6 +1261,128 @@ class MeleePlayer(models.Model):
     
     def __str__(self):
         return f"{self.player.name} in {self.tournament.name}"
+
+
+class MeleeRoundAssignment(models.Model):
+    """One Player's explicit Mêlée state for one concrete tournament Round.
+
+    This is deliberately scoped to Mêlée. It represents a competition roster,
+    not Team membership. P4 generation and shuffle write it without changing
+    Player.team; readers resolve this exact Round after MatchPlayer snapshots.
+    """
+
+    ASSIGNED = 'assigned'
+    BYE = 'bye'
+    WAITLISTED = 'waitlisted'
+    WITHDRAWN = 'withdrawn'
+
+    STATE_CHOICES = [
+        (ASSIGNED, 'Assigned to team'),
+        (BYE, 'Bye'),
+        (WAITLISTED, 'Waitlisted'),
+        (WITHDRAWN, 'Withdrawn'),
+    ]
+
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='melee_round_assignments',
+    )
+    round = models.ForeignKey(
+        'Round',
+        on_delete=models.CASCADE,
+        related_name='melee_assignments',
+        help_text='Concrete tournament round for this assignment state.',
+    )
+    player = models.ForeignKey(
+        'teams.Player',
+        on_delete=models.CASCADE,
+        related_name='melee_round_assignments',
+    )
+    team = models.ForeignKey(
+        'teams.Team',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='melee_round_assignments',
+        help_text='Existing temporary tournament team when state is assigned.',
+    )
+    state = models.CharField(max_length=20, choices=STATE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('tournament', 'round', 'player'),
+                name='unique_melee_round_assignment_player',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(state='assigned', team__isnull=False)
+                    | Q(
+                        state__in=('bye', 'waitlisted', 'withdrawn'),
+                        team__isnull=True,
+                    )
+                ),
+                name='melee_round_assignment_state_team',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=('tournament', 'round', 'team', 'state'),
+                name='melee_round_team_state_idx',
+            ),
+        ]
+        ordering = ('round_id', 'state', 'team_id', 'player_id')
+        verbose_name = 'Mêlée round assignment'
+        verbose_name_plural = 'Mêlée round assignments'
+
+    def clean(self):
+        """Reject cross-tournament, non-Mêlée, and non-temp-Team assignments."""
+        super().clean()
+        errors = {}
+
+        if self.tournament_id and not self.tournament.is_melee:
+            errors['tournament'] = 'Round assignments are only valid for Mêlée tournaments.'
+
+        if self.tournament_id and self.round_id and self.round.tournament_id != self.tournament_id:
+            errors['round'] = 'The selected round belongs to a different tournament.'
+
+        if self.tournament_id and self.player_id and not MeleePlayer.objects.filter(
+            tournament_id=self.tournament_id,
+            player_id=self.player_id,
+        ).exists():
+            errors['player'] = 'The player is not registered for this Mêlée tournament.'
+
+        if self.state == self.ASSIGNED:
+            if not self.team_id:
+                errors['team'] = 'An assigned state requires a temporary tournament team.'
+            elif not self.team.is_tournament_temp:
+                errors['team'] = 'Assigned Mêlée teams must be temporary tournament teams.'
+            elif self.tournament_id and not TournamentTeam.objects.filter(
+                tournament_id=self.tournament_id,
+                team_id=self.team_id,
+            ).exists():
+                errors['team'] = 'The temporary team is not enrolled in this tournament.'
+        elif self.team_id:
+            errors['team'] = 'Only an assigned state may reference a temporary team.'
+
+        if errors:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        # The database constraints handle concurrent conflicts.  Model
+        # validation additionally protects normal ORM/admin writes from a
+        # cross-tournament round or Team relationship that SQL cannot express.
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        team_name = self.team.name if self.team_id else self.get_state_display()
+        return f'{self.player.name} — {team_name} ({self.round})'
+
 
 # --- Tournament Team Model ---
 SYSTEM_FRIENDLY_GAMES_TEAM_NAME = "Friendly Games"

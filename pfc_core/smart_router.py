@@ -36,7 +36,7 @@ so the info page is the correct destination.
 
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
@@ -93,25 +93,19 @@ def resolve_decision_url(request):
             'no_login': True,
         })
 
-    # ---- Step 2: Resolve team ----
-    player_team = player.team
-    if not player_team:
-        return render(request, 'pfc_core/my_matches.html', {
-            'matches': [],
-            'no_teams': True,
-            'codename': codename,
-        })
-
-    # ---- Step 3: Collect ALL candidate items with decision URLs ----
+    # ---- Step 2: Collect ALL candidate items with decision URLs ----
+    # P3 resolves a Mêlée side in Match context. Do not use a global
+    # Player.team as an early gate: a Player may have an exact MatchPlayer or
+    # MeleeRoundAssignment even when the compatibility projection differs.
     # Score responsibilities are collected first, but everything goes
     # into the same list so priority ordering is the single authority.
     candidates = []
 
     # 3a. Tournament matches (includes score validation & submission)
-    candidates.extend(_resolve_tournament_matches(player_team))
+    candidates.extend(_resolve_tournament_matches(player))
 
     # 3b. Friendly games the player is already IN
-    candidates.extend(_resolve_friendly_games(player, player_team))
+    candidates.extend(_resolve_friendly_games(player))
 
     # 3c. Location-aware friendly game join (only if no score actions exist)
     #     This is the key safety gate: if the player has ANY score-related
@@ -288,7 +282,7 @@ def _resolve_nearby_friendly_games(request, player):
 # ---------------------------------------------------------------------------
 # Friendly game resolution (games the player is already IN)
 # ---------------------------------------------------------------------------
-def _resolve_friendly_games(player, player_team):
+def _resolve_friendly_games(player):
     """Resolve friendly games to their decision-state URLs."""
     candidates = []
 
@@ -358,22 +352,42 @@ def _resolve_friendly_games(player, player_team):
 # ---------------------------------------------------------------------------
 # Tournament match resolution
 # ---------------------------------------------------------------------------
-def _resolve_tournament_matches(player_team):
-    """Resolve tournament matches to their decision-state URLs."""
+def _resolve_tournament_matches(player):
+    """Resolve a Player's tournament Matches to decision-state URLs.
+
+    P3 candidate discovery includes legacy Team membership, MatchPlayer
+    snapshots, and exact-round Mêlée assignments. The authoritative side is
+    resolved per Match below; candidate discovery cannot determine a side.
+    """
+    from matches.melee_roster_resolution import resolve_player_match_side
+
     candidates = []
 
     matches = Match.objects.filter(
-        Q(team1=player_team) | Q(team2=player_team)
+        Q(team1_id=player.team_id) | Q(team2_id=player.team_id)
+        | Q(match_players__player_id=player.id)
+        | Q(
+            round__melee_assignments__player_id=player.id,
+            round__melee_assignments__tournament_id=F('tournament_id'),
+        )
     ).exclude(
         status__iexact='completed'
     ).exclude(
         status__iexact='cancelled'
-    ).select_related(
+    ).distinct().select_related(
+        # ``match_players`` and ``round__melee_assignments`` are independent
+        # multi-valued joins. One real Match can otherwise appear once for
+        # every joined snapshot/assignment combination, creating duplicate
+        # Smart Button choices. SQL-level Match identity is the correct
+        # de-duplication boundary; side resolution remains below.
         'team1', 'team2', 'tournament', 'court'
     ).prefetch_related('activations')
 
     for match in matches:
         status = match.status.lower()
+        player_team = resolve_player_match_side(match, player)
+        if player_team is None:
+            continue
         team_id = player_team.id
 
         if status == 'active':
@@ -546,18 +560,10 @@ def my_matches_list(request):
             'no_login': True,
         })
 
-    player_team = player.team
-    if not player_team:
-        return render(request, 'pfc_core/my_matches.html', {
-            'matches': [],
-            'no_teams': True,
-            'codename': codename,
-        })
-
     # Collect all candidates with their resolved URLs
     candidates = []
-    candidates.extend(_resolve_tournament_matches(player_team))
-    candidates.extend(_resolve_friendly_games(player, player_team))
+    candidates.extend(_resolve_tournament_matches(player))
+    candidates.extend(_resolve_friendly_games(player))
     candidates.sort(key=lambda c: c['priority'])
 
     return render(request, 'pfc_core/my_matches_list.html', {
@@ -594,7 +600,7 @@ def resolve_scanned_player_next_url(request):
         return JsonResponse({'ok': False, 'error': _("No QR scan found. Please scan the player card again.")}, status=400)
 
     try:
-        scanned_pc = PlayerCodename.objects.select_related('player__team').get(
+        scanned_pc = PlayerCodename.objects.select_related('player').get(
             codename=scanned_codename.upper()
         )
     except PlayerCodename.DoesNotExist:
@@ -602,9 +608,8 @@ def resolve_scanned_player_next_url(request):
 
     scanned_player = scanned_pc.player
     candidates = []
-    if scanned_player.team_id:
-        candidates.extend(_resolve_tournament_matches(scanned_player.team))
-    candidates.extend(_resolve_friendly_games(scanned_player, scanned_player.team))
+    candidates.extend(_resolve_tournament_matches(scanned_player))
+    candidates.extend(_resolve_friendly_games(scanned_player))
 
     if not candidates:
         return JsonResponse({
@@ -659,13 +664,9 @@ def resolve_next_url(request):
     except PlayerCodename.DoesNotExist:
         return _JsonResponse({'authenticated': False, 'next_url': None, 'label': None, 'priority': None})
 
-    player_team = player.team
-    if not player_team:
-        return _JsonResponse({'authenticated': True, 'next_url': None, 'label': _("No team"), 'priority': None})
-
     candidates = []
-    candidates.extend(_resolve_tournament_matches(player_team))
-    candidates.extend(_resolve_friendly_games(player, player_team))
+    candidates.extend(_resolve_tournament_matches(player))
+    candidates.extend(_resolve_friendly_games(player))
 
     has_score_responsibility = any(
         c['priority'] <= PRIORITY_FRIENDLY_NEEDS_VALIDATION

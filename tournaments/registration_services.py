@@ -118,10 +118,12 @@ def register_melee_player_for_tournament(*, player, tournament, voucher_code=Non
             raise TournamentRegistrationEligibilityError(TOURNAMENT_FULL_MESSAGE)
 
     voucher = _resolve_valid_voucher(tournament=tournament, voucher_code=voucher_code)
+    # P4 leaves normal affiliation untouched. The nullable legacy
+    # ``original_team`` field is populated only when an old transferred record
+    # already needs recovery; it is not an active restore target for new rows.
     registration = MeleePlayer.objects.create(
         tournament=tournament,
         player=player,
-        original_team=player.team,
     )
     redemption = _consume_voucher(voucher=voucher, player=player)
     return registration, True, redemption

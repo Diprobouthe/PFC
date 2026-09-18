@@ -82,8 +82,7 @@ def update_melee_player_stats_from_match(match):
     Args:
         match: Match object (must belong to a mêlée tournament)
     """
-    from tournaments.partnership_models import MeleePartnership
-    from matches.models import MatchPlayer
+    from matches.melee_roster_resolution import players_for_match_team
     
     tournament = match.tournament
     
@@ -95,16 +94,6 @@ def update_melee_player_stats_from_match(match):
     team2 = match.team2
     
     if not team1 or not team2:
-        return
-    
-    # Get round number directly from the Round model field (number_in_stage)
-    # This is the stage-local round number used in MeleePartnership records.
-    round_number = None
-    if match.round:
-        round_number = match.round.number_in_stage
-    
-    if not round_number:
-        print(f"Warning: Could not determine round number for match {match.id}")
         return
     
     # Determine winner
@@ -119,43 +108,14 @@ def update_melee_player_stats_from_match(match):
         winning_team = None
         losing_team = None
     
-    # --- Resolve players for each team ---
-    # Primary source: MeleePartnership (created when teams are shuffled/generated)
-    team1_partnership = MeleePartnership.objects.filter(
-        tournament=tournament,
-        round_number=round_number,
-        team_name=team1.name
-    ).first()
-    
-    team2_partnership = MeleePartnership.objects.filter(
-        tournament=tournament,
-        round_number=round_number,
-        team_name=team2.name
-    ).first()
-    
-    if team1_partnership:
-        team1_players = [team1_partnership.player1, team1_partnership.player2]
-        if hasattr(team1_partnership, 'player3') and team1_partnership.player3:
-            team1_players.append(team1_partnership.player3)
-    else:
-        # Fallback: use MatchPlayer records which are always populated for every match
-        team1_mp_qs = MatchPlayer.objects.filter(match=match, team=team1).select_related('player')
-        team1_players = [mp.player for mp in team1_mp_qs if mp.player]
-        if not team1_players:
-            print(f"Warning: No players found for team {team1.name} in match {match.id}")
-            return
-    
-    if team2_partnership:
-        team2_players = [team2_partnership.player1, team2_partnership.player2]
-        if hasattr(team2_partnership, 'player3') and team2_partnership.player3:
-            team2_players.append(team2_partnership.player3)
-    else:
-        # Fallback: use MatchPlayer records
-        team2_mp_qs = MatchPlayer.objects.filter(match=match, team=team2).select_related('player')
-        team2_players = [mp.player for mp in team2_mp_qs if mp.player]
-        if not team2_players:
-            print(f"Warning: No players found for team {team2.name} in match {match.id}")
-            return
+    # Resolve exact Match snapshots first, then the exact MRA roster for an
+    # unusual unactivated historical record, then only the legacy projection.
+    # Partnership rows are display/history data, never Mêlée roster authority.
+    team1_players = list(players_for_match_team(match, team1))
+    team2_players = list(players_for_match_team(match, team2))
+    if not team1_players or not team2_players:
+        print(f"Warning: No exact Mêlée roster found for match {match.id}")
+        return
     
     with transaction.atomic():
         # Update stats for team1 players

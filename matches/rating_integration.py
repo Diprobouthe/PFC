@@ -168,9 +168,20 @@ def get_players_with_profiles(team, match=None):
         participating_players = get_match_participants(match, team)
         if not participating_players:
             logger.warning(f"No MatchPlayer records found for team {team.name} in match {match.id}")
-            # Fallback to all team players if MatchPlayer data not found
-            logger.warning(f"Falling back to all team players for match {match.id}")
-            participating_players = team.players.all()
+            if match.tournament_id and match.tournament.is_melee:
+                # P4 temporary competition Teams intentionally have no global
+                # Team.players membership. Preserve MatchPlayer -> exact MRA ->
+                # legacy fallback precedence through the shared resolver.
+                from matches.melee_roster_resolution import players_for_match_team
+
+                participating_players = players_for_match_team(match, team)
+                logger.warning(
+                    "Resolved Mêlée rating fallback from Match roster assignment for match %s",
+                    match.id,
+                )
+            else:
+                logger.warning(f"Falling back to all team players for match {match.id}")
+                participating_players = team.players.all()
     else:
         # If no match provided, use all team players (backward compatibility)
         logger.warning(f"No match provided to get_players_with_profiles, using all team players")
@@ -538,4 +549,3 @@ def update_all_team_values():
     except Exception as e:
         logger.error(f"Failed to update all team values: {e}")
         return {"success": False, "reason": str(e)}
-

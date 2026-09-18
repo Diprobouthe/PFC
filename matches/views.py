@@ -19,6 +19,10 @@ from .utils import auto_assign_court, get_court_assignment_status
 from pfc_events.signals import notify_match_state_changed
 from pfc_core.qr_action_auth import get_qr_action_player, get_qr_action_token
 from .utils import detect_match_type, validate_match_type  # Import match type utilities
+from .melee_roster_resolution import (
+    players_for_match_team,
+    resolve_player_match_side,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -278,9 +282,9 @@ def match_detail(request, match_id):
     match_players_team2 = MatchPlayer.objects.filter(match=match, team=match.team2).select_related("player")
 
     # ---- Session-bound team identification (match-context aware) ----
-    # Priority 1: resolve from player codename → MatchPlayer → match team
-    # This correctly handles Mêlée teams where the session team PIN
-    # belongs to the player's original team, not the Mêlée team.
+    # P3: MatchPlayer snapshot → exact Mêlée Round assignment → legacy
+    # Player.team fallback. A team-PIN session remains only a final fallback
+    # for non-player/coach sessions.
     my_team = None
     opponent_team = None
     qr_action_player = get_qr_action_player(request)
@@ -292,9 +296,8 @@ def match_detail(request, match_id):
             if player is None:
                 player_codename_obj = PlayerCodename.objects.get(codename=codename.upper())
                 player = player_codename_obj.player
-            mp = MatchPlayer.objects.filter(match=match, player=player).select_related('team').first()
-            if mp:
-                my_team = mp.team
+            my_team = resolve_player_match_side(match, player)
+            if my_team:
                 opponent_team = match.team2 if my_team == match.team1 else match.team1
         except (PlayerCodename.DoesNotExist, Exception):
             pass
@@ -447,23 +450,23 @@ def match_activate(request, match_id, team_id):
         messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
-    # Priority 1: resolve from player codename → MatchPlayer → match team
-    # This handles Mêlée players whose session team PIN is their original team.
+    # P3 precedence is MatchPlayer → exact Mêlée round assignment → legacy
+    # Player.team. The PIN is retained only as the compatibility fallback.
     session_team = None
     codename = request.session.get('player_codename')
     if codename:
         from friendly_games.models import PlayerCodename as PC
         try:
             pc = PC.objects.get(codename=codename.upper())
-            mp = MatchPlayer.objects.filter(match=match, player=pc.player).select_related('team').first()
-            if mp:
-                session_team = mp.team
+            session_team = resolve_player_match_side(match, pc.player)
         except Exception:
             pass
     # Priority 2: a scanned-player proof takes precedence for this one page.
     qr_action_player = get_qr_action_player(request)
-    if qr_action_player and qr_action_player.team_id in (match.team1_id, match.team2_id):
-        session_team = qr_action_player.team
+    if qr_action_player:
+        qr_action_team = resolve_player_match_side(match, qr_action_player)
+        if qr_action_team is not None:
+            session_team = qr_action_team
     # Priority 3: fall back to team PIN session.
     if session_team is None:
         session_pin = request.session.get("team_pin")
@@ -515,8 +518,11 @@ def match_activate(request, match_id, team_id):
             _qr_pc = None
             try:
                 _qr_pc = PlayerCodename.objects.get(codename=_qr_codename_upper)
-                # Accept only if the scanned player belongs to the OPPOSING team
-                _qr_auth_ok = (_qr_pc.player.team == _opponent_team)
+                # P3: accept the exact Match side, not the mutable global
+                # Player.team compatibility projection.
+                _qr_auth_ok = (
+                    resolve_player_match_side(match, _qr_pc.player) == _opponent_team
+                )
             except PlayerCodename.DoesNotExist:
                 pass
 
@@ -744,7 +750,7 @@ def match_activate(request, match_id, team_id):
                 from pfc_events.push_notifications import notify_match_action_required
                 opponent_team = match.team2 if team == match.team1 else match.team1
                 notify_match_action_required(
-                    list(opponent_team.players.all()),
+                    list(players_for_match_team(match, opponent_team)),
                     "opponent_started",
                     "match",
                     match.id,
@@ -823,8 +829,10 @@ def match_activate(request, match_id, team_id):
             elif tournament.melee_format == 'triplets':
                 required_count = 3
 
-    # Collect team players with their preferred positions
-    team_players_qs = Player.objects.filter(team=team).select_related('profile')
+    # Collect the Match-scoped roster with preferred positions. For a pending
+    # Mêlée Match this resolves exact Round assignments; after activation it
+    # resolves the MatchPlayer snapshot.
+    team_players_qs = players_for_match_team(match, team).select_related('profile')
     team_players_with_pos = []
     for p in team_players_qs:
         try:
@@ -865,20 +873,22 @@ def match_submit_result(request, match_id, team_id):
         messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
+    # P3: MatchPlayer snapshot → exact Mêlée round assignment → compatibility
+    # Player.team/PIN fallback.
     _session_team = None
     _codename = request.session.get('player_codename')
     if _codename:
         from friendly_games.models import PlayerCodename as PC
         try:
             _pc = PC.objects.get(codename=_codename.upper())
-            _mp = MatchPlayer.objects.filter(match=match, player=_pc.player).select_related('team').first()
-            if _mp:
-                _session_team = _mp.team
+            _session_team = resolve_player_match_side(match, _pc.player)
         except Exception:
             pass
     _qr_action_player = get_qr_action_player(request)
-    if _qr_action_player and _qr_action_player.team_id in (match.team1_id, match.team2_id):
-        _session_team = _qr_action_player.team
+    if _qr_action_player:
+        _qr_action_team = resolve_player_match_side(match, _qr_action_player)
+        if _qr_action_team is not None:
+            _session_team = _qr_action_team
     if _session_team is None:
         _session_pin = request.session.get("team_pin")
         if _session_pin:
@@ -945,7 +955,7 @@ def match_submit_result(request, match_id, team_id):
             from pfc_events.push_notifications import notify_match_action_required
             opponent_team = match.team2 if team == match.team1 else match.team1
             notify_match_action_required(
-                list(opponent_team.players.all()),
+                list(players_for_match_team(match, opponent_team)),
                 "result_validation",
                 "match",
                 match.id,
@@ -995,20 +1005,22 @@ def match_validate_result(request, match_id, team_id):
         messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
+    # P3: MatchPlayer snapshot → exact Mêlée round assignment → compatibility
+    # Player.team/PIN fallback.
     _session_team_v = None
     _codename_v = request.session.get('player_codename')
     if _codename_v:
         from friendly_games.models import PlayerCodename as PC
         try:
             _pc_v = PC.objects.get(codename=_codename_v.upper())
-            _mp_v = MatchPlayer.objects.filter(match=match, player=_pc_v.player).select_related('team').first()
-            if _mp_v:
-                _session_team_v = _mp_v.team
+            _session_team_v = resolve_player_match_side(match, _pc_v.player)
         except Exception:
             pass
     _qr_action_player_v = get_qr_action_player(request)
-    if _qr_action_player_v and _qr_action_player_v.team_id in (match.team1_id, match.team2_id):
-        _session_team_v = _qr_action_player_v.team
+    if _qr_action_player_v:
+        _qr_action_team_v = resolve_player_match_side(match, _qr_action_player_v)
+        if _qr_action_team_v is not None:
+            _session_team_v = _qr_action_team_v
     if _session_team_v is None:
         _session_pin_v = request.session.get("team_pin")
         if _session_pin_v:
@@ -1083,8 +1095,9 @@ def match_validate_result(request, match_id, team_id):
             _required_team_label = _validating_team.name if is_own_team else team.name
             try:
                 _qr_pc = PlayerCodename.objects.get(codename=_qr_codename_upper)
-                # Check 2: scanned player must belong to the required team
-                if _qr_pc.player.team != _required_team:
+                # Check 2: scanned player must resolve to the required Match
+                # side. P3 never authorizes a Mêlée side from Player.team.
+                if resolve_player_match_side(match, _qr_pc.player) != _required_team:
                     messages.error(
                         request,
                         f"The scanned QR card does not belong to a player on {_required_team_label}. "
@@ -1154,40 +1167,10 @@ def match_validate_result(request, match_id, team_id):
                 # the submit step (e.g. admin override).
                 _deactivate_match_presence(match)
                 
-                # ===== AUTO-SHUFFLE CHECK =====
-                # Check if we should automatically shuffle players after round completion
-                logger.debug(f"Auto-shuffle check: tournament={match.tournament}, is_melee={match.tournament.is_melee if match.tournament else None}, shuffle_after_round={match.tournament.shuffle_players_after_round if match.tournament else None}, round={match.round}")
-                if match.tournament and match.tournament.is_melee and match.tournament.shuffle_players_after_round and match.round:
-                    from tournaments.shuffle_utils import check_if_specific_round_complete, shuffle_melee_players
-                    from tournaments.partnership_models import MeleeShuffleHistory
-                    
-                    logger.info(f"Checking if round {match.round.number} is complete for melee tournament {match.tournament.name}")
-                    
-                    # Check if THIS match's round is now complete
-                    round_complete = check_if_specific_round_complete(match.tournament, match.round)
-                    logger.info(f"Round {match.round.number} complete check result: {round_complete}")
-                    
-                    if round_complete:
-                        # Check if we've already shuffled for this round
-                        already_shuffled = MeleeShuffleHistory.objects.filter(
-                            tournament=match.tournament,
-                            round_number=match.round.number
-                        ).exists()
-                        
-                        if not already_shuffled:
-                            logger.info(f"Round {match.round.number} complete! Triggering auto-shuffle for tournament {match.tournament.name}")
-                            shuffle_result = shuffle_melee_players(
-                                tournament=match.tournament,
-                                shuffle_type='automatic',
-                                shuffled_by=None,
-                                round_number=match.round.number
-                            )
-                            if shuffle_result and shuffle_result['success']:
-                                logger.info(f"Auto-shuffled players after round {match.round.number} completion: {shuffle_result['message']}")
-                            else:
-                                logger.error(f"Auto-shuffle failed: {shuffle_result.get('message', 'Unknown error')}")
-                        else:
-                            logger.debug(f"Already shuffled for round {match.round.number}, skipping")
+                # Super Mêlée round preparation is coordinated by the synchronous
+                # Match post-save receiver. It runs during ``match.save()`` above,
+                # before generic tournament automation can create the next Round.
+                # Do not add a competing view-level shuffle here.
                 
                 # ===== PARTICIPATION TRACKING =====
                 # Create TeamMatchParticipant records from MatchPlayer data
@@ -1321,7 +1304,8 @@ def match_validate_result(request, match_id, team_id):
                 # A disputed result reopens the existing submit-score action.
                 from pfc_events.push_notifications import notify_match_action_required
                 notify_match_action_required(
-                    list(match.team1.players.all()) + list(match.team2.players.all()),
+                    list(players_for_match_team(match, match.team1))
+                    + list(players_for_match_team(match, match.team2)),
                     "reopened",
                     "match",
                     match.id,
@@ -1390,9 +1374,7 @@ def match_status_api(request, match_id):
     if codename:
         try:
             pc = PlayerCodename.objects.get(codename=codename.upper())
-            mp = MatchPlayer.objects.filter(match=match, player=pc.player).select_related('team').first()
-            if mp:
-                my_team = mp.team
+            my_team = resolve_player_match_side(match, pc.player)
         except Exception:
             pass
     if my_team is None:
@@ -1523,9 +1505,7 @@ def match_qr_confirm_opponent(request, match_id):
     if _codename:
         try:
             _pc = PlayerCodename.objects.get(codename=_codename.upper())
-            _mp = MatchPlayer.objects.filter(match=match, player=_pc.player).select_related('team').first()
-            if _mp:
-                acting_team = _mp.team
+            acting_team = resolve_player_match_side(match, _pc.player)
         except Exception:
             pass
     if acting_team is None:
@@ -1572,8 +1552,10 @@ def match_qr_confirm_opponent(request, match_id):
         messages.error(request, 'The scanned QR code could not be resolved.')
         return redirect('match_detail', match_id=match_id)
 
-    # Check 1: scanned player must belong to the PENDING team
-    if _qr_pc.player.team != pending_team:
+    # Check 1: scanned player must resolve to the exact pending Match side.
+    # P3 uses a MatchPlayer snapshot if available, otherwise this Match's
+    # Tournament/Round assignment; Player.team is only compatibility fallback.
+    if resolve_player_match_side(match, _qr_pc.player) != pending_team:
         messages.error(
             request,
             'The scanned QR card does not belong to a player on the opposing team. '

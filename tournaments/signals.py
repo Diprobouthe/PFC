@@ -54,6 +54,35 @@ def handle_match_completion(sender, instance, created, update_fields=None, **kwa
                     
         except Exception as e:
             logger.exception(f"Error updating swiss_points for tournament {tournament.id}: {e}")
+
+        # A Super Mêlée must prepare its next concrete Round assignment before
+        # generic automation creates that Round's Matches. This receiver runs
+        # synchronously inside the final ``match.save()`` call, so the old
+        # view-level shuffle was necessarily too late: automation had already
+        # copied the prior MeleePlayer.assigned_team values.
+        if tournament.is_melee and tournament.shuffle_players_after_round and instance.round_id:
+            from tournaments.shuffle_utils import prepare_automatic_super_melee_transition
+
+            transition = prepare_automatic_super_melee_transition(
+                tournament=tournament,
+                completed_round=instance.round,
+            )
+            if not transition["success"]:
+                logger.error(
+                    "Super Mêlée transition after Round %s for tournament %s "
+                    "was not prepared; generic next-round automation is skipped: %s",
+                    instance.round_id,
+                    tournament.id,
+                    transition["message"],
+                )
+                return
+            if transition.get("next_round_prepared"):
+                logger.info(
+                    "Prepared Super Mêlée assignments after Round %s before "
+                    "generic Match generation for tournament %s.",
+                    instance.round_id,
+                    tournament.id,
+                )
         
         # Only trigger automation if tournament is idle
         current_status = getattr(tournament, 'automation_status', 'idle')
@@ -75,4 +104,3 @@ def handle_match_completion(sender, instance, created, update_fields=None, **kwa
         except Exception as e:
             logger.exception(f"❌ Error in automation for tournament {tournament.id}: {e}")
             # Don't set error status - let the engine handle it
-
