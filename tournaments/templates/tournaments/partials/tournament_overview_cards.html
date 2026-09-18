@@ -1,0 +1,85 @@
+{% load i18n %}
+{% if has_active_matches %}
+  <div class="overview-grid" id="overview-grid" aria-live="polite">
+    {% for card in overview_cards %}
+      <article class="overview-card" data-match-id="{{ card.match_id }}"{% if card.scoreboard_id %} data-scoreboard-id="{{ card.scoreboard_id }}"{% endif %}>
+        <header class="overview-card-header">
+          <div class="overview-match-meta">
+            <span class="overview-match-id">{% translate "Match" %} #{{ card.match_id }}</span>
+            {% if card.round_number %}<span class="overview-round">{% translate "Round" %} {{ card.round_number }}</span>{% endif %}
+          </div>
+          <span class="overview-status overview-status-{{ card.status }}" data-status>
+            <span class="overview-status-dot" aria-hidden="true"></span>
+            <span data-status-label>
+              {% if card.status == 'active' %}{% translate "LIVE" %}
+              {% elif card.status == 'pending_verification' %}{% translate "Waiting for second team" %}
+              {% else %}{{ card.status }}{% endif %}
+            </span>
+          </span>
+        </header>
+
+        <div class="overview-court">
+          {% if card.court_label %}
+            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>{% translate "Court" %} {{ card.court_label }}
+          {% elif card.waiting_for_court %}
+            <i class="fas fa-hourglass-half" aria-hidden="true"></i>{% translate "Waiting for court assignment" %}
+          {% else %}
+            <i class="fas fa-circle-info" aria-hidden="true"></i>{% translate "Court to be confirmed" %}
+          {% endif %}
+        </div>
+
+        <div class="overview-score">
+          <section class="overview-team overview-team-one">
+            <h2 class="overview-team-name">{{ card.team1_name }}</h2>
+            <div class="overview-players">
+              {% for player in card.team1_players %}
+                <span class="overview-player"><strong>{{ player.name }}</strong>{% if player.role %}<small>{{ player.role }}</small>{% endif %}</span>
+              {% empty %}
+                <span class="overview-player overview-player-empty">—</span>
+              {% endfor %}
+            </div>
+            <div class="overview-score-number" data-team-score="team1">{{ card.team1_score }}</div>
+          </section>
+          <div class="overview-score-separator" aria-hidden="true">–</div>
+          <section class="overview-team overview-team-two">
+            <h2 class="overview-team-name">{{ card.team2_name }}</h2>
+            <div class="overview-players">
+              {% for player in card.team2_players %}
+                <span class="overview-player"><strong>{{ player.name }}</strong>{% if player.role %}<small>{{ player.role }}</small>{% endif %}</span>
+              {% empty %}
+                <span class="overview-player overview-player-empty">—</span>
+              {% endfor %}
+            </div>
+            <div class="overview-score-number" data-team-score="team2">{{ card.team2_score }}</div>
+          </section>
+        </div>
+
+        <section class="overview-current-end" data-current-end hidden aria-live="polite">
+          <div class="overview-current-end-heading"><i class="fas fa-bullhorn" aria-hidden="true"></i>{% translate "Current end" %}</div>
+          <div class="overview-current-end-columns">
+            <div class="overview-current-end-side">
+              <div class="overview-current-end-side-name">{{ card.team1_name }}</div>
+              <ul class="overview-current-end-list" data-current-end-list="team1"></ul>
+            </div>
+            <div class="overview-current-end-side overview-current-end-side-two">
+              <div class="overview-current-end-side-name">{{ card.team2_name }}</div>
+              <ul class="overview-current-end-list" data-current-end-list="team2"></ul>
+            </div>
+          </div>
+        </section>
+
+        {% if card.scoreboard_id %}
+          <a class="overview-spectator-link" href="{% url 'scoreboard_embed' card.scoreboard_id %}" target="_blank" rel="noopener">
+            <i class="fas fa-up-right-from-square" aria-hidden="true"></i>{% translate "Open Live Score" %}
+          </a>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <section class="overview-empty" id="overview-empty">
+    <i class="fas fa-trophy" aria-hidden="true"></i>
+    <h2>{% translate "No active matches in this tournament" %}</h2>
+    <p>{% translate "Live match cards will appear here when a match begins." %}</p>
+  </section>
+{% endif %}

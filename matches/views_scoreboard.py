@@ -128,6 +128,10 @@ def _broadcast_score(scoreboard, score_update=None):
         async_to_sync(channel_layer.group_send)(group, payload)
     except Exception as exc:
         logger.warning("score broadcast failed for scoreboard %s: %s", scoreboard.id, exc)
+    # The Tournament Overview receives the identical read-only score event on
+    # its single shared channel. It never feeds state back into this scoreboard.
+    from pfc_events.tournament_overview import broadcast_score_updated
+    broadcast_score_updated(scoreboard, score_update=score_update)
 
 
 def live_scores_list(request):
@@ -338,7 +342,10 @@ def update_scoreboard(request, scoreboard_id):
     Requires codename authentication.
     """
     try:
-        scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
+        scoreboard = get_object_or_404(
+            LiveScoreboard.objects.select_related('tournament_match'),
+            id=scoreboard_id,
+        )
         
         # Parse JSON data
         data = json.loads(request.body)
@@ -452,7 +459,10 @@ def reset_scoreboard(request, scoreboard_id):
     Requires codename authentication.
     """
     try:
-        scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
+        scoreboard = get_object_or_404(
+            LiveScoreboard.objects.select_related('tournament_match'),
+            id=scoreboard_id,
+        )
         
         # Parse JSON data
         data = json.loads(request.body)
@@ -638,4 +648,3 @@ def rate_scorekeeper(request, scoreboard_id):
         logger.error(f"Error rating scorekeeper for scoreboard {scoreboard_id}: {e}")
         messages.error(request, 'An error occurred while submitting your rating')
         return redirect('scoreboard_detail', scoreboard_id=scoreboard_id)
-

@@ -464,17 +464,6 @@ class Tournament(models.Model):
             self.pk,
             initial_round.pk,
         )
-        # _create_team_from_players starts transient Smart polling before
-        # the concrete Round is known. Refresh the same context with the
-        # exact Round without replacing normal Team session identity.
-        from pfc_core.session_refresh import refresh_multiple_players_team_sessions
-        refresh_multiple_players_team_sessions(
-            [assignment.player for assignment in assignment_rows],
-            in_melee_assignment=True,
-            tournament=self,
-            round=initial_round,
-        )
-        
         # Record partnerships from the immutable concrete Round roster.
         from tournaments.partnership_models import MeleePartnership
         partnerships_created = MeleePartnership.record_partnerships_for_round(
@@ -672,15 +661,6 @@ class Tournament(models.Model):
                 original_player.team_id,
             )
             
-            # Preserve existing Smart Button fast polling without replacing the
-            # normal Team session identity.
-            from pfc_core.session_refresh import refresh_player_team_session
-            refresh_player_team_session(
-                original_player,
-                in_melee_assignment=True,
-                tournament=self,
-            )
-        
         # Add team to tournament
         TournamentTeam.objects.create(tournament=self, team=team)
         
@@ -719,14 +699,6 @@ class Tournament(models.Model):
         """Finish legacy restoration or P4 transient session context safely."""
         if self.is_melee and self.is_tournament_complete():
             restored_count = self.restore_melee_players_to_original_teams()
-            if self.melee_roster_mode == self.MELEE_ROSTER_MODE_ASSIGNMENT:
-                from tournaments.melee_lifecycle import clear_assignment_context_sessions
-                clear_assignment_context_sessions(
-                    [
-                        registration.player
-                        for registration in self.melee_players.select_related('player')
-                    ]
-                )
             if restored_count > 0:
                 logger.info(f"Auto-restored {restored_count} players for completed tournament {self.name}")
             return restored_count

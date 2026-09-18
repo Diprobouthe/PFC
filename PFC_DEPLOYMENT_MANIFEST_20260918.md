@@ -1,39 +1,39 @@
 # PFC Complete Sandbox Deployment Snapshot
 
-**Artifact purpose:** Full source snapshot prepared from the latest PFC sandbox project for deployment to the existing Render service.
+**Snapshot purpose:** complete Render-ready source package from the current independent sandbox, including all previous completed work and the **Lightweight Real-Time Tournament Overview** implementation.
 
-## Included
+## Included scope
 
-This snapshot includes the Django/ASGI application source, templates, static/PWA assets, localization resources, all Django migrations, application management commands, dependency manifests, and Render/ASGI deployment configuration. It contains the latest implemented work, including the Mêlée P1–P4 assignment architecture, the coordinated Super Mêlée shuffle repair, Home weather loading changes, Smart Router corrections, Friendly changes, Live Score and Match Tracking work, Push/PWA source, and current Tournament features.
+This snapshot includes application code, templates, static source assets, Django migrations, ASGI/Channels configuration, PWA and Push source, Render configuration, and the newly added tournament Overview components. The Overview is a read-only spectator projection: it has a single tournament-scoped WebSocket, updates individual cards from existing score/tracking events, and fetches fresh card structure only after a Match lifecycle transition changes the visible Match set.
 
 ## Deliberately excluded
 
-The archive does not include sandbox-only or production-owned data and secrets: `.env` files, credential/key files, the sandbox `db.sqlite3`, media uploads, generated `staticfiles`, caches and bytecode, Git metadata, dependency folders, logs, nested delivery archives, and historical developer notes. Production PostgreSQL and persistent Render media must remain in place.
+The archive excludes local/sandbox databases, production credentials and `.env` files, user media, generated static files, logs, caches, bytecode, virtual environments, `node_modules`, nested ZIP archives, and Git metadata. Production media continues to use the existing Render persistent disk at `/var/media`.
 
-## Existing Render deployment procedure
+## Render deployment
 
-Deploy this source to the existing Render web service through its normal source upload or repository workflow. Preserve the existing production environment variables, PostgreSQL database, Redis service, and persistent media disk. Do not reset or replace the production database, and do not delete the mounted media volume.
+1. Extract the archive into the Render service source directory, preserving its directory structure.
+2. Preserve the existing Render environment values and services. In particular, do not replace the production `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, media disk, or optional VAPID values with sandbox values.
+3. Deploy normally. The included `render.yaml` build command remains:
 
-The included `render.yaml`, `Procfile`, `requirements.txt`, and `runtime.txt` retain the current service contract. The configured Render build sequence is:
+   ```bash
+   pip install -r requirements.txt
+   python manage.py collectstatic --noinput
+   python manage.py migrate
+   ```
 
-```bash
-pip install -r requirements.txt
-python manage.py collectstatic --noinput
-python manage.py migrate
-```
+4. The included process command remains:
 
-The ASGI start command is:
+   ```bash
+   daphne -b 0.0.0.0 -p $PORT pfc_core.asgi:application
+   ```
 
-```bash
-daphne -b 0.0.0.0 -p $PORT pfc_core.asgi:application
-```
+## Migrations and environment
 
-`python manage.py migrate` is required so that the full migration history, including the current Mêlée assignment and roster-history migrations, is applied to the existing PostgreSQL database. It does not require a database reset or data deletion.
+Run the standard `python manage.py migrate` command. This full package contains all migrations, including the prior Mêlée P1–P4 migrations. The new Tournament Overview does **not** add a migration.
 
-## Production configuration to preserve
+No new environment variables are required for this implementation. Existing production settings must remain in place, including `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `MEDIA_ROOT`, and the optional `PFC_WEB_PUSH_VAPID_*` settings if Push is enabled.
 
-Keep the existing values for `SECRET_KEY`, `DATABASE_URL`, `REDIS_URL`, `MEDIA_ROOT`, and the PFC Web Push VAPID settings where Push is enabled. Do not replace the existing production database URL, Redis connection, media mount, or production secrets with sandbox values. No new environment variable is required by this snapshot.
+## Data safety
 
-## Post-deployment
-
-After Render reports a successful deploy, confirm the normal application health path and perform the planned functional testing. This packaging step does not deploy the service or modify Render data.
+No database reset, deletion, media deletion, or production data migration beyond the normal Django `migrate` command is required.

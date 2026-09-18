@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from django.db import transaction
 from django.db.models import Q, Exists, OuterRef
 from django.urls import reverse
 from datetime import timedelta
@@ -443,7 +444,19 @@ def request_next_opponent(request, tournament_id, team_id):
 
 
 def match_activate(request, match_id, team_id):
-    match = get_object_or_404(Match, id=match_id)
+    """Render GET requests read-only; serialize all POST activation decisions."""
+    if request.method == "POST":
+        with transaction.atomic():
+            return _match_activate(request, match_id, team_id, lock_match=True)
+    return _match_activate(request, match_id, team_id, lock_match=False)
+
+
+def _match_activate(request, match_id, team_id, *, lock_match):
+    # The Match row is the activation decision lock. A concurrent request waits
+    # here, then reads the first committed activation instead of independently
+    # deciding that it is the initiator.
+    match_queryset = Match.objects.select_for_update() if lock_match else Match.objects
+    match = get_object_or_404(match_queryset, id=match_id)
     team = get_object_or_404(Team, id=team_id)
     tournament = match.tournament
     if team != match.team1 and team != match.team2:

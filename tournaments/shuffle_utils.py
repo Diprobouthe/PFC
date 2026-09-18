@@ -85,7 +85,6 @@ def shuffle_melee_players(
     from tournaments.partnership_models import MeleePartnership, MeleeShuffleHistory
     from pfc_core.session_refresh import (
         refresh_legacy_player_team_session,
-        refresh_player_team_session,
     )
 
     if not tournament.is_melee:
@@ -278,15 +277,6 @@ def shuffle_melee_players(
                             melee_player.player,
                             assigned_team,
                             in_melee_assignment=True,
-                        )
-                    else:
-                        # P4 only sets transient fast-poll context. It
-                        # deliberately preserves normal Team session keys.
-                        refresh_player_team_session(
-                            melee_player.player,
-                            in_melee_assignment=True,
-                            tournament=tournament,
-                            round=next_round_obj,
                         )
 
             assignment_rows = MeleeRoundAssignmentWriter.write_complete_round(

@@ -550,14 +550,6 @@ class TournamentEngine:
         from tournaments.melee_lifecycle import restore_legacy_transferred_melee_players
 
         restored_count = restore_legacy_transferred_melee_players(self.tournament)
-        if self.tournament.melee_roster_mode == self.tournament.MELEE_ROSTER_MODE_ASSIGNMENT:
-            from tournaments.melee_lifecycle import clear_assignment_context_sessions
-            clear_assignment_context_sessions(
-                [
-                    registration.player
-                    for registration in self.tournament.melee_players.select_related('player')
-                ]
-            )
         logger.info(
             "Restored %s legacy transferred Mêlée players for tournament %s",
             restored_count,

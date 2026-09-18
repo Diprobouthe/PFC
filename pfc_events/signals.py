@@ -208,6 +208,12 @@ def notify_match_state_changed(match_id: int, new_status: str, match=None):
         team2=getattr(match, 'team2', None),
         match=match,
     )
+    # One shared Overview channel receives a structure-refresh signal only
+    # when a Match lifecycle transition changes which cards should be visible.
+    # The Overview fetches its consolidated card fragment once; score and
+    # tracking events continue to update a single card in-place.
+    from pfc_events.tournament_overview import broadcast_structure_refresh
+    broadcast_structure_refresh(match.tournament_id)
 
 
 def notify_game_state_changed(game_id: int, new_status: str, game=None):

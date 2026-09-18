@@ -113,7 +113,7 @@ def scoreboard_for_tracking(match_type, match_pk):
     from matches.models import LiveScoreboard
 
     lookup = {"tournament_match_id": match_pk} if match_type == "match" else {"friendly_game_id": match_pk}
-    return LiveScoreboard.objects.filter(**lookup).first()
+    return LiveScoreboard.objects.select_related("tournament_match").filter(**lookup).first()
 
 
 def scoreboard_side_for_player(scoreboard, player_id):
@@ -204,7 +204,7 @@ def broadcast_current_end_feed(match_type, match_pk):
         return
     from pfc_events.scoreboard_broadcast import broadcast_tracking_feed
 
-    broadcast_tracking_feed(scoreboard.id, current_end_actions_for_scoreboard(scoreboard))
+    broadcast_tracking_feed(scoreboard, current_end_actions_for_scoreboard(scoreboard))
 
 
 def broadcast_permitted_action(match_type, match_pk, authorization, shot):
@@ -220,7 +220,7 @@ def broadcast_permitted_action(match_type, match_pk, authorization, shot):
     if not side:
         return
     broadcast_tracking_action(
-        scoreboard.id,
+        scoreboard,
         {
             "id": str(shot.id),
             "player_name": authorization.player.name,

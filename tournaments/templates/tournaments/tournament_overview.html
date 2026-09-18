@@ -1,463 +1,289 @@
 <!DOCTYPE html>
-<html lang="en">
+{% load i18n %}
+{% get_current_language as CURRENT_LANGUAGE %}
+<html lang="{{ CURRENT_LANGUAGE }}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Overview - {{ tournament.name }}</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-family: 'Arial', sans-serif;
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
-        
-        .tournament-header {
-            text-align: center;
-            padding: 2rem 0;
-            background: rgba(0,0,0,0.2);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255,255,255,0.2);
-            margin-bottom: 2rem;
-        }
-        
-        .tournament-title {
-            font-size: 3rem;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            margin-bottom: 0.5rem;
-        }
-        
-        .tournament-subtitle {
-            font-size: 1.2rem;
-            opacity: 0.8;
-            margin-bottom: 1rem;
-        }
-        
-        .status-badge {
-            background: rgba(40, 167, 69, 0.2);
-            color: #28a745;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            border: 1px solid rgba(40, 167, 69, 0.3);
-            backdrop-filter: blur(5px);
-        }
-        
-        .matches-grid {
-            padding: 0 2rem 2rem;
-        }
-        
-        .match-card {
-            background: rgba(255,255,255,0.1);
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .match-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-        }
-        
-        .match-header {
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-        
-        .match-number {
-            font-size: 1rem;
-            opacity: 0.8;
-            margin-bottom: 0.5rem;
-        }
-        
-        .match-status {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-        
-        .status-active {
-            background: rgba(40, 167, 69, 0.2);
-            color: #28a745;
-            border: 1px solid rgba(40, 167, 69, 0.3);
-        }
-        
-        .status-pending {
-            background: rgba(255, 193, 7, 0.2);
-            color: #ffc107;
-            border: 1px solid rgba(255, 193, 7, 0.3);
-        }
-        
-        .score-section {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 1rem 0;
-        }
-        
-        .team-section {
-            text-align: center;
-            flex: 1;
-        }
-        
-        .team-name {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 0.3rem;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        }
-        
-        .players-list {
-            font-size: 0.9rem;
-            opacity: 0.9;
-            margin-bottom: 0.5rem;
-            line-height: 1.3;
-        }
-        
-        .player-item {
-            display: inline-block;
-            margin-right: 0.5rem;
-        }
-        
-        .player-name {
-            font-weight: 500;
-        }
-        
-        .player-position {
-            font-size: 0.75rem;
-            opacity: 0.8;
-            margin-left: 0.2rem;
-        }
-        
-        .position-icon {
-            margin-right: 0.2rem;
-        }
-        
-        .team-score {
-            font-size: 3rem;
-            font-weight: bold;
-            line-height: 1;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        .score-separator {
-            font-size: 2rem;
-            opacity: 0.7;
-            margin: 0 1rem;
-        }
-        
-        .match-info {
-            text-align: center;
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-top: 1rem;
-        }
-        
-        .no-matches {
-            text-align: center;
-            padding: 4rem 2rem;
-        }
-        
-        .no-matches-icon {
-            font-size: 4rem;
-            opacity: 0.5;
-            margin-bottom: 1rem;
-        }
-        
-        .no-matches-text {
-            font-size: 1.5rem;
-            opacity: 0.8;
-        }
-        
-        .refresh-info {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(0,0,0,0.3);
-            padding: 0.5rem 1rem;
-            border-radius: 10px;
-            backdrop-filter: blur(5px);
-            font-size: 0.9rem;
-        }
-        
-        .live-indicator {
-            position: fixed;
-            top: 1rem;
-            left: 1rem;
-            background: rgba(40, 167, 69, 0.2);
-            color: #28a745;
-            padding: 0.5rem 1rem;
-            border-radius: 10px;
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(40, 167, 69, 0.3);
-        }
-        
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .tournament-title { font-size: 2rem; }
-            .tournament-subtitle { font-size: 1rem; }
-            .team-score { font-size: 2rem; }
-            .team-name { font-size: 1rem; }
-            .players-list { font-size: 0.8rem; }
-            .player-position { font-size: 0.7rem; }
-            .matches-grid { padding: 0 1rem 1rem; }
-            .match-card { padding: 1rem; }
-        }
-        
-        /* Grid layout for multiple matches */
-        @media (min-width: 992px) {
-            .matches-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-                gap: 1.5rem;
-            }
-            .match-card {
-                margin-bottom: 0;
-            }
-        }
-        
-        /* Animation for score updates */
-        @keyframes scoreUpdate {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
-        .score-updated {
-            animation: scoreUpdate 0.6s ease-in-out;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#124ea3">
+  <title>{% translate "Tournament Overview" %} · {{ tournament.name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --pfc-blue: #0d4fa8;
+      --pfc-blue-deep: #06285e;
+      --pfc-gold: #ffc928;
+      --panel: rgba(255, 255, 255, .12);
+      --panel-line: rgba(255, 255, 255, .24);
+      --muted: rgba(255, 255, 255, .72);
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: #fff;
+      background:
+        radial-gradient(circle at 12% 7%, rgba(70, 155, 255, .34), transparent 28%),
+        radial-gradient(circle at 88% 84%, rgba(255, 199, 40, .15), transparent 30%),
+        linear-gradient(145deg, #0a387b 0%, #145db4 47%, #392a8f 100%);
+      font-family: Arial, sans-serif;
+    }
+    .overview-shell {
+      width: min(1480px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: max(16px, env(safe-area-inset-top)) clamp(12px, 3vw, 34px) max(22px, env(safe-area-inset-bottom));
+    }
+    .overview-brand-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .overview-brand { display:inline-flex; align-items:center; text-decoration:none; }
+    .overview-brand img { width:min(138px, 30vw); filter:drop-shadow(0 2px 5px rgba(0,0,0,.22)); }
+    .overview-live-pill, .overview-count {
+      display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:0 12px;
+      border:1px solid var(--panel-line); border-radius:999px; background:rgba(5,29,73,.30);
+      color:#fff; font-size:.75rem; font-weight:850; letter-spacing:.06em; text-transform:uppercase;
+      backdrop-filter:blur(9px); -webkit-backdrop-filter:blur(9px);
+    }
+    .overview-live-dot, .overview-status-dot { width:8px; height:8px; border-radius:50%; background:#1ee77a; box-shadow:0 0 0 4px rgba(30,231,122,.16); }
+    .overview-hero { display:flex; align-items:end; justify-content:space-between; gap:20px; padding:24px 0 18px; }
+    .overview-eyebrow { margin:0 0 6px; color:#b7d8ff; font-size:.7rem; font-weight:900; letter-spacing:.14em; text-transform:uppercase; }
+    .overview-title { margin:0; font-size:clamp(1.6rem,4vw,2.75rem); font-weight:900; line-height:1.08; letter-spacing:-.025em; text-shadow:0 3px 10px rgba(0,0,0,.22); }
+    .overview-sponsor { margin:0 0 20px; overflow:hidden; border:1px solid var(--panel-line); border-radius:18px; box-shadow:0 15px 35px rgba(0,0,0,.20); }
+    .overview-sponsor a { display:block; text-decoration:none; }
+    .overview-sponsor img { display:block; width:100%; max-height:220px; object-fit:cover; }
+    .overview-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr)); gap:14px; }
+    .overview-card {
+      display:flex; flex-direction:column; min-width:0; padding:15px;
+      border:1px solid var(--panel-line); border-radius:20px;
+      background:linear-gradient(145deg,rgba(255,255,255,.18),rgba(255,255,255,.07));
+      box-shadow:0 15px 38px rgba(0,0,0,.18); backdrop-filter:blur(13px); -webkit-backdrop-filter:blur(13px);
+    }
+    .overview-card-header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .overview-match-meta { display:flex; flex-wrap:wrap; align-items:center; gap:7px; min-width:0; }
+    .overview-match-id { color:#cfe4ff; font-size:.7rem; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
+    .overview-round { padding:3px 7px; border-radius:999px; background:rgba(255,255,255,.11); color:var(--muted); font-size:.66rem; font-weight:800; }
+    .overview-status { display:inline-flex; align-items:center; flex:0 0 auto; gap:6px; padding:5px 8px; border:1px solid rgba(30,231,122,.35); border-radius:999px; background:rgba(30,231,122,.10); color:#c7ffe0; font-size:.64rem; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+    .overview-status-pending_verification { border-color:rgba(255,201,40,.45); background:rgba(255,201,40,.10); color:#ffe6a0; }
+    .overview-status-pending_verification .overview-status-dot { background:#ffc928; box-shadow:0 0 0 4px rgba(255,201,40,.15); }
+    .overview-court { display:flex; align-items:center; gap:7px; min-height:31px; margin:10px 0 9px; color:var(--muted); font-size:.76rem; font-weight:700; }
+    .overview-court i { color:var(--pfc-gold); }
+    .overview-score { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:stretch; gap:7px; }
+    .overview-team { display:flex; flex-direction:column; min-width:0; text-align:center; }
+    .overview-team-name { min-height:2.4em; margin:0; overflow-wrap:anywhere; font-size:clamp(1rem,2.4vw,1.23rem); font-weight:900; line-height:1.17; text-shadow:0 2px 4px rgba(0,0,0,.16); }
+    .overview-players { min-height:3.5em; margin:7px 0 10px; color:var(--muted); font-size:.73rem; line-height:1.3; }
+    .overview-player { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .overview-player small { margin-left:4px; color:rgba(255,255,255,.55); font-size:.83em; }
+    .overview-player-empty { color:rgba(255,255,255,.45); }
+    .overview-score-number { margin-top:auto; color:#fff; font-size:clamp(3.7rem,11vw,5.2rem); font-weight:900; line-height:.85; letter-spacing:-.075em; text-shadow:0 6px 14px rgba(0,0,0,.24); }
+    .overview-score-separator { display:flex; align-items:center; color:rgba(255,255,255,.64); font-size:2rem; font-weight:700; }
+    .overview-current-end { margin-top:13px; padding:10px; border:1px solid rgba(255,255,255,.16); border-radius:14px; background:rgba(5,29,73,.28); }
+    .overview-current-end[hidden] { display:none; }
+    .overview-current-end-heading { display:flex; align-items:center; gap:6px; color:#cfe4ff; font-size:.65rem; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+    .overview-current-end-heading i { color:var(--pfc-gold); }
+    .overview-current-end-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:7px; margin-top:8px; }
+    .overview-current-end-side { min-width:0; padding:7px; border:1px solid rgba(255,255,255,.12); border-radius:10px; background:rgba(255,255,255,.05); }
+    .overview-current-end-side-two { background:rgba(255,201,40,.07); }
+    .overview-current-end-side-name { overflow:hidden; color:#cfe4ff; font-size:.59rem; font-weight:900; letter-spacing:.06em; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
+    .overview-current-end-list { display:grid; gap:5px; margin:6px 0 0; padding:0; list-style:none; }
+    .overview-current-end-item { display:flex; align-items:baseline; gap:4px; min-width:0; color:#fff; font-size:.71rem; line-height:1.25; }
+    .overview-current-end-item::before { content:'•'; flex:0 0 auto; color:var(--pfc-gold); }
+    .overview-current-end-player { overflow:hidden; font-weight:850; text-overflow:ellipsis; white-space:nowrap; }
+    .overview-current-end-action { overflow:hidden; color:var(--muted); font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+    .overview-spectator-link { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; margin-top:12px; padding:0 10px; border:1px solid var(--panel-line); border-radius:10px; background:rgba(5,29,73,.28); color:#fff; font-size:.74rem; font-weight:850; text-decoration:none; }
+    .overview-spectator-link:hover { background:rgba(255,255,255,.17); color:#fff; }
+    .overview-empty { padding:62px 16px; border:1px solid var(--panel-line); border-radius:20px; background:rgba(255,255,255,.08); text-align:center; box-shadow:0 15px 38px rgba(0,0,0,.15); }
+    .overview-empty i { display:block; margin-bottom:12px; color:rgba(255,255,255,.5); font-size:3rem; }
+    .overview-empty h2 { margin:0; font-size:1.25rem; font-weight:900; }
+    .overview-empty p { margin:8px 0 0; color:var(--muted); font-size:.88rem; }
+    .overview-score-flash { animation:overviewScoreFlash .56s ease-in-out; }
+    @keyframes overviewScoreFlash { 0%{transform:scale(1)} 50%{transform:scale(1.11)} 100%{transform:scale(1)} }
+    @media (max-width:575px) {
+      .overview-shell { padding-right:12px; padding-left:12px; }
+      .overview-brand img { width:105px; }
+      .overview-hero { align-items:start; flex-direction:column; gap:11px; padding:19px 0 14px; }
+      .overview-card { padding:13px; border-radius:17px; }
+      .overview-team-name { font-size:1rem; }
+      .overview-players { font-size:.68rem; }
+      .overview-score-number { font-size:clamp(3.8rem,21vw,5rem); }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; animation:none !important; } }
+  </style>
 </head>
 <body>
-    <!-- Advertisement Banner -->
+  <main class="overview-shell">
+    <header class="overview-brand-row">
+      <a class="overview-brand" href="{% url 'home' %}" aria-label="PFC {% translate 'Home' %}">
+        <img src="/static/PFCtextwhite.svg" alt="PFC">
+      </a>
+      <div class="overview-live-pill"><span class="overview-live-dot" aria-hidden="true"></span>{% translate "LIVE" %}</div>
+    </header>
+
+    <section class="overview-hero">
+      <div>
+        <p class="overview-eyebrow">PFC · {% translate "Tournament Overview" %}</p>
+        <h1 class="overview-title">{{ tournament.name }}</h1>
+      </div>
+      <div id="overview-match-total" class="overview-count"><i class="fas fa-trophy" aria-hidden="true"></i><span>{{ total_matches }}</span> {% translate "Live matches" %}</div>
+    </section>
+
     {% if tournament.banner_enabled and tournament.banner_image and tournament.banner_target_url %}
-    <div class="advertisement-banner" style="margin-bottom: 1rem;">
-        <a href="{{ tournament.banner_target_url }}" 
-           target="_blank" 
-           rel="nofollow noreferrer noopener"
-           style="display: block; text-decoration: none;">
-            <img src="{{ tournament.banner_image.url }}" 
-                 alt="{{ tournament.banner_alt_text|default:'Advertisement' }}"
-                 style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);"
-                 class="img-fluid">
+      <section class="overview-sponsor" aria-label="{% translate 'Sponsor' %}">
+        <a href="{{ tournament.banner_target_url }}" target="_blank" rel="nofollow noreferrer noopener">
+          <img src="{{ tournament.banner_image.url }}" alt="{{ tournament.banner_alt_text|default:'Advertisement' }}">
         </a>
-    </div>
+      </section>
     {% endif %}
-    
-    <!-- Live Indicator -->
-    <div class="live-indicator">
-        <i class="fas fa-circle text-success me-2"></i>
-        LIVE TOURNAMENT
-    </div>
-    
-    <!-- Live indicator only — no auto-refresh countdown needed -->
-    
-    <!-- Tournament Header -->
-    <div class="tournament-header">
-        <div class="tournament-title">{{ tournament.name }}</div>
-        <div class="tournament-subtitle">Tournament Overview</div>
-        <div class="status-badge">
-            <i class="fas fa-trophy me-2"></i>
-            {{ total_matches }} Active Match{{ total_matches|pluralize:"es" }}
-        </div>
-    </div>
-    
-    <!-- Matches Grid -->
-    <div class="matches-grid">
-        {% if has_active_matches %}
-            {% for match_data in tournament_scoreboards %}
-                <div class="match-card">
-                    <!-- Match Header -->
-                    <div class="match-header">
-                        <div class="match-number">Match #{{ match_data.match.id }}</div>
-                        <div class="match-status {% if match_data.match.status == 'active' %}status-active{% else %}status-pending{% endif %}">
-                            {% if match_data.match.status == 'active' %}
-                                <i class="fas fa-play me-1"></i>ACTIVE
-                            {% else %}
-                                <i class="fas fa-clock me-1"></i>PENDING
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <!-- Timer (if timed match) -->
-                    {% if match_data.match.time_limit_minutes and match_data.match.status == 'active' %}
-                    <div class="text-center mb-2">
-                        {% if match_data.match.is_time_expired %}
-                        <span class="badge bg-danger" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
-                            <i class="fas fa-alarm-clock"></i> TIME EXPIRED
-                        </span>
-                        {% else %}
-                        <span id="timer-badge-{{ match_data.match.id }}" class="badge bg-success" style="font-size: 0.9rem; padding: 0.4rem 0.8rem;">
-                            <i class="fas fa-clock"></i>
-                            <span id="timer-text-{{ match_data.match.id }}">--:--</span>
-                        </span>
-                        {% endif %}
-                    </div>
-                    {% endif %}
 
-                    <!-- Score Section -->
-                    <div class="score-section">
-                        <div class="team-section">
-                            <div class="team-name">{{ match_data.team1_name }}</div>
-                            {% if match_data.team1_players %}
-                                <div class="players-list">
-                                    {% for player in match_data.team1_players %}
-                                        <span class="player-item">
-                                            <span class="player-name">{{ player.player.name }}</span>
-                                            {% if player.role %}
-                                                <span class="player-position">
-                                                    {% if player.role == 'tirer' %}
-                                                        Tireur
-                                                    {% elif player.role == 'pointer' %}
-                                                        Pointer
-                                                    {% elif player.role == 'milieu' %}
-                                                        Milieu
-                                                    {% elif player.role == 'flex' %}
-                                                        Flex
-                                                    {% else %}
-                                                        {{ player.get_role_display }}
-                                                    {% endif %}
-                                                </span>
-                                            {% endif %}
-                                        </span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            <div class="team-score text-primary" data-match-id="{{ match_data.match.id }}" data-team="1">
-                                {% if match_data.scoreboard %}{{ match_data.scoreboard.team1_score }}{% else %}0{% endif %}
-                            </div>
-                        </div>
-                        <div class="score-separator">-</div>
-                        <div class="team-section">
-                            <div class="team-name">{{ match_data.team2_name }}</div>
-                            {% if match_data.team2_players %}
-                                <div class="players-list">
-                                    {% for player in match_data.team2_players %}
-                                        <span class="player-item">
-                                            <span class="player-name">{{ player.player.name }}</span>
-                                            {% if player.role %}
-                                                <span class="player-position">
-                                                    {% if player.role == 'tirer' %}
-                                                        Tireur
-                                                    {% elif player.role == 'pointer' %}
-                                                        Pointer
-                                                    {% elif player.role == 'milieu' %}
-                                                        Milieu
-                                                    {% elif player.role == 'flex' %}
-                                                        Flex
-                                                    {% else %}
-                                                        {{ player.get_role_display }}
-                                                    {% endif %}
-                                                </span>
-                                            {% endif %}
-                                        </span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            <div class="team-score text-warning" data-match-id="{{ match_data.match.id }}" data-team="2">
-                                {% if match_data.scoreboard %}{{ match_data.scoreboard.team2_score }}{% else %}0{% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Match Info -->
-                    <div class="match-info">
-                        {% if match_data.scoreboard and match_data.scoreboard.get_last_updated_by_name %}
-                            <i class="fas fa-clock me-1"></i>
-                            Updated {{ match_data.scoreboard.updated_at|timesince }} ago by {{ match_data.scoreboard.get_last_updated_by_name }}
-                        {% else %}
-                            <i class="fas fa-info-circle me-1"></i>
-                            No live score updates yet
-                        {% endif %}
-                    </div>
-                </div>
-            {% endfor %}
-        {% else %}
-            <!-- No Active Matches -->
-            <div class="no-matches">
-                <div class="no-matches-icon">
-                    <i class="fas fa-trophy"></i>
-                </div>
-                <div class="no-matches-text">
-                    No active matches in this tournament
-                </div>
-                <div style="margin-top: 1rem; opacity: 0.6;">
-                    Check back later for live match updates
-                </div>
-            </div>
-        {% endif %}
-    </div>
-    
-    <!-- Auto-refresh and Animation Script -->
-    <script>
-        // Store previous scores for animation
-        let previousScores = {};
-        
-        // Initialize previous scores
-        document.addEventListener('DOMContentLoaded', function() {
-            const scoreElements = document.querySelectorAll('[data-match-id]');
-            scoreElements.forEach(element => {
-                const matchId = element.getAttribute('data-match-id');
-                const team = element.getAttribute('data-team');
-                const key = `${matchId}-${team}`;
-                previousScores[key] = parseInt(element.textContent) || 0;
-            });
-        });
-        
-        // Polling removed — tournament_overview is a spectator display.
-        // Score updates are pushed via WebSocket when match state changes.
-        // No client-side reload needed.
-        
-        // Timer countdowns for timed matches
-        (function initTimers() {
-            {% for match_data in tournament_scoreboards %}
-            {% if match_data.match.time_limit_minutes and match_data.match.status == 'active' and not match_data.match.is_time_expired %}
-            (function() {
-                var remaining = {{ match_data.match.time_remaining_seconds|default:0 }};
-                var el = document.getElementById('timer-text-{{ match_data.match.id }}');
-                var badge = document.getElementById('timer-badge-{{ match_data.match.id }}');
-                if (!el || remaining <= 0) return;
-                function tick() {
-                    if (remaining <= 0) {
-                        el.textContent = 'TIME UP';
-                        if (badge) { badge.className = badge.className.replace('bg-success','bg-danger').replace('bg-warning','bg-danger'); }
-                        return;
-                    }
-                    var m = Math.floor(remaining / 60);
-                    var s = remaining % 60;
-                    el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
-                    if (remaining <= 300 && badge) { badge.className = badge.className.replace('bg-success','bg-warning'); }
-                    if (remaining <= 60 && badge) { badge.className = badge.className.replace('bg-warning','bg-danger'); }
-                    remaining--;
-                }
-                tick();
-                setInterval(tick, 1000);
-            })();
-            {% endif %}
-            {% endfor %}
-        })();
+    <section id="overview-content">
+      {% include 'tournaments/partials/tournament_overview_cards.html' %}
+    </section>
+  </main>
 
-        // Add hover effects
-        document.querySelectorAll('.match-card').forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-5px) scale(1.02)';
-            });
-            
-            card.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateY(0) scale(1)';
-            });
+  {{ current_end_actions|json_script:"tournament-current-end-actions" }}
+  <script>
+    (function () {
+      const tournamentId = {{ tournament.id }};
+      const actionLabels = {
+        carreau: '{% translate "Carreau" %}',
+        petit_carreau: '{% translate "Petit Carreau" %}',
+        hit: '{% translate "Hit" %}',
+        miss: '{% translate "Miss" %}',
+        perfect: '{% translate "Perfect placement" %}',
+        good: '{% translate "Good placement" %}',
+        fair: '{% translate "Fair placement" %}',
+        far: '{% translate "Far placement" %}'
+      };
+      const liveLabel = '{% translate "LIVE" %}';
+      const finalLabel = '{% translate "FINAL" %}';
+      const cardsUrl = '{% url "tournament_overview_cards" tournament.id %}';
+      const content = document.getElementById('overview-content');
+      const total = document.getElementById('overview-match-total');
+      const initialActions = document.getElementById('tournament-current-end-actions');
+      let currentEndActions = initialActions ? JSON.parse(initialActions.textContent || '{}') : {};
+      let refreshInFlight = false;
+      let retryDelay = 2000;
+
+      function cardForScoreboard(scoreboardId) {
+        return document.querySelector('[data-scoreboard-id="' + String(scoreboardId) + '"]');
+      }
+
+      function renderCurrentEnd(card, actions) {
+        if (!card) return;
+        const feed = card.querySelector('[data-current-end]');
+        const team1 = card.querySelector('[data-current-end-list="team1"]');
+        const team2 = card.querySelector('[data-current-end-list="team2"]');
+        if (!feed || !team1 || !team2) return;
+        team1.replaceChildren();
+        team2.replaceChildren();
+        let rendered = 0;
+        (Array.isArray(actions) ? actions : []).forEach(function (action) {
+          if (!action || !action.player_name || !action.outcome) return;
+          const list = action.side === 'team1' ? team1 : (action.side === 'team2' ? team2 : null);
+          if (!list) return;
+          const item = document.createElement('li');
+          item.className = 'overview-current-end-item';
+          const player = document.createElement('span');
+          player.className = 'overview-current-end-player';
+          player.textContent = action.player_name;
+          const dash = document.createElement('span');
+          dash.textContent = '—';
+          const outcome = document.createElement('span');
+          outcome.className = 'overview-current-end-action';
+          outcome.textContent = actionLabels[action.outcome] || action.outcome;
+          item.append(player, dash, outcome);
+          list.appendChild(item);
+          rendered += 1;
         });
-    </script>
+        feed.hidden = rendered === 0;
+      }
+
+      function renderAllFeeds() {
+        document.querySelectorAll('[data-scoreboard-id]').forEach(function (card) {
+          const scoreboardId = card.dataset.scoreboardId;
+          renderCurrentEnd(card, currentEndActions[scoreboardId] || []);
+        });
+      }
+
+      function flashScore(element) {
+        if (!element) return;
+        element.classList.remove('overview-score-flash');
+        void element.offsetWidth;
+        element.classList.add('overview-score-flash');
+      }
+
+      function updateScore(data) {
+        const card = cardForScoreboard(data.scoreboard_id);
+        if (!card) return;
+        [['team1', data.team1_score], ['team2', data.team2_score]].forEach(function (entry) {
+          const el = card.querySelector('[data-team-score="' + entry[0] + '"]');
+          const next = Number(entry[1]);
+          if (el && Number(el.textContent) !== next) {
+            el.textContent = next;
+            flashScore(el);
+          }
+        });
+        const status = card.querySelector('[data-status-label]');
+        if (status && data.is_active === false) status.textContent = finalLabel;
+        if (status && data.is_active === true && status.textContent === finalLabel) status.textContent = liveLabel;
+        currentEndActions[String(data.scoreboard_id)] = [];
+        renderCurrentEnd(card, []);
+      }
+
+      function updateTrackingAction(data) {
+        const key = String(data.scoreboard_id);
+        if (!data.action) return;
+        const next = Array.isArray(currentEndActions[key]) ? currentEndActions[key].slice() : [];
+        next.push(data.action);
+        currentEndActions[key] = next;
+        renderCurrentEnd(cardForScoreboard(data.scoreboard_id), next);
+      }
+
+      function replaceTrackingFeed(data) {
+        const actions = Array.isArray(data.actions) ? data.actions : [];
+        currentEndActions[String(data.scoreboard_id)] = actions;
+        renderCurrentEnd(cardForScoreboard(data.scoreboard_id), actions);
+      }
+
+      function refreshStructure() {
+        if (refreshInFlight) return;
+        refreshInFlight = true;
+        fetch(cardsUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+          .then(function (response) { if (!response.ok) throw new Error('Overview refresh failed'); return response.json(); })
+          .then(function (payload) {
+            content.innerHTML = payload.html || '';
+            currentEndActions = payload.current_end_actions || {};
+            if (total) {
+              const count = total.querySelector('span');
+              if (count) count.textContent = String(payload.total_matches || 0);
+            }
+            renderAllFeeds();
+          })
+          .catch(function (error) { console.debug('[PFC] Tournament Overview structure refresh failed:', error); })
+          .finally(function () { refreshInFlight = false; });
+      }
+
+      function connect() {
+        const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(scheme + '://' + window.location.host + '/ws/tournament/' + tournamentId + '/');
+        socket.onopen = function () { retryDelay = 2000; };
+        socket.onmessage = function (event) {
+          const data = JSON.parse(event.data);
+          if (data.type === 'score.updated') updateScore(data);
+          else if (data.type === 'tracking.action') updateTrackingAction(data);
+          else if (data.type === 'tracking.feed.replace') replaceTrackingFeed(data);
+          else if (data.type === 'tournament.overview.refresh') refreshStructure();
+        };
+        socket.onclose = function () {
+          window.setTimeout(connect, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000);
+        };
+        socket.onerror = function () { socket.close(); };
+      }
+
+      renderAllFeeds();
+      connect();
+    })();
+  </script>
 </body>
 </html>
-

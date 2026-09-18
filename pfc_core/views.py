@@ -238,6 +238,30 @@ def check_team_session(request):
     is_active = request.session.get('team_session_active', False)
     in_melee_assignment = request.session.get('in_melee_assignment', False)
 
+    # P4 assignment-based Mêlée resolves each Player against the exact Match
+    # roster. It must never revive the obsolete 10-second Team-session poll,
+    # including from a stale in_melee_assignment flag left in an old session.
+    # Retain that poll only for a Player in an actually live legacy-transferred
+    # Mêlée, which is the sole flow that still changes Team session identity.
+    if in_melee_assignment:
+        player_id = request.session.get('player_id')
+        from tournaments.models import Tournament
+
+        in_melee_assignment = bool(
+            player_id
+            and Tournament.objects.filter(
+                is_melee=True,
+                melee_roster_mode=Tournament.MELEE_ROSTER_MODE_LEGACY,
+                melee_players__player_id=player_id,
+                matches__status__in=[
+                    'pending',
+                    'pending_verification',
+                    'active',
+                    'waiting_validation',
+                ],
+            ).exists()
+        )
+
     return JsonResponse({
         'success': True,
         'data': {

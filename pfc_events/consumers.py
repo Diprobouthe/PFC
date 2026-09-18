@@ -168,3 +168,49 @@ class ScoreboardConsumer(AsyncWebsocketConsumer):
             "scoreboard_id": event.get("scoreboard_id"),
             "actions": event.get("actions") or [],
         }))
+
+
+class TournamentOverviewConsumer(AsyncWebsocketConsumer):
+    """One public, read-only live event stream for a Tournament Overview."""
+
+    async def connect(self):
+        self.tournament_id = self.scope["url_route"]["kwargs"]["tournament_id"]
+        self.group_name = f"tournament_overview_{self.tournament_id}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        pass  # The public Overview is strictly read-only.
+
+    async def overview_score_updated(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "score.updated",
+            "scoreboard_id": event.get("scoreboard_id"),
+            "team1_score": event.get("team1_score"),
+            "team2_score": event.get("team2_score"),
+            "last_updated_by": event.get("last_updated_by", ""),
+            "is_active": event.get("is_active", True),
+            "score_update": event.get("score_update"),
+        }))
+
+    async def overview_tracking_action(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "tracking.action",
+            "scoreboard_id": event.get("scoreboard_id"),
+            "action": event.get("action") or {},
+        }))
+
+    async def overview_tracking_feed_replaced(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "tracking.feed.replace",
+            "scoreboard_id": event.get("scoreboard_id"),
+            "actions": event.get("actions") or [],
+        }))
+
+    async def overview_refresh(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "tournament.overview.refresh",
+        }))

@@ -2,7 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
+from django.template.loader import render_to_string
 from django.db import models
 import json
 from .models import Tournament, TournamentTeam, Round, Bracket
@@ -573,65 +574,44 @@ def tournament_register_choice(request, tournament_id):
 
 
 
-def tournament_overview(request, tournament_id):
-    """
-    Full-screen tournament overview showing all active matches with live scores.
-    This bundles all active games of a tournament into one consolidated display.
-    """
-    from matches.models import LiveScoreboard
-    from matches.melee_roster_resolution import players_for_match_team
-    from django.shortcuts import render, get_object_or_404
-    
-    tournament = get_object_or_404(Tournament, id=tournament_id)
-    
-    # Get all active matches for this tournament
-    active_matches = Match.objects.filter(
-        tournament=tournament,
-        status__in=['active', 'pending_verification']
-    ).select_related('team1', 'team2').order_by('created_at')
-    
-    # Get live scoreboards for these matches
-    tournament_scoreboards = []
-    for match in active_matches:
-        try:
-            scoreboard = LiveScoreboard.objects.get(
-                tournament_match=match,
-                is_active=True
-            )
-            
-            # P3 resolves each Match side independently: an activated side has
-            # a MatchPlayer snapshot while an unactivated Mêlée opponent still
-            # resolves from that Match's exact round assignment.
-            team1_players = players_for_match_team(match, match.team1)
-            team2_players = players_for_match_team(match, match.team2)
-            
-            tournament_scoreboards.append({
-                'match': match,
-                'scoreboard': scoreboard,
-                'team1_name': match.team1.name if match.team1 else 'Team 1',
-                'team2_name': match.team2.name if match.team2 else 'Team 2',
-                'team1_players': team1_players,
-                'team2_players': team2_players,
-            })
-        except LiveScoreboard.DoesNotExist:
-            # Create a placeholder for matches without live scoreboards
-            tournament_scoreboards.append({
-                'match': match,
-                'scoreboard': None,
-                'team1_name': match.team1.name if match.team1 else 'Team 1',
-                'team2_name': match.team2.name if match.team2 else 'Team 2',
-                'team1_players': players_for_match_team(match, match.team1),
-                'team2_players': players_for_match_team(match, match.team2),
-            })
-    
-    context = {
+def _tournament_overview_context(tournament):
+    """Build the read-only, batched spectator projection for one Tournament."""
+    from .overview_cards import build_tournament_overview_cards
+
+    overview_cards, current_end_actions = build_tournament_overview_cards(tournament)
+    return {
         'tournament': tournament,
-        'tournament_scoreboards': tournament_scoreboards,
-        'total_matches': len(tournament_scoreboards),
-        'has_active_matches': len(tournament_scoreboards) > 0,
+        'overview_cards': overview_cards,
+        'current_end_actions': current_end_actions,
+        'total_matches': len(overview_cards),
+        'has_active_matches': bool(overview_cards),
     }
-    
-    return render(request, 'tournaments/tournament_overview.html', context)
+
+
+def tournament_overview(request, tournament_id):
+    """Render the Tournament's read-only, real-time spectator Overview."""
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+    return render(
+        request,
+        'tournaments/tournament_overview.html',
+        _tournament_overview_context(tournament),
+    )
+
+
+@require_GET
+def tournament_overview_cards(request, tournament_id):
+    """Return a fresh card structure after a Match-set transition only."""
+    tournament = get_object_or_404(Tournament, id=tournament_id)
+    context = _tournament_overview_context(tournament)
+    return JsonResponse({
+        'html': render_to_string(
+            'tournaments/partials/tournament_overview_cards.html',
+            context,
+            request=request,
+        ),
+        'current_end_actions': context['current_end_actions'],
+        'total_matches': context['total_matches'],
+    })
 
 
 # Mêlée Mode Views

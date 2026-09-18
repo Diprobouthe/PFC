@@ -2,8 +2,6 @@
 {% load i18n %}
 {% translate "Confirm — Agree" as i18n_confirm_agree %}
 {% translate "Confirm — Disagree" as i18n_confirm_disagree %}
-{% translate "Confirm that you agree with the submitted score? The match will be marked as completed." as i18n_confirm_agree_message %}
-{% translate "Confirm that you disagree with the submitted score? The result will be cleared for resubmission." as i18n_confirm_disagree_message %}
 
 {% block title %}{% translate "Validate Result" %} · PFC{% endblock %}
 
@@ -396,8 +394,6 @@ let selectedChoice = null;
 const validationI18n = {
     confirmAgree: '{{ i18n_confirm_agree|escapejs }}',
     confirmDisagree: '{{ i18n_confirm_disagree|escapejs }}',
-    agreeMessage: '{{ i18n_confirm_agree_message|escapejs }}',
-    disagreeMessage: '{{ i18n_confirm_disagree_message|escapejs }}',
 };
 
 function selectChoice(choice) {
@@ -419,14 +415,7 @@ function selectChoice(choice) {
 
 function confirmChoice() {
     if (!selectedChoice) return;
-
-    const msg = selectedChoice === 'agree'
-        ? validationI18n.agreeMessage
-        : validationI18n.disagreeMessage;
-
-    if (confirm(msg)) {
-        document.getElementById('vrForm').submit();
-    }
+    document.getElementById('vrForm').submit();
 }
 </script>
 {% if qr_action_token %}
