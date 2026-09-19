@@ -192,6 +192,39 @@ class TournamentScenarioTranslation(models.Model):
         return f"{self.scenario.display_name} — {self.get_language_code_display()}"
 
 
+class ScenarioTournamentSequence(models.Model):
+    """Monotonic daily title sequence for one Scenario's created Tournaments.
+
+    The allocation service locks the owning Scenario before advancing this
+    counter, so simultaneous creator requests cannot receive the same title.
+    The counter is intentionally scoped to the date printed in the title, not
+    to an individual browser session or Tournament primary key.
+    """
+
+    scenario = models.ForeignKey(
+        TournamentScenario,
+        on_delete=models.CASCADE,
+        related_name='tournament_title_sequences',
+    )
+    event_date = models.DateField()
+    last_sequence = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['scenario', 'event_date'],
+                name='unique_scenario_tournament_title_sequence_date',
+            )
+        ]
+        ordering = ['scenario_id', 'event_date']
+        verbose_name = 'Scenario tournament title sequence'
+        verbose_name_plural = 'Scenario tournament title sequences'
+
+    def __str__(self):
+        return f'{self.scenario.display_name} — {self.event_date} #{self.last_sequence}'
+
+
 class ScenarioStage(models.Model):
     """Model for individual stages within a scenario (template for tournament stages)"""
     STAGE_FORMATS = [

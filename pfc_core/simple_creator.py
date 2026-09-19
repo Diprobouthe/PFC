@@ -250,11 +250,22 @@ def create_simple_tournament(request):
         # Create tournament using virtual courts
         # 'singles' maps to max_singles; 'doubles' to max_doubles; 'triples' to max_triples
         max_players = scenario.get(f'max_{format_type}', 24)
-        # VS Mode uses a different name (no format suffix — the format is always the full 11-game set)
-        if scenario.get('scenario_mode') == 'vs_mode':
-            tournament_name = f"{scenario['name']} VS Encounter - {tomorrow.strftime('%Y-%m-%d')}"
+        # A title must identify one Scenario-created Tournament unambiguously.
+        # The counter is persisted per Scenario and printed event date; its
+        # allocator serializes concurrent creates under the Scenario row lock.
+        if scenario_obj is not None:
+            from simple_creator.tournament_naming import allocate_scenario_tournament_title
+
+            tournament_name = allocate_scenario_tournament_title(
+                scenario=scenario_obj,
+                event_date=tomorrow,
+                display_name=scenario['name'],
+            )
         else:
-            tournament_name = f"{scenario['name']} {format_type.title()} - {tomorrow.strftime('%Y-%m-%d')}"
+            # Only the inactive, code-only fallback lacks a persistent Scenario
+            # identity. Keep its historical title behavior rather than creating
+            # an unreliable name-derived counter.
+            tournament_name = f"{scenario['name']} - {tomorrow.strftime('%Y-%m-%d')}"
         
         # Determine scenario mode (default to 'melee' for backwards compatibility)
         scenario_mode = scenario.get('scenario_mode', 'melee')

@@ -132,12 +132,21 @@ class MeleeRoundAssignmentWriter:
         return (highest_number or 0) + 1
 
     @classmethod
-    def write_current_generation_assignments(cls, *, tournament, round):
+    def write_current_generation_assignments(
+        cls,
+        *,
+        tournament,
+        round,
+        individual_bye_player_ids=None,
+    ):
         """Write every current Mêlée enrollment for initial generation.
 
-        A registration without ``assigned_team`` is explicitly waitlisted; no
-        Player.team compatibility projection is created by this writer.
+        A registration without ``assigned_team`` is normally explicitly
+        waitlisted. Snake Draft doubles may designate the one individual
+        remainder player as an explicit round BYE; no Player.team compatibility
+        projection is created by either state.
         """
+        individual_bye_player_ids = set(individual_bye_player_ids or ())
         inputs = []
         for melee_player in tournament.melee_players.select_related('player', 'assigned_team'):
             if melee_player.assigned_team_id:
@@ -153,7 +162,11 @@ class MeleeRoundAssignmentWriter:
                     MeleeRoundAssignmentInput(
                         player=melee_player.player,
                         team=None,
-                        state=MeleeRoundAssignment.WAITLISTED,
+                        state=(
+                            MeleeRoundAssignment.BYE
+                            if melee_player.player_id in individual_bye_player_ids
+                            else MeleeRoundAssignment.WAITLISTED
+                        ),
                     )
                 )
         return cls.write_complete_round(

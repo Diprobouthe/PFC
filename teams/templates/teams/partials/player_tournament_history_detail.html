@@ -1,0 +1,51 @@
+{% load i18n %}
+{% if not detail_fragment %}<div class="pp-history-detail" aria-live="polite">{% endif %}
+    {% if not detail_fragment %}
+    <div class="pp-history-detail-summary">
+        <div class="pp-history-detail-summary-title">
+            <i class="fas fa-chart-line"></i> {% translate "Tournament summary" %}
+        </div>
+        <div class="pp-history-detail-summary-grid">
+            <div><strong>{{ entry.matches_played }}</strong><span>{% translate "Games" %}</span></div>
+            <div><strong>{{ entry.wins }}–{{ entry.losses }}</strong><span>{% translate "W–L" %}</span></div>
+            <div><strong>{% if entry.points_scored != None %}{{ entry.points_scored }}–{{ entry.points_against }}{% else %}—{% endif %}</strong><span>{% translate "Points" %}</span></div>
+            <div><strong>{% if entry.rating_change != None %}{% if entry.rating_change > 0 %}+{% endif %}{{ entry.rating_change|floatformat:1 }}{% else %}—{% endif %}</strong><span>{% translate "Rating" %}</span></div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if rows %}
+    <div class="pp-history-match-list">
+        {% for row in rows %}
+        <a class="pp-history-match {{ row.outcome }}" href="{% url 'match_detail' row.match.id %}">
+            <span class="pp-history-match-result">
+                {% if row.outcome == 'win' %}W{% elif row.outcome == 'loss' %}L{% else %}—{% endif %}
+            </span>
+            <span class="pp-history-match-main">
+                <strong>{{ row.team.name }} <span>vs</span> {{ row.opponent.name }}</strong>
+                <small>
+                    {{ row.match.end_time|date:"M d, Y" }}
+                    {% if row.match.round %}&middot; {% translate "Round" %} {{ row.match.round.number }}{% endif %}
+                    {% if row.match.court %}&middot; {% translate "Court" context "petanque playing area score banner" %} {{ row.match.court.number }}{% endif %}
+                </small>
+            </span>
+            <span class="pp-history-match-score">{{ row.player_score }}–{{ row.opponent_score }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="pp-history-detail-empty">{% translate "No detailed Match records are available for this tournament." %}</div>
+    {% endif %}
+
+    {% if has_more %}
+    <button
+        type="button"
+        class="pp-history-more"
+        data-history-load-more
+        data-history-target="history-detail-{{ entry.id }}"
+        data-history-url="{% url 'player_tournament_history_detail' player.id entry.tournament_id %}?offset={{ next_offset }}&fragment=matches"
+    >
+        {% translate "Load more Matches" %}
+    </button>
+    {% endif %}
+{% if not detail_fragment %}</div>{% endif %}

@@ -138,7 +138,11 @@ class MeleeP4WriteCutoverTests(TestCase):
 
     def test_end_to_end_assignment_based_lifecycle_keeps_home_team(self):
         """Registration → Round 1 activation → shuffle → Round 2 → completion."""
-        teams_created = self.tournament.generate_melee_teams("snake_draft")
+        # This P4 lifecycle fixture deliberately completes the first Match
+        # without a score/winner. Random keeps the test focused on affiliation
+        # preservation; Snake Draft now correctly requires actual winner/loser
+        # data for later Super Mêlée transitions.
+        teams_created = self.tournament.generate_melee_teams("random")
         self.assertEqual(teams_created, 2)
         self.tournament.refresh_from_db()
         self.assertEqual(

@@ -84,6 +84,23 @@ class Tournament(models.Model):
         default=False,
         help_text="Whether Mêlée teams have been automatically generated"
     )
+    MELEE_TEAM_ALGORITHM_RANDOM = "random"
+    MELEE_TEAM_ALGORITHM_BALANCED = "balanced"
+    MELEE_TEAM_ALGORITHM_SNAKE_DRAFT = "snake_draft"
+    MELEE_TEAM_ALGORITHM_CHOICES = [
+        (MELEE_TEAM_ALGORITHM_RANDOM, "Random"),
+        (MELEE_TEAM_ALGORITHM_BALANCED, "Balanced"),
+        (MELEE_TEAM_ALGORITHM_SNAKE_DRAFT, "Snake Draft"),
+    ]
+    melee_team_algorithm = models.CharField(
+        max_length=20,
+        choices=MELEE_TEAM_ALGORITHM_CHOICES,
+        default=MELEE_TEAM_ALGORITHM_RANDOM,
+        help_text=(
+            "Canonical Mêlée team-generation algorithm. Snake Draft is retained "
+            "for Super Mêlée doubles round transitions."
+        ),
+    )
     MELEE_ROSTER_MODE_LEGACY = "legacy_transferred"
     MELEE_ROSTER_MODE_ASSIGNMENT = "assignment_based"
     MELEE_ROSTER_MODE_CHOICES = [
@@ -392,6 +409,20 @@ class Tournament(models.Model):
 
         if not self.is_melee:
             raise ValueError("Tournament is not configured for Mêlée mode")
+
+        algorithm = str(algorithm or self.MELEE_TEAM_ALGORITHM_RANDOM).strip().lower()
+        if algorithm not in {
+            self.MELEE_TEAM_ALGORITHM_RANDOM,
+            self.MELEE_TEAM_ALGORITHM_BALANCED,
+            self.MELEE_TEAM_ALGORITHM_SNAKE_DRAFT,
+        }:
+            logger.warning(
+                "Unknown Mêlée generation algorithm %r for tournament %s; "
+                "using random.",
+                algorithm,
+                self.pk,
+            )
+            algorithm = self.MELEE_TEAM_ALGORITHM_RANDOM
         
         # Check if teams have already been generated
         if self.melee_teams_generated:
@@ -428,12 +459,13 @@ class Tournament(models.Model):
         # transfer lifecycle. The outer atomic generation transaction reverts
         # it if any following assignment write fails.
         self.melee_roster_mode = self.MELEE_ROSTER_MODE_ASSIGNMENT
-        self.save(update_fields=['melee_roster_mode'])
+        self.melee_team_algorithm = algorithm
+        self.save(update_fields=['melee_roster_mode', 'melee_team_algorithm'])
 
         # Generate teams based on algorithm
-        if algorithm == 'balanced':
+        if algorithm == self.MELEE_TEAM_ALGORITHM_BALANCED:
             teams_created = self._generate_balanced_teams(melee_players, team_size)
-        elif algorithm == 'snake_draft':
+        elif algorithm == self.MELEE_TEAM_ALGORITHM_SNAKE_DRAFT:
             teams_created = self._generate_snake_draft_teams(melee_players, team_size)
         else:  # default to random
             teams_created = self._generate_random_teams(melee_players, team_size)
@@ -452,10 +484,25 @@ class Tournament(models.Model):
             raise ValueError(
                 "Mêlée generation requires a concrete first Round before teams can be used."
             )
+        initial_individual_bye_player_ids = set()
+        if (
+            algorithm == self.MELEE_TEAM_ALGORITHM_SNAKE_DRAFT
+            and self.melee_format == 'doublets'
+            and len(melee_players) % 4 in {1, 3}
+        ):
+            # Initial Snake Draft still forms complete Teams by rating. Its
+            # unteamed doubles remainder is an intentional individual missed
+            # round, not a waitlist or a missing roster record.
+            initial_individual_bye_player_ids = {
+                melee_player.player_id
+                for melee_player in melee_players
+                if not melee_player.assigned_team_id
+            }
         assignment_rows = (
             MeleeRoundAssignmentWriter.write_current_generation_assignments(
                 tournament=self,
                 round=initial_round,
+                individual_bye_player_ids=initial_individual_bye_player_ids,
             )
         )
         logger.info(
@@ -1213,6 +1260,120 @@ class Tournament(models.Model):
         # Could also set is_active = False if desired
 
 
+class PlayerTournamentHistory(models.Model):
+    """One immutable, activation-onward participation snapshot per tournament.
+
+    This record intentionally stores the actual historical match-side data at
+    tournament finalization. It never resolves a player's participation through
+    the mutable ``Player.team`` affiliation.
+    """
+
+    player = models.ForeignKey(
+        'teams.Player',
+        on_delete=models.CASCADE,
+        related_name='tournament_history_entries',
+    )
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='player_history_entries',
+    )
+    tournament_name = models.CharField(max_length=100)
+    tournament_date = models.DateField(null=True, blank=True)
+    tournament_format = models.CharField(max_length=80, blank=True)
+    represented_teams = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Exact Teams represented in completed tournament Matches.',
+    )
+    matches_played = models.PositiveIntegerField(default=0)
+    wins = models.PositiveIntegerField(default=0)
+    losses = models.PositiveIntegerField(default=0)
+    points_scored = models.IntegerField(null=True, blank=True)
+    points_against = models.IntegerField(null=True, blank=True)
+    rating_change = models.DecimalField(
+        max_digits=9,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Recorded PFC rating changes linked to this tournament only.',
+    )
+    finalized_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['player', 'tournament'],
+                name='unique_player_tournament_history_entry',
+            )
+        ]
+        ordering = ['-tournament_date', '-tournament_id']
+        verbose_name = 'Player tournament history'
+        verbose_name_plural = 'Player tournament history'
+
+    def __str__(self):
+        return f'{self.player.name} — {self.tournament_name}'
+
+
+class PlayerTournamentAchievement(models.Model):
+    """A permanent player-level achievement earned in one final tournament."""
+
+    MEDAL_GOLD = 'medal_gold'
+    MEDAL_SILVER = 'medal_silver'
+    MEDAL_BRONZE = 'medal_bronze'
+    MOST_IMPROVED = 'most_improved'
+    WIN_STREAK = 'win_streak'
+    TOP_SCORER = 'top_scorer'
+    BEST_WIN_RATE = 'best_win_rate'
+    AWARD_TYPE_CHOICES = [
+        (MEDAL_GOLD, 'Gold medal'),
+        (MEDAL_SILVER, 'Silver medal'),
+        (MEDAL_BRONZE, 'Bronze medal'),
+        (MOST_IMPROVED, 'Most Improved'),
+        (WIN_STREAK, 'Win Streak'),
+        (TOP_SCORER, 'Top Scorer'),
+        (BEST_WIN_RATE, 'Best Win Rate'),
+    ]
+
+    player = models.ForeignKey(
+        'teams.Player',
+        on_delete=models.CASCADE,
+        related_name='tournament_achievements',
+    )
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='player_achievements',
+    )
+    award_type = models.CharField(max_length=32, choices=AWARD_TYPE_CHOICES)
+    historical_team = models.ForeignKey(
+        'teams.Team',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='earned_tournament_achievements',
+    )
+    historical_team_name = models.CharField(max_length=100, blank=True)
+    display_symbol = models.CharField(max_length=4)
+    display_title = models.CharField(max_length=160)
+    details = models.JSONField(default=dict, blank=True)
+    awarded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['player', 'tournament', 'award_type'],
+                name='unique_player_tournament_achievement',
+            )
+        ]
+        ordering = ['-awarded_at', 'award_type']
+        verbose_name = 'Player tournament achievement'
+        verbose_name_plural = 'Player tournament achievements'
+
+    def __str__(self):
+        return f'{self.player.name} — {self.get_award_type_display()} ({self.tournament.name})'
+
+
 # --- Mêlée Player Model ---
 class MeleePlayer(models.Model):
     """Model for individual player registration in Mêlée tournaments"""
@@ -1354,6 +1515,76 @@ class MeleeRoundAssignment(models.Model):
     def __str__(self):
         team_name = self.team.name if self.team_id else self.get_state_display()
         return f'{self.player.name} — {team_name} ({self.round})'
+
+
+class MeleeRoundTeamBye(models.Model):
+    """The one temporary Team that receives a Super Mêlée Round BYE.
+
+    ``TournamentTeam.received_bye_in_round`` is the established generic Swiss
+    compatibility field, but it is mutable and temporary Team compositions
+    change between Super Mêlée Rounds. This immutable round-scoped record
+    preserves the actual Team BYE selection so Snake Draft can reconstruct
+    individual player BYE history from the historical round assignments.
+    """
+
+    tournament = models.ForeignKey(
+        Tournament,
+        on_delete=models.CASCADE,
+        related_name='melee_round_team_byes',
+    )
+    round = models.ForeignKey(
+        'Round',
+        on_delete=models.CASCADE,
+        related_name='melee_team_bye',
+    )
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name='melee_round_team_byes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('tournament', 'round'),
+                name='unique_melee_round_team_bye',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=('tournament', 'round', 'team'),
+                name='melee_round_bye_team_idx',
+            ),
+        ]
+        ordering = ('round_id', 'team_id')
+        verbose_name = 'Mêlée round team BYE'
+        verbose_name_plural = 'Mêlée round team BYEs'
+
+    def clean(self):
+        """Require an enrolled temporary Team in this exact tournament Round."""
+        super().clean()
+        errors = {}
+        if self.tournament_id and self.round_id and self.round.tournament_id != self.tournament_id:
+            errors['round'] = 'The selected Round belongs to a different tournament.'
+        if self.team_id:
+            if not self.team.is_tournament_temp:
+                errors['team'] = 'A Mêlée Round BYE requires a temporary tournament Team.'
+            elif self.tournament_id and not TournamentTeam.objects.filter(
+                tournament_id=self.tournament_id,
+                team_id=self.team_id,
+            ).exists():
+                errors['team'] = 'The selected temporary Team is not enrolled in this tournament.'
+        if errors:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.team.name} — BYE ({self.round})'
 
 
 # --- Tournament Team Model ---

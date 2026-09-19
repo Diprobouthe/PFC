@@ -195,6 +195,32 @@ def shuffle_melee_players(
                     "message": "This completed Mêlée Round was already shuffled.",
                 }
 
+            snake_winner_loser = (
+                tournament.melee_team_algorithm
+                == tournament.MELEE_TEAM_ALGORITHM_SNAKE_DRAFT
+                and tournament.melee_format == "doublets"
+            )
+            snake_plan = None
+            if snake_winner_loser:
+                from tournaments.snake_draft import build_winner_loser_doubles_plan
+
+                # Validate every completed result and construct the entire
+                # winner-loser plan before creating a next Round or changing a
+                # current assignment. A failed plan leaves no partial roster.
+                snake_plan = build_winner_loser_doubles_plan(
+                    tournament=tournament,
+                    completed_round=completed_round_obj,
+                    melee_players=melee_players,
+                    teams=teams,
+                )
+                if not snake_plan["success"]:
+                    return {
+                        "success": False,
+                        "players_shuffled": 0,
+                        "teams_affected": 0,
+                        "message": snake_plan["message"],
+                    }
+
             next_round_number = completed_round_number + 1
             next_round_obj = MeleeRoundAssignmentWriter.next_round_for_shuffle(
                 tournament=tournament,
@@ -223,67 +249,139 @@ def shuffle_melee_players(
                     ),
                 }
 
-            random.shuffle(all_players)
-            team_size = len(all_players) // len(teams)
-            assignments_by_player_id = {}
-            player_index = 0
-            for team in teams:
-                for _ in range(team_size):
+            planned_bye_team = None
+            completed_round_bye_team_id = None
+            if snake_winner_loser:
+                assignment_inputs = [
+                    MeleeRoundAssignmentInput(**input_data)
+                    for input_data in snake_plan["assignment_inputs"]
+                ]
+                players_shuffled = snake_plan["players_shuffled"]
+                teams_affected = snake_plan["teams_affected"]
+                planned_bye_team = snake_plan.get("planned_bye_team")
+                completed_round_bye_team_id = snake_plan.get(
+                    "completed_round_bye_team_id"
+                )
+                shuffle_description = (
+                    "Snake Draft winner-loser doubles assignment"
+                )
+            else:
+                # Preserve the existing random Super Mêlée behavior for every
+                # non-Snake algorithm and all non-doubles formats.
+                random.shuffle(all_players)
+                team_size = len(all_players) // len(teams)
+                assignments_by_player_id = {}
+                player_index = 0
+                for team in teams:
+                    for _ in range(team_size):
+                        if player_index >= len(all_players):
+                            break
+                        player = all_players[player_index]
+                        assignments_by_player_id[player.id] = team
+                        player_index += 1
+
+                # Preserve historic distribution behavior for remainders.
+                for team in teams:
                     if player_index >= len(all_players):
                         break
                     player = all_players[player_index]
                     assignments_by_player_id[player.id] = team
                     player_index += 1
 
-            # Preserve historic distribution behavior for remainders.
-            for team in teams:
-                if player_index >= len(all_players):
-                    break
-                player = all_players[player_index]
-                assignments_by_player_id[player.id] = team
-                player_index += 1
-
-            assignment_inputs = []
-            legacy_projection = (
-                tournament.melee_roster_mode
-                == tournament.MELEE_ROSTER_MODE_LEGACY
-            )
-            for melee_player in melee_players:
-                assigned_team = assignments_by_player_id.get(melee_player.player_id)
-                melee_player.assigned_team = assigned_team
-                melee_player.save(update_fields=["assigned_team"])
-                if assigned_team is None:
-                    assignment_inputs.append(
-                        MeleeRoundAssignmentInput(
-                            player=melee_player.player,
-                            team=None,
-                            state="waitlisted",
-                        )
-                    )
-                else:
+                assignment_inputs = []
+                for melee_player in melee_players:
+                    assigned_team = assignments_by_player_id.get(melee_player.player_id)
                     assignment_inputs.append(
                         MeleeRoundAssignmentInput(
                             player=melee_player.player,
                             team=assigned_team,
-                            state="assigned",
+                            state="assigned" if assigned_team else "waitlisted",
                         )
                     )
-                    if legacy_projection:
-                        # Existing pre-P4 events retain their old mutable
-                        # projection until safe legacy restoration.
-                        melee_player.player.team = assigned_team
-                        melee_player.player.save(update_fields=["team"])
-                        refresh_legacy_player_team_session(
-                            melee_player.player,
-                            assigned_team,
-                            in_melee_assignment=True,
-                        )
+                players_shuffled = len(all_players)
+                teams_affected = len(teams)
+                shuffle_description = "Assignment-based random shuffle"
+
+            if planned_bye_team is not None or completed_round_bye_team_id is not None:
+                from tournaments.models import MeleeRoundTeamBye
+
+                if completed_round_bye_team_id is not None:
+                    completed_bye = (
+                        MeleeRoundTeamBye.objects.select_for_update()
+                        .filter(tournament=tournament, round=completed_round_obj)
+                        .first()
+                    )
+                    if (
+                        completed_bye
+                        and completed_bye.team_id != completed_round_bye_team_id
+                    ):
+                        return {
+                            "success": False,
+                            "players_shuffled": 0,
+                            "teams_affected": 0,
+                            "message": (
+                                "The completed Snake Draft Round has conflicting team BYE history."
+                            ),
+                        }
+
+            if planned_bye_team is not None:
+                existing_bye = (
+                    MeleeRoundTeamBye.objects.select_for_update()
+                    .filter(tournament=tournament, round=next_round_obj)
+                    .first()
+                )
+                if existing_bye and existing_bye.team_id != planned_bye_team.id:
+                    return {
+                        "success": False,
+                        "players_shuffled": 0,
+                        "teams_affected": 0,
+                        "message": (
+                            "The next Snake Draft Round already has a different planned team BYE."
+                        ),
+                    }
+
+            legacy_projection = (
+                tournament.melee_roster_mode
+                == tournament.MELEE_ROSTER_MODE_LEGACY
+            )
+            assignment_input_by_player_id = {
+                input_data.player.id: input_data
+                for input_data in assignment_inputs
+            }
+            for melee_player in melee_players:
+                input_data = assignment_input_by_player_id[melee_player.player_id]
+                assigned_team = input_data.team
+                melee_player.assigned_team = assigned_team
+                melee_player.save(update_fields=["assigned_team"])
+                if assigned_team is not None and legacy_projection:
+                    # Existing pre-P4 events retain their old mutable
+                    # projection until safe legacy restoration.
+                    melee_player.player.team = assigned_team
+                    melee_player.player.save(update_fields=["team"])
+                    refresh_legacy_player_team_session(
+                        melee_player.player,
+                        assigned_team,
+                        in_melee_assignment=True,
+                    )
 
             assignment_rows = MeleeRoundAssignmentWriter.write_complete_round(
                 tournament=tournament,
                 round=next_round_obj,
                 assignments=assignment_inputs,
             )
+
+            if completed_round_bye_team_id is not None:
+                MeleeRoundTeamBye.objects.get_or_create(
+                    tournament=tournament,
+                    round=completed_round_obj,
+                    defaults={"team_id": completed_round_bye_team_id},
+                )
+            if planned_bye_team is not None:
+                MeleeRoundTeamBye.objects.get_or_create(
+                    tournament=tournament,
+                    round=next_round_obj,
+                    defaults={"team": planned_bye_team},
+                )
 
             partnerships_created = MeleePartnership.record_partnerships_for_round(
                 tournament,
@@ -295,10 +393,10 @@ def shuffle_melee_players(
                 round=completed_round_obj,
                 shuffle_type=shuffle_type,
                 shuffled_by=shuffled_by,
-                players_shuffled=len(all_players),
+                players_shuffled=players_shuffled,
                 notes=(
-                    f"Assignment-based shuffle of {len(all_players)} players across "
-                    f"{len(teams)} teams after round {completed_round_number}, ready "
+                    f"{shuffle_description} of {players_shuffled} players across "
+                    f"{teams_affected} teams after round {completed_round_number}, ready "
                     f"for round {next_round_number}."
                 ),
             )
@@ -306,8 +404,8 @@ def shuffle_melee_players(
                 "%s shuffled %s registered Mêlée Players across %s Teams; wrote %s "
                 "assignments for Round %s and %s partnership rows%s.",
                 "Legacy-compatible Mêlée" if legacy_projection else "P4",
-                len(all_players),
-                len(teams),
+                players_shuffled,
+                teams_affected,
                 len(assignment_rows),
                 next_round_obj.id,
                 partnerships_created,
@@ -315,10 +413,10 @@ def shuffle_melee_players(
             )
             return {
                 "success": True,
-                "players_shuffled": len(all_players),
-                "teams_affected": len(teams),
+                "players_shuffled": players_shuffled,
+                "teams_affected": teams_affected,
                 "message": (
-                    f"Successfully shuffled {len(all_players)} players across {len(teams)} teams"
+                    f"Successfully shuffled {players_shuffled} players across {teams_affected} teams"
                 ),
                 "shuffle_record_id": shuffle_record.id,
                 "round_id": next_round_obj.id,

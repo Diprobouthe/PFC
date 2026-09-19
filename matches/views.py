@@ -24,6 +24,7 @@ from .melee_roster_resolution import (
     players_for_match_team,
     resolve_player_match_side,
 )
+from .starting_team import announce_match_starting_team, match_has_first_real_score
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +277,10 @@ def match_list(request, tournament_id=None):
 
 
 def match_detail(request, match_id):
-    match = get_object_or_404(Match, id=match_id)
+    match = get_object_or_404(
+        Match.objects.select_related("team1", "team2", "starting_team", "tournament"),
+        id=match_id,
+    )
 
     # Get MatchPlayer entries for display
     match_players_team1 = MatchPlayer.objects.filter(match=match, team=match.team1).select_related("player")
@@ -382,6 +386,12 @@ def match_detail(request, match_id):
         _sep = '&' if '?' in submit_url else '?'
         submit_url = f"{submit_url}{_sep}qr_action={_qr_detail_token}"
 
+    # The persisted draw is visible only to the selected existing Match side.
+    # It remains visible after activation until a real non-zero score exists.
+    starting_team_has_score = (
+        bool(match.starting_team_id) and match_has_first_real_score(match)
+    )
+
     context = {
         "match": match,
         "team": my_team,
@@ -400,6 +410,13 @@ def match_detail(request, match_id):
         "timer_start_epoch": timer_start_epoch,
         "PREGAME_DURATION": PREGAME_DURATION,
         "submit_url": submit_url,
+        "starting_team_has_score": starting_team_has_score,
+        "starting_team_is_recipient": bool(
+            my_team and match.starting_team_id and my_team.id == match.starting_team_id
+        ),
+        "starting_team_scoreboard_id": getattr(
+            getattr(match, "live_scoreboard", None), "id", None
+        ),
         # Result
         "result": result,
         "qr_action_token": _qr_detail_token,
@@ -618,6 +635,7 @@ def _match_activate(request, match_id, team_id, *, lock_match):
                     match.start_time = get_court_local_now(_cc) if _cc else timezone.now()
                     match.waiting_for_court = False
                     match.save()
+                    announce_match_starting_team(match)
                     notify_match_state_changed(match.id, match.status)
                     auto_register_players_to_billboard(match)
                     messages.success(request, f"Match activated via QR! {get_court_assignment_status(match)}")
@@ -783,6 +801,7 @@ def _match_activate(request, match_id, team_id, *, lock_match):
                     match.start_time = get_court_local_now(_court_complex) if _court_complex else timezone.now()
                     match.waiting_for_court = False
                     match.save()
+                    announce_match_starting_team(match)
                     notify_match_state_changed(match.id, match.status)
 
                     # Auto-register players to Billboard
@@ -1270,8 +1289,34 @@ def match_validate_result(request, match_id, team_id):
                         logger.info(f"Match {match.id} melee stats updated successfully")
                 except Exception as e:
                     logger.error(f"Melee stats update error for match {match.id}: {e}")
-                    # Continue with normal match completion - stats failures don't break matches
+                    # Continue with match completion - stats failures don't break matches
                 # ===== END MELEE PLAYER STATS UPDATE =====
+
+                # ===== PERMANENT PLAYER TOURNAMENT HISTORY =====
+                # This runs only after the existing progression, rating, and
+                # Mêlée-stat calculations. The service independently confirms
+                # that the configured tournament is actually final, then reads
+                # only Match/participant snapshots; it never changes scoring or
+                # progression state.
+                try:
+                    from tournaments.player_history import record_finalized_tournament_history
+
+                    history_result = record_finalized_tournament_history(
+                        match.tournament,
+                        include_melee_awards=match.tournament.is_melee,
+                    )
+                    if history_result["recorded"]:
+                        logger.info(
+                            "Recorded permanent player history for finalized tournament %s: %s",
+                            match.tournament.id,
+                            history_result,
+                        )
+                except Exception:
+                    logger.exception(
+                        "Unable to record permanent player history for tournament %s",
+                        match.tournament_id,
+                    )
+                # ===== END PERMANENT PLAYER TOURNAMENT HISTORY =====
                 
                 if match.court:
                     logger.info(f"Match {match.id} completed, freeing court {match.court.name}")
@@ -1291,6 +1336,7 @@ def match_validate_result(request, match_id, team_id):
                         _next_complex = match.court.courtcomplex_set.first()
                         next_match_to_assign.start_time = get_court_local_now(_next_complex) if _next_complex else timezone.now()
                         next_match_to_assign.save()
+                        announce_match_starting_team(next_match_to_assign)
                         # This automatic promotion bypasses normal activation views.
                         notify_match_state_changed(next_match_to_assign.id, next_match_to_assign.status)
                         
@@ -1622,6 +1668,7 @@ def match_qr_confirm_opponent(request, match_id):
         match.start_time = get_court_local_now(_cc) if _cc else timezone.now()
         match.waiting_for_court = False
         match.save()
+        announce_match_starting_team(match)
         notify_match_state_changed(match.id, match.status)
         auto_register_players_to_billboard(match)
         messages.success(request, f'Match activated via QR! {get_court_assignment_status(match)}')

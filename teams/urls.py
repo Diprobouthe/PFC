@@ -13,6 +13,7 @@ urlpatterns = [
     path('players/leaderboard/', views.player_leaderboard, name='player_leaderboard'),
     path('players/friendly-leaderboard/', views.friendly_games_leaderboard, name='friendly_games_leaderboard'),
     path('players/pfc-market/', views.pfc_market, name='pfc_market'),
+    path('players/<int:player_id>/tournament-history/<int:tournament_id>/', views.player_tournament_history_detail, name='player_tournament_history_detail'),
     path('players/<int:player_id>/', views.player_profile, name='player_profile'),
     path('players/<int:player_id>/ai-coach-report/', views_ai_report.ai_coach_report, name='ai_coach_report'),
     path('players/<int:player_id>/qr-card/', views.player_qr_card, name='player_qr_card'),

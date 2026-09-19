@@ -2744,3 +2744,59 @@ msgstr "Συνδεθείτε πριν ακυρώσετε τη δήλωση άφ�
 #: billboard/presence_views.py
 msgid "Sign in before leaving the courts."
 msgstr "Συνδεθείτε πριν δηλώσετε αποχώρηση από τα γήπεδα."
+
+#: teams/templates/teams/player_profile.html
+msgid "Tournament History"
+msgstr "Ιστορικό Τουρνουά"
+
+#: teams/templates/teams/player_profile.html
+msgid "No completed tournaments yet"
+msgstr "Δεν υπάρχουν ολοκληρωμένα τουρνουά ακόμη"
+
+#: teams/templates/teams/player_profile.html
+msgid "W–L"
+msgstr "Ν–Η"
+
+#: teams/templates/teams/player_profile.html
+msgid "Points"
+msgstr "Πόντοι"
+
+#: templates/partials/tournament_starting_team_announcement.html
+msgid "Starting team"
+msgstr "Ομάδα έναρξης"
+
+#: teams/templates/teams/partials/player_tournament_history_detail.html
+msgid "Tournament summary"
+msgstr "Σύνοψη τουρνουά"
+
+#: teams/templates/teams/player_profile.html
+msgid "View tournament details"
+msgstr "Προβολή λεπτομερειών τουρνουά"
+
+#: teams/templates/teams/player_profile.html
+msgid "Hide tournament details"
+msgstr "Απόκρυψη λεπτομερειών τουρνουά"
+
+#: teams/templates/teams/player_profile.html
+msgid "Loading tournament details"
+msgstr "Φόρτωση λεπτομερειών τουρνουά"
+
+#: teams/templates/teams/player_profile.html
+msgid "Tournament details could not be loaded."
+msgstr "Δεν ήταν δυνατή η φόρτωση των λεπτομερειών τουρνουά."
+
+#: teams/templates/teams/partials/player_tournament_history_detail.html
+msgid "Load more Matches"
+msgstr "Φόρτωση περισσότερων αγώνων"
+
+#: teams/templates/teams/partials/player_tournament_history_detail.html
+msgid "No detailed Match records are available for this tournament."
+msgstr "Δεν υπάρχουν διαθέσιμα αναλυτικά αρχεία αγώνων για αυτό το τουρνουά."
+
+#: teams/templates/teams/player_profile.html
+msgid "Loading"
+msgstr "Φόρτωση"
+
+#: teams/templates/teams/player_profile.html
+msgid "Try again"
+msgstr "Δοκιμάστε ξανά"

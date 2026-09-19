@@ -805,6 +805,65 @@ def player_leaderboard(request):
 
     return render(request, 'teams/player_leaderboard.html', context)
 
+
+def _profile_statistics_visibility(request, player):
+    """Return the existing profile statistics visibility decision for a viewer."""
+    is_own_profile = False
+    session_codename = request.session.get('player_codename')
+    if session_codename and request.session.get('session_active'):
+        try:
+            from friendly_games.models import PlayerCodename as _PC
+
+            session_player = _PC.objects.get(codename=session_codename.upper()).player
+            is_own_profile = session_player.id == player.id
+        except PlayerCodename.DoesNotExist:
+            is_own_profile = False
+
+    show_public_statistics = is_own_profile or not (
+        getattr(player, 'profile', None) and player.profile.hide_public_statistics
+    )
+    return is_own_profile, show_public_statistics
+
+
+def player_tournament_history_detail(request, player_id, tournament_id):
+    """Serve one bounded, authorized page of permanent tournament Match detail."""
+    player = get_object_or_404(Player.objects.select_related('profile'), id=player_id)
+    _is_own_profile, show_public_statistics = _profile_statistics_visibility(request, player)
+    if not show_public_statistics:
+        raise PermissionDenied
+
+    from tournaments.models import PlayerTournamentHistory
+    from tournaments.player_history import history_detail_for_player
+
+    entry = get_object_or_404(
+        PlayerTournamentHistory.objects.select_related('tournament'),
+        player=player,
+        tournament_id=tournament_id,
+    )
+    try:
+        offset = max(int(request.GET.get('offset', '0')), 0)
+    except (TypeError, ValueError):
+        offset = 0
+
+    rows, has_more, next_offset = history_detail_for_player(
+        player,
+        entry,
+        offset=offset,
+    )
+    return render(
+        request,
+        'teams/partials/player_tournament_history_detail.html',
+        {
+            'player': player,
+            'entry': entry,
+            'rows': rows,
+            'has_more': has_more,
+            'next_offset': next_offset,
+            'detail_fragment': request.GET.get('fragment') == 'matches',
+        },
+    )
+
+
 def player_profile(request, player_id):
     """
     Display detailed profile and statistics for a specific player
@@ -1310,23 +1369,18 @@ def player_profile(request, player_id):
     except Exception as e:
         rating_chart_data = {'has_data': False}
     
-    # Determine if the viewer is looking at their own profile.
-    # The platform uses codename-based sessions (session['player_codename']),
-    # NOT session['player_id'] which belongs to a different legacy login flow.
-    # We resolve the logged-in player via PlayerCodename -> Player and compare.
-    is_own_profile = False
-    session_codename = request.session.get('player_codename')
-    if session_codename and request.session.get('session_active'):
-        try:
-            from friendly_games.models import PlayerCodename as _PC
-            _pc = _PC.objects.get(codename=session_codename.upper())
-            is_own_profile = (_pc.player_id == player.id)
-        except Exception:
-            is_own_profile = False
+    # The profile page and its lazy tournament-detail endpoint must apply the
+    # identical codename-session/privacy rule.
+    is_own_profile, show_public_statistics = _profile_statistics_visibility(request, player)
 
-    show_public_statistics = is_own_profile or not (
-        getattr(player, 'profile', None) and player.profile.hide_public_statistics
-    )
+    # Permanent tournament history is an activation-onward snapshot created at
+    # authoritative tournament finalization. It follows the existing public
+    # statistics privacy boundary and never derives entries from Player.team.
+    tournament_history = []
+    if show_public_statistics:
+        from tournaments.player_history import profile_history_for_player
+
+        tournament_history = profile_history_for_player(player)
 
     context = {
         'player': player,
@@ -1343,6 +1397,7 @@ def player_profile(request, player_id):
         'tracker_enabled': True,  # Enable shooting practice tracker tab
         'is_own_profile': is_own_profile,  # True only when viewing your own profile
         'show_public_statistics': show_public_statistics,
+        'tournament_history': tournament_history,
     }
     
     return render(request, 'teams/player_profile.html', context)

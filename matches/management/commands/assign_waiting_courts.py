@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from matches.models import Match
 from matches.utils import auto_assign_court  # Fixed import
+from matches.starting_team import announce_match_starting_team
 from django.utils import timezone
 import logging
 
@@ -34,6 +35,7 @@ class Command(BaseCommand):
                 match.start_time = timezone.now()
                 match.waiting_for_court = False
                 match.save()
+                announce_match_starting_team(match)
                 
                 # Auto-register players to Billboard when match starts
                 try:
@@ -65,4 +67,3 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING('No courts could be assigned to waiting matches.')
             )
-

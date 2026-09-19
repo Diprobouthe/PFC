@@ -448,18 +448,32 @@ class TournamentEngine:
                     from tournaments.melee_assignments import MeleeRoundAssignmentWriter
                     from tournaments.melee_lifecycle import assignment_inputs_from_melee_players
                     from tournaments.partnership_models import MeleePartnership
+                    from tournaments.models import MeleeRoundAssignment
 
-                    rows = MeleeRoundAssignmentWriter.write_complete_round(
-                        tournament=self.tournament,
-                        round=round_obj,
-                        assignments=assignment_inputs_from_melee_players(
-                            self.tournament
-                        ),
+                    # A Super Mêlée transition writes and validates a complete
+                    # next-Round roster before automation reaches Match
+                    # generation. In particular, Snake Draft can contain an
+                    # explicit individual BYE that is not representable by the
+                    # mutable ``MeleePlayer.assigned_team`` projection. Never
+                    # replace that prepared immutable roster with the fallback.
+                    rows = list(
+                        MeleeRoundAssignment.objects.filter(
+                            tournament=self.tournament,
+                            round=round_obj,
+                        )
                     )
-                    MeleePartnership.record_partnerships_for_round(
-                        self.tournament,
-                        round_obj=round_obj,
-                    )
+                    if not rows:
+                        rows = MeleeRoundAssignmentWriter.write_complete_round(
+                            tournament=self.tournament,
+                            round=round_obj,
+                            assignments=assignment_inputs_from_melee_players(
+                                self.tournament
+                            ),
+                        )
+                        MeleePartnership.record_partnerships_for_round(
+                            self.tournament,
+                            round_obj=round_obj,
+                        )
                     logger.info(
                         "Prepared %s exact Mêlée assignments for generated Round %s",
                         len(rows),
@@ -649,6 +663,51 @@ class SwissGenerator(MatchGenerator):
     
     def assign_bye(self, teams):
         """Assign bye to lowest-ranked team that hasn't had one"""
+        # Snake Draft Doubles selects its individual BYE recipients and their
+        # exact temporary Team while planning the full next-round roster. Do
+        # not let generic Swiss standings replace that fairness decision.
+        if (
+            self.tournament.is_melee
+            and self.tournament.melee_roster_mode
+            == self.tournament.MELEE_ROSTER_MODE_ASSIGNMENT
+            and self.tournament.melee_team_algorithm
+            == self.tournament.MELEE_TEAM_ALGORITHM_SNAKE_DRAFT
+            and self.tournament.melee_format == "doublets"
+        ):
+            from tournaments.models import MeleeRoundTeamBye
+
+            planned_byes = list(
+                MeleeRoundTeamBye.objects.select_for_update()
+                .filter(tournament=self.tournament, round=self.round_obj)
+                .order_by("team_id")[:2]
+            )
+            if len(planned_byes) > 1:
+                raise ValueError(
+                    "More than one planned Snake Draft team BYE exists for this Round."
+                )
+            if planned_byes:
+                bye_team = next(
+                    (
+                        team_tt
+                        for team_tt in teams
+                        if team_tt.team_id == planned_byes[0].team_id
+                    ),
+                    None,
+                )
+                if bye_team is None:
+                    raise ValueError(
+                        "The planned Snake Draft team BYE is not an active stage Team."
+                    )
+                if bye_team.received_bye_in_round != self.round_obj.number:
+                    bye_team.received_bye_in_round = self.round_obj.number
+                    bye_team.swiss_points += 3  # Preserve established BYE scoring.
+                    bye_team.save()
+                logger.info(
+                    "🚫 Honoring planned Snake Draft BYE for %s",
+                    bye_team.team.name,
+                )
+                return bye_team
+
         for team_tt in reversed(teams):  # Start from lowest ranked
             if team_tt.received_bye_in_round is None:
                 team_tt.received_bye_in_round = self.round_obj.number

@@ -18,6 +18,8 @@ import logging
 from .models import LiveScoreboard, ScoreUpdate, ScorekeeperRating, MatchPlayer
 from friendly_games.models import PlayerCodename, FriendlyGamePlayer
 from pfc_core.qr_action_auth import get_qr_action_player, issue_qr_action_token
+from matches.melee_roster_resolution import resolve_player_match_side
+from matches.starting_team import match_has_first_real_score
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 logger = logging.getLogger(__name__)
@@ -172,7 +174,15 @@ def scoreboard_detail(request, scoreboard_id):
     """
     from pfc_core.session_utils import SessionManager
     
-    scoreboard = get_object_or_404(LiveScoreboard, id=scoreboard_id)
+    scoreboard = get_object_or_404(
+        LiveScoreboard.objects.select_related(
+            'tournament_match',
+            'tournament_match__team1',
+            'tournament_match__team2',
+            'tournament_match__starting_team',
+        ),
+        id=scoreboard_id,
+    )
 
     # A scanned-player proof is valid only for this rendered score page. Issue
     # a separate child proof for the existing AJAX update endpoint.
@@ -232,25 +242,24 @@ def scoreboard_detail(request, scoreboard_id):
     if scoreboard.tournament_match:
         if qr_action_player:
             try:
-                from matches.models import MatchPlayer
-                qr_match_player = MatchPlayer.objects.filter(
-                    match=scoreboard.tournament_match,
-                    player=qr_action_player,
-                ).select_related('team').first()
-                if qr_match_player:
-                    my_team_id = qr_match_player.team_id
+                qr_match_team = resolve_player_match_side(
+                    scoreboard.tournament_match,
+                    qr_action_player,
+                )
+                if qr_match_team:
+                    my_team_id = qr_match_team.id
             except Exception:
                 pass
         codename = request.session.get('player_codename')
         if my_team_id is None and codename:
             try:
-                from matches.models import MatchPlayer
                 player_obj = PlayerCodename.objects.get(codename=codename.upper()).player
-                mp = MatchPlayer.objects.filter(
-                    match=scoreboard.tournament_match, player=player_obj
-                ).select_related('team').first()
-                if mp:
-                    my_team_id = mp.team.id
+                session_match_team = resolve_player_match_side(
+                    scoreboard.tournament_match,
+                    player_obj,
+                )
+                if session_match_team:
+                    my_team_id = session_match_team.id
             except Exception:
                 pass
         # Fall back to team PIN session
@@ -305,6 +314,17 @@ def scoreboard_detail(request, scoreboard_id):
         except (PlayerCodename.DoesNotExist, AttributeError):
             pass
 
+    tournament_starting_team_has_score = bool(
+        scoreboard.tournament_match_id
+        and scoreboard.tournament_match.starting_team_id
+        and match_has_first_real_score(scoreboard.tournament_match)
+    )
+    tournament_starting_team_is_recipient = bool(
+        scoreboard.tournament_match_id
+        and scoreboard.tournament_match.starting_team_id
+        and my_team_id == scoreboard.tournament_match.starting_team_id
+    )
+
     context = {
         'scoreboard': scoreboard,
         'recent_updates': recent_updates,
@@ -330,6 +350,9 @@ def scoreboard_detail(request, scoreboard_id):
         'starting_side_has_score': friendly_starting_side_has_score,
         'starting_side_scoreboard_id': scoreboard.id if scoreboard.friendly_game_id else None,
         'starting_side_is_recipient': friendly_starting_side_is_recipient,
+        'starting_team_has_score': tournament_starting_team_has_score,
+        'starting_team_scoreboard_id': scoreboard.id if scoreboard.tournament_match_id else None,
+        'starting_team_is_recipient': tournament_starting_team_is_recipient,
     }
     
     return render(request, 'matches/scoreboard_detail.html', context)

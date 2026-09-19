@@ -402,6 +402,8 @@
     </div>
     {% endif %}
 
+    {% include 'partials/tournament_starting_team_announcement.html' with listen_for_score_updates=True %}
+
     <!-- Court -->
     {% if match.court %}
     <div class="md-court-strip">

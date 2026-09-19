@@ -84,18 +84,28 @@ class MeleePartnership(models.Model):
         for completion of legacy events created before P4 and must not be used
         by assignment-based generation or shuffle.
         """
-        from tournaments.models import MeleePlayer, MeleeRoundAssignment
+        from tournaments.models import (
+            MeleePlayer,
+            MeleeRoundAssignment,
+            MeleeRoundTeamBye,
+        )
 
         teams_players = defaultdict(list)
         if round_obj is not None:
             if round_obj.tournament_id != tournament.id:
                 raise ValueError("The partnership Round belongs to another tournament.")
             display_round_number = round_obj.number_in_stage or round_obj.number
+            bye_team_ids = set(
+                MeleeRoundTeamBye.objects.filter(
+                    tournament=tournament,
+                    round=round_obj,
+                ).values_list("team_id", flat=True)
+            )
             assignments = MeleeRoundAssignment.objects.filter(
                 tournament=tournament,
                 round=round_obj,
                 state=MeleeRoundAssignment.ASSIGNED,
-            ).select_related("player", "team")
+            ).exclude(team_id__in=bye_team_ids).select_related("player", "team")
             for assignment in assignments:
                 teams_players[assignment.team].append(assignment.player)
         else:

@@ -50,6 +50,17 @@ class Match(models.Model):
     # Add field to store winner/loser for progression
     winner = models.ForeignKey("teams.Team", related_name="won_matches", on_delete=models.SET_NULL, null=True, blank=True)
     loser = models.ForeignKey("teams.Team", related_name="lost_matches", on_delete=models.SET_NULL, null=True, blank=True)
+    # The side selected when this Match actually enters ACTIVE state. This is
+    # presentation and notification context only; it never changes score,
+    # validation, result, or progression rules.
+    starting_team = models.ForeignKey(
+        "teams.Team",
+        related_name="matches_starting",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Team randomly selected to start this Match",
+    )
     
     # New field to store match type for statistics
     match_type = models.CharField(max_length=20, choices=MATCH_TYPE_CHOICES, null=True, blank=True, help_text="Type of match based on player count")
@@ -202,6 +213,22 @@ class Match(models.Model):
         
         # Trigger knockout tournament automation if applicable
         self._trigger_knockout_automation()
+
+        # Preserve activation-onward player history only after the existing
+        # completion and Mêlée-stat steps have finished. This alternate service
+        # path may not run the normal rating integration, so the history service
+        # records a null rating snapshot rather than inventing one.
+        try:
+            from tournaments.player_history import record_finalized_tournament_history
+
+            record_finalized_tournament_history(
+                self.tournament,
+                include_melee_awards=bool(self.tournament and self.tournament.is_melee),
+            )
+        except Exception:
+            # Match completion remains authoritative; history projection is an
+            # idempotent best-effort follow-up and must never block it.
+            print(f"Warning: tournament history projection failed for match {self.id}")
     
     def _update_melee_stats(self):
         """
@@ -605,4 +632,3 @@ class ScorekeeperRating(models.Model):
     
     def __str__(self):
         return f"Rating {self.accuracy_rating}/5 for {self.scoreboard} by {self.rater_codename}"
-

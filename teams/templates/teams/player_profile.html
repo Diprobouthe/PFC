@@ -295,6 +295,94 @@ a.mh-card::after {
 }
 .mh-type-badge.friendly { background: #fff8e1 !important; color: #e65100 !important; }
 
+/* ---- PERMANENT TOURNAMENT HISTORY ---- */
+.pp-tournament-history-list {
+    display: flex !important; flex-direction: column !important; gap: 10px !important;
+}
+.pp-tournament-history-card {
+    display: block !important;
+    padding: 14px !important;
+    border: 1px solid #dceaf9 !important;
+    border-radius: 14px !important;
+    background: #fbfdff !important;
+    color: inherit !important;
+    text-decoration: none !important;
+}
+.pp-tournament-history-card:active { opacity: .86 !important; }
+.pp-tournament-history-top {
+    display: flex !important; align-items: flex-start !important; gap: 10px !important;
+}
+.pp-tournament-history-icon {
+    width: 34px !important; height: 34px !important; flex: 0 0 34px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    border-radius: 11px !important; background: #e3f2fd !important; color: #1565c0 !important;
+}
+.pp-tournament-history-main { min-width: 0 !important; flex: 1 !important; }
+.pp-tournament-history-name {
+    font-size: 16px !important; font-weight: 800 !important; color: #263238 !important;
+    line-height: 1.25 !important;
+}
+.pp-tournament-history-meta {
+    margin-top: 3px !important; font-size: 13px !important; color: #607d8b !important;
+    line-height: 1.35 !important;
+}
+.pp-tournament-history-teams, .pp-tournament-history-awards {
+    display: flex !important; flex-wrap: wrap !important; gap: 6px !important; margin-top: 10px !important;
+}
+.pp-history-chip {
+    display: inline-flex !important; align-items: center !important; gap: 3px !important;
+    padding: 4px 8px !important; border-radius: 999px !important; background: #eef5fb !important;
+    color: #385363 !important; font-size: 12px !important; font-weight: 700 !important;
+}
+.pp-history-chip.award { background: #fff8e1 !important; color: #8a5a00 !important; }
+.pp-tournament-history-stats {
+    display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important; margin-top: 11px !important;
+}
+.pp-tournament-history-stat {
+    padding: 7px 4px !important; text-align: center !important; border-radius: 9px !important;
+    background: #f4f8fb !important; min-width: 0 !important;
+}
+.pp-tournament-history-stat strong {
+    display: block !important; color: #0d47a1 !important; font-size: 15px !important; line-height: 1.15 !important;
+    white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+.pp-tournament-history-stat small { display: block !important; margin-top: 2px !important; color: #78909c !important; font-size: 10px !important; }
+.pp-history-expand, .pp-history-more {
+    display: flex !important; width: 100% !important; align-items: center !important; justify-content: center !important;
+    gap: 6px !important; min-height: 38px !important; margin-top: 11px !important; padding: 8px 10px !important;
+    border: 1px solid #a9cae9 !important; border-radius: 10px !important; background: #fff !important;
+    color: #1565c0 !important; font-size: 13px !important; font-weight: 800 !important;
+}
+.pp-history-expand[aria-expanded="true"] { background: #eaf5ff !important; }
+.pp-history-detail-slot { margin-top: 10px !important; }
+.pp-history-detail {
+    padding: 11px !important; border: 1px solid #d7e8f8 !important; border-radius: 12px !important;
+    background: #fff !important;
+}
+.pp-history-detail-summary-title { color: #385363 !important; font-size: 12px !important; font-weight: 850 !important; }
+.pp-history-detail-summary-grid {
+    display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 5px !important; margin-top: 8px !important;
+}
+.pp-history-detail-summary-grid > div { min-width: 0 !important; padding: 7px 3px !important; border-radius: 8px !important; background: #f5f9fd !important; text-align: center !important; }
+.pp-history-detail-summary-grid strong { display: block !important; color: #0d47a1 !important; font-size: 13px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+.pp-history-detail-summary-grid span { display: block !important; margin-top: 2px !important; color: #78909c !important; font-size: 9px !important; font-weight: 750 !important; }
+.pp-history-match-list { display: flex !important; flex-direction: column !important; gap: 6px !important; margin-top: 10px !important; }
+.pp-history-match {
+    display: flex !important; align-items: center !important; gap: 8px !important; padding: 8px !important;
+    border: 1px solid #e0ebf5 !important; border-radius: 10px !important; color: inherit !important; text-decoration: none !important;
+}
+.pp-history-match-result { display: grid !important; width: 25px !important; height: 25px !important; flex: 0 0 25px !important; place-items: center !important; border-radius: 50% !important; background: #90a4ae !important; color: #fff !important; font-size: 11px !important; font-weight: 900 !important; }
+.pp-history-match.win .pp-history-match-result { background: #2e7d32 !important; }
+.pp-history-match.loss .pp-history-match-result { background: #c62828 !important; }
+.pp-history-match-main { min-width: 0 !important; flex: 1 !important; }
+.pp-history-match-main strong { display: block !important; overflow: hidden !important; color: #263238 !important; font-size: 12px !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.pp-history-match-main strong span { color: #78909c !important; font-weight: 650 !important; }
+.pp-history-match-main small { display: block !important; margin-top: 2px !important; overflow: hidden !important; color: #78909c !important; font-size: 10px !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.pp-history-match-score { flex: 0 0 auto !important; color: #0d47a1 !important; font-size: 14px !important; font-weight: 900 !important; }
+.pp-history-detail-empty { padding: 10px 0 2px !important; color: #78909c !important; font-size: 12px !important; }
+
 /* ---- STATS GRID (sub-sections) ---- */
 .pp-stats-grid {
     display: grid !important;
@@ -721,6 +809,62 @@ a.mh-card::after {
             {% if show_public_statistics %}
             <!-- ===== TOURNAMENT TAB ===== -->
             <div class="tab-pane fade" id="pp-tournament">
+                <div class="pp-section">
+                    <div class="pp-section-hdr"><i class="fas fa-trophy"></i> {% translate "Tournament History" %}</div>
+                    <div class="pp-section-body">
+                        {% if tournament_history %}
+                        <div class="pp-tournament-history-list">
+                            {% for entry in tournament_history %}
+                            <article class="pp-tournament-history-card">
+                                <div class="pp-tournament-history-top">
+                                    <span class="pp-tournament-history-icon"><i class="fas fa-trophy"></i></span>
+                                    <div class="pp-tournament-history-main">
+                                        <a class="pp-tournament-history-name" href="{% url 'tournament_detail' entry.tournament_id %}">{{ entry.tournament_name }}</a>
+                                        <div class="pp-tournament-history-meta">
+                                            {{ entry.tournament_date|date:"M d, Y" }}{% if entry.tournament_format %} &middot; {{ entry.tournament_format }}{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% if entry.represented_teams %}
+                                <div class="pp-tournament-history-teams">
+                                    {% for represented_team in entry.represented_teams %}
+                                    <span class="pp-history-chip"><i class="fas fa-users"></i> {{ represented_team.name }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                <div class="pp-tournament-history-stats">
+                                    <div class="pp-tournament-history-stat"><strong>{{ entry.matches_played }}</strong><small>{% translate "Games" %}</small></div>
+                                    <div class="pp-tournament-history-stat"><strong>{{ entry.wins }}–{{ entry.losses }}</strong><small>{% translate "W–L" %}</small></div>
+                                    <div class="pp-tournament-history-stat"><strong>{% if entry.points_scored != None %}{{ entry.points_scored }}–{{ entry.points_against }}{% else %}—{% endif %}</strong><small>{% translate "Points" %}</small></div>
+                                    <div class="pp-tournament-history-stat"><strong>{% if entry.rating_change != None %}{% if entry.rating_change > 0 %}+{% endif %}{{ entry.rating_change|floatformat:1 }}{% else %}—{% endif %}</strong><small>{% translate "Rating" %}</small></div>
+                                </div>
+                                {% if entry.achievements %}
+                                <div class="pp-tournament-history-awards">
+                                    {% for achievement in entry.achievements %}
+                                    <span class="pp-history-chip award" title="{{ achievement.display_title }}">{{ achievement.display_symbol }} {{ achievement.display_title }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                <button
+                                    type="button"
+                                    class="pp-history-expand"
+                                    data-history-expand
+                                    data-history-target="history-detail-{{ entry.id }}"
+                                    data-history-url="{% url 'player_tournament_history_detail' player.id entry.tournament_id %}"
+                                    aria-controls="history-detail-{{ entry.id }}"
+                                    aria-expanded="false"
+                                >
+                                    <i class="fas fa-list"></i> {% translate "View tournament details" %}
+                                </button>
+                                <div id="history-detail-{{ entry.id }}" class="pp-history-detail-slot" hidden></div>
+                            </article>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="mh-empty"><i class="fas fa-trophy"></i> {% translate "No completed tournaments yet" %}</div>
+                        {% endif %}
+                    </div>
+                </div>
                 <div class="pp-stats-grid" style="margin-top:8px !important;">
                     <div class="pp-stats-item"><strong>{{ accurate_stats.matches_played|default:0 }}</strong><small>Games</small></div>
                     <div class="pp-stats-item"><strong>{{ accurate_stats.win_rate|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
@@ -984,6 +1128,83 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.classList.add('active');
             });
         });
+    });
+}());
+
+// ── Lazy permanent tournament history detail ────────────────────────────────
+// Match-level rows are intentionally fetched only after an authorized viewer
+// expands a compact tournament card, keeping the initial profile bounded.
+(function () {
+    function getTarget(button) {
+        return document.getElementById(button.getAttribute('data-history-target'));
+    }
+
+    function setExpanded(button, target, expanded) {
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        target.hidden = !expanded;
+        button.innerHTML = expanded
+            ? '<i class="fas fa-chevron-up"></i> {% translate "Hide tournament details" %}'
+            : '<i class="fas fa-list"></i> {% translate "View tournament details" %}';
+    }
+
+    async function requestHistory(url) {
+        var response = await fetch(url, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        if (!response.ok) throw new Error('history request failed');
+        return response.text();
+    }
+
+    document.addEventListener('click', async function (event) {
+        var expandButton = event.target.closest('[data-history-expand]');
+        if (expandButton) {
+            event.preventDefault();
+            var target = getTarget(expandButton);
+            if (!target) return;
+            if (expandButton.getAttribute('aria-expanded') === 'true') {
+                setExpanded(expandButton, target, false);
+                return;
+            }
+            if (target.dataset.loaded === 'true') {
+                setExpanded(expandButton, target, true);
+                return;
+            }
+            expandButton.disabled = true;
+            expandButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> {% translate "Loading tournament details" %}';
+            try {
+                target.innerHTML = await requestHistory(expandButton.getAttribute('data-history-url'));
+                target.dataset.loaded = 'true';
+                setExpanded(expandButton, target, true);
+            } catch (error) {
+                target.innerHTML = '<div class="pp-history-detail-empty">{% translate "Tournament details could not be loaded." %}</div>';
+                target.dataset.loaded = 'true';
+                setExpanded(expandButton, target, true);
+            } finally {
+                expandButton.disabled = false;
+            }
+            return;
+        }
+
+        var moreButton = event.target.closest('[data-history-load-more]');
+        if (moreButton) {
+            event.preventDefault();
+            var moreTarget = getTarget(moreButton);
+            if (!moreTarget) return;
+            moreButton.disabled = true;
+            moreButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> {% translate "Loading" %}';
+            try {
+                var detail = moreTarget.querySelector('.pp-history-detail');
+                var html = await requestHistory(moreButton.getAttribute('data-history-url'));
+                if (detail) {
+                    detail.insertAdjacentHTML('beforeend', html);
+                    moreButton.remove();
+                }
+            } catch (error) {
+                moreButton.disabled = false;
+                moreButton.innerHTML = '<i class="fas fa-rotate-right"></i> {% translate "Try again" %}';
+            }
+        }
     });
 }());
 </script>
