@@ -42,7 +42,7 @@ def build_winner_loser_doubles_plan(*, tournament, completed_round, melee_player
         registration.player_id: registration for registration in melee_players
     }
     previous_assignments = list(
-        MeleeRoundAssignment.objects.select_for_update()
+        MeleeRoundAssignment.objects.select_for_update(of=("self",))
         .filter(tournament=tournament, round=completed_round)
         .select_related("player", "team")
         .order_by("player_id")
@@ -94,10 +94,10 @@ def build_winner_loser_doubles_plan(*, tournament, completed_round, melee_player
     if len(teams) != expected_team_count:
         return _failure(
             "The temporary doubles team count does not match the completed Round eligible roster."
-        )
+    )
 
     matches = list(
-        Match.objects.select_for_update()
+        Match.objects.select_for_update(of=("self",))
         .filter(tournament=tournament, round=completed_round)
         .select_related("winner", "loser", "team1", "team2")
         .order_by("id")
@@ -389,7 +389,7 @@ def _historical_individual_bye_counts(*, tournament, through_round):
     )
     assignments_by_round_id = defaultdict(list)
     for assignment in (
-        MeleeRoundAssignment.objects.select_for_update()
+        MeleeRoundAssignment.objects.select_for_update(of=("self",))
         .filter(tournament=tournament, round_id__in=[round_obj.id for round_obj in rounds])
         .select_related("team")
         .order_by("round_id", "player_id")
