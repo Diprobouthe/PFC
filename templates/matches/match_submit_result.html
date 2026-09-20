@@ -84,6 +84,16 @@
     color: #495057;
     text-align: center;
 }
+.sr-team-players {
+    min-height: 2.1em;
+    margin-top: -2px;
+    font-size: 0.67rem;
+    font-weight: 500;
+    line-height: 1.25;
+    color: #6c757d;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
 .sr-score-drum {
     display: flex;
     flex-direction: column;
@@ -309,6 +319,9 @@
             <!-- Team 1 -->
             <div class="sr-score-col">
                 <div class="sr-team-label">{{ match.team1.name }}</div>
+                <div class="sr-team-players">
+                    {% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                </div>
                 <div class="sr-score-drum">
                     <button type="button" class="sr-score-btn" onclick="adjustScore('t1', 1)">▲</button>
                     <div class="sr-score-display" id="t1Display">{{ form.team1_score.value|default:"0" }}</div>
@@ -322,6 +335,9 @@
             <!-- Team 2 -->
             <div class="sr-score-col">
                 <div class="sr-team-label">{{ match.team2.name }}</div>
+                <div class="sr-team-players">
+                    {% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                </div>
                 <div class="sr-score-drum">
                     <button type="button" class="sr-score-btn" onclick="adjustScore('t2', 1)">▲</button>
                     <div class="sr-score-display" id="t2Display">{{ form.team2_score.value|default:"0" }}</div>

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.template.loader import get_template
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from matches.models import LiveScoreboard, Match, MatchPlayer, ScoreUpdate
@@ -122,3 +123,20 @@ class TournamentStartingTeamTests(TestCase):
             }
         )
         self.assertNotIn('id="tournament-starting-team-banner"', hidden_after_score)
+
+    def test_pre_start_and_score_entry_show_match_specific_side_players(self):
+        self.match.status = "pending"
+        self.match.save(update_fields=["status", "updated_at"])
+        pre_start = self.client.get(reverse("match_detail", args=[self.match.id]))
+        self.assertEqual(pre_start.status_code, 200)
+        self.assertContains(pre_start, self.player1.name)
+        self.assertContains(pre_start, self.player2.name)
+
+        self.match.status = "active"
+        self.match.save(update_fields=["status", "updated_at"])
+        score_entry = self.client.get(
+            reverse("match_submit_result", args=[self.match.id, self.team1.id]),
+        )
+        self.assertEqual(score_entry.status_code, 200)
+        self.assertContains(score_entry, self.player1.name)
+        self.assertContains(score_entry, self.player2.name)

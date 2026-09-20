@@ -282,9 +282,13 @@ def match_detail(request, match_id):
         id=match_id,
     )
 
-    # Get MatchPlayer entries for display
+    # MatchPlayer entries retain the selected roles for active/completed Match
+    # presentation.  The side roster resolver also supplies the exact pending
+    # Mêlée Round assignment before a MatchPlayer snapshot exists.
     match_players_team1 = MatchPlayer.objects.filter(match=match, team=match.team1).select_related("player")
     match_players_team2 = MatchPlayer.objects.filter(match=match, team=match.team2).select_related("player")
+    match_side_players_team1 = players_for_match_team(match, match.team1)
+    match_side_players_team2 = players_for_match_team(match, match.team2)
 
     # ---- Session-bound team identification (match-context aware) ----
     # P3: MatchPlayer snapshot → exact Mêlée Round assignment → legacy
@@ -397,6 +401,8 @@ def match_detail(request, match_id):
         "team": my_team,
         "match_players_team1": match_players_team1,
         "match_players_team2": match_players_team2,
+        "match_side_players_team1": match_side_players_team1,
+        "match_side_players_team2": match_side_players_team2,
         # Session-bound helpers
         "my_team": my_team,
         "opponent_team": opponent_team,
@@ -1023,6 +1029,8 @@ def match_submit_result(request, match_id, team_id):
         "match": match,
         "team": team,
         "form": form,
+        "match_side_players_team1": players_for_match_team(match, match.team1),
+        "match_side_players_team2": players_for_match_team(match, match.team2),
         "live_score_team1": live_score_team1,
         "live_score_team2": live_score_team2,
         "scoreboard_id": _scoreboard_id,

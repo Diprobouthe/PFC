@@ -202,7 +202,7 @@
 }
 .md-act-slot {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 6px;
     background: #f8f9fa;
     border: 1.5px solid #dee2e6;
@@ -211,6 +211,16 @@
     font-size: 0.78rem;
     font-weight: 600;
     color: #495057;
+}
+.md-act-side { min-width: 0; }
+.md-act-team-name { line-height: 1.2; }
+.md-act-player-names {
+    margin-top: 3px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    line-height: 1.25;
+    color: #6c757d;
+    overflow-wrap: anywhere;
 }
 .md-act-slot.done {
     border-color: #198754;
@@ -340,18 +350,44 @@
         {% if my_team %}
         <div class="md-act-slot {% if my_team_activated %}done{% else %}waiting{% endif %}">
             <div class="md-act-dot {% if my_team_activated %}done{% else %}waiting{% endif %}"></div>
-            {{ my_team.name }}{% if my_team_activated %} ✓{% endif %}
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ my_team.name }}{% if my_team_activated %} ✓{% endif %}</div>
+                <div class="md-act-player-names">
+                    {% if my_team == match.team1 %}
+                        {% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% else %}
+                        {% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
         </div>
         <div class="md-act-slot {% if opponent_activated %}done{% else %}waiting{% endif %}">
             <div class="md-act-dot {% if opponent_activated %}done{% else %}waiting{% endif %}"></div>
-            {{ opponent_team.name }}{% if opponent_activated %} ✓{% endif %}
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ opponent_team.name }}{% if opponent_activated %} ✓{% endif %}</div>
+                <div class="md-act-player-names">
+                    {% if opponent_team == match.team1 %}
+                        {% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% else %}
+                        {% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% else %}
         <div class="md-act-slot waiting">
-            <div class="md-act-dot waiting"></div>{{ match.team1.name }}
+            <div class="md-act-dot waiting"></div>
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ match.team1.name }}</div>
+                <div class="md-act-player-names">{% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
+            </div>
         </div>
         <div class="md-act-slot waiting">
-            <div class="md-act-dot waiting"></div>{{ match.team2.name }}
+            <div class="md-act-dot waiting"></div>
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ match.team2.name }}</div>
+                <div class="md-act-player-names">{% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -368,17 +404,47 @@
     <div class="md-activation-strip">
         {% for t in activated_teams %}
         <div class="md-act-slot done">
-            <div class="md-act-dot done"></div>{{ t.name }} ✓
+            <div class="md-act-dot done"></div>
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ t.name }} ✓</div>
+                <div class="md-act-player-names">
+                    {% if t == match.team1 %}
+                        {% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% else %}
+                        {% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% endfor %}
         {% if activated_teams|length < 2 %}
         {% if my_team and my_team not in activated_teams %}
         <div class="md-act-slot waiting">
-            <div class="md-act-dot waiting"></div>{{ my_team.name }} — Waiting
+            <div class="md-act-dot waiting"></div>
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ my_team.name }} — Waiting</div>
+                <div class="md-act-player-names">
+                    {% if my_team == match.team1 %}
+                        {% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% else %}
+                        {% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% elif opponent_team and opponent_team not in activated_teams %}
         <div class="md-act-slot waiting">
-            <div class="md-act-dot waiting"></div>{{ opponent_team.name }} — Waiting
+            <div class="md-act-dot waiting"></div>
+            <div class="md-act-side">
+                <div class="md-act-team-name">{{ opponent_team.name }} — Waiting</div>
+                <div class="md-act-player-names">
+                    {% if opponent_team == match.team1 %}
+                        {% for player in match_side_players_team1 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% else %}
+                        {% for player in match_side_players_team2 %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% endif %}
         {% endif %}
