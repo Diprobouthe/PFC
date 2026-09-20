@@ -24,7 +24,10 @@ def ensure_match_starting_team(match):
 
     with transaction.atomic():
         locked_match = (
-            type(match).objects.select_for_update()
+            # ``starting_team`` is nullable until this first draw.  Lock only
+            # the Match row so PostgreSQL does not attempt FOR UPDATE on the
+            # nullable OUTER JOIN created by ``select_related`` below.
+            type(match).objects.select_for_update(of=("self",))
             .select_related("team1", "team2", "starting_team")
             .get(pk=match.pk)
         )
