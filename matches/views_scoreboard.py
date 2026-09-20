@@ -18,7 +18,10 @@ import logging
 from .models import LiveScoreboard, ScoreUpdate, ScorekeeperRating, MatchPlayer
 from friendly_games.models import PlayerCodename, FriendlyGamePlayer
 from pfc_core.qr_action_auth import get_qr_action_player, issue_qr_action_token
-from matches.melee_roster_resolution import resolve_player_match_side
+from matches.melee_roster_resolution import (
+    players_for_match_team,
+    resolve_player_match_side,
+)
 from matches.starting_team import match_has_first_real_score
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -216,6 +219,12 @@ def scoreboard_detail(request, scoreboard_id):
     team2_id = None
     team1_name = None
     team2_name = None
+    # These are presentation-only, exact side rosters for the shared player
+    # score-entry UI.  Tournament/Mêlée sides resolve from MatchPlayer or the
+    # Match's concrete round assignment; Friendly sides resolve from their
+    # FriendlyGamePlayer rows.  Never use a general Team roster here.
+    score_entry_team1_players = []
+    score_entry_team2_players = []
     
     # Resolve the assigned Court Complex once for display only.
     court_complex = get_scoreboard_court_complex(scoreboard)
@@ -225,6 +234,14 @@ def scoreboard_detail(request, scoreboard_id):
         team2_id = scoreboard.tournament_match.team2.id
         team1_name = scoreboard.tournament_match.team1.name
         team2_name = scoreboard.tournament_match.team2.name
+        score_entry_team1_players = players_for_match_team(
+            scoreboard.tournament_match,
+            scoreboard.tournament_match.team1,
+        )
+        score_entry_team2_players = players_for_match_team(
+            scoreboard.tournament_match,
+            scoreboard.tournament_match.team2,
+        )
     elif scoreboard.friendly_game:
         match_id = scoreboard.friendly_game.id
         # For friendly games, we'll use the game ID as both team references
@@ -233,6 +250,20 @@ def scoreboard_detail(request, scoreboard_id):
         team2_id = scoreboard.friendly_game.id  # Use game ID as placeholder
         team1_name = scoreboard.get_team1_name()
         team2_name = scoreboard.get_team2_name()
+        score_entry_team1_players = [
+            participant.player
+            for participant in FriendlyGamePlayer.objects.filter(
+                game=scoreboard.friendly_game,
+                team='BLACK',
+            ).select_related('player').order_by('player__name', 'player_id')
+        ]
+        score_entry_team2_players = [
+            participant.player
+            for participant in FriendlyGamePlayer.objects.filter(
+                game=scoreboard.friendly_game,
+                team='WHITE',
+            ).select_related('player').order_by('player__name', 'player_id')
+        ]
     
     # Resolve which team the current session belongs to (for single submit button).
     # A short-lived Matches-page QR proof has precedence over the phone holder's
@@ -339,6 +370,8 @@ def scoreboard_detail(request, scoreboard_id):
         'team2_id': team2_id,
         'team1_name': team1_name,
         'team2_name': team2_name,
+        'score_entry_team1_players': score_entry_team1_players,
+        'score_entry_team2_players': score_entry_team2_players,
         'my_team_id': my_team_id,   # session-resolved team — used for single submit button
         'has_submit_links': match_id is not None,
         # Court complex for timezone-aware timestamp display in templates

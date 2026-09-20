@@ -140,3 +140,15 @@ class TournamentStartingTeamTests(TestCase):
         self.assertEqual(score_entry.status_code, 200)
         self.assertContains(score_entry, self.player1.name)
         self.assertContains(score_entry, self.player2.name)
+
+        shared_score_entry = self.client.get(
+            reverse("scoreboard_detail", args=[self.match.live_scoreboard.id]),
+        )
+        self.assertEqual(shared_score_entry.status_code, 200)
+        self.assertContains(
+            shared_score_entry,
+            'class="score-entry-player-names"',
+            count=2,
+        )
+        self.assertContains(shared_score_entry, self.player1.name)
+        self.assertContains(shared_score_entry, self.player2.name)

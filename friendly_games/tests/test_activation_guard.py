@@ -127,6 +127,9 @@ class FriendlyActivationGuardTests(TestCase):
         self.assertContains(response, 'starts first')
         response = self.client.get(reverse('scoreboard_detail', args=[scoreboard.id]))
         self.assertContains(response, 'friendly-starting-side-banner')
+        self.assertContains(response, 'class="score-entry-player-names"', count=2)
+        self.assertContains(response, self.player_one.name)
+        self.assertContains(response, self.player_two.name)
 
         session = self.client.session
         session['player_codename'] = other_codename
