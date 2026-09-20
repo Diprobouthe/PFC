@@ -152,3 +152,12 @@ class TournamentStartingTeamTests(TestCase):
         )
         self.assertContains(shared_score_entry, self.player1.name)
         self.assertContains(shared_score_entry, self.player2.name)
+        score_entry_html = shared_score_entry.content.decode()
+        self.assertLess(
+            score_entry_html.index(self.player1.name),
+            score_entry_html.index('id="team1-score"'),
+        )
+        self.assertLess(
+            score_entry_html.index('id="team1-score"'),
+            score_entry_html.index('id="team1-score-select"'),
+        )

@@ -306,11 +306,17 @@
     <div class="live-score-row">
         <div class="text-center">
             <div class="team-label text-primary">{{ scoreboard.get_team1_name }}</div>
+            <div class="score-entry-player-names">
+                {% for player in score_entry_team1_players %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+            </div>
             <div class="score-big text-primary" id="team1-score">{{ scoreboard.team1_score }}</div>
         </div>
         <div class="score-sep">–</div>
         <div class="text-center">
             <div class="team-label {% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %}">{{ scoreboard.get_team2_name }}</div>
+            <div class="score-entry-player-names">
+                {% for player in score_entry_team2_players %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+            </div>
             <div class="score-big {% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %}" id="team2-score">{{ scoreboard.team2_score }}</div>
         </div>
     </div>
@@ -326,10 +332,6 @@
             <div class="d-flex align-items-center gap-2 mb-3">
                 <!-- Team 1 score wheel -->
                 <div class="flex-fill text-center">
-                    <div class="team-label text-primary">{{ scoreboard.get_team1_name }}</div>
-                    <div class="score-entry-player-names">
-                        {% for player in score_entry_team1_players %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
-                    </div>
                     <select class="score-wheel" id="team1-score-select" aria-label="{{ scoreboard.get_team1_name }} Score">
                         {% for score in score_range %}
                             <option value="{{ score }}" {% if score == scoreboard.team1_score %}selected{% endif %}>{{ score }}</option>
@@ -341,10 +343,6 @@
 
                 <!-- Team 2 score wheel -->
                 <div class="flex-fill text-center">
-                    <div class="team-label {% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %}">{{ scoreboard.get_team2_name }}</div>
-                    <div class="score-entry-player-names">
-                        {% for player in score_entry_team2_players %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
-                    </div>
                     <select class="score-wheel" id="team2-score-select" aria-label="{{ scoreboard.get_team2_name }} Score">
                         {% for score in score_range %}
                             <option value="{{ score }}" {% if score == scoreboard.team2_score %}selected{% endif %}>{{ score }}</option>
