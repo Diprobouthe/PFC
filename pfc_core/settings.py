@@ -212,12 +212,12 @@ DATABASES = {
     "default": dj_database_url.config(
         # Replace sqlite fallback with PostgreSQL if needed, but Render provides DATABASE_URL
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=0
+        conn_max_age=600
     )
 }
 
 # Password validation
-# https://docs.djangoproject.com/en/5.2/topics/auth/passwords/#password-validation
+# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -236,6 +236,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
+
+# PFC's first controlled interface languages. Additional languages can be
+# added through reviewed locale catalogs without changing routes or logic.
 LANGUAGE_CODE = "en"
 LANGUAGES = [
     ("en", "English"),
@@ -250,7 +253,7 @@ USE_I18N = True
 USE_TZ = True
 
 # Feature Flags
-FEATURE_SHOOT_TRACKER = True  # Shot Tracker feature
+FEATURE_SHOOT_TRACKER = True  # Shot Accuracy Tracker feature
 
 # Shot Tracker Configuration
 SHOT_TRACKER_SETTINGS = {
@@ -261,11 +264,11 @@ SHOT_TRACKER_SETTINGS = {
     'ENABLE_STATISTICS': True,
 }
 
-# Shot Tracker Permissions
 SHOT_TRACKER_PERMISSIONS = {
     'REQUIRE_AUTHENTICATION': True,
     'ALLOW_ANONYMOUS_PRACTICE': False,
     'ALLOW_IN_GAME_TRACKING': True,
+    'REQUIRE_MATCH_PARTICIPATION': True,
 }
 
 # CORS settings for shot tracker API
@@ -322,12 +325,12 @@ LOGGING = {
         },
         "matches": {  # Specific logger for the matches app
             "handlers": ["console"],
-            "level": "INFO",  # Use INFO for production, DEBUG if needed
+            "level": "INFO", # Use INFO for production, DEBUG if needed
             "propagate": True,
         },
-        "tournaments": { # Also capture debug from tournaments app
+        "tournaments": { # Also capture debug from tournaments if needed later
             "handlers": ["console"],
-            "level": "INFO",
+            "level": "INFO", # Use INFO for production, DEBUG if needed
             "propagate": True,
         },
     },
@@ -398,11 +401,11 @@ SHOT_TRACKER_SETTINGS = {
 
 # Shot Tracker Permissions
 SHOT_TRACKER_PERMISSIONS = {
-    'REQUIRE_AUTHENTICATION': True,
-    'ALLOW_ANONYMOUS_PRACTICE': False,
-    'MATCH_PARTICIPANT_ONLY': True,
+    'REQUIRE_AUTHENTICATION': True,  # Require user login
+    'ALLOW_ANONYMOUS_PRACTICE': False,  # Allow anonymous practice sessions
+    'MATCH_PARTICIPANT_ONLY': True,  # Only match participants can track in-game
     'ADMIN_CAN_VIEW_ALL': True,  # Admins can view all sessions
-    'USERS_CAN_DELETE_OWN': True,
+    'USERS_CAN_DELETE_OWN': True,  # Users can delete their own sessions
 }
 
 # ============================================================================
