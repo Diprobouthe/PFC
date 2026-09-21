@@ -46,7 +46,7 @@ if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF trusted origins — wildcard sandbox domains + production
 CSRF_TRUSTED_ORIGINS = [
-    # Manus sandbox preview domains + production
+    # Manus sandbox preview domains — wildcard covers any sandbox URL automatically
     'https://*.manus.computer',
     'http://*.manus.computer',
     'https://*.manusvm.computer',
@@ -217,7 +217,7 @@ DATABASES = {
 }
 
 # Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# https://docs.djangoproject.com/en/5.2/topics/auth/passwords/#password-validation
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -227,18 +227,15 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
-
-# PFC's first controlled interface languages. Additional languages can be
-# added through reviewed locale catalogs without changing routes or logic.
 LANGUAGE_CODE = "en"
 LANGUAGES = [
     ("en", "English"),
@@ -253,7 +250,7 @@ USE_I18N = True
 USE_TZ = True
 
 # Feature Flags
-FEATURE_SHOOT_TRACKER = True  # Shot Accuracy Tracker feature
+FEATURE_SHOOT_TRACKER = True  # Shot Tracker feature
 
 # Shot Tracker Configuration
 SHOT_TRACKER_SETTINGS = {
@@ -264,11 +261,11 @@ SHOT_TRACKER_SETTINGS = {
     'ENABLE_STATISTICS': True,
 }
 
+# Shot Tracker Permissions
 SHOT_TRACKER_PERMISSIONS = {
     'REQUIRE_AUTHENTICATION': True,
     'ALLOW_ANONYMOUS_PRACTICE': False,
     'ALLOW_IN_GAME_TRACKING': True,
-    'REQUIRE_MATCH_PARTICIPATION': True,
 }
 
 # CORS settings for shot tracker API
@@ -279,7 +276,7 @@ SHOT_TRACKER_ALLOWED_ORIGINS = [
 ]
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/collectstatic/
+# https://docs.djangoproject.com/en/5.2/howto/static-files/
 # https://whitenoise.readthedocs.io/en/stable/django.html
 
 STATIC_URL = "static/"
@@ -325,12 +322,12 @@ LOGGING = {
         },
         "matches": {  # Specific logger for the matches app
             "handlers": ["console"],
-            "level": "INFO", # Use INFO for production, DEBUG if needed
+            "level": "INFO",  # Use INFO for production, DEBUG if needed
             "propagate": True,
         },
-        "tournaments": { # Also capture debug from tournaments if needed later
+        "tournaments": { # Also capture debug from tournaments app
             "handlers": ["console"],
-            "level": "INFO", # Use INFO for production, DEBUG if needed
+            "level": "INFO",
             "propagate": True,
         },
     },
@@ -391,21 +388,21 @@ FRIENDLY_GAME_DEFAULT_COURT_COMPLEX_ID = 1
 SHOT_TRACKER_SETTINGS = {
     'MAX_SESSIONS_PER_USER': 10,  # Maximum active sessions per user
     'MAX_SHOTS_PER_SESSION': 1000,  # Maximum shots per session
-    'SESSION_TIMEOUT_HOURS': 24,  # Auto-end sessions when session completes
+    'SESSION_TIMEOUT_HOURS': 24,  # Auto-end sessions after 24 hours
     'RATE_LIMIT_SHOTS_PER_MINUTE': 60,  # Rate limit for shot recording
-    'ENABLE_ACHIEVEMENTS': True,
-    'ENABLE_PRACTICE_MODE': True,
-    'ENABLE_INGAME_MODE': True,
+    'ENABLE_ACHIEVEMENTS': True,  # Enable achievement system
+    'ENABLE_PRACTICE_MODE': True,  # Enable practice mode
+    'ENABLE_INGAME_MODE': True,  # Enable in-game mode
     'AUTO_END_MATCH_SESSIONS': True,  # Auto-end sessions when match completes
 }
 
 # Shot Tracker Permissions
 SHOT_TRACKER_PERMISSIONS = {
-    'REQUIRE_AUTHENTICATION': True,  # Require user login
-    'ALLOW_ANONYMOUS_PRACTICE': False,  # Allow anonymous practice sessions
-    'MATCH_PARTICIPANT_ONLY': True,  # Only match participants can track in-game
+    'REQUIRE_AUTHENTICATION': True,
+    'ALLOW_ANONYMOUS_PRACTICE': False,
+    'MATCH_PARTICIPANT_ONLY': True,
     'ADMIN_CAN_VIEW_ALL': True,  # Admins can view all sessions
-    'USERS_CAN_DELETE_OWN': True,  # Users can delete their own sessions
+    'USERS_CAN_DELETE_OWN': True,
 }
 
 # ============================================================================
