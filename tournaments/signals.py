@@ -1,106 +1,104 @@
-# signals.py for tournament automation triggers
+"""Tournament automation triggered by genuine Match completion transitions."""
 
 import logging
-from django.db.models.signals import post_save
+
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+
 from matches.models import Match
-from .models import Tournament
 from .automation_engine import TournamentEngine
 
-logger = logging.getLogger("tournaments")
+logger = logging.getLogger('tournaments')
+
+
+@receiver(pre_save, sender=Match)
+def remember_previous_match_completion(sender, instance, **kwargs):
+    """Do not rerun tournament progression on an unrelated save of a completed Match."""
+    instance._pfc_new_completion = False
+    if instance.status != 'completed' or not instance.pk:
+        return
+    previous_status = (
+        Match.objects.filter(pk=instance.pk).values_list('status', flat=True).first()
+    )
+    instance._pfc_new_completion = (
+        previous_status is not None and previous_status != 'completed'
+    )
+
 
 @receiver(post_save, sender=Match)
 def handle_match_completion(sender, instance, created, update_fields=None, **kwargs):
-    """Listens for Match saves and triggers round completion check if status becomes completed."""
-    
-    # Always check if status is completed, regardless of update_fields
-    if instance.status == "completed" and instance.tournament:
-        tournament = instance.tournament
-        
-        logger.info(f"Match {instance.id} completed for tournament {tournament.id}. Updating team stats and triggering automation.")
-        
-        # Update swiss_points for tournament teams
-        try:
-            from .models import TournamentTeam
-            
-            # Update winner's swiss_points
-            if instance.winner:
-                winner_tt = TournamentTeam.objects.filter(
-                    tournament=tournament,
-                    team=instance.winner
-                ).first()
-                
-                if winner_tt:
-                    winner_tt.swiss_points += 3  # Standard Swiss scoring: 3 points for win
-                    winner_tt.save()
-                    logger.info(f"Updated {instance.winner.name} swiss_points to {winner_tt.swiss_points}")
-            
-            # Update loser's swiss_points (0 points for loss, but we could add draw logic later)
-            loser_team = None
-            if instance.team1 == instance.winner:
-                loser_team = instance.team2
-            elif instance.team2 == instance.winner:
-                loser_team = instance.team1
-                
-            if loser_team:
-                loser_tt = TournamentTeam.objects.filter(
-                    tournament=tournament,
-                    team=loser_team
-                ).first()
-                
-                if loser_tt:
-                    # Loser gets 0 points (no change needed, but we log it)
-                    logger.info(f"Match completed: {loser_team.name} remains at {loser_tt.swiss_points} swiss_points")
-                    
-        except Exception as e:
-            logger.exception(f"Error updating swiss_points for tournament {tournament.id}: {e}")
+    """Apply completed-Match progression once per observed status transition.
 
-        # A Super Mêlée must prepare its next concrete Round assignment before
-        # generic automation creates that Round's Matches. This receiver runs
-        # synchronously inside the final ``match.save()`` call, so the old
-        # view-level shuffle was necessarily too late: automation had already
-        # copied the prior MeleePlayer.assigned_team values.
-        if tournament.is_melee and tournament.shuffle_players_after_round and instance.round_id:
-            from tournaments.shuffle_utils import prepare_automatic_super_melee_transition
+    Winner points are derived from persisted results, not incremented blindly;
+    duplicate requests therefore cannot add another three points. The
+    tournament engine and the Mêlée shuffle retain their existing safeguards.
+    """
+    if created or instance.status != 'completed':
+        return
+    if not getattr(instance, '_pfc_new_completion', False):
+        return
+    if not instance.tournament_id:
+        return
 
-            transition = prepare_automatic_super_melee_transition(
-                tournament=tournament,
-                completed_round=instance.round,
-            )
-            if not transition["success"]:
-                logger.error(
-                    "Super Mêlée transition after Round %s for tournament %s "
-                    "was not prepared; generic next-round automation is skipped: %s",
-                    instance.round_id,
-                    tournament.id,
-                    transition["message"],
-                )
-                return
-            if transition.get("next_round_prepared"):
+    tournament = instance.tournament
+    logger.info(
+        'Match %s transitioned to completed for tournament %s',
+        instance.pk, tournament.pk,
+    )
+
+    try:
+        from .models import TournamentTeam
+        if instance.winner_id:
+            winner_tt = TournamentTeam.objects.filter(
+                tournament=tournament, team_id=instance.winner_id,
+            ).first()
+            if winner_tt:
+                # Recalculate from completed Match records and existing BYE
+                # state instead of += 3 on every Match.save().
+                winner_tt.update_swiss_stats()
                 logger.info(
-                    "Prepared Super Mêlée assignments after Round %s before "
-                    "generic Match generation for tournament %s.",
-                    instance.round_id,
-                    tournament.id,
+                    'Recalculated %s Swiss points: %s',
+                    instance.winner_id, winner_tt.swiss_points,
                 )
-        
-        # Only trigger automation if tournament is idle
-        current_status = getattr(tournament, 'automation_status', 'idle')
-        
-        if current_status != 'idle':
-            logger.info(f"Tournament {tournament.id} automation is not idle (status: {current_status}). Skipping automation.")
+    except Exception:
+        logger.exception(
+            'Error calculating winner points for tournament %s', tournament.pk,
+        )
+
+    # A Super Mêlée roster must be persisted for the exact next Round before
+    # the Swiss pairing generator is allowed to build next-Round Matches.
+    if tournament.is_melee and tournament.shuffle_players_after_round and instance.round_id:
+        from tournaments.shuffle_utils import prepare_automatic_super_melee_transition
+
+        transition = prepare_automatic_super_melee_transition(
+            tournament=tournament,
+            completed_round=instance.round,
+        )
+        if not transition['success']:
+            logger.error(
+                'Super Mêlée transition after Round %s for tournament %s failed; '
+                'skipping generic automation: %s',
+                instance.round_id, tournament.pk, transition['message'],
+            )
             return
-        
-        try:
-            # Use the fixed automation engine
-            engine = TournamentEngine(tournament)
-            result = engine.process_automation()
-            
-            if result:
-                logger.info(f"✅ Automation successful for tournament {tournament.id}")
-            else:
-                logger.warning(f"⚠️ Automation returned False for tournament {tournament.id}")
-                
-        except Exception as e:
-            logger.exception(f"❌ Error in automation for tournament {tournament.id}: {e}")
-            # Don't set error status - let the engine handle it
+        if transition.get('next_round_prepared'):
+            logger.info(
+                'Prepared Super Mêlée assignments after Round %s for tournament %s',
+                instance.round_id, tournament.pk,
+            )
+
+    if tournament.automation_status != 'idle':
+        logger.info(
+            'Tournament %s automation is %s; skipping competing trigger',
+            tournament.pk, tournament.automation_status,
+        )
+        return
+
+    try:
+        result = TournamentEngine(tournament).process_automation()
+        if result:
+            logger.info('Automation successful for tournament %s', tournament.pk)
+        else:
+            logger.warning('Automation returned False for tournament %s', tournament.pk)
+    except Exception:
+        logger.exception('Automation failed for tournament %s', tournament.pk)
