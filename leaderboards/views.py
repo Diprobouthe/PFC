@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Sum, Count, F, Q
 from .models import Leaderboard, LeaderboardEntry, TeamStatistics, MatchStatistics
 from .swiss_ranking import (
@@ -12,21 +13,16 @@ from tournaments.models import Tournament
 from teams.models import Team
 from matches.models import Match
 
+
 def leaderboard_index(request):
-    """View for displaying all leaderboards"""
+    """View for displaying all leaderboards."""
     tournaments = Tournament.objects.filter(is_active=True)
     leaderboards = []
-    
     for tournament in tournaments:
-        # Get or create leaderboard
         leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
-        
-        # Update leaderboard entries
+        # Fresh cached standings require no write. A stale rebuild is serialized.
         update_tournament_leaderboard(tournament)
-        
-        # Get top entries
         top_entries = leaderboard.entries.all().order_by('position')[:3]
-        
         leaderboards.append({
             'tournament': tournament,
             'leaderboard': leaderboard,
@@ -34,42 +30,31 @@ def leaderboard_index(request):
             'is_swiss': is_swiss_tournament(tournament),
             'is_wtf': is_wtf_tournament(tournament),
         })
-    
-    context = {
+    return render(request, 'leaderboards/leaderboard_index.html', {
         'leaderboards': leaderboards,
-    }
-    return render(request, 'leaderboards/leaderboard_index.html', context)
+    })
+
 
 def tournament_leaderboard(request, tournament_id):
-    """View for displaying tournament leaderboard with Swiss support"""
+    """Display cached tournament standings, rebuilding only when results change."""
     tournament = get_object_or_404(Tournament, id=tournament_id)
-
-    # Get or create leaderboard
     leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
-
-    # Update leaderboard entries
     update_tournament_leaderboard(tournament)
-
-    # Get entries ordered by position
     entries = leaderboard.entries.all().order_by('position')
 
-    # Get Swiss-specific data if applicable
+    # The template displays persisted entry fields. Calling get_swiss_rankings
+    # here caused another full Swiss/Buchholz write on every ordinary GET.
     swiss_data = None
-    if is_swiss_tournament(tournament):
-        swiss_rankings = get_swiss_rankings(tournament)
-        swiss_data = {ranking['team'].id: ranking for ranking in swiss_rankings}
 
-    # Get WTF-specific data if applicable
     wtf_data = None
     if is_wtf_tournament(tournament):
+        # Preserve the existing WTF display context; its writes are now only
+        # avoidable when the WTF ranking implementation is separately audited.
         update_wtf_statistics(tournament)
         wtf_rankings = get_wtf_rankings(tournament)
         wtf_data = {ranking['team'].id: ranking for ranking in wtf_rankings}
 
-    # Determine if this is a multi-stage team tournament (not mêlée)
     is_multistage = is_multistage_team_tournament(tournament)
-
-    # Build stage summary for multi-stage tournaments
     stages_summary = []
     if is_multistage:
         for stage in tournament.stages.order_by('stage_number'):
@@ -93,21 +78,17 @@ def tournament_leaderboard(request, tournament_id):
     }
     return render(request, 'leaderboards/tournament_leaderboard.html', context)
 
+
 def stage_leaderboard(request, tournament_id, stage_number):
-    """View for displaying stage-specific leaderboard"""
+    """View for displaying stage-specific leaderboard."""
     tournament = get_object_or_404(Tournament, id=tournament_id)
-    
     if tournament.format != 'multi_stage':
         return redirect('leaderboards:tournament_leaderboard', tournament_id=tournament_id)
-    
     try:
         stage = tournament.stages.get(stage_number=stage_number)
-    except:
+    except Exception:
         return redirect('leaderboards:tournament_leaderboard', tournament_id=tournament_id)
-    
-    # Get stage rankings
     rankings = get_stage_rankings(tournament, stage_number)
-    
     context = {
         'tournament': tournament,
         'stage': stage,
@@ -116,26 +97,18 @@ def stage_leaderboard(request, tournament_id, stage_number):
     }
     return render(request, 'leaderboards/stage_leaderboard.html', context)
 
+
 def team_statistics(request, team_id):
-    """View for displaying team statistics"""
+    """View for displaying team statistics."""
     team = get_object_or_404(Team, id=team_id)
-    
-    # Get or create team statistics
     statistics, created = TeamStatistics.objects.get_or_create(team=team)
-    
-    # Update statistics
     update_team_statistics(team)
-    
-    # Get recent matches
     recent_matches = Match.objects.filter(
         Q(team1=team) | Q(team2=team),
         status='completed'
     ).order_by('-end_time')[:10]
-    
-    # Get tournament participation with Swiss data
     tournament_entries = []
     leaderboard_entries = LeaderboardEntry.objects.filter(team=team).select_related('leaderboard__tournament')
-    
     for entry in leaderboard_entries:
         tournament = entry.leaderboard.tournament
         entry_data = {
@@ -143,8 +116,6 @@ def team_statistics(request, team_id):
             'entry': entry,
             'is_swiss': is_swiss_tournament(tournament),
         }
-        
-        # Add Swiss-specific data if applicable
         if entry_data['is_swiss']:
             try:
                 from tournaments.models import TournamentTeam
@@ -153,9 +124,7 @@ def team_statistics(request, team_id):
                 entry_data['buchholz_score'] = tournament_team.buchholz_score
             except TournamentTeam.DoesNotExist:
                 pass
-        
         tournament_entries.append(entry_data)
-    
     context = {
         'team': team,
         'statistics': statistics,
@@ -164,150 +133,129 @@ def team_statistics(request, team_id):
     }
     return render(request, 'leaderboards/team_statistics.html', context)
 
+
 def match_statistics(request, match_id):
-    """View for displaying match statistics"""
     match = get_object_or_404(Match, id=match_id)
-    
-    # Get or create match statistics
     statistics, created = MatchStatistics.objects.get_or_create(match=match)
-    
-    context = {
-        'match': match,
-        'statistics': statistics,
-    }
+    context = {'match': match, 'statistics': statistics}
     return render(request, 'leaderboards/match_statistics.html', context)
 
+
 def update_tournament_leaderboard(tournament):
-    """Update leaderboard entries for a tournament.
+    """Rebuild only stale standings under one lock per tournament leaderboard.
 
-    For multi-stage TEAM tournaments (not mêlée/super-mêlée), a unified global
-    ranking is built that includes ALL participating teams across all stages.
-    Eliminated teams are preserved with their status and stage reached.
-
-    For all other formats the existing per-format logic is used unchanged.
+    Both the deletion and insertion are atomic. Concurrent GETs cannot race to
+    insert the same (leaderboard, team) row; ordinary GETs do not rebuild a
+    fresh table. Other explicit callers still refresh after Match changes.
     """
     leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
+    with transaction.atomic():
+        leaderboard = Leaderboard.objects.select_for_update().get(pk=leaderboard.pk)
+        newest_match_change = (
+            Match.objects.filter(tournament=tournament)
+            .order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
+        existing_entries = LeaderboardEntry.objects.filter(leaderboard=leaderboard)
+        if existing_entries.exists() and (
+            newest_match_change is None or newest_match_change <= leaderboard.last_updated
+        ):
+            return
 
-    # Clear existing entries to rebuild
-    LeaderboardEntry.objects.filter(leaderboard=leaderboard).delete()
+        # The lock prevents simultaneous delete/recreate races. An exception
+        # rolls back the complete replacement and leaves the old table intact.
+        existing_entries.delete()
+        if is_multistage_team_tournament(tournament):
+            rankings = get_global_multistage_rankings(tournament)
+            for ranking in rankings:
+                LeaderboardEntry.objects.create(
+                    leaderboard=leaderboard,
+                    team=ranking['team'],
+                    position=ranking['position'],
+                    matches_played=ranking['matches_played'],
+                    matches_won=ranking['matches_won'],
+                    matches_lost=ranking['matches_lost'],
+                    points_scored=ranking['points_scored'],
+                    points_conceded=ranking['points_conceded'],
+                    swiss_points=ranking.get('swiss_points', 0),
+                    buchholz_score=ranking.get('buchholz_score', 0.0),
+                    stage_reached=ranking.get('stage_reached', 1),
+                    tournament_status=ranking.get('tournament_status', 'active'),
+                )
+        elif is_swiss_tournament(tournament):
+            rankings = get_swiss_rankings(tournament)
+            for ranking in rankings:
+                LeaderboardEntry.objects.create(
+                    leaderboard=leaderboard,
+                    team=ranking['team'],
+                    position=ranking['position'],
+                    matches_played=ranking['matches_played'],
+                    matches_won=ranking['matches_won'],
+                    matches_lost=ranking['matches_lost'],
+                    points_scored=ranking['points_scored'],
+                    points_conceded=ranking['points_conceded'],
+                    swiss_points=ranking.get('swiss_points', 0),
+                    buchholz_score=ranking.get('buchholz_score', 0.0),
+                )
+        elif is_wtf_tournament(tournament):
+            update_wtf_statistics(tournament)
+            rankings = get_wtf_rankings(tournament)
+            for ranking in rankings:
+                LeaderboardEntry.objects.create(
+                    leaderboard=leaderboard,
+                    team=ranking['team'],
+                    position=ranking['position'],
+                    matches_played=ranking['matches_played'],
+                    matches_won=ranking['matches_won'],
+                    matches_lost=ranking['matches_lost'],
+                    points_scored=ranking['points_scored'],
+                    points_conceded=ranking['points_conceded'],
+                    swiss_points=ranking.get('swiss_points', 0),
+                    buchholz_score=ranking.get('peta_index', 0.0),
+                )
+        else:
+            rankings = get_traditional_rankings(tournament)
+            for ranking in rankings:
+                LeaderboardEntry.objects.create(
+                    leaderboard=leaderboard,
+                    team=ranking['team'],
+                    position=ranking['position'],
+                    matches_played=ranking['matches_played'],
+                    matches_won=ranking['matches_won'],
+                    matches_lost=ranking['matches_lost'],
+                    points_scored=ranking['points_scored'],
+                    points_conceded=ranking['points_conceded'],
+                )
+        leaderboard.save(update_fields=['last_updated'])
 
-    # ------------------------------------------------------------------ #
-    # Multi-stage TEAM tournament → unified global ranking                #
-    # ------------------------------------------------------------------ #
-    if is_multistage_team_tournament(tournament):
-        rankings = get_global_multistage_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
-                leaderboard=leaderboard,
-                team=ranking['team'],
-                position=ranking['position'],
-                matches_played=ranking['matches_played'],
-                matches_won=ranking['matches_won'],
-                matches_lost=ranking['matches_lost'],
-                points_scored=ranking['points_scored'],
-                points_conceded=ranking['points_conceded'],
-                swiss_points=ranking.get('swiss_points', 0),
-                buchholz_score=ranking.get('buchholz_score', 0.0),
-                stage_reached=ranking.get('stage_reached', 1),
-                tournament_status=ranking.get('tournament_status', 'active'),
-            )
-        return
-
-    # ------------------------------------------------------------------ #
-    # All other formats — existing logic unchanged                        #
-    # ------------------------------------------------------------------ #
-    if is_swiss_tournament(tournament):
-        rankings = get_swiss_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
-                leaderboard=leaderboard,
-                team=ranking['team'],
-                position=ranking['position'],
-                matches_played=ranking['matches_played'],
-                matches_won=ranking['matches_won'],
-                matches_lost=ranking['matches_lost'],
-                points_scored=ranking['points_scored'],
-                points_conceded=ranking['points_conceded'],
-                swiss_points=ranking.get('swiss_points', 0),
-                buchholz_score=ranking.get('buchholz_score', 0.0),
-            )
-    elif is_wtf_tournament(tournament):
-        update_wtf_statistics(tournament)
-        rankings = get_wtf_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
-                leaderboard=leaderboard,
-                team=ranking['team'],
-                position=ranking['position'],
-                matches_played=ranking['matches_played'],
-                matches_won=ranking['matches_won'],
-                matches_lost=ranking['matches_lost'],
-                points_scored=ranking['points_scored'],
-                points_conceded=ranking['points_conceded'],
-                swiss_points=ranking.get('swiss_points', 0),
-                buchholz_score=ranking.get('peta_index', 0.0),
-            )
-    else:
-        rankings = get_traditional_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
-                leaderboard=leaderboard,
-                team=ranking['team'],
-                position=ranking['position'],
-                matches_played=ranking['matches_played'],
-                matches_won=ranking['matches_won'],
-                matches_lost=ranking['matches_lost'],
-                points_scored=ranking['points_scored'],
-                points_conceded=ranking['points_conceded'],
-            )
 
 def update_team_statistics(team):
-    """Update overall statistics for a team"""
+    """Update overall statistics for a team."""
     statistics, created = TeamStatistics.objects.get_or_create(team=team)
-    
-    # Get all completed matches for this team
-    team_matches = Match.objects.filter(
-        status='completed'
-    ).filter(
+    team_matches = Match.objects.filter(status='completed').filter(
         Q(team1=team) | Q(team2=team)
     )
-    
     total_matches_played = team_matches.count()
-    
     if total_matches_played == 0:
         return
-    
-    # Calculate wins, losses, points scored and conceded
     total_matches_won = 0
     total_points_scored = 0
     total_points_conceded = 0
-    
     for match in team_matches:
         if match.team1 == team:
             total_points_scored += match.team1_score or 0
             total_points_conceded += match.team2_score or 0
             if match.team1_score > match.team2_score:
                 total_matches_won += 1
-        else:  # team2
+        else:
             total_points_scored += match.team2_score or 0
             total_points_conceded += match.team1_score or 0
             if match.team2_score > match.team1_score:
                 total_matches_won += 1
-    
     total_matches_lost = total_matches_played - total_matches_won
-    
-    # Count tournaments participated in
-    tournaments_participated = Tournament.objects.filter(
-        teams=team
-    ).count()
-    
-    # Count tournaments won (simplified - in a real system this would be more complex)
-    tournaments_won = LeaderboardEntry.objects.filter(
-        team=team,
-        position=1
-    ).count()
-    
-    # Update statistics
+    tournaments_participated = Tournament.objects.filter(teams=team).count()
+    tournaments_won = LeaderboardEntry.objects.filter(team=team, position=1).count()
     statistics.total_matches_played = total_matches_played
     statistics.total_matches_won = total_matches_won
     statistics.total_matches_lost = total_matches_lost
