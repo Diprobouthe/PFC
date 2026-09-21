@@ -212,7 +212,7 @@ DATABASES = {
     "default": dj_database_url.config(
         # Replace sqlite fallback with PostgreSQL if needed, but Render provides DATABASE_URL
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600
+        conn_max_age=0
     )
 }
 
@@ -405,7 +405,7 @@ SHOT_TRACKER_PERMISSIONS = {
     'ALLOW_ANONYMOUS_PRACTICE': False,  # Allow anonymous practice sessions
     'MATCH_PARTICIPANT_ONLY': True,  # Only match participants can track in-game
     'ADMIN_CAN_VIEW_ALL': True,  # Admins can view all sessions
-    'USERS_CAN_DELETE_OWN': True,  # Users can delete their own sessions
+    'USERS_CAN_DELETE_OWN': True,  # Users can delete own sessions
 }
 
 # ============================================================================
