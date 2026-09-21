@@ -46,7 +46,7 @@ if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 # CSRF trusted origins — wildcard sandbox domains + production
 CSRF_TRUSTED_ORIGINS = [
-    # Manus sandbox preview domains — wildcard covers any sandbox URL automatically
+    # Manus sandbox preview domains + production
     'https://*.manus.computer',
     'http://*.manus.computer',
     'https://*.manusvm.computer',
@@ -212,7 +212,7 @@ DATABASES = {
     "default": dj_database_url.config(
         # Replace sqlite fallback with PostgreSQL if needed, but Render provides DATABASE_URL
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600
+        conn_max_age=0
     )
 }
 
@@ -227,10 +227,10 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
 ]
 
@@ -279,7 +279,7 @@ SHOT_TRACKER_ALLOWED_ORIGINS = [
 ]
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
+# https://docs.djangoproject.com/en/5.2/howto/collectstatic/
 # https://whitenoise.readthedocs.io/en/stable/django.html
 
 STATIC_URL = "static/"
@@ -391,11 +391,11 @@ FRIENDLY_GAME_DEFAULT_COURT_COMPLEX_ID = 1
 SHOT_TRACKER_SETTINGS = {
     'MAX_SESSIONS_PER_USER': 10,  # Maximum active sessions per user
     'MAX_SHOTS_PER_SESSION': 1000,  # Maximum shots per session
-    'SESSION_TIMEOUT_HOURS': 24,  # Auto-end sessions after 24 hours
+    'SESSION_TIMEOUT_HOURS': 24,  # Auto-end sessions when session completes
     'RATE_LIMIT_SHOTS_PER_MINUTE': 60,  # Rate limit for shot recording
-    'ENABLE_ACHIEVEMENTS': True,  # Enable achievement system
-    'ENABLE_PRACTICE_MODE': True,  # Enable practice mode
-    'ENABLE_INGAME_MODE': True,  # Enable in-game mode
+    'ENABLE_ACHIEVEMENTS': True,
+    'ENABLE_PRACTICE_MODE': True,
+    'ENABLE_INGAME_MODE': True,
     'AUTO_END_MATCH_SESSIONS': True,  # Auto-end sessions when match completes
 }
 
