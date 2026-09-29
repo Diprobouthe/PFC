@@ -1,5 +1,6 @@
 from pfc_core.media_uploads import match_evidence_photo_path
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from courts.models import Court
@@ -10,6 +11,11 @@ from .models_participant import TeamMatchParticipant
 
 class Match(models.Model):
     """Match model for storing match information"""
+    # These states are terminal only for deciding whether every scheduled Match
+    # in a Round has reached an end state.  ``cancelled`` deliberately remains
+    # excluded from result-derived standings, winner, and rating projections.
+    ROUND_TERMINAL_STATUSES = ("completed", "cancelled")
+
     STATUS_CHOICES = [
         ("pending", _("Pending")),
         ("pending_verification", _("Pending Verification")),
@@ -106,6 +112,18 @@ class Match(models.Model):
         help_text="True when team2 has submitted and locked their lineup for this VS sub-game",
     )
 
+    class Meta:
+        constraints = [
+            # A Court can be occupied by only one live tournament Match. A Match
+            # in result validation remains on court until the result is accepted
+            # or rejected, so it is included in the live occupancy domain.
+            models.UniqueConstraint(
+                fields=("court",),
+                condition=Q(status__in=("active", "waiting_validation")),
+                name="one_live_match_per_court",
+            ),
+        ]
+
     @property
     def is_draw(self):
         """Check if the match ended in a draw (tie)"""
@@ -161,74 +179,20 @@ class Match(models.Model):
         return f"{self.team1.name} vs {self.team2.name} ({self.tournament.name} {stage_info} {round_info})"
     
     def complete_match(self, team1_score, team2_score):
-        """Marks the match as completed and determines winner/loser."""
-        # Always update scores and winner/loser, even if already completed
-        self.team1_score = team1_score
-        self.team2_score = team2_score
-        
-        # Only update status and timing if not already completed
-        if self.status != "completed":
-            self.status = "completed"
-            # Use court-local time if a court complex is available
-            if self.court:
-                try:
-                    from courts.timezone_utils import get_court_local_now
-                    _complex = self.court.courtcomplex_set.first()
-                    self.end_time = get_court_local_now(_complex) if _complex else timezone.now()
-                except Exception:
-                    self.end_time = timezone.now()
-            else:
-                self.end_time = timezone.now()
-            if self.start_time:
-                self.duration = self.end_time - self.start_time
-        
-        if team1_score > team2_score:
-            self.winner = self.team1
-            self.loser = self.team2
-        elif team2_score > team1_score:
-            self.winner = self.team2
-            self.loser = self.team1
-        else:
-            # Handle draws if applicable, otherwise mark as needing resolution
-            self.winner = None
-            self.loser = None
-            print(f"Warning: Match {self.id} ended in a draw ({team1_score}-{team2_score}). Winner/Loser not set.")
-        
-        # Release the court when match is completed
-        if self.court:
-            self.court.is_available = True
-            self.court.save(update_fields=["is_available"])
-            print(f"Released court {self.court.number} after match {self.id} completion")
-            
-        self.save()
-        try:
-            from match_tracking.services import end_tracking_sessions
-            end_tracking_sessions('match', self.id, 'match_completed')
-        except Exception:
-            pass  # Tracking cleanup must never block core match completion.
-        print(f"Match {self.id} completed. Winner: {self.winner}, Loser: {self.loser}")
-        
-        # Update mêlée player stats if this is a mêlée tournament
-        self._update_melee_stats()
-        
-        # Trigger knockout tournament automation if applicable
-        self._trigger_knockout_automation()
+        """Compatibility bridge to the guarded official-result lifecycle.
 
-        # Preserve activation-onward player history only after the existing
-        # completion and Mêlée-stat steps have finished. This alternate service
-        # path may not run the normal rating integration, so the history service
-        # records a null rating snapshot rather than inventing one.
-        try:
-            from tournaments.player_history import record_finalized_tournament_history
+        Direct completion previously wrote Match, Court, and tournament
+        progression independently.  Retaining the public method avoids a
+        surprise API break while ensuring its only reachable behavior is the
+        same serialized transition used by normal validation.
+        """
+        from .lifecycle import complete_match_from_legacy_api
 
-            record_finalized_tournament_history(
-                self.tournament,
-                include_melee_awards=bool(self.tournament and self.tournament.is_melee),
-            )
-        except Exception:
-            # Match completion remains authoritative; history projection is an
-            # idempotent best-effort follow-up and must never block it.
-            print(f"Warning: tournament history projection failed for match {self.id}")
+        return complete_match_from_legacy_api(
+            self.pk,
+            team1_score=team1_score,
+            team2_score=team2_score,
+        )
     
     def _update_melee_stats(self):
         """
@@ -319,6 +283,53 @@ class MatchResult(models.Model):
     
     def __str__(self):
         return f"Result for {self.match}"
+
+
+class MatchLifecycleTransition(models.Model):
+    """Durable, exactly-once tournament follow-up for a finalized Match.
+
+    The official result transition is committed first.  The corresponding
+    tournament recalculation, round progression, Super Mêlée preparation, and
+    leaderboard rebuild are then claimed through this one-to-one record.  It
+    prevents a later ``Match.save()`` or a concurrent result request from
+    repeating tournament side effects.
+    """
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    STATUS_CHOICES = [
+        (PENDING, "Pending"),
+        (PROCESSING, "Processing"),
+        (COMPLETED, "Completed"),
+        (FAILED, "Failed"),
+    ]
+
+    match = models.OneToOneField(
+        Match,
+        related_name="lifecycle_transition",
+        on_delete=models.CASCADE,
+    )
+    tournament = models.ForeignKey(
+        "tournaments.Tournament",
+        related_name="match_lifecycle_transitions",
+        on_delete=models.CASCADE,
+    )
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=PENDING)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("tournament", "status"), name="match_transition_status_idx"),
+        ]
+
+    def __str__(self):
+        return f"Match {self.match_id} transition ({self.status})"
 
 class NextOpponentRequest(models.Model):
     """Model for tracking next opponent requests"""

@@ -64,6 +64,37 @@ def _next_url_for_player(player, match_type):
         return None
 
 
+def _next_url_for_tournament_match_player(match, player, side=None):
+    """Build the recipient's direct current-Match destination without discovery.
+
+    A Match state event already has the authoritative Match and its exact
+    roster. Consulting the global Smart Router here multiplied database work by
+    participant count and could redirect to an unrelated Match.
+    """
+    from django.urls import reverse
+    if side is None:
+        from matches.melee_roster_resolution import resolve_player_match_side
+        side = resolve_player_match_side(match, player)
+    if side is None:
+        return reverse("match_detail", kwargs={"match_id": match.id})
+    if match.status == "waiting_validation":
+        try:
+            if match.result.submitted_by_id != side.id:
+                return reverse(
+                    "match_validate_result",
+                    kwargs={"match_id": match.id, "team_id": side.id},
+                )
+        except Exception:
+            pass
+    if match.status == "active":
+        try:
+            if match.live_scoreboard.is_active:
+                return reverse("scoreboard_detail", kwargs={"scoreboard_id": match.live_scoreboard.id})
+        except Exception:
+            pass
+    return reverse("match_detail", kwargs={"match_id": match.id})
+
+
 # ---------------------------------------------------------------------------
 # Internal: low-level group_send wrapper
 # ---------------------------------------------------------------------------
@@ -145,20 +176,33 @@ def _broadcast_to_all(match_type: str, object_id: int, new_status: str,
                 except Exception as exc:
                     logger.warning("Could not iterate team %s players: %s", getattr(team, 'id', '?'), exc)
 
-    # 3. Personal broadcast per player
+    # 3. Personal broadcast per player. PlayerCodename intentionally has no
+    # reverse ``Player.codenames`` relation, so resolve all concrete recipients
+    # in one explicit query rather than issuing a broken prefetch/N+1 lookup.
+    from collections import defaultdict
+    from friendly_games.models import PlayerCodename
+
+    recipient_ids = {player.id for player, _side in player_list if player and player.id}
+    codenames_by_player_id = defaultdict(list)
+    for player_id, codename in PlayerCodename.objects.filter(
+        player_id__in=recipient_ids
+    ).values_list("player_id", "codename"):
+        codenames_by_player_id[player_id].append(codename)
+
     sent_player_ids = set()
-    for player, _legacy_player_team in player_list:
+    for player, recipient_side in player_list:
         if player.id in sent_player_ids:
             continue
         sent_player_ids.add(player.id)
-        try:
-            codenames = list(player.codenames.values_list('codename', flat=True))
-        except Exception:
-            continue
+        codenames = codenames_by_player_id.get(player.id, [])
         if not codenames:
             continue
 
-        next_url = _next_url_for_player(player, match_type)
+        next_url = (
+            _next_url_for_tournament_match_player(match, player, recipient_side)
+            if match_type == "match" and match is not None
+            else _next_url_for_player(player, match_type)
+        )
         personal_payload = {
             "type":       "match.state_changed",
             "match_type": match_type,
@@ -185,7 +229,9 @@ def notify_match_state_changed(match_id: int, new_status: str, match=None):
     if match is None:
         try:
             from matches.models import Match
-            match = Match.objects.select_related('team1', 'team2').get(pk=match_id)
+            match = Match.objects.select_related(
+                'team1', 'team2', 'live_scoreboard', 'result'
+            ).get(pk=match_id)
         except Exception as exc:
             logger.warning("notify_match_state_changed: cannot load match %s: %s", match_id, exc)
             # Degrade gracefully — shared group only, no personal routing
@@ -214,6 +260,34 @@ def notify_match_state_changed(match_id: int, new_status: str, match=None):
     # tracking events continue to update a single card in-place.
     from pfc_events.tournament_overview import broadcast_structure_refresh
     broadcast_structure_refresh(match.tournament_id)
+
+
+def notify_match_shared_state_changed(
+    match_id: int,
+    new_status: str,
+    *,
+    tournament_id: int | None = None,
+):
+    """Broadcast a Match page refresh without per-player route discovery.
+
+    A Court queue update does not require personal navigation: participants who
+    are already watching the concrete Match page receive its shared event and
+    readers who open it later load its authoritative database state. This keeps
+    a large Round's waiting-Court release from multiplying player/roster reads.
+    """
+    channel_layer = get_channel_layer()
+    if channel_layer:
+        _group_send(channel_layer, f"match_{match_id}", {
+            "type": "match.state_changed",
+            "match_type": "match",
+            "match_id": match_id,
+            "new_status": new_status,
+            "next_url": None,
+            "state_url": f"/matches/detail/{match_id}/",
+        })
+    if tournament_id:
+        from pfc_events.tournament_overview import broadcast_structure_refresh
+        broadcast_structure_refresh(tournament_id)
 
 
 def notify_game_state_changed(game_id: int, new_status: str, game=None):

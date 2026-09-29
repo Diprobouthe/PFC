@@ -88,62 +88,27 @@ def auto_assign_waiting_matches_when_court_available(sender, instance, created, 
     Automatically assign waiting matches to courts when a court becomes available.
     This signal runs when a Court's is_available field changes to True.
     """
-    # Only trigger if court becomes available (not when created)
-    if not created and instance.is_available:
-        try:
-            from .models import Match
-            from .utils import auto_assign_court
-            from django.utils import timezone
-            
-            # Find matches waiting for courts
-            waiting_matches = Match.objects.filter(
-                status="pending_verification",
-                waiting_for_court=True
-            ).order_by("created_at")
-            
-            if waiting_matches.exists():
-                logger.info(f"Court {instance.name} became available, checking {waiting_matches.count()} waiting matches")
-                
-                for match in waiting_matches:
-                    # Try to assign this court or any other available court
-                    assigned_court = auto_assign_court(match)
-                    
-                    if assigned_court:
-                        # Court assigned - activate the match
-                        match.status = "active"
-                        # Use court-local time so start_time reflects the venue's local clock
-                        try:
-                            from courts.timezone_utils import get_court_local_now
-                            _complex = assigned_court.courtcomplex_set.first()
-                            match.start_time = get_court_local_now(_complex) if _complex else timezone.now()
-                        except Exception:
-                            match.start_time = timezone.now()
-                        match.waiting_for_court = False
-                        match.save()
+    # The lifecycle service owns Court locks and queue promotion. Delay the
+    # attempt until the availability change has committed so this signal never
+    # competes with the transaction that released the Court.
+    if getattr(instance, "_lifecycle_skip_auto_promotion", False):
+        return
 
-                        # This automatic promotion bypasses normal Match views,
-                        # so emit the same post-commit lifecycle broadcast used by
-                        # player-driven state transitions. It is not a Push action.
-                        from pfc_events.signals import notify_match_state_changed
-                        transaction.on_commit(
-                            lambda match_id=match.pk: notify_match_state_changed(match_id, "active")
-                        )
-                        
-                        # Auto-register players to Billboard when match starts
-                        try:
-                            from .views import auto_register_players_to_billboard
-                            auto_register_players_to_billboard(match)
-                        except Exception as e:
-                            logger.error(f"Failed to auto-register players for match {match.id} upon court assignment: {e}")
-                        
-                        logger.info(f"Auto-assigned court {assigned_court.name} to waiting match {match.id} and activated it")
-                        
-                        # Only assign one match per court availability event
-                        break
-                    
-        except Exception as e:
-            # Log the error but don't let it break court operations
-            logger.error(f"Failed to auto-assign waiting matches when court {instance.name} became available: {e}")
+    if not created and instance.is_available:
+        court_id = instance.pk
+
+        def promote_after_commit():
+            try:
+                from .lifecycle import promote_one_waiting_match
+
+                promote_one_waiting_match(preferred_court_id=court_id)
+            except Exception:
+                logger.exception(
+                    "Failed to promote a waiting Match after Court %s became available",
+                    court_id,
+                )
+
+        transaction.on_commit(promote_after_commit)
 
 
 
@@ -161,22 +126,8 @@ def update_vs_encounter_on_match_complete(sender, instance, created, **kwargs):
       - It exits immediately if the match has no vs_encounter FK.
       - It does NOT touch any Mêlée, Super Mêlée, or Friendly Game logic.
     """
-    if created:
-        return  # Only care about status changes, not new match creation
-
-    if instance.status != "completed":
-        return  # Only act when the match just became completed
-
-    if not instance.vs_encounter_id:
-        return  # Not a VS sub-game — do nothing
-
-    try:
-        from tournaments.vs_utils import update_vs_encounter_points
-        update_vs_encounter_points(instance.vs_encounter)
-    except Exception as exc:
-        logger.error(
-            "VS Mode: failed to update encounter points for match %s (encounter %s): %s",
-            instance.pk,
-            instance.vs_encounter_id,
-            exc,
-        )
+    # The Match lifecycle transition calls ``update_vs_encounter_points`` once
+    # after it claims the completed Match. A generic post-save hook cannot tell
+    # a first completion from a later save and therefore must not repeat the
+    # projection.
+    return

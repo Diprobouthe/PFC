@@ -38,7 +38,16 @@ class LeaderboardEntry(models.Model):
     )
 
     class Meta:
-        unique_together = ('leaderboard', 'team')
+        constraints = [
+            models.UniqueConstraint(
+                fields=('leaderboard', 'team'),
+                name='unique_leaderboard_entry_team',
+            ),
+            models.UniqueConstraint(
+                fields=('leaderboard', 'position'),
+                name='unique_leaderboard_entry_position',
+            ),
+        ]
         ordering = ['position']
     
     def __str__(self):

@@ -57,7 +57,7 @@ def find_available_courts(tournament=None):
 
 @user_passes_test(is_staff)
 def assign_court(request, match_id):
-    """ Allows staff to manually assign an available court to a match. """
+    """Staff Court assignment through the same guarded Match lifecycle."""
     match = get_object_or_404(Match, id=match_id)
 
     # Find available courts to present as options
@@ -67,22 +67,17 @@ def assign_court(request, match_id):
         court_id = request.POST.get('court_id')
         if court_id:
             try:
-                court = get_object_or_404(Court, id=court_id)
-                # Double-check if the selected court is still available
-                if not court.is_available:
-                    messages.error(request, f"Court {court.number} ({court}) is currently in use. Please select another court.")
-                else:
-                    # Assign court to the match
-                    match.court = court
-                    match.save()
-                    # Note: Marking the court as active (is_active=True) should likely happen
-                    # when the match status becomes 'active', not just upon assignment.
-                    # This logic might need adjustment in the match status update process.
-                    messages.success(request, f"Match {match.id} assigned to Court {court.number} ({court}).")
-                    # Redirect to match detail or tournament dashboard, adjust as needed
-                    return redirect('admin:matches_match_changelist') # Redirecting to admin match list for now
-            except Court.DoesNotExist:
+                from matches.lifecycle import MatchLifecycleError, assign_staff_court_and_activate
+
+                outcome = assign_staff_court_and_activate(match.id, int(court_id))
+                if outcome.activated:
+                    messages.success(request, f"Match {match.id} activated on the selected Court.")
+                    return redirect('admin:matches_match_changelist')
+                messages.warning(request, "The selected Court could not be claimed for this Match.")
+            except (Court.DoesNotExist, ValueError):
                 messages.error(request, "Selected court not found.")
+            except MatchLifecycleError as exc:
+                messages.error(request, str(exc))
         else:
             messages.warning(request, "No court was selected.")
 
@@ -93,34 +88,10 @@ def assign_court(request, match_id):
     })
 
 def auto_assign_court(match):
-    """
-    Automatically assign an available court to a match, prioritizing tournament courts if applicable.
-    Returns the assigned Court object or None if no court could be assigned.
-    """
-    # Check if match already has a court
-    if match.court:
-        print(f"Match {match.id} already has court {match.court.number}")
-        return match.court # Return existing court if already assigned
+    """Deprecated compatibility wrapper for the centralized allocator."""
+    from matches.utils import auto_assign_court as lifecycle_auto_assign_court
 
-    # Find available courts (is_available=True means empty/available)
-    tournament = match.tournament if hasattr(match, 'tournament') else None
-    available_courts = find_available_courts(tournament)
-
-    if available_courts.exists():
-        # Assign the first available court found
-        court_to_assign = available_courts.first()
-        match.court = court_to_assign
-        
-        # IMPORTANT: Mark the court as occupied
-        court_to_assign.is_available = False
-        court_to_assign.save()
-        
-        match.save()
-        print(f"Auto-assigned Court {court_to_assign.number} to Match {match.id} and marked as in use")
-        return court_to_assign
-    else:
-        print(f"No available courts found for Match {match.id}")
-        return None
+    return lifecycle_auto_assign_court(match)
 
 
 
@@ -296,4 +267,3 @@ def submit_rating(request, complex_id):
         return JsonResponse({'error': 'Invalid data'}, status=400)
     except Exception:
         return JsonResponse({'error': 'An error occurred'}, status=500)
-

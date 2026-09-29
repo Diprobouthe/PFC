@@ -432,12 +432,14 @@ def shuffle_melee_players(
 
 
 def check_if_specific_round_complete(tournament, round_obj):
-    """Return whether every Match for one concrete Round is completed."""
+    """Return whether every Match for one concrete Round is terminal."""
     from matches.models import Match
 
     try:
         matches = Match.objects.filter(round=round_obj)
-        return matches.exists() and not matches.exclude(status="completed").exists()
+        return matches.exists() and not matches.exclude(
+            status__in=Match.ROUND_TERMINAL_STATUSES
+        ).exists()
     except Exception as exc:
         logger.error("Error checking round completion: %s", exc)
         return False

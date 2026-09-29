@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Sum, Count, F, Q
 from .models import Leaderboard, LeaderboardEntry, TeamStatistics, MatchStatistics
 from .swiss_ranking import (
@@ -18,11 +19,12 @@ def leaderboard_index(request):
     leaderboards = []
     
     for tournament in tournaments:
-        # Get or create leaderboard
-        leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
-        
-        # Update leaderboard entries
-        update_tournament_leaderboard(tournament)
+        # Public GET is strictly read-only. Round publication creates or
+        # refreshes this projection; an unopened/new tournament simply has no
+        # published leaderboard yet.
+        leaderboard = Leaderboard.objects.filter(tournament=tournament).first()
+        if leaderboard is None:
+            continue
         
         # Get top entries
         top_entries = leaderboard.entries.all().order_by('position')[:3]
@@ -44,27 +46,37 @@ def tournament_leaderboard(request, tournament_id):
     """View for displaying tournament leaderboard with Swiss support"""
     tournament = get_object_or_404(Tournament, id=tournament_id)
 
-    # Get or create leaderboard
-    leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
-
-    # Update leaderboard entries
-    update_tournament_leaderboard(tournament)
+    # A viewer never creates, locks, deletes, or rebuilds shared state.
+    leaderboard = Leaderboard.objects.filter(tournament=tournament).first()
 
     # Get entries ordered by position
-    entries = leaderboard.entries.all().order_by('position')
+    entries = (
+        leaderboard.entries.all().order_by('position')
+        if leaderboard is not None
+        else LeaderboardEntry.objects.none()
+    )
 
     # Get Swiss-specific data if applicable
     swiss_data = None
     if is_swiss_tournament(tournament):
-        swiss_rankings = get_swiss_rankings(tournament)
-        swiss_data = {ranking['team'].id: ranking for ranking in swiss_rankings}
+        swiss_data = {
+            entry.team_id: {
+                'swiss_points': entry.swiss_points,
+                'buchholz_score': entry.buchholz_score,
+            }
+            for entry in entries
+        }
 
     # Get WTF-specific data if applicable
     wtf_data = None
     if is_wtf_tournament(tournament):
-        update_wtf_statistics(tournament)
-        wtf_rankings = get_wtf_rankings(tournament)
-        wtf_data = {ranking['team'].id: ranking for ranking in wtf_rankings}
+        wtf_data = {
+            entry.team_id: {
+                'swiss_points': entry.swiss_points,
+                'peta_index': entry.buchholz_score,
+            }
+            for entry in entries
+        }
 
     # Determine if this is a multi-stage team tournament (not mêlée)
     is_multistage = is_multistage_team_tournament(tournament)
@@ -177,27 +189,35 @@ def match_statistics(request, match_id):
     }
     return render(request, 'leaderboards/match_statistics.html', context)
 
-def update_tournament_leaderboard(tournament):
-    """Update leaderboard entries for a tournament.
+def publish_tournament_leaderboard(tournament):
+    """Publish a tournament leaderboard from a protected Round transition.
 
-    For multi-stage TEAM tournaments (not mêlée/super-mêlée), a unified global
-    ranking is built that includes ALL participating teams across all stages.
-    Eliminated teams are preserved with their status and stage reached.
-
-    For all other formats the existing per-format logic is used unchanged.
+    Only lifecycle/projection code calls this mutator. Public GET handlers read
+    the last completed Round's projection without taking write locks.
     """
-    leaderboard, created = Leaderboard.objects.get_or_create(tournament=tournament)
+    with transaction.atomic():
+        locked_tournament = Tournament.objects.select_for_update(of=("self",)).get(
+            pk=tournament.pk
+        )
+        leaderboard, _ = Leaderboard.objects.get_or_create(tournament=locked_tournament)
+        Leaderboard.objects.select_for_update(of=("self",)).get(pk=leaderboard.pk)
+        return _rebuild_tournament_leaderboard_locked(locked_tournament, leaderboard)
 
-    # Clear existing entries to rebuild
+
+# Compatibility for explicit administration code. It must not be called from a
+# normal GET view; new lifecycle code uses the clearer publication name above.
+update_tournament_leaderboard = publish_tournament_leaderboard
+
+
+def _rebuild_tournament_leaderboard_locked(tournament, leaderboard):
+    """Replace one tournament's published projection with batched writes."""
     LeaderboardEntry.objects.filter(leaderboard=leaderboard).delete()
+    entries_to_create = []
 
-    # ------------------------------------------------------------------ #
-    # Multi-stage TEAM tournament → unified global ranking                #
-    # ------------------------------------------------------------------ #
     if is_multistage_team_tournament(tournament):
         rankings = get_global_multistage_rankings(tournament)
         for ranking in rankings:
-            LeaderboardEntry.objects.create(
+            entries_to_create.append(LeaderboardEntry(
                 leaderboard=leaderboard,
                 team=ranking['team'],
                 position=ranking['position'],
@@ -210,16 +230,10 @@ def update_tournament_leaderboard(tournament):
                 buchholz_score=ranking.get('buchholz_score', 0.0),
                 stage_reached=ranking.get('stage_reached', 1),
                 tournament_status=ranking.get('tournament_status', 'active'),
-            )
-        return
-
-    # ------------------------------------------------------------------ #
-    # All other formats — existing logic unchanged                        #
-    # ------------------------------------------------------------------ #
-    if is_swiss_tournament(tournament):
-        rankings = get_swiss_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
+            ))
+    elif is_swiss_tournament(tournament):
+        for ranking in get_swiss_rankings(tournament):
+            entries_to_create.append(LeaderboardEntry(
                 leaderboard=leaderboard,
                 team=ranking['team'],
                 position=ranking['position'],
@@ -230,12 +244,11 @@ def update_tournament_leaderboard(tournament):
                 points_conceded=ranking['points_conceded'],
                 swiss_points=ranking.get('swiss_points', 0),
                 buchholz_score=ranking.get('buchholz_score', 0.0),
-            )
+            ))
     elif is_wtf_tournament(tournament):
         update_wtf_statistics(tournament)
-        rankings = get_wtf_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
+        for ranking in get_wtf_rankings(tournament):
+            entries_to_create.append(LeaderboardEntry(
                 leaderboard=leaderboard,
                 team=ranking['team'],
                 position=ranking['position'],
@@ -246,11 +259,10 @@ def update_tournament_leaderboard(tournament):
                 points_conceded=ranking['points_conceded'],
                 swiss_points=ranking.get('swiss_points', 0),
                 buchholz_score=ranking.get('peta_index', 0.0),
-            )
+            ))
     else:
-        rankings = get_traditional_rankings(tournament)
-        for ranking in rankings:
-            LeaderboardEntry.objects.create(
+        for ranking in get_traditional_rankings(tournament):
+            entries_to_create.append(LeaderboardEntry(
                 leaderboard=leaderboard,
                 team=ranking['team'],
                 position=ranking['position'],
@@ -259,7 +271,10 @@ def update_tournament_leaderboard(tournament):
                 matches_lost=ranking['matches_lost'],
                 points_scored=ranking['points_scored'],
                 points_conceded=ranking['points_conceded'],
-            )
+            ))
+
+    LeaderboardEntry.objects.bulk_create(entries_to_create, batch_size=250)
+    return leaderboard
 
 def update_team_statistics(team):
     """Update overall statistics for a team"""

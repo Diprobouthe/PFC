@@ -25,6 +25,13 @@ from .melee_roster_resolution import (
     resolve_player_match_side,
 )
 from .starting_team import announce_match_starting_team, match_has_first_real_score
+from .lifecycle import (
+    MatchLifecycleError,
+    activate_verified_match,
+    submit_official_result,
+    validate_official_result,
+)
+from .authorization import request_has_match_side_access
 
 logger = logging.getLogger(__name__)
 
@@ -310,20 +317,17 @@ def match_detail(request, match_id):
                 opponent_team = match.team2 if my_team == match.team1 else match.team1
         except (PlayerCodename.DoesNotExist, Exception):
             pass
-    # Priority 2: fall back to team PIN session (non-player sessions, e.g. admin/coach)
+    # Priority 2: fall back to PFC's established Team-session formats. This
+    # includes the normal Team-management PIN login, which persists ``team_id``
+    # rather than a duplicate browser-supplied Match/team value.
     if my_team is None:
-        team_pin = request.session.get("team_pin")
-        if team_pin:
-            try:
-                team_obj = Team.objects.get(pin=team_pin)
-                if team_obj == match.team1:
-                    my_team = match.team1
-                    opponent_team = match.team2
-                elif team_obj == match.team2:
-                    my_team = match.team2
-                    opponent_team = match.team1
-            except Team.DoesNotExist:
-                pass
+        from pfc_core.team_access import request_has_team_access
+        if request_has_team_access(request, match.team1):
+            my_team = match.team1
+            opponent_team = match.team2
+        elif request_has_team_access(request, match.team2):
+            my_team = match.team2
+            opponent_team = match.team1
 
     # ---- Activation state ----
     activations = list(match.activations.all())
@@ -410,6 +414,10 @@ def match_detail(request, match_id):
         "opponent_activated": opponent_activated,
         "both_activated": both_activated,
         "activated_teams": activated_teams,
+        "uses_round_lineup_lifecycle": bool(match.round_id),
+        "round_lineups_frozen": bool(
+            match.round_id and match.round.lineups_frozen_at
+        ),
         # Pre-game countdown
         "pregame_seconds_remaining": pregame_seconds_remaining,
         "pregame_end_epoch": pregame_end_epoch,
@@ -516,6 +524,78 @@ def _match_activate(request, match_id, team_id, *, lock_match):
         messages.error(request, "You are not authorised to act on behalf of this team.")
         return redirect("match_detail", match_id=match.id)
     # ───────────────────────────────────────────────────────────────
+
+    # Tournament Matches with a Round no longer use a two-phone Start
+    # handshake. The existing selection form is a server-authorized, editable
+    # lineup form until the persisted Round deadline. This branch deliberately
+    # runs before any legacy MatchActivation record is inspected or written.
+    round_obj = match.round
+    if round_obj and round_obj.lineups_frozen_at is None:
+        if request.method == "POST":
+            if not request_has_match_side_access(request, match, team):
+                messages.error(request, _("You are not authorised to update this lineup."))
+                return redirect("match_detail", match_id=match.id)
+            form = MatchActivationForm(match, team, request.POST)
+            if form.is_valid():
+                from tournaments.lineup_lifecycle import (
+                    LineupLifecycleError,
+                    finalize_round_lineups,
+                    save_match_lineup,
+                )
+
+                roles = {
+                    player.id: form.cleaned_data.get(f"role_{player.id}", "flex") or "flex"
+                    for player in form.cleaned_data["players"]
+                }
+                try:
+                    save_match_lineup(
+                        match_id=match.id,
+                        acting_team_id=team.id,
+                        player_ids=[player.id for player in form.cleaned_data["players"]],
+                        roles_by_player_id=roles,
+                    )
+                except LineupLifecycleError as exc:
+                    # A deadline can pass between the GET and this POST. Let
+                    # the same idempotent server finalizer settle the Round;
+                    # no browser action controls the outcome.
+                    finalize_round_lineups(round_obj.id)
+                    messages.info(request, str(exc))
+                else:
+                    messages.success(request, _("Lineup saved. You may update it until the selection window closes."))
+                return redirect("match_detail", match_id=match.id)
+        else:
+            form = MatchActivationForm(match, team)
+
+        required_count = None
+        allowed = (tournament.allowed_match_types or {}).get("allowed_match_types", [])
+        if len(allowed) == 1:
+            required_count = {"tete_a_tete": 1, "doublet": 2, "triplet": 3}.get(allowed[0])
+        team_players = list(players_for_match_team(match, team).select_related("profile"))
+        existing_lineup = {
+            row.player_id: row.role
+            for row in MatchPlayer.objects.filter(match=match, team=team)
+        }
+        team_players_with_pos = []
+        for player in team_players:
+            try:
+                position = existing_lineup.get(player.id) or player.profile.preferred_position or "milieu"
+            except Exception:
+                position = existing_lineup.get(player.id) or "milieu"
+            team_players_with_pos.append({"player": player, "preferred_position": position})
+        return render(request, "matches/match_activate.html", {
+            "match": match,
+            "team": team,
+            "form": form,
+            "lineup_window_open": True,
+            "lineup_deadline_epoch": int(round_obj.lineup_deadline_at.timestamp() * 1000) if round_obj.lineup_deadline_at else None,
+            "team_pin": team.pin,
+            "team_players_with_pos": team_players_with_pos,
+            "selected_player_ids": set(existing_lineup),
+            "auto_preselect": not existing_lineup and required_count is not None and len(team_players) == required_count,
+            "required_count": required_count,
+            "qr_action_token": get_qr_action_token(request),
+            "pos_choices": [("pointer", _("Pointer")), ("milieu", _("Milieu")), ("tirer", _("Shooter"))],
+        })
 
     existing_activation = match.activations.order_by("activated_at").first()
     is_initiating = not existing_activation
@@ -633,23 +713,17 @@ def _match_activate(request, match_id, team_id, *, lock_match):
 
                 MatchPlayer.objects.filter(match=match).update(match_format=_detected_type)
 
-                # Court assignment
-                _court = auto_assign_court(match)
-                if _court:
-                    match.status = "active"
-                    _cc = _court.courtcomplex_set.first()
-                    match.start_time = get_court_local_now(_cc) if _cc else timezone.now()
-                    match.waiting_for_court = False
-                    match.save()
-                    announce_match_starting_team(match)
-                    notify_match_state_changed(match.id, match.status)
-                    auto_register_players_to_billboard(match)
+                # One transactional lifecycle operation owns Court reservation,
+                # Match activation, and the waiting state.
+                try:
+                    activation_outcome = activate_verified_match(match.id)
+                except MatchLifecycleError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("match_detail", match_id=match.id)
+                match.refresh_from_db()
+                if activation_outcome.activated:
                     messages.success(request, f"Match activated via QR! {get_court_assignment_status(match)}")
                 else:
-                    match.status = "pending_verification"
-                    match.waiting_for_court = True
-                    match.save()
-                    notify_match_state_changed(match.id, match.status)
                     messages.warning(
                         request,
                         "Match activated via QR. No court available yet — "
@@ -795,35 +869,21 @@ def _match_activate(request, match_id, team_id, *, lock_match):
                 messages.success(request, _("Match initiated successfully. Waiting for the other team to validate."))
                 return redirect("match_detail", match_id=match.id)
             elif is_validating:
-                # Try to assign court FIRST before changing match status
-                logger.debug(f"Attempting to call auto_assign_court for match {match.id}")
-                court = auto_assign_court(match)
-
-                if court:
-                    # Court available — activate the match
-                    match.status = "active"
-                    # Use court-local time so start_time reflects the venue's local clock
-                    _court_complex = court.courtcomplex_set.first()
-                    match.start_time = get_court_local_now(_court_complex) if _court_complex else timezone.now()
-                    match.waiting_for_court = False
-                    match.save()
-                    announce_match_starting_team(match)
-                    notify_match_state_changed(match.id, match.status)
-
-                    # Auto-register players to Billboard
-                    auto_register_players_to_billboard(match)
-
+                # Court reservation and activation are one locked lifecycle
+                # transition; a concurrent request cannot claim the same Court.
+                try:
+                    activation_outcome = activate_verified_match(match.id)
+                except MatchLifecycleError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("match_detail", match_id=match.id)
+                match.refresh_from_db()
+                if activation_outcome.activated:
                     status_message = get_court_assignment_status(match)
                     messages.success(request, _("Match validated and activated! %(status)s") % {'status': status_message})
                 else:
-                    # No court available — keep match in waiting state.
-                    # Show a clear, specific message so it is never confused with
-                    # a player/team validation error.
-                    match.waiting_for_court = True
-                    match.save()
                     logger.info(
                         f"Match {match.id} validated but no court available — "
-                        f"set to waiting_for_court"
+                        "the lifecycle service placed it in the waiting queue"
                     )
                     messages.warning(
                         request,
@@ -966,49 +1026,28 @@ def match_submit_result(request, match_id, team_id):
     # ────────────────────────────────────────────────────────────────────────
 
     if request.method == "POST":
+        if not request_has_match_side_access(request, match, team):
+            messages.error(request, _("You are not authorised to submit results for this team."))
+            return redirect("match_detail", match_id=match.id)
         # Inject team PIN silently so user never needs to type it
         post_data = request.POST.copy()
         post_data["pin"] = team.pin
         form = MatchResultForm(match, team, post_data, request.FILES)
         if form.is_valid():
             try:
-                old_result = match.result
-                old_result.delete()
-            except MatchResult.DoesNotExist:
-                pass
-
-            result = MatchResult.objects.create(
-                match=match,
-                submitted_by=team,
-                photo_evidence=form.cleaned_data.get("photo_evidence"),
-                notes=form.cleaned_data.get("notes")
-            )
-
-            match.team1_score = form.cleaned_data["team1_score"]
-            match.team2_score = form.cleaned_data["team2_score"]
-            match.status = "waiting_validation"
-            match.save()
-            notify_match_state_changed(match.id, match.status)
-            # Only the non-submitting roster now has the existing validation action.
-            from pfc_events.push_notifications import notify_match_action_required
-            opponent_team = match.team2 if team == match.team1 else match.team1
-            notify_match_action_required(
-                list(players_for_match_team(match, opponent_team)),
-                "result_validation",
-                "match",
-                match.id,
-            )
-
-            # Deactivate game-generated presence when result is submitted.
-            # The match is no longer actively being played — players are in
-            # the validation phase.  Post-game grace entries are created so
-            # players remain visible at the court for the 30-min window.
-            # If the opponent disagrees, auto_register_players_to_billboard()
-            # will create fresh entries when the match reverts to active.
-            _deactivate_match_presence(match)
-
-            # Submitting team returns to match_detail (waiting state)
-            # The opposing team navigates to validation themselves
+                outcome = submit_official_result(
+                    match.id,
+                    submitted_by_id=team.id,
+                    team1_score=form.cleaned_data["team1_score"],
+                    team2_score=form.cleaned_data["team2_score"],
+                    photo_evidence=form.cleaned_data.get("photo_evidence"),
+                    notes=form.cleaned_data.get("notes"),
+                )
+            except MatchLifecycleError as exc:
+                messages.error(request, str(exc))
+                return redirect("match_detail", match_id=match.id)
+            if outcome.state == "already_submitted":
+                messages.info(request, _("A result is already awaiting validation."))
             return redirect("match_detail", match_id=match.id)
     else:
         form = MatchResultForm(match, team)
@@ -1097,6 +1136,16 @@ def match_validate_result(request, match_id, team_id):
     is_own_team = (result.submitted_by == _effective_team)
 
     if request.method == "POST":
+        # A direct validator is authorized for the URL side. The established
+        # QR handoff also permits the result submitter to open the opponent's
+        # page and scan that opponent's existing card. Neither path trusts the
+        # URL team id or an identifier supplied by the browser.
+        if not (
+            request_has_match_side_access(request, match, team)
+            or request_has_match_side_access(request, match, result.submitted_by)
+        ):
+            messages.error(request, _("You are not authorised to validate this result."))
+            return redirect("match_detail", match_id=match.id)
         # ── Determine validator identity ───────────────────────────────────────
             # The QR resolve endpoint stores the resolved codename server-side in
         # session['qr_resolved_codename'].  It is NEVER sent from the browser.
@@ -1170,223 +1219,25 @@ def match_validate_result(request, match_id, team_id):
         if form.is_valid():
             validation_action = form.cleaned_data["validation_action"]
 
-            if validation_action == "agree":
-                result.validated_by = team
-                # Use court-local time for validation and end timestamps
-                _match_complex = match.court.courtcomplex_set.first() if match.court else None
-                _court_now = get_court_local_now(_match_complex) if _match_complex else timezone.now()
-                result.validated_at = _court_now
-                result.save()
-
-                match.status = "completed"
-                match.end_time = _court_now
-                if match.start_time:
-                    match.duration = match.end_time - match.start_time
-                
-                if match.team1_score > match.team2_score:
-                    match.winner = match.team1
-                    match.loser = match.team2
-                elif match.team2_score > match.team1_score:
-                    match.winner = match.team2
-                    match.loser = match.team1
-                else: # Draw
-                    match.winner = None
-                    match.loser = None
-                match.save()
-                # Match Tracking authorizations and match-owned OpenShots sessions end with the match.
-                try:
-                    from match_tracking.services import end_tracking_sessions
-                    end_tracking_sessions('match', match.id, 'match_completed')
-                except Exception:
-                    logger.exception('Unable to close Match Tracking for completed match %s', match.id)
-                notify_match_state_changed(match.id, match.status)  # completed
-                # Deactivate game-generated presence entries for this match.
-                # Presence was already deactivated at result-submit time (waiting_validation),
-                # so this call is typically a safe idempotent no-op.  It is kept here as
-                # a safety net in case the match was activated via a path that bypassed
-                # the submit step (e.g. admin override).
-                _deactivate_match_presence(match)
-                
-                # Super Mêlée round preparation is coordinated by the synchronous
-                # Match post-save receiver. It runs during ``match.save()`` above,
-                # before generic tournament automation can create the next Round.
-                # Do not add a competing view-level shuffle here.
-                
-                # ===== PARTICIPATION TRACKING =====
-                # Create TeamMatchParticipant records from MatchPlayer data
-                try:
-                    from .models_participant import TeamMatchParticipant
-                    participants_created = TeamMatchParticipant.create_from_match_players(match)
-                    logger.info(f"Match {match.id} completion: Created {participants_created} participation records")
-                except Exception as e:
-                    logger.error(f"Failed to create participation records for match {match.id}: {e}")
-                    # Continue with match completion - participation tracking failures don't break matches
-                # ===== END PARTICIPATION TRACKING =====
-                
-                # ===== TOURNAMENT PROGRESSION CHECK =====
-                # Check if tournament should advance to next stage/round after match completion
-                try:
-                    tournament = match.tournament
-                    if tournament.format == "independent_games":
-                        # Independent Games consists only of registration-created
-                        # matches. Results update VS points but never create a
-                        # stage, round, bracket, pairing, or final.
-                        logger.info(
-                            "Skipping generic progression for Independent Games tournament %s",
-                            tournament.id,
-                        )
-                    elif tournament.format == "multi_stage":
-                        advanced, matches_created, tournament_complete = tournament.advance_to_next_stage()
-                        if advanced:
-                            logger.info(f"Tournament {tournament.name} advanced to next stage, created {matches_created} matches")
-                        elif tournament_complete:
-                            logger.info(f"Tournament {tournament.name} completed")
-                    elif tournament.format == "knockout":
-                        advanced, matches_created, tournament_complete = tournament.check_and_advance_knockout_round()
-                        if advanced:
-                            logger.info(f"Tournament {tournament.name} advanced to next round, created {matches_created} matches")
-                        elif tournament_complete:
-                            logger.info(f"Tournament {tournament.name} completed")
-                except Exception as e:
-                    logger.error(f"Tournament progression error for {match.tournament.name}: {e}")
-                    # Continue with normal match completion - progression failures don't break matches
-                # ===== END TOURNAMENT PROGRESSION CHECK =====
-                
-                # ===== RATING SYSTEM INTEGRATION =====
-                # Update player ratings after successful match completion
-                # This is completely separate from match completion and won't affect it if it fails
-                try:
-                    from .rating_integration import update_tournament_match_ratings
-                    rating_result = update_tournament_match_ratings(match)
-                    if rating_result["success"]:
-                        logger.info(f"Match {match.id} rating updates: {rating_result.get('reason', 'completed successfully')}")
-                    else:
-                        logger.warning(f"Match {match.id} rating updates failed: {rating_result.get('reason', 'unknown error')}")
-                except Exception as e:
-                    logger.error(f"Rating system error for match {match.id}: {e}")
-                    # Continue with normal match completion - rating failures don't break matches
-                # ===== END RATING SYSTEM INTEGRATION =====
-
-                # ===== CERTIFYING ENTITY ELO RATING UPDATE =====
-                # Completely independent of the existing PFC Rating.
-                # A failure here must never affect match completion or PFC ratings.
-                try:
-                    from cert_ratings.processor import process_match_cert_ratings
-                    cert_result = process_match_cert_ratings(match)
-                    if cert_result["success"]:
-                        logger.info(
-                            f"Match {match.id} cert rating update: "
-                            f"{cert_result.get('reason', 'completed successfully')}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Match {match.id} cert rating update failed: "
-                            f"{cert_result.get('reason', 'unknown error')}"
-                        )
-                except Exception as e:
-                    logger.error(f"Cert rating system error for match {match.id}: {e}")
-                    # Continue with normal match completion - cert rating failures don't break matches
-                # ===== END CERTIFYING ENTITY ELO RATING UPDATE =====
-
-                # ===== MELEE PLAYER STATS UPDATE =====
-                # Update individual player statistics for melee tournaments
-                try:
-                    if match.tournament and match.tournament.is_melee:
-                        from tournaments.melee_stats_updater import update_melee_player_stats_from_match
-                        update_melee_player_stats_from_match(match)
-                        logger.info(f"Match {match.id} melee stats updated successfully")
-                except Exception as e:
-                    logger.error(f"Melee stats update error for match {match.id}: {e}")
-                    # Continue with match completion - stats failures don't break matches
-                # ===== END MELEE PLAYER STATS UPDATE =====
-
-                # ===== PERMANENT PLAYER TOURNAMENT HISTORY =====
-                # This runs only after the existing progression, rating, and
-                # Mêlée-stat calculations. The service independently confirms
-                # that the configured tournament is actually final, then reads
-                # only Match/participant snapshots; it never changes scoring or
-                # progression state.
-                try:
-                    from tournaments.player_history import record_finalized_tournament_history
-
-                    history_result = record_finalized_tournament_history(
-                        match.tournament,
-                        include_melee_awards=match.tournament.is_melee,
-                    )
-                    if history_result["recorded"]:
-                        logger.info(
-                            "Recorded permanent player history for finalized tournament %s: %s",
-                            match.tournament.id,
-                            history_result,
-                        )
-                except Exception:
-                    logger.exception(
-                        "Unable to record permanent player history for tournament %s",
-                        match.tournament_id,
-                    )
-                # ===== END PERMANENT PLAYER TOURNAMENT HISTORY =====
-                
-                if match.court:
-                    logger.info(f"Match {match.id} completed, freeing court {match.court.name}")
-                    waiting_matches = Match.objects.filter(
-                        tournament=match.tournament,
-                        status="pending_verification",
-                        waiting_for_court=True
-                    ).order_by("created_at")
-                    
-                    if waiting_matches.exists():
-                        next_match_to_assign = waiting_matches.first()
-                        logger.info(f"Court {match.court.name} freed. Assigning to next waiting match {next_match_to_assign.id}")
-                        next_match_to_assign.court = match.court
-                        next_match_to_assign.waiting_for_court = False
-                        next_match_to_assign.status = "active" # Make it active
-                        # Use court-local time for the newly started match
-                        _next_complex = match.court.courtcomplex_set.first()
-                        next_match_to_assign.start_time = get_court_local_now(_next_complex) if _next_complex else timezone.now()
-                        next_match_to_assign.save()
-                        announce_match_starting_team(next_match_to_assign)
-                        # This automatic promotion bypasses normal activation views.
-                        notify_match_state_changed(next_match_to_assign.id, next_match_to_assign.status)
-                        
-                        # Auto-register players to Billboard when match starts
-                        try:
-                            auto_register_players_to_billboard(next_match_to_assign)
-                        except Exception as e:
-                            logger.error(f"Failed to auto-register players for match {next_match_to_assign.id} upon promotion: {e}")
-                    else:
-                        # No matches waiting, mark court as available
-                        match.court.is_available = True
-                        match.court.save(update_fields=["is_available"])
-                        logger.info(f"Court {match.court.name} marked as available - no matches waiting") 
-                # Redirect silently — match_detail UI communicates completed state
-                return redirect("match_detail", match_id=match.id)
-
-            elif validation_action == "disagree":
-                result.delete()  # Delete the submitted result
-                match.status = "active"  # Revert match to active for resubmission
-                match.team1_score = None
-                match.team2_score = None
-                match.save()
-                notify_match_state_changed(match.id, match.status)
-                # A disputed result reopens the existing submit-score action.
-                from pfc_events.push_notifications import notify_match_action_required
-                notify_match_action_required(
-                    list(players_for_match_team(match, match.team1))
-                    + list(players_for_match_team(match, match.team2)),
-                    "reopened",
-                    "match",
+            try:
+                outcome = validate_official_result(
                     match.id,
+                    validating_team_id=team.id,
+                    agree=(validation_action == "agree"),
                 )
-                # Re-register presence: the match is active again so players are
-                # back on court.  auto_register_players_to_billboard() deactivates
-                # any stale entry for this game_ref and creates a fresh one with
-                # created_at=now, so the displayed timestamp is current.
-                try:
-                    auto_register_players_to_billboard(match)
-                except Exception as e:
-                    logger.error(f"Failed to re-register presence on disagree for match {match.id}: {e}")
-                # Redirect silently — match_detail UI communicates active state
+            except MatchLifecycleError as exc:
+                messages.error(request, str(exc))
                 return redirect("match_detail", match_id=match.id)
+
+            # The service commits Match/Result/Court state first and schedules
+            # notifications, presence, and tournament progression on commit.
+            # Any concurrent validator now observes its durable outcome instead
+            # of repeating completion, court handoff, or round generation.
+            if outcome.state == "not_waiting_validation":
+                messages.info(request, _("This result has already been processed."))
+            return redirect("match_detail", match_id=match.id)
+
+
     else:
         form = MatchValidationForm(match, team)
 
@@ -1548,6 +1399,7 @@ def qr_resolve_player(request):
 # the session, and the pending team is derived from the match state.
 # ─────────────────────────────────────────────────────────────────────────────
 
+@transaction.atomic
 def match_qr_confirm_opponent(request, match_id):
     """
     POST /matches/detail/<match_id>/qr-confirm-opponent/
@@ -1564,7 +1416,7 @@ def match_qr_confirm_opponent(request, match_id):
         messages.error(request, 'Invalid request.')
         return redirect('match_detail', match_id=match_id)
 
-    match = get_object_or_404(Match, id=match_id)
+    match = get_object_or_404(Match.objects.select_for_update(of=("self",)), id=match_id)
 
     # ── Resolve the acting team from session ──────────────────────────────────
     acting_team = None
@@ -1668,23 +1520,16 @@ def match_qr_confirm_opponent(request, match_id):
         )
     MatchPlayer.objects.filter(match=match).update(match_format=_detected_type)
 
-    # ── Court assignment ──────────────────────────────────────────────────────
-    _court = auto_assign_court(match)
-    if _court:
-        match.status = 'active'
-        _cc = _court.courtcomplex_set.first()
-        match.start_time = get_court_local_now(_cc) if _cc else timezone.now()
-        match.waiting_for_court = False
-        match.save()
-        announce_match_starting_team(match)
-        notify_match_state_changed(match.id, match.status)
-        auto_register_players_to_billboard(match)
+    # ── Court assignment and Match activation ─────────────────────────────────
+    try:
+        activation_outcome = activate_verified_match(match.id)
+    except MatchLifecycleError as exc:
+        messages.error(request, str(exc))
+        return redirect('match_detail', match_id=match.id)
+    match.refresh_from_db()
+    if activation_outcome.activated:
         messages.success(request, f'Match activated via QR! {get_court_assignment_status(match)}')
     else:
-        match.status = 'pending_verification'
-        match.waiting_for_court = True
-        match.save()
-        notify_match_state_changed(match.id, match.status)
         messages.warning(
             request,
             'Opponent confirmed via QR. No court available yet — '

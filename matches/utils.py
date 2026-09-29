@@ -127,96 +127,24 @@ def get_match_type_display(match_type):
     return display_names.get(match_type, match_type)
 
 def auto_assign_court(match):
-    """
-    Automatically assign an available court to a match.
+    """Compatibility wrapper for the centralized activation transition.
 
-    Court pool priority:
-      1. If the match belongs to a Poule, use only the courts assigned to that Poule.
-      2. Otherwise use the tournament-level court pool.
-      3. Fallback: any available court.
-
-    Returns:
-        Court object if assignment successful, None otherwise.
+    Legacy callers receive the assigned Court only after the Match, Court, and
+    occupancy invariant have been committed together.  New code should call
+    ``matches.lifecycle.activate_verified_match`` directly so it can inspect the
+    complete outcome rather than performing a second state transition.
     """
+    from .lifecycle import MatchLifecycleError, activate_verified_match
+
     try:
-        from .models import Match as _Match  # avoid circular import at module level
-
-        # ── 1. Poule-level court constraint ─────────────────────────────────
-        if match.poule_id:  # nullable FK — only set for poule-format stages
-            try:
-                poule_court_ids = list(
-                    match.poule.courts.values_list('id', flat=True)
-                )
-                if poule_court_ids:
-                    logger.info(
-                        f"Match {match.id} belongs to poule '{match.poule.name}' "
-                        f"— restricting court pool to {poule_court_ids}"
-                    )
-                    available_courts = Court.objects.filter(
-                        id__in=poule_court_ids,
-                        is_available=True
-                    )
-                    busy_court_ids = _Match.objects.filter(
-                        status='active', court__isnull=False
-                    ).exclude(id=match.id).values_list('court_id', flat=True)
-                    available_courts = available_courts.exclude(id__in=busy_court_ids)
-                    if available_courts.exists():
-                        court = random.choice(list(available_courts))
-                        match.court = court
-                        match.save(update_fields=['court'])
-                        court.is_available = False
-                        court.save(update_fields=['is_available'])
-                        logger.info(f"Assigned poule court {court.id} to match {match.id}")
-                        return court
-                    logger.info(
-                        f"No available poule courts for match {match.id} "
-                        f"(poule: {match.poule.name})"
-                    )
-                    return None
-            except Exception as e:
-                logger.warning(
-                    f"Poule court lookup failed for match {match.id}: {e} — "
-                    f"falling through to tournament pool"
-                )
-
-        # ── 2. Tournament-level court pool ───────────────────────────────────
-        tournament_courts = match.tournament.tournamentcourt_set.all().select_related('court')
-
-        if tournament_courts.exists():
-            court_ids = [tc.court.id for tc in tournament_courts]
-            available_courts = Court.objects.filter(
-                id__in=court_ids,
-                is_available=True
-            )
-        else:
-            # ── 3. Fallback: any available court ─────────────────────────────
-            logger.info(
-                f"No courts assigned to tournament {match.tournament.id}, "
-                f"using general court pool"
-            )
-            available_courts = Court.objects.filter(is_available=True)
-
-        # Exclude courts already in use by other active matches
-        busy_court_ids = _Match.objects.filter(
-            status='active', court__isnull=False
-        ).exclude(id=match.id).values_list('court_id', flat=True)
-        available_courts = available_courts.exclude(id__in=busy_court_ids)
-
-        if not available_courts.exists():
-            logger.info(f"No available courts for match {match.id}")
-            return None
-
-        court = random.choice(list(available_courts))
-        match.court = court
-        match.save(update_fields=['court'])
-        court.is_available = False
-        court.save(update_fields=['is_available'])
-        logger.info(f"Assigned court {court.id} to match {match.id} and marked as in use")
-        return court
-
-    except Exception as e:
-        logger.error(f"auto_assign_court failed for match {match.id}: {e}", exc_info=True)
+        outcome = activate_verified_match(match.id)
+    except MatchLifecycleError as exc:
+        logger.warning("Court allocation was rejected for Match %s: %s", match.id, exc)
         return None
+    if not outcome.activated:
+        return None
+    match.refresh_from_db(fields=["court", "status", "waiting_for_court"])
+    return match.court
 
 def get_court_assignment_status(match):
     """

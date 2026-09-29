@@ -1,0 +1,36 @@
+PFC FINAL SOURCE SUMMARY
+========================
+
+This full source archive includes all corrective work already present in the
+current PFC working copy, including the Round Robin/Admin lifecycle pass and
+the Match 537 QR-validation proof preservation fix.
+
+Final pass: cancelled-Match Round completion
+---------------------------------------------
+A Match with status "cancelled" is now terminal only for Round-completion
+purposes. A Round may transition after every scheduled Match is either
+"completed" or "cancelled". Cancelled Matches remain excluded from winner,
+standings, ratings, Swiss points, and Match-completion projections. Existing
+submitted-result evidence is retained only as an audit record if a live Match
+is cancelled while awaiting validation; it is not treated as a completed result.
+The cancellation lifecycle now sends the normal post-commit Match state-change
+notification and invokes only the existing authoritative Round transition when
+the cancelled Match belongs to a Round.
+
+Result-dependent Super Mêlée pairing remains fail-closed when a cancelled Match
+has no winner or loser. The system does not invent a winner, score, or pairing
+in that case.
+
+Files changed in this final pass
+--------------------------------
+- matches/models.py
+- matches/lifecycle.py
+- tournaments/automation_engine.py
+- tournaments/shuffle_utils.py
+- FINAL_SOURCE_SUMMARY.txt
+
+Migration required: No.
+Environment or configuration changes required: No.
+
+The archive excludes Git metadata, virtual environments, caches, logs, test
+artifacts, local database data/dumps, and credentials/secrets.

@@ -20,15 +20,8 @@ from .models import (
     TournamentRegistrationVoucher,
     TournamentRegistrationVoucherRedemption,
 )
+from .forms import StageForm
 from .poule_models import Poule, PouleTeam
-from .admin_helpers import (
-    retry_automation_action,
-    advance_stage_action, 
-    generate_round_action,
-    reset_automation_status_action,
-    get_tournament_debug_info
-)
-from .admin_actions import complete_and_assign_badges, reset_automation_status
 from .admin_shuffle import shuffle_melee_players_action
 from .admin_melee_swap import MeleePlayerSwapAdminMixin
 from pfc_core.admin_filters import ActiveTeamMixin, ActiveTournamentMixin
@@ -38,9 +31,47 @@ from pfc_core.admin_filters import ActiveTeamMixin, ActiveTournamentMixin
 class StageInline(admin.TabularInline):
     """Inline editor for defining stages within a multi-stage tournament"""
     model = Stage
+    form = StageForm
     extra = 0  # Don't auto-create empty stages that break match generation
     fields = ("stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team")
     ordering = ["stage_number"]
+    verbose_name = "Multi-Stage configuration"
+    verbose_name_plural = "Multi-Stage configuration"
+
+
+class TournamentAdminForm(forms.ModelForm):
+    """Expose the existing automatic/manual next-Round product choice."""
+
+    automatic_next_round = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Automatically generate the next Round",
+        help_text=(
+            "When selected, completing a Round generates one successor when the "
+            "Stage has remaining Rounds. Clear it to use Generate next Round manually."
+        ),
+    )
+
+    class Meta:
+        model = Tournament
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields["automatic_next_round"].initial = (
+                self.instance.automatic_next_round_enabled()
+            )
+
+    def save(self, commit=True):
+        tournament = super().save(commit=False)
+        tournament.set_automatic_next_round(
+            self.cleaned_data.get("automatic_next_round", True)
+        )
+        if commit:
+            tournament.save()
+            self.save_m2m()
+        return tournament
 
 class TournamentTeamInline(ActiveTeamMixin, admin.TabularInline):
     model = TournamentTeam
@@ -56,13 +87,23 @@ class RoundInline(admin.TabularInline):
     model = Round
     extra = 0
     fields = ("number", "stage", "number_in_stage", "is_complete")
-    readonly_fields = ("number", "stage", "number_in_stage")
+    readonly_fields = ("number", "stage", "number_in_stage", "is_complete")
     ordering = ["number"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 # --- Model Admins --- 
 
 @admin.register(Tournament)
 class TournamentAdmin(admin.ModelAdmin):
+    form = TournamentAdminForm
     list_display = (
         "name", 
         "format", 
@@ -72,8 +113,7 @@ class TournamentAdmin(admin.ModelAdmin):
         "is_active", 
         "is_archived", 
         "team_count", 
-        "court_count", 
-        "actions_display"
+        "court_count",
     )
     list_filter = (
         "format", 
@@ -90,7 +130,11 @@ class TournamentAdmin(admin.ModelAdmin):
     date_hierarchy = "start_date"
     fieldsets = (
         (None, {
-            "fields": ("name", "format")
+            "fields": ("name", "format"),
+            "description": (
+                "For Multi-Stage, save this Tournament first. The saved change "
+                "form then exposes the Multi-Stage configuration section below."
+            ),
         }),
         ("Play Formats", {
             "fields": ("has_triplets", "has_doublets", "has_tete_a_tete")
@@ -110,6 +154,13 @@ class TournamentAdmin(admin.ModelAdmin):
         ("Status", {
             "fields": ("is_active", "is_archived", "current_round_number")
         }),
+        ("Round Progression", {
+            "fields": ("automatic_next_round",),
+            "description": (
+                "Round Robin creates one real playing Round at a time. Courts "
+                "control activation capacity only; they never reduce a Round's Match count."
+            ),
+        }),
         ("Description", {
             "fields": ("description",),
             "classes": ("collapse",)
@@ -120,9 +171,13 @@ class TournamentAdmin(admin.ModelAdmin):
             "description": "Configure advertisement banner for tournament overview page"
         }),
         ("Match Timer Configuration", {
-            "fields": ("default_time_limit_minutes", "pregame_countdown_minutes"),
+            "fields": (
+                "default_time_limit_minutes",
+                "lineup_selection_seconds",
+                "pregame_countdown_minutes",
+            ),
             "classes": ("collapse",),
-            "description": "Set default time limit for all matches in this tournament. Timer starts when both teams activate the match. 'Pre-game countdown' controls the 'Find Your Court' window shown immediately after both teams activate."
+            "description": "Lineup selection is one server-controlled Round window in seconds; zero freezes safe defaults immediately. The pre-game countdown controls the separate Find Your Court window after Court allocation."
         }),
         ("Certification", {
             "fields": ("certifying_entity",),
@@ -133,19 +188,12 @@ class TournamentAdmin(admin.ModelAdmin):
     actions = [
         "make_active", 
         "archive_tournaments", 
-        "generate_matches", 
-        "advance_knockout_tournaments",
-        retry_automation_action,
         shuffle_melee_players_action,
-        advance_stage_action,
-        generate_round_action,
-        reset_automation_status_action,
-        complete_and_assign_badges,
-        reset_automation_status,
         "generate_melee_teams_random",
         "generate_melee_teams_balanced",
         "generate_melee_teams_snake_draft",
         "restore_melee_players_to_original_teams",
+        "generate_next_round",
     ]
     
     def get_inlines(self, request, obj=None):
@@ -154,6 +202,15 @@ class TournamentAdmin(admin.ModelAdmin):
             inlines.append(StageInline)
         inlines.append(RoundInline)
         return inlines
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields["format"].help_text = (
+            "Choose Multi-Stage and save this Tournament before adding Stages. "
+            "Django Admin cannot create parent-dependent Stage inlines until the "
+            "Tournament has a database ID."
+        )
+        return form
 
     def play_format_display(self, obj):
         formats = []
@@ -175,14 +232,6 @@ class TournamentAdmin(admin.ModelAdmin):
         count = obj.courts.count()
         return format_html("<a href=\"?tournament__id__exact={}\">{} courts</a>", obj.id, count)
     court_count.short_description = "Courts"
-    
-    def actions_display(self, obj):
-        buttons = []
-        if obj.is_active and not obj.is_archived:
-            buttons.append(format_html("<a class=\"button\" href=\"/admin/tournaments/tournament/{}/generate-matches/\">Generate Matches</a>", obj.id))
-        return format_html("&nbsp;".join(buttons))
-    actions_display.short_description = "Quick Actions"
-    actions_display.allow_tags = True
     
     def make_active(self, request, queryset):
         queryset.update(is_active=True, is_archived=False)
@@ -219,6 +268,33 @@ class TournamentAdmin(admin.ModelAdmin):
              self.message_user(request, f"Failed to generate matches for {error_count} tournaments.", level=messages.ERROR)
              
     generate_matches.short_description = "Generate matches for selected tournaments"
+
+    @admin.action(description="Generate next Round manually")
+    def generate_next_round(self, request, queryset):
+        from .automation_engine import TournamentEngine
+
+        for tournament in queryset.order_by("pk"):
+            try:
+                generated = TournamentEngine(tournament).generate_next_round()
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f"{tournament.name}: could not generate the next Round: {exc}",
+                    messages.ERROR,
+                )
+                continue
+            if generated:
+                self.message_user(
+                    request,
+                    f"{tournament.name}: next Round generation completed.",
+                    messages.SUCCESS,
+                )
+            else:
+                self.message_user(
+                    request,
+                    f"{tournament.name}: no eligible next Round is available.",
+                    messages.WARNING,
+                )
     
     def advance_knockout_tournaments(self, request, queryset):
         """Manually trigger knockout tournament advancement for selected tournaments."""
@@ -407,10 +483,11 @@ class TournamentAdmin(admin.ModelAdmin):
 
 @admin.register(Stage)
 class StageAdmin(admin.ModelAdmin):
+    form = StageForm
     list_display = ("tournament", "stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team", "is_complete", "progression_message")
     list_filter = ("tournament", "format", "is_complete")
     search_fields = ("tournament__name", "name")
-    readonly_fields = ("progression_message",)
+    readonly_fields = ("is_complete", "progression_message")
     ordering = ("tournament", "stage_number")
     
     fieldsets = (
@@ -423,12 +500,30 @@ class StageAdmin(admin.ModelAdmin):
         ("Round Robin Options", {
             "fields": ("num_matches_per_team",),
             "classes": ("collapse",),
-            "description": "For Round Robin stages only: specify number of matches per team for Incomplete Round Robin. Leave blank for full Round Robin where every team plays every other team."
+            "description": "For Round Robin stages only: leave blank for a full schedule. Otherwise set each Team's total intended matches. The playing Round count is derived when the schedule starts."
         }),
         ("Status", {
             "fields": ("is_complete", "progression_message")
         }),
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = list(super().get_readonly_fields(request, obj))
+        if obj and Round.objects.filter(stage=obj).exists():
+            fields.extend(
+                [
+                    "tournament",
+                    "stage_number",
+                    "format",
+                    "num_qualifiers",
+                    "num_rounds_in_stage",
+                    "num_matches_per_team",
+                ]
+            )
+        return tuple(dict.fromkeys(fields))
+
+    def has_delete_permission(self, request, obj=None):
+        return not (obj and Round.objects.filter(stage=obj).exists())
 
     def get_search_results(self, request, queryset, search_term):
         """
@@ -449,13 +544,32 @@ class RoundAdmin(admin.ModelAdmin):
     list_display = ("__str__", "tournament", "stage", "number", "number_in_stage", "match_count", "is_complete")
     list_filter = ("tournament", "stage", "is_complete")
     search_fields = ("tournament__name", "stage__name")
-    readonly_fields = ("tournament", "stage", "number", "number_in_stage")
+    readonly_fields = (
+        "tournament",
+        "stage",
+        "number",
+        "number_in_stage",
+        "is_complete",
+        "lineup_deadline_at",
+        "lineups_frozen_at",
+    )
     ordering = ("tournament", "number")
     
     def match_count(self, obj):
         count = obj.matches.count()
-        return format_html("<a href=\"/admin/matches/match/?round__id__exact={}\">{} matches</a>", obj.id, count)
+        return format_html(
+            '<a href="{}?round__id__exact={}">{} matches</a>',
+            reverse("admin:matches_match_changelist"),
+            obj.id,
+            count,
+        )
     match_count.short_description = "Matches"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 @admin.register(Bracket)
 class BracketAdmin(admin.ModelAdmin):

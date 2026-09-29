@@ -149,6 +149,13 @@ class Tournament(models.Model):
         default=3,
         help_text="Duration in minutes of the pre-game 'Find Your Court' countdown shown after match activation (default: 3 minutes)"
     )
+    lineup_selection_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Server-authoritative lineup selection window for every newly "
+            "generated Round. Zero freezes valid default lineups immediately."
+        ),
+    )
 
     # Advertisement Banner fields
     banner_image = models.ImageField(
@@ -207,8 +214,10 @@ class Tournament(models.Model):
         elif self.has_tete_a_tete:
             self.play_format = "tete_a_tete"
             
-        # Initialize allowed_match_types if empty
-        if not self.allowed_match_types:
+        # Initialize match-type defaults while preserving unrelated stored
+        # Tournament configuration such as the manual/automatic next-Round flag.
+        allowed_configuration = dict(self.allowed_match_types or {})
+        if "allowed_match_types" not in allowed_configuration:
             allowed_types = []
             if self.has_triplets:
                 allowed_types.append("triplet")
@@ -216,13 +225,30 @@ class Tournament(models.Model):
                 allowed_types.append("doublet")
             if self.has_tete_a_tete:
                 allowed_types.append("tete_a_tete")
-                
-            self.allowed_match_types = {
-                "allowed_match_types": allowed_types,
-                "allow_mixed": self.play_format == "mixed"
-            }
+            allowed_configuration["allowed_match_types"] = allowed_types
+        if "allow_mixed" not in allowed_configuration:
+            allowed_configuration["allow_mixed"] = self.play_format == "mixed"
+        self.allowed_match_types = allowed_configuration
             
         super().save(*args, **kwargs)
+
+    def automatic_next_round_enabled(self):
+        """Return the persisted organiser choice for successor generation.
+
+        ``allowed_match_types`` is the existing per-Tournament configuration
+        container.  Keeping this narrowly scoped option there avoids a second
+        scheduler or Match state while allowing legacy Tournaments without the
+        key to retain their historic automatic behavior.
+        """
+
+        return bool((self.allowed_match_types or {}).get("automatic_next_round", True))
+
+    def set_automatic_next_round(self, enabled):
+        """Persist the organiser's automatic/manual next-Round preference."""
+
+        configuration = dict(self.allowed_match_types or {})
+        configuration["automatic_next_round"] = bool(enabled)
+        self.allowed_match_types = configuration
 
     def generate_matches(self):
         """Generate matches for the tournament (first stage or single stage)."""
@@ -250,7 +276,45 @@ class Tournament(models.Model):
                 logger.error(f"Multi-stage tournament {self.name} has no stages defined.")
                 return 0
 
-        # --- Single-Stage Logic (Fixed) --- 
+        # --- Single-Stage Logic (Fixed) ---
+        # A logical Round Robin Round is derived from its Teams.  Courts only
+        # control later activation capacity through the shared lineup allocator.
+        if self.format == "round_robin":
+            teams_qs = self.tournamentteam_set.filter(
+                is_active=True
+            ).select_related("team").order_by("team_id", "pk")
+            teams = list(teams_qs)
+            if len(teams) < 2:
+                logger.warning(f"Not enough active teams ({len(teams)}) to generate matches for {self.name}.")
+                return 0
+            from .round_robin import (
+                RoundRobinConfigurationError,
+                materialize_round_robin_round,
+            )
+
+            try:
+                materialized = materialize_round_robin_round(
+                    tournament=self,
+                    stage=None,
+                    teams=teams,
+                    round_number=1,
+                )
+            except RoundRobinConfigurationError as exc:
+                logger.error("Cannot generate Round Robin for %s: %s", self.id, exc)
+                return 0
+
+            if not materialized.created_matches:
+                return 0
+            self.automation_status = "idle"
+            self.current_round_number = materialized.round.number
+            self.save(update_fields=["automation_status", "current_round_number"])
+            from tournaments.lineup_lifecycle import open_round_lineup_window
+            from tournaments.lineup_clock import wake_lineup_clock
+
+            open_round_lineup_window(materialized.round.id)
+            transaction.on_commit(wake_lineup_clock)
+            return materialized.match_count
+
         if not self.courts.exists():
             logger.error(f"No courts assigned to tournament {self.name}. Cannot generate matches.")
             return 0
@@ -287,22 +351,7 @@ class Tournament(models.Model):
 
         matches_created = 0
         
-        if self.format == "round_robin":
-            # Round-robin: each team plays against every other team once
-            for i in range(len(teams)):
-                for j in range(i + 1, len(teams)):
-                    match = Match.objects.create(
-                        tournament=self,
-                        round=round_obj,
-                        team1=teams[i].team,
-                        team2=teams[j].team,
-                        status="pending",
-                        time_limit_minutes=self.default_time_limit_minutes
-                    )
-                    matches_created += 1
-                    logger.debug(f"Created match: {teams[i].team} vs {teams[j].team}")
-                    
-        elif self.format == "knockout":
+        if self.format == "knockout":
             # Knockout: create brackets and matches for first round
             random.shuffle(teams)
             num_teams = len(teams)
@@ -386,6 +435,15 @@ class Tournament(models.Model):
             self.current_round_number = 1
             logger.info(f"Set current_round_number to 1 for {self.name}")
         self.save()
+
+        if matches_created:
+            # Every newly generated Round follows the same server-owned lineup
+            # lifecycle, including the legacy single-stage generators.
+            from tournaments.lineup_lifecycle import open_round_lineup_window
+            from tournaments.lineup_clock import wake_lineup_clock
+
+            open_round_lineup_window(round_obj.id)
+            transaction.on_commit(wake_lineup_clock)
         
         # Return the number of matches created for admin feedback
         return matches_created
@@ -1868,6 +1926,37 @@ class Stage(models.Model):
             return 0
             
         logger.info(f"Found {len(teams)} teams for stage {self.stage_number}")
+
+        # Round Robin has one persisted Round per real playing round.  It never
+        # uses Court count to limit its Match count or pre-creates later Rounds.
+        if self.format == "round_robin":
+            from .round_robin import (
+                RoundRobinConfigurationError,
+                materialize_round_robin_round,
+            )
+
+            try:
+                materialized = materialize_round_robin_round(
+                    tournament=self.tournament,
+                    stage=self,
+                    teams=teams,
+                    round_number=1,
+                )
+            except RoundRobinConfigurationError as exc:
+                logger.error("Cannot generate Round Robin Stage %s: %s", self.id, exc)
+                return 0
+
+            if not materialized.created_matches:
+                return 0
+            from tournaments.lineup_lifecycle import open_round_lineup_window
+            from tournaments.lineup_clock import wake_lineup_clock
+
+            open_round_lineup_window(materialized.round.id)
+            transaction.on_commit(wake_lineup_clock)
+            if not self.tournament.current_round_number:
+                self.tournament.current_round_number = materialized.round.number
+                self.tournament.save(update_fields=["current_round_number"])
+            return materialized.match_count
         
         # Check if tournament has courts
         if not self.tournament.courts.exists():
@@ -1898,9 +1987,7 @@ class Stage(models.Model):
         
         # Generate matches based on stage format and return match count
         matches_created = 0
-        if self.format == "round_robin":
-            matches_created = self._generate_round_robin_matches(teams, round_obj)
-        elif self.format == "swiss":
+        if self.format == "swiss":
             matches_created = self._generate_swiss_matches(teams, round_obj)
         elif self.format == "smart_swiss":
             matches_created = self._generate_smart_swiss_matches(teams, round_obj)
@@ -1915,6 +2002,15 @@ class Stage(models.Model):
             return 0
             
         logger.info(f"Created {matches_created} matches for {self}")
+
+        if matches_created > 0:
+            # Match creation only opens the persisted server-side lineup window.
+            # It never reserves a Court or depends on a phone Start request.
+            from tournaments.lineup_lifecycle import open_round_lineup_window
+            from tournaments.lineup_clock import wake_lineup_clock
+
+            open_round_lineup_window(round_obj.id)
+            transaction.on_commit(wake_lineup_clock)
         
         # Update tournament current_round_number if this is the first round
         if matches_created > 0 and not self.tournament.current_round_number:
@@ -1930,208 +2026,31 @@ class Stage(models.Model):
         return (last_round.number + 1) if last_round else 1
         
     def _generate_round_robin_matches(self, teams, round_obj):
-        """Generate round-robin matches where each team plays every other team."""
-        from matches.models import Match
-        
-        # Check if this is a partial round robin (limited matches per team)
-        if self.num_matches_per_team:
-            logger.info(f"Generating partial round-robin matches for {len(teams)} teams (max {self.num_matches_per_team} matches per team)")
-            return self._generate_partial_round_robin_matches(teams, round_obj)
-        
-        # Full round robin - each team plays every other team
-        logger.info(f"Generating full round-robin matches for {len(teams)} teams")
-        matches_created = 0
-        
-        for i in range(len(teams)):
-            for j in range(i + 1, len(teams)):
-                match = Match.objects.create(
-                    tournament=self.tournament,
-                    round=round_obj,
-                    team1=teams[i].team,
-                    team2=teams[j].team,
-                    status="pending",
-                    time_limit_minutes=self.tournament.default_time_limit_minutes
-                )
-                matches_created += 1
-                logger.debug(f"Created match: {teams[i].team} vs {teams[j].team}")
-                
-        logger.info(f"Created {matches_created} round-robin matches")
-        return matches_created
+        """Compatibility entry point for one shared logical RR Round only."""
+
+        from .round_robin import materialize_round_robin_round
+
+        materialized = materialize_round_robin_round(
+            tournament=self.tournament,
+            stage=self,
+            teams=teams,
+            round_number=round_obj.number_in_stage,
+        )
+        return materialized.match_count if materialized.created_matches else 0
     
     def _generate_partial_round_robin_matches(self, teams, round_obj):
-        """Generate partial round-robin matches using circle method with parent-child constraint.
-        
-        Algorithm:
-        1. Generate full round robin using circle method
-        2. Identify forbidden pairs (parent-child relationships)
-        3. Filter out rounds containing forbidden pairs
-        4. Select first N clean rounds where N = matches_per_team
-        """
-        from matches.models import Match
-        import random
-        
-        matches_per_team = self.num_matches_per_team
-        num_teams = len(teams)
-        
-        logger.info(f"Generating Smart Robin using circle method: {matches_per_team} matches per team for {num_teams} teams")
-        
-        # Calculate total matches needed
-        total_team_matches = num_teams * matches_per_team
-        total_matches = total_team_matches // 2
-        logger.info(f"Target: {total_matches} total matches ({total_team_matches} team-matches)")
-        
-        # Identify forbidden pairs (parent-child relationships)
-        forbidden_pairs = set()
-        for i in range(num_teams):
-            for j in range(i + 1, num_teams):
-                team1, team2 = teams[i], teams[j]
-                
-                is_forbidden = False
-                reason = ""
-                
-                # Check if teams share the same parent
-                if (team1.team.parent_team and team2.team.parent_team and 
-                    team1.team.parent_team.id == team2.team.parent_team.id):
-                    is_forbidden = True
-                    reason = f"same parent: {team1.team.parent_team.name}"
-                
-                # Check if team1 is parent of team2
-                elif team2.team.parent_team and team2.team.parent_team.id == team1.team.id:
-                    is_forbidden = True
-                    reason = f"{team1.team.name} is parent of {team2.team.name}"
-                
-                # Check if team2 is parent of team1
-                elif team1.team.parent_team and team1.team.parent_team.id == team2.team.id:
-                    is_forbidden = True
-                    reason = f"{team2.team.name} is parent of {team1.team.name}"
-                
-                if is_forbidden:
-                    forbidden_pairs.add((team1.team.id, team2.team.id))
-                    forbidden_pairs.add((team2.team.id, team1.team.id))  # Both directions
-                    logger.info(f"Forbidden pair: {team1.team.name} vs {team2.team.name} ({reason})")
-        
-        logger.info(f"Found {len(forbidden_pairs)//2} forbidden parent-child pairs")
-        
-        # Generate full round robin using circle method
-        def generate_full_round_robin(teams):
-            """Generate full round robin using circle method."""
-            n = len(teams)
-            if n % 2 == 1:
-                teams = teams + [None]  # Add dummy team for odd number
-                n += 1
-            
-            rounds = []
-            for round_num in range(n - 1):
-                round_matches = []
-                for i in range(n // 2):
-                    team1_idx = i
-                    team2_idx = n - 1 - i
-                    
-                    if teams[team1_idx] is not None and teams[team2_idx] is not None:
-                        round_matches.append((teams[team1_idx], teams[team2_idx]))
-                
-                rounds.append(round_matches)
-                
-                # Rotate teams (keep first team fixed, rotate others)
-                teams = [teams[0]] + [teams[-1]] + teams[1:-1]
-            
-            return rounds
-        
-        # Generate all rounds
-        all_rounds = generate_full_round_robin(teams.copy())
-        logger.info(f"Generated {len(all_rounds)} rounds using circle method")
-        
-        # Filter out rounds containing forbidden pairs
-        clean_rounds = []
-        for round_num, round_matches in enumerate(all_rounds):
-            has_forbidden = False
-            for team1, team2 in round_matches:
-                if (team1.team.id, team2.team.id) in forbidden_pairs:
-                    has_forbidden = True
-                    logger.info(f"Round {round_num + 1} contains forbidden pair: {team1.team.name} vs {team2.team.name}")
-                    break
-            
-            if not has_forbidden:
-                clean_rounds.append((round_num + 1, round_matches))
-                logger.info(f"Round {round_num + 1} is clean with {len(round_matches)} matches")
-        
-        logger.info(f"Found {len(clean_rounds)} clean rounds out of {len(all_rounds)} total rounds")
-        
-        # Check if we have enough clean rounds
-        if len(clean_rounds) < matches_per_team:
-            logger.error(f"Not enough clean rounds! Need {matches_per_team}, but only have {len(clean_rounds)}")
-            logger.error("Falling back to allowing some forbidden pairs...")
-            
-            # Fall back to using all rounds if necessary
-            selected_rounds = all_rounds[:matches_per_team]
-            selected_round_info = [(i+1, round_matches) for i, round_matches in enumerate(selected_rounds)]
-        else:
-            # Select first N clean rounds
-            selected_round_info = clean_rounds[:matches_per_team]
-        
-        logger.info(f"Selected {len(selected_round_info)} rounds for the tournament")
-        
-        # Create matches from selected rounds
-        matches_created = 0
-        cross_parent_matches = 0
-        same_parent_matches = 0
-        team_match_counts = {team.team.id: 0 for team in teams}
-        
-        for round_num, round_matches in selected_round_info:
-            logger.info(f"Creating matches for Round {round_num}:")
-            
-            for team1, team2 in round_matches:
-                match = Match.objects.create(
-                    tournament=self.tournament,
-                    round=round_obj,
-                    team1=team1.team,
-                    team2=team2.team,
-                    status="pending",
-                    time_limit_minutes=self.tournament.default_time_limit_minutes
-                )
-                matches_created += 1
-                
-                # Update team match counts
-                team_match_counts[team1.team.id] += 1
-                team_match_counts[team2.team.id] += 1
-                
-                # Check if this is a forbidden pair
-                is_forbidden = (team1.team.id, team2.team.id) in forbidden_pairs
-                if is_forbidden:
-                    same_parent_matches += 1
-                    pairing_type = "⚠️ SAME-PARENT"
-                else:
-                    cross_parent_matches += 1
-                    pairing_type = "✅ CROSS-PARENT"
-                
-                # Log parent team info for verification
-                parent1 = team1.team.parent_team.name if team1.team.parent_team else "None"
-                parent2 = team2.team.parent_team.name if team2.team.parent_team else "None"
-                logger.info(f"  Match {match.id}: {team1.team.name} (parent: {parent1}) vs {team2.team.name} (parent: {parent2}) - {pairing_type}")
-        
-        # Log the final distribution
-        logger.info(f"Smart Robin Results:")
-        logger.info(f"  Total matches created: {matches_created}")
-        logger.info(f"  Cross-parent matches: {cross_parent_matches} ✅")
-        logger.info(f"  Same-parent matches: {same_parent_matches} ⚠️")
-        
-        logger.info(f"Match distribution per team:")
-        all_teams_satisfied = True
-        for team in teams:
-            actual_matches = team_match_counts[team.team.id]
-            parent_name = team.team.parent_team.name if team.team.parent_team else "None"
-            status = "✅" if actual_matches == matches_per_team else "❌"
-            if actual_matches != matches_per_team:
-                all_teams_satisfied = False
-            logger.info(f"  {team.team.name} (parent: {parent_name}): {actual_matches}/{matches_per_team} matches {status}")
-        
-        if all_teams_satisfied:
-            logger.info("✅ Perfect distribution: All teams have exactly the target number of matches!")
-        else:
-            logger.warning("❌ Uneven distribution detected!")
-        
-        return matches_created
-        
+        """Compatibility entry point for the shared partial RR scheduler."""
+
+        from .round_robin import materialize_round_robin_round
+
+        materialized = materialize_round_robin_round(
+            tournament=self.tournament,
+            stage=self,
+            teams=teams,
+            round_number=round_obj.number_in_stage,
+        )
+        return materialized.match_count if materialized.created_matches else 0
+
     def _generate_swiss_matches(self, teams, round_obj):
         """Generate Swiss system matches for the first round."""
         from matches.models import Match
@@ -2282,10 +2201,38 @@ class Round(models.Model):
     number_in_stage = models.PositiveIntegerField(default=1, help_text="Round number within the current stage")
     name = models.CharField(max_length=100, blank=True)
     is_complete = models.BooleanField(default=False)
+    lineup_deadline_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Authoritative server deadline for this Round's lineup window.",
+    )
+    lineups_frozen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the server froze the Round's final match lineups.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         unique_together = ("tournament", "stage", "number_in_stage")
+        constraints = [
+            # ``number`` is the documented overall Round identity and must be
+            # stable across stage transitions and concurrent automation calls.
+            models.UniqueConstraint(
+                fields=("tournament", "number"),
+                name="unique_tournament_overall_round",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("lineups_frozen_at", "lineup_deadline_at"),
+                name="round_lineup_dead_idx",
+            ),
+            models.Index(
+                fields=("tournament", "is_complete", "number"),
+                name="round_tourn_complete_idx",
+            ),
+        ]
         ordering = ["number"]
         
     def __str__(self):
@@ -2296,6 +2243,60 @@ class Round(models.Model):
         if not self.name:
             self.name = f"Round {self.number}"
         super().save(*args, **kwargs)
+
+
+class RoundLifecycleTransition(models.Model):
+    """Durable, exactly-once work owned by a completed Tournament Round.
+
+    A Match completion only claims this record after the final unresolved Match
+    has finished.  Expensive standings, Super Mêlée preparation, successor
+    generation, and leaderboard publication are consequently one Round-scoped
+    operation rather than a Tournament-wide action for every Match.
+    """
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    STATUS_CHOICES = [
+        (PENDING, "Pending"),
+        (PROCESSING, "Processing"),
+        (COMPLETED, "Completed"),
+        (FAILED, "Failed"),
+    ]
+
+    round = models.OneToOneField(
+        Round,
+        related_name="lifecycle_transition",
+        on_delete=models.CASCADE,
+    )
+    tournament = models.ForeignKey(
+        Tournament,
+        related_name="round_lifecycle_transitions",
+        on_delete=models.CASCADE,
+    )
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=PENDING)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=("tournament", "status", "created_at"),
+                name="round_transition_status_idx",
+            ),
+        ]
+
+    def clean(self):
+        if self.round_id and self.tournament_id and self.round.tournament_id != self.tournament_id:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({"round": "Round belongs to a different tournament."})
+
+    def __str__(self):
+        return f"Round transition {self.round_id}: {self.status}"
 
 class Bracket(models.Model):
     """Model for knockout tournament brackets"""

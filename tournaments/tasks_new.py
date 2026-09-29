@@ -18,14 +18,11 @@ def check_round_completion(tournament_id):
         tournament = Tournament.objects.get(id=tournament_id)
         logger.info(f"🔍 DEBUG: Tournament {tournament_id} found - Format: {tournament.format}, Status: {tournament.automation_status}")
         
-        # Check if automation should run
+        # Check if automation should run.  The engine owns the transactional
+        # status change; setting ``processing`` here would make it skip itself.
         if tournament.automation_status not in ["idle", "needs_attention"]:
             logger.info(f"Automation for tournament {tournament_id} is not idle (status: {tournament.automation_status})")
             return
-        
-        # Set status to processing to prevent concurrent runs
-        tournament.automation_status = "processing"
-        tournament.save()
         
         try:
             # Use the new automation engine
@@ -189,4 +186,3 @@ def generate_next_knockout_round(tournament):
     """Legacy compatibility - redirects to new system"""
     logger.info(f"Legacy knockout function called for tournament {tournament.id}")
     check_round_completion(tournament.id)
-

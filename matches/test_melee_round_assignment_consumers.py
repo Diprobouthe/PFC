@@ -283,15 +283,15 @@ class MeleeRoundAssignmentConsumerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         item = next(
             entry
-            for entry in response.context['tournament_scoreboards']
-            if entry['match'].id == self.pending_round_two.id
+            for entry in response.context['overview_cards']
+            if entry['match_id'] == self.pending_round_two.id
         )
         self.assertEqual(
-            list(item['team1_players'].values_list('id', flat=True)),
+            [player['id'] for player in item['team1_players']],
             [self.player_a.id, self.player_c.id],
         )
         self.assertEqual(
-            list(item['team2_players'].values_list('id', flat=True)),
+            [player['id'] for player in item['team2_players']],
             [self.player_b.id, self.player_d.id],
         )
 
@@ -524,13 +524,14 @@ class MeleeRoundAssignmentConsumerTests(TestCase):
         with patch(
             'pfc_events.push_notifications.notify_match_action_required'
         ) as notification_mock:
-            response = self.client.post(
-                reverse(
-                    'match_submit_result',
-                    kwargs={'match_id': active_match.id, 'team_id': self.round_one_team_a.id},
-                ),
-                {'team1_score': 13, 'team2_score': 7},
-            )
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    reverse(
+                        'match_submit_result',
+                        kwargs={'match_id': active_match.id, 'team_id': self.round_one_team_a.id},
+                    ),
+                    {'team1_score': 13, 'team2_score': 7},
+                )
 
         self.assertEqual(response.status_code, 302)
         recipients, action, object_type, object_id = notification_mock.call_args.args

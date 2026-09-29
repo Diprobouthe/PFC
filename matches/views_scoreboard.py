@@ -68,6 +68,40 @@ def _is_participant(scoreboard, codename):
     return False
 
 
+def _trusted_tournament_scorekeeper_codename(request, scoreboard):
+    """Resolve a concrete Match participant from server-held identity only.
+
+    The legacy Friendly scoreboard contract remains unchanged. Tournament score
+    mutations never use a codename supplied in JSON: the actor is the existing
+    session identity or the scoped Matches-page QR proof, and must resolve to
+    the exact Match roster.
+    """
+    match = scoreboard.tournament_match
+    if match is None:
+        return None
+
+    player = get_qr_action_player(request)
+    if player is None:
+        codename = request.session.get("player_codename")
+        if not codename:
+            return None
+        try:
+            player = PlayerCodename.objects.select_related("player").get(
+                codename=codename.upper()
+            ).player
+        except PlayerCodename.DoesNotExist:
+            return None
+
+    if resolve_player_match_side(match, player) is None:
+        return None
+    if not MatchPlayer.objects.filter(match=match, player=player).exists():
+        return None
+    try:
+        return PlayerCodename.objects.get(player=player).codename
+    except PlayerCodename.DoesNotExist:
+        return None
+
+
 def _resolve_scorekeeper_names(score_history_qs):
     """
     Build a codename → player name lookup dict for a queryset of ScoreUpdate rows.
@@ -408,12 +442,20 @@ def update_scoreboard(request, scoreboard_id):
         team1_score = int(data.get('team1_score', 0))
         team2_score = int(data.get('team2_score', 0))
         scorekeeper_codename = data.get('codename', '').strip().upper()
-        qr_action_player = get_qr_action_player(request)
-        if qr_action_player:
-            try:
-                scorekeeper_codename = PlayerCodename.objects.get(player=qr_action_player).codename
-            except PlayerCodename.DoesNotExist:
-                return JsonResponse({'success': False, 'error': 'Scanned player authorization is no longer valid.'}, status=403)
+        if scoreboard.tournament_match_id:
+            scorekeeper_codename = _trusted_tournament_scorekeeper_codename(request, scoreboard)
+            if not scorekeeper_codename:
+                return JsonResponse(
+                    {'success': False, 'error': 'Tournament score updates require a valid Match session or QR authorization.'},
+                    status=403,
+                )
+        else:
+            qr_action_player = get_qr_action_player(request)
+            if qr_action_player:
+                try:
+                    scorekeeper_codename = PlayerCodename.objects.get(player=qr_action_player).codename
+                except PlayerCodename.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Scanned player authorization is no longer valid.'}, status=403)
         
         # Validate inputs
         if not scorekeeper_codename:
@@ -523,12 +565,20 @@ def reset_scoreboard(request, scoreboard_id):
         # Parse JSON data
         data = json.loads(request.body)
         scorekeeper_codename = data.get('codename', '').strip().upper()
-        qr_action_player = get_qr_action_player(request)
-        if qr_action_player:
-            try:
-                scorekeeper_codename = PlayerCodename.objects.get(player=qr_action_player).codename
-            except PlayerCodename.DoesNotExist:
-                return JsonResponse({'success': False, 'error': 'Scanned player authorization is no longer valid.'}, status=403)
+        if scoreboard.tournament_match_id:
+            scorekeeper_codename = _trusted_tournament_scorekeeper_codename(request, scoreboard)
+            if not scorekeeper_codename:
+                return JsonResponse(
+                    {'success': False, 'error': 'Tournament score resets require a valid Match session or QR authorization.'},
+                    status=403,
+                )
+        else:
+            qr_action_player = get_qr_action_player(request)
+            if qr_action_player:
+                try:
+                    scorekeeper_codename = PlayerCodename.objects.get(player=qr_action_player).codename
+                except PlayerCodename.DoesNotExist:
+                    return JsonResponse({'success': False, 'error': 'Scanned player authorization is no longer valid.'}, status=403)
         
         if not scorekeeper_codename:
             return JsonResponse({

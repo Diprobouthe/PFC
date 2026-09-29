@@ -10,11 +10,11 @@ idempotent cleanup:
    — the match was never properly finished, so players are simply no longer
    visible.
 
-2. Releases the court held by the stale match:
-   - Checks that no *other* currently-active match is using the same court.
-   - If the court is free, sets ``court.is_available = True``.
-   - Clears the ``match.court`` FK so the court is no longer associated with
-     the stale match.
+2. Delegates cancellation and Court handoff to ``matches.lifecycle``:
+   - Locks the Match and Court rows.
+   - Promotes one compatible waiting Match when possible.
+   - Otherwise marks the Court available while preserving the cancelled
+     Match's historical Court foreign key.
 
 3. Marks the stale match as ``cancelled`` (the correct non-result terminal
    status in Match.STATUS_CHOICES).  The match is never marked ``completed``
@@ -147,42 +147,17 @@ class Command(BaseCommand):
                     )
                 )
 
-            # ── 2. Release the court ─────────────────────────────────────────
-            if match.court_id:
-                court = match.court
-                # Only mark available if no other active match is using this court.
-                other_active = (
-                    Match.objects.filter(status="active", court=court)
-                    .exclude(id=match.id)
-                    .exists()
-                )
-                if not other_active:
-                    court.is_available = True
-                    court.save(update_fields=["is_available"])
-                    logger.info(
-                        f"expire_stale_match_presence: court {court.id} "
-                        f"({court.name}) released by stale match {match.id}."
-                    )
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"    ✓ Court {court.id} ({court.name}) → is_available=True"
-                        )
-                    )
-                else:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"    ⚠ Court {court.id} still used by another active "
-                            f"match — not marking available."
-                        )
-                    )
+            # ── 2. Cancel and release/promote atomically ─────────────────────
+            from matches.lifecycle import cancel_stale_match
 
-            # ── 3. Cancel the match ──────────────────────────────────────────
-            # Use 'cancelled' — the correct non-result terminal status in
-            # Match.STATUS_CHOICES.  Never use 'completed' here because no
-            # result was submitted or validated.
-            match.status = "cancelled"
-            match.court = None  # clear the FK so the court is fully released
-            match.save(update_fields=["status", "court"])
+            outcome = cancel_stale_match(match.id)
+            if outcome.state != "cancelled":
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"    ⚠ Match {match.id} was no longer live; no cancellation applied."
+                    )
+                )
+                continue
             # A cancellation has no result and deliberately does not trigger a
             # Super Mêlée shuffle or next Round. If it is the final terminal
             # Match, finish only the safe completion lifecycle (legacy restore
