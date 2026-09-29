@@ -20,6 +20,7 @@ import logging
 from django.contrib import admin
 from django.utils.html import format_html
 from django.contrib import messages
+from django.urls import reverse
 
 from .poule_models import Poule, PouleTeam
 from pfc_core.admin_filters import ActiveTournamentMixin
@@ -192,8 +193,8 @@ class PouleAdmin(ActiveTournamentMixin, admin.ModelAdmin):
 
     def stage_link(self, obj):
         return format_html(
-            '<a href="/admin/tournaments/stage/{}/change/">{}</a>',
-            obj.stage_id,
+            '<a href="{}">{}</a>',
+            reverse('admin:tournaments_stage_change', args=[obj.stage_id]),
             str(obj.stage),
         )
     stage_link.short_description = 'Stage'
@@ -202,8 +203,8 @@ class PouleAdmin(ActiveTournamentMixin, admin.ModelAdmin):
     def tournament_link(self, obj):
         t = obj.stage.tournament
         return format_html(
-            '<a href="/admin/tournaments/tournament/{}/change/">{}</a>',
-            t.pk,
+            '<a href="{}">{}</a>',
+            reverse('admin:tournaments_tournament_change', args=[t.pk]),
             t.name,
         )
     tournament_link.short_description = 'Tournament'
@@ -236,11 +237,15 @@ class PouleAdmin(ActiveTournamentMixin, admin.ModelAdmin):
     match_count.short_description = 'Matches'
 
     def generate_button(self, obj):
+        url = reverse(
+            "admin:poule_generate_matches",
+            args=[obj.pk],
+        )
         return format_html(
-            '<a class="button" href="/admin/tournaments/poule/{}/generate_matches/" '
+            '<a class="button" href="{}" '
             'style="background:#2b6cb0;color:#fff;padding:3px 8px;border-radius:4px;'
             'text-decoration:none;font-size:12px">Generate Matches</a>',
-            obj.pk,
+            url,
         )
     generate_button.short_description = 'Action'
     generate_button.allow_tags = True
