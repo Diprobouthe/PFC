@@ -251,8 +251,8 @@
     <!-- Top bar: match info -->
     <div class="ma-topbar">
         <span class="ma-vs">{{ match.team1.name }} vs {{ match.team2.name }}</span>
-        <span class="ma-status-badge">
-            {% if is_validating %}{% translate "Validating" %}{% else %}{% translate "Starting" %}{% endif %}
+        <span class="ma-status-badge" id="lineupWindowBadge">
+            {% if lineup_window_open %}{% translate "Lineup selection" %}{% elif is_validating %}{% translate "Validating" %}{% else %}{% translate "Starting" %}{% endif %}
         </span>
     </div>
 
@@ -281,7 +281,10 @@
 
         <!-- ② Player selection -->
         <div class="ma-role-label">
-            {% translate "Select Players" %}
+            {% if lineup_window_open %}{% translate "Update Lineup" %}{% else %}{% translate "Select Players" %}{% endif %}
+            {% if lineup_window_open and lineup_deadline_epoch %}
+            <span class="ma-auto-notice" id="lineupWindowCountdown" aria-live="polite"></span>
+            {% endif %}
             {% if auto_preselect %}
             <span class="ma-auto-notice"><i class="fas fa-magic"></i> {% translate "Auto-selected" %} ({{ required_count }} {% translate "required" %})</span>
             {% elif required_count %}
@@ -291,13 +294,13 @@
 
         {% for item in team_players_with_pos %}
         {% with player=item.player pos=item.preferred_position %}
-        <div class="ma-player-card {% if auto_preselect %}auto-selected{% endif %}" id="card-{{ player.id }}" onclick="togglePlayer({{ player.id }})">
+        <div class="ma-player-card {% if auto_preselect %}auto-selected{% elif player.id in selected_player_ids %}selected{% endif %}" id="card-{{ player.id }}" onclick="togglePlayer({{ player.id }})">
             <!-- Real checkbox (hidden visually, functional for form) -->
             <input type="checkbox"
                    name="players"
                    value="{{ player.id }}"
                    id="chk-{{ player.id }}"
-                   {% if auto_preselect %}checked{% endif %}>
+                   {% if auto_preselect or player.id in selected_player_ids %}checked{% endif %}>
             <div class="ma-check-icon" id="chkicon-{{ player.id }}">
                 <i class="fas fa-check"></i>
             </div>
@@ -307,7 +310,7 @@
             {% endif %}
         </div>
         <!-- Position chips — shown when player is selected -->
-        <div class="ma-pos-area {% if auto_preselect %}visible{% endif %}" id="pos-{{ player.id }}">
+        <div class="ma-pos-area {% if auto_preselect or player.id in selected_player_ids %}visible{% endif %}" id="pos-{{ player.id }}">
             <div class="ma-pos-chips">
                 {% for val, label in pos_choices %}
                 <label class="ma-pos-chip {% if val == pos %}active{% endif %}" id="chip-{{ player.id }}-{{ val }}" onclick="selectPos({{ player.id }}, '{{ val }}', this)">
@@ -352,10 +355,10 @@
     </a>
     <button type="submit" form="maForm" class="ma-confirm-btn" id="confirmBtn">
         <i class="fas fa-play me-2"></i>
-        {% if is_validating %}{% translate "Validate and Start Match" %}{% else %}{% translate "Start Match" %}{% endif %}
+        {% if lineup_window_open %}{% translate "Save Lineup" %}{% elif is_validating %}{% translate "Validate and Start Match" %}{% else %}{% translate "Start Match" %}{% endif %}
     </button>
     {# QR button: shown to the initiating team so they can scan the opponent's card on their own phone #}
-    {% if is_initiating %}
+    {% if is_initiating and not lineup_window_open %}
     <button type="button" class="ma-qr-btn" id="maQrBtn" title="{% translate 'Start opponent via QR scan' %}">&#x1F4F7;</button>
     {% endif %}
 </div>
@@ -413,6 +416,29 @@ document.addEventListener('DOMContentLoaded', function() {
             posArea.classList.add('visible');
         }
     });
+
+    {% if lineup_window_open and lineup_deadline_epoch %}
+    const deadlineMs = {{ lineup_deadline_epoch }};
+    const countdown = document.getElementById('lineupWindowCountdown');
+    const submitButton = document.getElementById('confirmBtn');
+    function updateLineupDeadline() {
+        const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+        if (countdown) {
+            if (remaining) {
+                const minutes = Math.floor(remaining / 60);
+                countdown.textContent = ` · ${minutes}:${String(remaining % 60).padStart(2, '0')}`;
+            } else {
+                countdown.textContent = ' · {% translate "Selection window closed" %}';
+            }
+        }
+        if (remaining) {
+            window.setTimeout(updateLineupDeadline, 500);
+        } else if (submitButton) {
+            submitButton.disabled = true;
+        }
+    }
+    updateLineupDeadline();
+    {% endif %}
 });
 </script>
 {% if qr_action_token %}

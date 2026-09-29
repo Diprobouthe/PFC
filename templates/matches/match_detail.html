@@ -689,7 +689,11 @@
     <a href="{% url 'match_list' %}" class="md-back-btn"><i class="fas fa-arrow-left"></i></a>
 
     {% if match.status == 'pending' %}
-        {% if my_team and not my_team_activated %}
+        {% if uses_round_lineup_lifecycle and my_team %}
+        <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-activate">
+            <i class="fas fa-users"></i> {% translate "Update Lineup" %} — {{ my_team.name }}
+        </a>
+        {% elif my_team and not my_team_activated %}
         <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-activate">
             <i class="fas fa-play"></i> {% translate "Start Match" %} — {{ my_team.name }}
         </a>
@@ -705,7 +709,11 @@
         {% endif %}
 
     {% elif match.status == 'pending_verification' %}
-        {% if my_team and my_team not in activated_teams %}
+        {% if uses_round_lineup_lifecycle and round_lineups_frozen %}
+        <button class="md-primary-btn md-btn-waiting" disabled>
+            <i class="fas fa-hourglass-half"></i> {% translate "Lineups frozen — waiting for a court" %}
+        </button>
+        {% elif my_team and my_team not in activated_teams %}
         <a href="{% url 'match_activate' match.id my_team.id %}{% if qr_action_token %}?qr_action={{ qr_action_token|urlencode }}{% endif %}" class="md-primary-btn md-btn-validate">
             <i class="fas fa-check-circle"></i> {% translate "Start Match" %} — {{ my_team.name }}
         </a>
@@ -909,32 +917,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function handleStateChange(data) {
             if (_redirecting) return;
-            // Reuse the same session-aware decision resolver as the PFC Smart
-            // button. The existing match WebSocket triggers this exactly once;
-            // no polling and no Live Score behavior are involved.
-            fetch('/my-matches/next-url/', {
-                credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function(response) { return response.json(); })
-            .then(function(resolved) {
-                if (_redirecting) return;
-                var targetUrl = resolved.next_url || data.state_url || data.next_url;
-                if (!targetUrl) return;
-                _redirecting = true;
-                if (targetUrl === CURRENT_PATH) {
-                    var joiner = targetUrl.indexOf('?') === -1 ? '?' : '&';
-                    window.location.href = targetUrl + joiner + 'ws_state=' + Date.now();
-                } else {
-                    window.location.href = targetUrl;
-                }
-            })
-            .catch(function() {
-                if (!data.state_url) return;
-                _redirecting = true;
-                var joiner = data.state_url.indexOf('?') === -1 ? '?' : '&';
-                window.location.href = data.state_url + joiner + 'ws_state=' + Date.now();
-            });
+            // Match events contain an authoritative, Match-scoped destination.
+            // Never perform a broad Smart Router discovery request on every
+            // participant state update.
+            var targetUrl = data.next_url || data.state_url;
+            if (!targetUrl) return;
+            _redirecting = true;
+            if (targetUrl === CURRENT_PATH) {
+                var joiner = targetUrl.indexOf('?') === -1 ? '?' : '&';
+                window.location.href = targetUrl + joiner + 'ws_state=' + Date.now();
+            } else {
+                window.location.href = targetUrl;
+            }
         }
 
         const wsScheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';

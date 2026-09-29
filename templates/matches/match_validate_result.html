@@ -359,6 +359,7 @@
     </div>
     <form method="post" id="vrForm">
         {% csrf_token %}
+        {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
         <!-- PIN injected server-side; never shown to user -->
         <input type="hidden" name="pin" value="">
 

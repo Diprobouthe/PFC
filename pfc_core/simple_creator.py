@@ -409,8 +409,11 @@ def create_simple_tournament(request):
             if scenario['tournament_type'] == 'swiss':
                 stage.num_rounds_in_stage = scenario['num_rounds']
             else:  # round_robin
-                stage.num_rounds_in_stage = scenario['num_rounds']
-                stage.num_matches_per_team = scenario['matches_per_team']
+                # The shared Round Robin generator derives its playing Round
+                # count from the stable registered Team set.  Scenario input
+                # remains only the optional total matches-per-Team value for a
+                # partial schedule; it is never a Court or Round-size input.
+                stage.num_matches_per_team = scenario.get('matches_per_team') or None
             stage.save()
         
         # No real court assignment needed for virtual courts
