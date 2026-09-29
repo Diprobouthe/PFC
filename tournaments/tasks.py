@@ -9,44 +9,18 @@ from django.db.models import Q # Import Q for complex queries
 logger = logging.getLogger("tournaments")
 
 def generate_next_round_robin_round(tournament):
-    logger.info(f"Checking completion status for Round Robin tournament {tournament.id}")
-    
-    try:
-        with transaction.atomic():
-            # For Round Robin, all matches are typically generated in round 1.
-            # This function checks if all matches are completed.
-            all_matches = Match.objects.filter(tournament=tournament)
-            total_matches = all_matches.count()
-            completed_matches = all_matches.filter(status="completed").count()
+    """Compatibility entry point for one authoritative RR successor path."""
 
-            logger.debug(f"Tournament {tournament.id}: Total matches={total_matches}, Completed={completed_matches}")
+    if not tournament.automatic_next_round_enabled():
+        logger.info(
+            "Tournament %s uses manual next-Round generation; legacy automation will not materialize a successor.",
+            tournament.id,
+        )
+        return True
 
-            if total_matches > 0 and completed_matches == total_matches:
-                logger.info(f"All {total_matches} matches completed for Round Robin tournament {tournament.id}. Marking as completed.")
-                tournament.automation_status = "completed"
-                tournament.current_round_number = None # Or set to a final round number if applicable
-                tournament.save()
-            elif total_matches == 0:
-                 logger.warning(f"No matches found for Round Robin tournament {tournament.id}. Cannot determine completion.")
-                 # Consider setting status to error or completed depending on context
-                 tournament.automation_status = "idle" # Reset status, maybe matches weren't generated?
-                 tournament.save()
-            else:
-                logger.info(f"Round Robin tournament {tournament.id} is still ongoing ({completed_matches}/{total_matches} matches completed). No new round to generate.")
-                # Ensure status is idle if it was processing
-                tournament.automation_status = "idle"
-                tournament.save()
+    from .automation_engine import TournamentEngine
 
-    except Exception as e:
-        logger.exception(f"Error checking Round Robin completion for tournament {tournament.id}: {e}")
-        try:
-            tournament.refresh_from_db()
-            if tournament.automation_status != "error":
-                tournament.automation_status = "error"
-                tournament.save()
-        except Tournament.DoesNotExist:
-            pass
-        raise # Re-raise to ensure transaction rollback if needed
+    return TournamentEngine(tournament).generate_next_round()
 
 
 def generate_next_swiss_round(tournament, stage=None):
@@ -406,4 +380,3 @@ def check_round_completion(tournament_id):
         except Tournament.DoesNotExist:
             pass # Tournament doesn't exist, nothing to mark
         # TODO: Add admin notification here
-

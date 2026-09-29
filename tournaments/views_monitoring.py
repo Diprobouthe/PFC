@@ -184,10 +184,10 @@ class AutomationControlView(View):
             
             elif action == 'trigger_automation':
                 # Manually trigger automation
-                from .automation_engine import TournamentAutomationEngine
+                from .automation_engine import TournamentEngine
                 
-                engine = TournamentAutomationEngine(tournament)
-                result = engine.process_tournament()
+                engine = TournamentEngine(tournament)
+                result = engine.process_automation()
                 
                 return JsonResponse({
                     'success': True,
@@ -197,9 +197,9 @@ class AutomationControlView(View):
             
             elif action == 'generate_round':
                 # Manually generate next round
-                from .automation_engine import TournamentAutomationEngine
+                from .automation_engine import TournamentEngine
                 
-                engine = TournamentAutomationEngine(tournament)
+                engine = TournamentEngine(tournament)
                 result = engine.generate_next_round()
                 
                 return JsonResponse({
@@ -210,9 +210,9 @@ class AutomationControlView(View):
             
             elif action == 'advance_stage':
                 # Manually advance to next stage
-                from .automation_engine import TournamentAutomationEngine
+                from .automation_engine import TournamentEngine
                 
-                engine = TournamentAutomationEngine(tournament)
+                engine = TournamentEngine(tournament)
                 result = engine.advance_to_next_stage()
                 
                 return JsonResponse({
@@ -345,4 +345,3 @@ def export_automation_logs(request, tournament_id=None):
     
     else:
         return JsonResponse({'error': 'Invalid format. Use json or csv.'}, status=400)
-

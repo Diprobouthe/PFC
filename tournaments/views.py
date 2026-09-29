@@ -67,12 +67,6 @@ def tournament_detail(request, tournament_id):
         for team in teams:
             team.display_player_count = team.players.count()
     
-    # Import the update_tournament_leaderboard function
-    from leaderboards.views import update_tournament_leaderboard
-    
-    # Ensure leaderboard is created and updated
-    update_tournament_leaderboard(tournament)
-    
     is_vs_mode = bool((tournament.allowed_match_types or {}).get('vs_mode'))
     vs_encounter = tournament.vs_encounters.first() if is_vs_mode else None
     context = {
@@ -215,8 +209,11 @@ def generate_matches(request, tournament_id):
             return redirect('tournament_assign_teams', tournament_id=tournament.id)
     
     if tournament.format == 'round_robin':
-        _generate_round_robin_matches(tournament)
-        messages.success(request, f'Round-robin matches generated for "{tournament.name}".')
+        matches_created = tournament.generate_matches()
+        if matches_created:
+            messages.success(request, f'Round-robin playing Round generated for "{tournament.name}".')
+        else:
+            messages.info(request, f'No new Round-robin Match rows were created for "{tournament.name}".')
     
     elif tournament.format == 'knockout':
         _generate_knockout_matches(tournament)
@@ -231,9 +228,11 @@ def generate_matches(request, tournament_id):
         messages.success(request, f'Smart Swiss system matches generated for "{tournament.name}".')
     
     elif tournament.format == 'multi_stage':
-        # For multi_stage tournaments, generate round-robin matches by default
-        _generate_round_robin_matches(tournament)
-        messages.success(request, f'Multi-stage matches generated for "{tournament.name}".')
+        matches_created = tournament.generate_matches()
+        if matches_created:
+            messages.success(request, f'First configured Stage Round generated for "{tournament.name}".')
+        else:
+            messages.info(request, f'No new Stage Match rows were created for "{tournament.name}".')
     
     else:
         messages.error(request, f'Unknown tournament format: {tournament.format}')
@@ -248,43 +247,9 @@ def generate_matches(request, tournament_id):
     return redirect('tournament_detail', tournament_id=tournament.id)
 
 def _generate_round_robin_matches(tournament):
-    """Generate matches for a round-robin tournament"""
-    teams = list(tournament.teams.all())
-    
-    # If odd number of teams, add a "bye" team
-    if len(teams) % 2 != 0:
-        teams.append(None)
-    
-    n = len(teams)
-    matches_per_round = n // 2
-    
-    # Create rounds
-    for round_num in range(1, n):
-        round_obj, created = Round.objects.get_or_create(
-            tournament=tournament,
-            number=round_num
-        )
-        
-        # Generate matches for this round
-        for i in range(matches_per_round):
-            team1 = teams[i]
-            team2 = teams[n - 1 - i]
-            
-            # Skip if one team is the "bye" team
-            if team1 is None or team2 is None:
-                continue
-            
-            Match.objects.create(
-                tournament=tournament,
-                round=round_obj,
-                team1=team1,
-                team2=team2,
-                status='pending',
-                time_limit_minutes=tournament.default_time_limit_minutes
-            )
-        
-        # Rotate teams for next round (first team stays fixed)
-        teams = [teams[0]] + [teams[-1]] + teams[1:-1]
+    """Compatibility wrapper for the authoritative one-Round RR generator."""
+
+    return tournament.generate_matches()
 
 def _generate_knockout_matches(tournament):
     """Generate matches for a knockout tournament"""
@@ -1057,9 +1022,12 @@ def _activate_locked_vs_match(match_id):
     """
     from django.db import transaction
     from matches.models import MatchActivation, MatchPlayer
-    from matches.utils import auto_assign_court, detect_match_type, validate_match_type
-    from courts.timezone_utils import get_court_local_now
-    from pfc_events.signals import notify_match_state_changed
+    from matches.utils import detect_match_type, validate_match_type
+    from matches.lifecycle import (
+        MatchLifecycleError,
+        activate_verified_match,
+        mark_match_verified,
+    )
     from tournaments.vs_utils import apply_vs_match_format
     from .models import VSLineup
 
@@ -1120,26 +1088,16 @@ def _activate_locked_vs_match(match_id):
                 )
         MatchPlayer.objects.filter(match=match).update(match_format=match_type)
 
-        court = auto_assign_court(match)
-        if court:
-            court_complex = court.courtcomplex_set.first()
-            match.status = 'active'
-            match.start_time = (
-                get_court_local_now(court_complex) if court_complex else timezone.now()
-            )
-            match.waiting_for_court = False
-        else:
-            # This is the established state consumed by the court-waiting
-            # assignment command once both teams have activated.
-            match.status = 'pending_verification'
-            match.waiting_for_court = True
-        match.save(update_fields=['status', 'start_time', 'waiting_for_court', 'updated_at'])
-        notify_match_state_changed(match.id, match.status)
+        # A VS match has both locked lineups at this point, which is the same
+        # verified state used by the common transactional activation service.
+        mark_match_verified(match.id)
+        try:
+            activation_outcome = activate_verified_match(match.id)
+        except MatchLifecycleError as exc:
+            return False, str(exc)
+        match.refresh_from_db()
 
-    if court:
-        # Keep court-presence registration consistent with normal activation.
-        from matches.views import auto_register_players_to_billboard
-        auto_register_players_to_billboard(match)
+    if activation_outcome.activated:
         return True, 'Both lineups are locked. The VS match is active.'
     return True, 'Both lineups are locked. The match is waiting for a court.'
 
