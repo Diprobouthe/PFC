@@ -120,6 +120,11 @@ def tournament_status_view(request, tournament_id):
         # In a full implementation, this would render a template
         from django.http import HttpResponse
         
+        tournament_change_url = reverse(
+            "admin:tournaments_tournament_change",
+            args=[tournament_id],
+        )
+        tournament_list_url = reverse("admin:tournaments_tournament_changelist")
         html = f"""
         <html>
         <head><title>Tournament {tournament_id} Status</title></head>
@@ -128,8 +133,8 @@ def tournament_status_view(request, tournament_id):
         <pre>{debug_info}</pre>
         <hr>
         <h2>Actions</h2>
-        <a href="/admin/tournaments/tournament/{tournament_id}/change/">Edit Tournament</a><br>
-        <a href="/admin/tournaments/tournament/">Back to Tournament List</a>
+        <a href="{tournament_change_url}">Edit Tournament</a><br>
+        <a href="{tournament_list_url}">Back to Tournament List</a>
         </body>
         </html>
         """
@@ -139,4 +144,3 @@ def tournament_status_view(request, tournament_id):
     except Exception as e:
         from django.http import HttpResponse
         return HttpResponse(f"Error: {e}", status=500)
-

@@ -74,7 +74,11 @@ class TournamentForm(forms.ModelForm):
 
 
 class StageForm(forms.ModelForm):
-    """Form for creating and editing tournament stages with Incomplete Round Robin support"""
+    """Format-aware staff form for a Tournament Stage.
+
+    The underlying generators are unchanged.  This form makes their existing
+    configuration semantics explicit wherever Django Admin is used.
+    """
     
     class Meta:
         model = Stage
@@ -93,32 +97,74 @@ class StageForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Add help text for num_matches_per_team
-        self.fields['num_matches_per_team'].help_text = (
-            "For Round Robin stages only: Number of matches each team should play. "
-            "Leave blank for full Round Robin (every team plays every other team). "
-            "Use this for Incomplete Round Robin to limit matches with large tournaments."
-        )
-        
-        # Make num_matches_per_team conditional
-        self.fields['num_matches_per_team'].required = False
+        if 'num_rounds_in_stage' in self.fields:
+            self.fields['num_rounds_in_stage'].required = False
+            self.fields['num_rounds_in_stage'].help_text = (
+                "Swiss, Smart Swiss, and WTF: number of sequential pairing rounds. "
+                "Knockout: bracket-round limit. Round Robin derives its playing "
+                "Rounds from the participating Teams; Poule keeps its existing configuration."
+            )
+        if 'num_qualifiers' in self.fields:
+            self.fields['num_qualifiers'].help_text = (
+                "Teams advancing from this Stage. For Poule, qualification is set "
+                "on each saved Poule instead."
+            )
+        if 'num_matches_per_team' in self.fields:
+            self.fields['num_matches_per_team'].help_text = (
+                "Round Robin only. Leave blank for a full Round Robin; otherwise "
+                "enter the exact number of matches per team for an incomplete schedule."
+            )
+            self.fields['num_matches_per_team'].required = False
 
     def clean(self):
         cleaned_data = super().clean()
+
+        # Stage Admin removes structural fields once a Round exists. Their
+        # persisted values are already authoritative; do not attempt to attach
+        # validation errors to fields intentionally absent from that form.
+        if 'format' not in self.fields:
+            return cleaned_data
         
         format_type = cleaned_data.get('format')
         num_matches_per_team = cleaned_data.get('num_matches_per_team')
         tournament = cleaned_data.get('tournament')
+        if tournament is None and self.instance.tournament_id:
+            tournament = self.instance.tournament
+        num_rounds_in_stage = cleaned_data.get('num_rounds_in_stage')
+
+        if format_type == 'round_robin' and not num_rounds_in_stage:
+            # This persisted placeholder is replaced by the authoritative RR
+            # scheduler when it sees the stable active Stage participant set.
+            # Organizers must not calculate or supply the derived count.
+            cleaned_data['num_rounds_in_stage'] = self.instance.num_rounds_in_stage or 1
+            num_rounds_in_stage = cleaned_data['num_rounds_in_stage']
+        elif not num_rounds_in_stage or num_rounds_in_stage < 1:
+            self.add_error(
+                'num_rounds_in_stage',
+                'A Stage must have at least one round.',
+            )
+
+        # Full Round Robin derives this field from the stable Stage participant
+        # set when its first playing Round is generated.  Partial Round Robin
+        # derives it from ``num_matches_per_team``.  Swiss remains the only
+        # format where staff-entered round count controls Swiss pairings.
         
         # Validate num_matches_per_team only applies to Round Robin
-        if num_matches_per_team and format_type != 'round_robin':
-            raise ValidationError({
-                'num_matches_per_team': 
-                "Number of matches per team can only be specified for Round Robin stages."
-            })
+        if num_matches_per_team is not None and format_type != 'round_robin':
+            self.add_error(
+                'num_matches_per_team',
+                'Number of matches per team is used only for incomplete Round Robin stages.',
+            )
         
         # Validate num_matches_per_team is reasonable
-        if num_matches_per_team and tournament:
+        if num_matches_per_team is not None and format_type == 'round_robin':
+            if num_matches_per_team < 1:
+                self.add_error(
+                    'num_matches_per_team',
+                    'Number of matches per team must be at least 1; leave the field blank for full Round Robin.',
+                )
+
+        if num_matches_per_team is not None and tournament and num_matches_per_team >= 1:
             # Get number of teams in tournament (estimate)
             team_count = tournament.teams.count()
             
@@ -133,11 +179,11 @@ class StageForm(forms.ModelForm):
                         f"For full Round Robin, leave this field blank."
                     })
                 
-                if num_matches_per_team < 1:
-                    raise ValidationError({
-                        'num_matches_per_team': 
-                        "Number of matches per team must be at least 1."
-                    })
+                if (team_count * num_matches_per_team) % 2:
+                    self.add_error(
+                        'num_matches_per_team',
+                        'This exact per-team schedule is impossible because the total team-match count would be odd.',
+                    )
         
         # Validate stage number is unique within tournament
         stage_number = cleaned_data.get('stage_number')

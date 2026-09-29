@@ -32,8 +32,13 @@ class TournamentEngine:
         
         try:
             with transaction.atomic():
-                # Refresh tournament data to get latest status
-                self.tournament.refresh_from_db()
+                # The lifecycle dispatcher normally already owns this lock. The
+                # engine also acquires it itself for explicit retry/admin calls,
+                # so two independent entry points cannot generate the same next
+                # Round or complete the same stage concurrently.
+                self.tournament = Tournament.objects.select_for_update(of=("self",)).get(
+                    pk=self.tournament.pk
+                )
                 current_status = getattr(self.tournament, 'automation_status', 'idle')
                 
                 # Safeguard 1: Check if automation is already running
@@ -75,8 +80,15 @@ class TournamentEngine:
                     action_taken = "advance_stage"
                 # Check if we should generate next round
                 elif self.should_generate_next_round():
-                    result = self.generate_next_round()
-                    action_taken = "generate_round"
+                    if self.tournament.automatic_next_round_enabled():
+                        result = self.generate_next_round()
+                        action_taken = "generate_round"
+                    else:
+                        logger.info(
+                            "Tournament %s completed its current Round; manual next-Round generation is selected.",
+                            self.tournament.id,
+                        )
+                        action_taken = "manual_next_round"
                 else:
                     logger.debug("No automation action needed")
                     action_taken = "none"
@@ -125,6 +137,44 @@ class TournamentEngine:
         
         logger.error(f"No stages found for tournament {self.tournament.id}")
         return None
+
+    def _round_robin_participants(self, stage=None):
+        """Return stable participants for the direct or staged RR schedule."""
+
+        if stage is not None:
+            from .round_robin import stable_stage_participants
+
+            return stable_stage_participants(stage)
+        return list(
+            TournamentTeam.objects.filter(
+                tournament=self.tournament,
+                is_active=True,
+            )
+            .select_related("team")
+            .order_by("team_id", "pk")
+        )
+
+    def _latest_round_robin_round(self, stage=None):
+        rounds = Round.objects.filter(tournament=self.tournament, stage=stage)
+        return rounds.filter(matches__isnull=False).distinct().order_by(
+            "-number_in_stage", "-number", "-pk"
+        ).first()
+
+    def _round_robin_next_round_number(self, stage=None):
+        latest = self._latest_round_robin_round(stage)
+        return (latest.number_in_stage + 1) if latest else 1
+
+    def _round_robin_schedule_length(self, stage=None):
+        from .round_robin import round_robin_schedule
+
+        participants = self._round_robin_participants(stage)
+        matches_per_team = stage.num_matches_per_team if stage is not None else None
+        return len(
+            round_robin_schedule(
+                participants,
+                matches_per_team=matches_per_team,
+            )
+        )
     
     def is_current_stage_complete(self):
         """Check if all rounds in current stage are complete"""
@@ -155,21 +205,28 @@ class TournamentEngine:
         return True
     
     def is_round_complete(self, round_obj):
-        """Check if all matches in a round are complete"""
+        """Check if all scheduled Matches in a Round reached a terminal state."""
         round_matches = Match.objects.filter(
             tournament=self.tournament,
             round=round_obj
         )
         
         total_matches = round_matches.count()
-        completed_matches = round_matches.filter(status="completed").count()
-        
-        logger.debug(f"Round {round_obj.number}: {completed_matches}/{total_matches} matches complete")
+        terminal_matches = round_matches.filter(
+            status__in=Match.ROUND_TERMINAL_STATUSES
+        ).count()
+
+        logger.debug(
+            "Round %s: %s/%s matches terminal",
+            round_obj.number,
+            terminal_matches,
+            total_matches,
+        )
         
         # Round is complete if:
         # 1. There are matches in the round
-        # 2. All matches are completed
-        is_complete = (total_matches > 0 and completed_matches == total_matches)
+        # 2. All matches are terminal (completed or cancelled)
+        is_complete = (total_matches > 0 and terminal_matches == total_matches)
         
         if is_complete and not round_obj.is_complete:
             # Mark the round as complete in the database
@@ -189,7 +246,21 @@ class TournamentEngine:
     def should_generate_next_round(self):
         """Determine if we should generate the next round"""
         if not self.current_stage:
-            return False
+            if self.tournament.format != "round_robin":
+                return False
+            current_round = self._latest_round_robin_round()
+            if current_round and not self.is_round_complete(current_round):
+                return False
+            return self._round_robin_next_round_number() <= self._round_robin_schedule_length()
+
+        if self.current_stage.format == "round_robin":
+            current_round = self._latest_round_robin_round(self.current_stage)
+            if current_round and not self.is_round_complete(current_round):
+                return False
+            return (
+                self._round_robin_next_round_number(self.current_stage)
+                <= self._round_robin_schedule_length(self.current_stage)
+            )
         
         # FIXED: Check if current stage is complete first
         if self.is_current_stage_complete():
@@ -238,6 +309,14 @@ class TournamentEngine:
     
     def is_tournament_complete(self):
         """Check if tournament is completely finished"""
+        if not self.current_stage and self.tournament.format == "round_robin":
+            current_round = self._latest_round_robin_round()
+            return bool(
+                current_round
+                and self.is_round_complete(current_round)
+                and current_round.number_in_stage >= self._round_robin_schedule_length()
+            )
+
         # Tournament is complete if we're in the final stage and it's complete
         final_stage = Stage.objects.filter(tournament=self.tournament).order_by('-stage_number').first()
         
@@ -322,9 +401,14 @@ class TournamentEngine:
     
     def generate_next_round(self):
         """Generate next round within current stage with comprehensive safeguards"""
+        if not self.current_stage and self.tournament.format == "round_robin":
+            return self._generate_round_robin_successor(stage=None)
         if not self.current_stage:
             logger.error("No current stage found")
             return False
+
+        if self.current_stage.format == "round_robin":
+            return self._generate_round_robin_successor(stage=self.current_stage)
             
         # Determine next round number
         current_round = self.tournament.current_round_number or 0
@@ -373,16 +457,18 @@ class TournamentEngine:
                 logger.info(f"🏁 Stage {self.current_stage.stage_number} has reached maximum rounds ({self.current_stage.num_rounds_in_stage})")
                 return True
         
-        # Safeguard 3: Check if all matches in current round are actually completed
+        # Safeguard 3: Check if all Matches in the current Round are terminal.
         if current_round > 0:
             current_round_matches = Match.objects.filter(
                 tournament=self.tournament,
                 round__number=current_round
             )
             
-            incomplete_matches = current_round_matches.exclude(status='completed').count()
+            incomplete_matches = current_round_matches.exclude(
+                status__in=Match.ROUND_TERMINAL_STATUSES
+            ).count()
             if incomplete_matches > 0:
-                logger.warning(f"⚠️ Current round {current_round} has {incomplete_matches} incomplete matches - cannot generate next round")
+                logger.warning(f"⚠️ Current round {current_round} has {incomplete_matches} non-terminal matches - cannot generate next round")
                 return False
         
         # Get active teams in current stage
@@ -416,11 +502,65 @@ class TournamentEngine:
                 logger.warning(f"⚠️ Expected {expected_matches} matches but created {created_matches}")
         
         return result
+
+    def _generate_round_robin_successor(self, stage):
+        """Materialize one and only one deterministic Round Robin successor."""
+
+        from .round_robin import (
+            RoundRobinConfigurationError,
+            materialize_round_robin_round,
+        )
+
+        latest = self._latest_round_robin_round(stage)
+        if latest and not self.is_round_complete(latest):
+            logger.warning(
+                "Round Robin Round %s is not complete; no successor will be generated.",
+                latest.id,
+            )
+            return False
+
+        next_round_number = self._round_robin_next_round_number(stage)
+        try:
+            materialized = materialize_round_robin_round(
+                tournament=self.tournament,
+                stage=stage,
+                teams=self._round_robin_participants(stage),
+                round_number=next_round_number,
+            )
+        except RoundRobinConfigurationError as exc:
+            logger.warning(
+                "Round Robin successor generation stopped for Tournament %s: %s",
+                self.tournament.id,
+                exc,
+            )
+            return False
+
+        if materialized.created_matches:
+            from tournaments.lineup_lifecycle import open_round_lineup_window
+            from tournaments.lineup_clock import wake_lineup_clock
+
+            open_round_lineup_window(materialized.round.id)
+            transaction.on_commit(wake_lineup_clock)
+            self.tournament.current_round_number = materialized.round.number
+            self.tournament.automation_status = "idle"
+            self.tournament.save(
+                update_fields=["current_round_number", "automation_status"]
+            )
+            logger.info(
+                "Generated Round Robin Round %s (%s Matches) for Tournament %s",
+                materialized.round.number_in_stage,
+                materialized.match_count,
+                self.tournament.id,
+            )
+        return True
     
     def generate_stage_round(self, stage, teams, round_number):
         """Generate round based on stage format"""
         try:
             with transaction.atomic():
+                if stage.format == 'round_robin':
+                    return self._generate_round_robin_successor(stage=stage)
+
                 # Create round object
                 round_obj, created = Round.objects.get_or_create(
                     tournament=self.tournament,
@@ -495,18 +635,18 @@ class TournamentEngine:
                 elif stage.format == 'knockout':
                     generator = KnockoutGenerator(self.tournament, stage, round_obj)
                     matches_created = generator.generate_matches(teams)
-                elif stage.format == 'round_robin':
-                    # Check if this is incomplete round robin
-                    if hasattr(stage, 'num_matches_per_team') and stage.num_matches_per_team:
-                        generator = IncompleteRoundRobinGenerator(self.tournament, stage, round_obj)
-                    else:
-                        generator = RoundRobinGenerator(self.tournament, stage, round_obj)
-                    matches_created = generator.generate_matches(teams)
                 else:
                     logger.error(f"Unknown stage format: {stage.format}")
                     return False
                 
                 if matches_created > 0:
+                    # Successor Match generation opens one Round-scoped server
+                    # lineup window. Court allocation waits for its deadline.
+                    from tournaments.lineup_lifecycle import open_round_lineup_window
+                    from tournaments.lineup_clock import wake_lineup_clock
+
+                    open_round_lineup_window(round_obj.id)
+                    transaction.on_commit(wake_lineup_clock)
                     # Update tournament state
                     self.tournament.current_round_number = round_number
                     self.tournament.automation_status = "idle"
@@ -895,26 +1035,18 @@ class KnockoutGenerator(MatchGenerator):
 
 
 class RoundRobinGenerator(MatchGenerator):
-    """Round robin tournament match generator"""
+    """Compatibility wrapper for the shared Round-scoped RR materializer."""
     
     def generate_matches(self, teams):
-        """Generate round robin matches"""
-        logger.info(f"🔄 Generating round robin matches for {len(teams)} teams")
-        
-        # In round robin, typically all matches are generated at once
-        # This is a simplified version - could be enhanced for multi-round round robin
-        matches_created = 0
-        
-        for i in range(len(teams)):
-            for j in range(i + 1, len(teams)):
-                team1 = teams[i]
-                team2 = teams[j]
-                
-                if not self.have_played_before(team1, team2):
-                    self.create_match(team1, team2)
-                    matches_created += 1
-        
-        return matches_created
+        from .round_robin import materialize_round_robin_round
+
+        materialized = materialize_round_robin_round(
+            tournament=self.tournament,
+            stage=self.stage,
+            teams=teams,
+            round_number=self.round_obj.number_in_stage,
+        )
+        return materialized.match_count if materialized.created_matches else 0
     
     def have_played_before(self, team1_tt, team2_tt):
         """Check if teams have played in this tournament"""
@@ -922,36 +1054,18 @@ class RoundRobinGenerator(MatchGenerator):
 
 
 class IncompleteRoundRobinGenerator(MatchGenerator):
-    """Incomplete Round Robin tournament match generator with subteam pairing preferences"""
+    """Compatibility wrapper for the shared partial RR materializer."""
     
     def generate_matches(self, teams):
-        """Generate incomplete round robin matches with parent team preferences"""
-        logger.info(f"🔄 Generating incomplete round robin matches for {len(teams)} teams")
-        
-        # Get the number of matches per team from the stage
-        matches_per_team = self.stage.num_matches_per_team
-        if not matches_per_team:
-            logger.error("num_matches_per_team not specified for incomplete round robin")
-            return 0
-        
-        logger.info(f"Target: {matches_per_team} matches per team")
-        
-        # Generate all possible pairings with penalties
-        all_pairings = self._generate_all_pairings_with_penalties(teams)
-        
-        # Select optimal pairings using the penalty system
-        selected_pairings = self._select_optimal_pairings(all_pairings, teams, matches_per_team)
-        
-        # Create matches from selected pairings
-        matches_created = 0
-        for team1_tt, team2_tt, penalty in selected_pairings:
-            if not self.have_played_before(team1_tt, team2_tt):
-                self.create_match(team1_tt, team2_tt)
-                matches_created += 1
-                logger.debug(f"Created match: {team1_tt.team.name} vs {team2_tt.team.name} (penalty: {penalty})")
-        
-        logger.info(f"✅ Created {matches_created} matches for incomplete round robin")
-        return matches_created
+        from .round_robin import materialize_round_robin_round
+
+        materialized = materialize_round_robin_round(
+            tournament=self.tournament,
+            stage=self.stage,
+            teams=teams,
+            round_number=self.round_obj.number_in_stage,
+        )
+        return materialized.match_count if materialized.created_matches else 0
     
     def _generate_all_pairings_with_penalties(self, teams):
         """Generate all possible pairings with parent team penalties"""
