@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -13,6 +14,8 @@ from matches.starting_team import (
     ensure_match_starting_team,
     match_has_first_real_score,
 )
+from leaderboards.models import Leaderboard, LeaderboardEntry
+from friendly_games.models import PlayerCodename
 from teams.models import Player, Team
 from tournaments.models import Tournament
 
@@ -161,3 +164,38 @@ class TournamentStartingTeamTests(TestCase):
             score_entry_html.index('id="team1-score"'),
             score_entry_html.index('id="team1-score-select"'),
         )
+
+    def test_tournament_detail_get_does_not_create_or_rebuild_leaderboard(self):
+        before_leaderboards = Leaderboard.objects.count()
+        before_entries = LeaderboardEntry.objects.count()
+
+        response = self.client.get(reverse("tournament_detail", args=[self.tournament.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Leaderboard.objects.count(), before_leaderboards)
+        self.assertEqual(LeaderboardEntry.objects.count(), before_entries)
+
+    def test_tournament_score_update_uses_trusted_session_not_json_codename(self):
+        scoreboard = self.match.live_scoreboard
+        PlayerCodename.objects.create(player=self.player1, codename="NORTH1")
+
+        rejected = self.client.post(
+            reverse("update_scoreboard", args=[scoreboard.id]),
+            data=json.dumps({"team1_score": 1, "team2_score": 0, "codename": "NORTH1"}),
+            content_type="application/json",
+        )
+        self.assertEqual(rejected.status_code, 403)
+
+        session = self.client.session
+        session["player_codename"] = "NORTH1"
+        session.save()
+        accepted = self.client.post(
+            reverse("update_scoreboard", args=[scoreboard.id]),
+            data=json.dumps({"team1_score": 1, "team2_score": 0, "codename": "UNTRUSTED"}),
+            content_type="application/json",
+        )
+        self.assertEqual(accepted.status_code, 200)
+        payload = accepted.json()
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["last_updated_by"], "NORTH1")
+        self.assertEqual(payload["score_update"]["by"], self.player1.name)
