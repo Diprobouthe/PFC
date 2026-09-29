@@ -92,6 +92,14 @@ PFC_FRIENDLY_COURT_PROXIMITY_METERS = int(
     os.environ.get('PFC_FRIENDLY_COURT_PROXIMITY_METERS', '200')
 )
 
+# One recoverable, process-local clock observes persisted Round lineup
+# deadlines. Database row locks make multiple Daphne processes safe; no
+# client polling, Redis queue, Celery, or extra Render service is required.
+TOURNAMENT_LINEUP_CLOCK_ENABLED = (
+    os.environ.get("TOURNAMENT_LINEUP_CLOCK_ENABLED", "true").lower()
+    in {"1", "true", "yes", "on"}
+)
+
 # Application definition
 
 INSTALLED_APPS = [
