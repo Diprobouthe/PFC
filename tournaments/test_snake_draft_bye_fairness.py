@@ -1,4 +1,5 @@
 from datetime import timedelta
+from time import perf_counter
 
 from django.test import TestCase
 from django.utils import timezone
@@ -184,4 +185,94 @@ class SnakeDraftIndividualByeFairnessTests(TestCase):
                 tournament=self.tournament,
                 round=self._round(2),
             ).exists()
+        )
+
+
+class SuperMeleeFiftyPlayerPerformanceSmokeTests(TestCase):
+    """Benchmark a realistic 50-player Super Mêlée round transition."""
+
+    def test_fifty_player_generation_and_shuffle_timing(self):
+        now = timezone.now()
+        tournament = Tournament.objects.create(
+            name="50 Player Super Mêlée Performance",
+            format="multi_stage",
+            play_format="doublets",
+            is_melee=True,
+            melee_format="doublets",
+            shuffle_players_after_round=True,
+            start_date=now,
+            end_date=now + timedelta(hours=8),
+        )
+        stage = Stage.objects.create(
+            tournament=tournament,
+            stage_number=1,
+            format="swiss",
+            num_qualifiers=1,
+            num_rounds_in_stage=2,
+        )
+        court = Court.objects.create(number=97650, is_available=True)
+        tournament.courts.add(court)
+
+        for number in range(1, 51):
+            home_team = Team.objects.create(name=f"Bench50 Home {number}")
+            player = Player.objects.create(
+                name=f"Bench50 Player {number}",
+                team=home_team,
+            )
+            PlayerProfile.objects.create(player=player, value=100.0 + number)
+            MeleePlayer.objects.create(tournament=tournament, player=player)
+
+        generation_started = perf_counter()
+        teams_created = tournament.generate_melee_teams("random")
+        generation_ms = (perf_counter() - generation_started) * 1000
+        self.assertEqual(teams_created, 25)
+
+        matches_created = tournament.generate_matches()
+        self.assertEqual(matches_created, 12)
+        round_one = Round.objects.get(
+            tournament=tournament,
+            stage=stage,
+            number_in_stage=1,
+        )
+        round_one_matches = list(
+            Match.objects.filter(tournament=tournament, round=round_one)
+        )
+        self.assertEqual(len(round_one_matches), 12)
+        for match in round_one_matches:
+            Match.objects.filter(pk=match.pk).update(
+                status="completed",
+                winner=match.team1,
+                loser=match.team2,
+                team1_score=13,
+                team2_score=0,
+            )
+
+        shuffle_started = perf_counter()
+        shuffle_result = shuffle_melee_players(
+            tournament=tournament,
+            shuffle_type="automatic",
+            completed_round=round_one,
+        )
+        shuffle_ms = (perf_counter() - shuffle_started) * 1000
+        self.assertTrue(shuffle_result["success"], shuffle_result)
+
+        round_two = Round.objects.get(
+            tournament=tournament,
+            stage=stage,
+            number_in_stage=2,
+        )
+        round_two_assignments = MeleeRoundAssignment.objects.filter(
+            tournament=tournament,
+            round=round_two,
+        ).count()
+        self.assertEqual(round_two_assignments, 50)
+
+        print(
+            "BENCHMARK50 "
+            f"generation_ms={generation_ms:.1f} "
+            f"shuffle_ms={shuffle_ms:.1f} "
+            f"total_ms={generation_ms + shuffle_ms:.1f} "
+            f"teams={teams_created} "
+            f"round1_matches={len(round_one_matches)} "
+            f"round2_assignments={round_two_assignments}"
         )
