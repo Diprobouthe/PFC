@@ -2,6 +2,7 @@
 
 import logging
 import random
+from time import perf_counter
 
 from django.db import transaction
 
@@ -348,26 +349,57 @@ def shuffle_melee_players(
                 input_data.player.id: input_data
                 for input_data in assignment_inputs
             }
-            for melee_player in melee_players:
-                input_data = assignment_input_by_player_id[melee_player.player_id]
-                assigned_team = input_data.team
-                melee_player.assigned_team = assigned_team
-                melee_player.save(update_fields=["assigned_team"])
-                if assigned_team is not None and legacy_projection:
-                    # Existing pre-P4 events retain their old mutable
-                    # projection until safe legacy restoration.
-                    melee_player.player.team = assigned_team
-                    melee_player.player.save(update_fields=["team"])
-                    refresh_legacy_player_team_session(
-                        melee_player.player,
-                        assigned_team,
-                        in_melee_assignment=True,
+            assignment_update_started = perf_counter()
+            if legacy_projection:
+                # Preserve the legacy Player.team/session projection exactly as
+                # before. This compatibility path is intentionally not used by
+                # new assignment-based P4 tournaments.
+                for melee_player in melee_players:
+                    input_data = assignment_input_by_player_id[melee_player.player_id]
+                    assigned_team = input_data.team
+                    melee_player.assigned_team = assigned_team
+                    melee_player.save(update_fields=["assigned_team"])
+                    if assigned_team is not None:
+                        melee_player.player.team = assigned_team
+                        melee_player.player.save(update_fields=["team"])
+                        refresh_legacy_player_team_session(
+                            melee_player.player,
+                            assigned_team,
+                            in_melee_assignment=True,
+                        )
+            else:
+                # New P4 tournaments keep current Mêlée state on MeleePlayer.
+                # One bulk UPDATE replaces one database round-trip per player.
+                for melee_player in melee_players:
+                    input_data = assignment_input_by_player_id[melee_player.player_id]
+                    melee_player.assigned_team_id = (
+                        input_data.team.id if input_data.team is not None else None
                     )
+                MeleePlayer.objects.bulk_update(
+                    melee_players,
+                    ["assigned_team"],
+                    batch_size=500,
+                )
+            logger.info(
+                "Mêlée performance tournament=%s phase=current_assignment_update "
+                "rows=%s elapsed_ms=%.1f",
+                tournament.id,
+                len(melee_players),
+                (perf_counter() - assignment_update_started) * 1000,
+            )
 
+            assignment_write_started = perf_counter()
             assignment_rows = MeleeRoundAssignmentWriter.write_complete_round(
                 tournament=tournament,
                 round=next_round_obj,
                 assignments=assignment_inputs,
+            )
+            logger.info(
+                "Mêlée performance tournament=%s phase=round_assignment_write "
+                "rows=%s elapsed_ms=%.1f",
+                tournament.id,
+                len(assignment_rows),
+                (perf_counter() - assignment_write_started) * 1000,
             )
 
             if completed_round_bye_team_id is not None:
@@ -383,9 +415,17 @@ def shuffle_melee_players(
                     defaults={"team": planned_bye_team},
                 )
 
+            partnership_write_started = perf_counter()
             partnerships_created = MeleePartnership.record_partnerships_for_round(
                 tournament,
                 round_obj=next_round_obj,
+            )
+            logger.info(
+                "Mêlée performance tournament=%s phase=partnership_write "
+                "rows=%s elapsed_ms=%.1f",
+                tournament.id,
+                partnerships_created,
+                (perf_counter() - partnership_write_started) * 1000,
             )
             shuffle_record = MeleeShuffleHistory.objects.create(
                 tournament=tournament,
