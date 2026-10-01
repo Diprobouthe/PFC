@@ -103,6 +103,16 @@ class TournamentScenario(models.Model):
         help_text="Duration in minutes of the pre-game 'Find Your Court' countdown. Leave blank to use the system default (3 minutes)."
     )
 
+    # Server-owned lineup selection window copied to each Tournament created
+    # from this Scenario. Zero preserves the current immediate-default behavior.
+    lineup_selection_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "Lineup / position selection window in seconds for each newly "
+            "generated Round. Zero freezes valid default lineups immediately."
+        ),
+    )
+
     # Tournament configuration
     tournament_type = models.CharField(max_length=20, choices=[
         ('swiss', 'Swiss'),
