@@ -93,11 +93,20 @@ class TournamentEngine:
                     logger.debug("No automation action needed")
                     action_taken = "none"
                 
-                # Always reset status to idle after processing
-                self.tournament.automation_status = "idle"
-                self.tournament.save()
-                
-                logger.info(f"✅ Automation completed for tournament {self.tournament.id} (action: {action_taken}), status reset to idle")
+                # A terminal Tournament must never be reopened by the generic
+                # post-action cleanup. Non-terminal automation returns to idle.
+                if self.tournament.automation_status != "completed":
+                    self.tournament.automation_status = "idle"
+                    self.tournament.save(update_fields=["automation_status"])
+                    logger.info(
+                        f"✅ Automation completed for tournament {self.tournament.id} "
+                        f"(action: {action_taken}), status reset to idle"
+                    )
+                else:
+                    logger.info(
+                        f"🏁 Automation completed for tournament {self.tournament.id} "
+                        f"(action: {action_taken}); terminal completed state retained"
+                    )
                 return result
                 
         except Exception as e:
@@ -666,15 +675,16 @@ class TournamentEngine:
         """Mark tournament as completed and perform cleanup"""
         try:
             with transaction.atomic():
-                self.tournament.automation_status = "completed"
-                self.tournament.current_round_number = None
-                self.tournament.save()
-                
-                logger.info(f"🏆 Tournament {self.tournament.id} marked as completed")
+                from .completion import (
+                    check_and_complete_tournament,
+                    finalize_tournament_state,
+                )
+
+                finalize_tournament_state(self.tournament)
+                logger.info(f"🏆 Tournament {self.tournament.id} marked as completed and archived")
                 
                 # Assign tournament badges if available
                 try:
-                    from .completion import check_and_complete_tournament
                     check_and_complete_tournament(self.tournament)
                     logger.info(f"🏅 Tournament badges assigned")
                 except Exception as e:
