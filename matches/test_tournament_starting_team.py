@@ -8,6 +8,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from courts.models import Court
+from matches.lifecycle import allocate_ready_matches
 from matches.models import LiveScoreboard, Match, MatchPlayer, ScoreUpdate
 from matches.starting_team import (
     announce_match_starting_team,
@@ -199,3 +201,51 @@ class TournamentStartingTeamTests(TestCase):
         self.assertTrue(payload["success"])
         self.assertEqual(payload["last_updated_by"], "NORTH1")
         self.assertEqual(payload["score_update"]["by"], self.player1.name)
+
+
+class TournamentBatchStartingTeamTests(TestCase):
+    def setUp(self):
+        now = timezone.now()
+        self.tournament = Tournament.objects.create(
+            name="Batch Starting Team Test",
+            play_format="doublets",
+            start_date=now,
+            end_date=now + timedelta(hours=2),
+        )
+        self.team1 = Team.objects.create(name="Batch North", pin="141001")
+        self.team2 = Team.objects.create(name="Batch South", pin="141002")
+        self.player1 = Player.objects.create(name="Batch North Player", team=self.team1)
+        self.player2 = Player.objects.create(name="Batch South Player", team=self.team2)
+        self.court = Court.objects.create(number=94101, is_available=True)
+        self.tournament.courts.add(self.court)
+        self.match = Match.objects.create(
+            tournament=self.tournament,
+            team1=self.team1,
+            team2=self.team2,
+            status="pending_verification",
+        )
+        MatchPlayer.objects.create(match=self.match, player=self.player1, team=self.team1)
+        MatchPlayer.objects.create(match=self.match, player=self.player2, team=self.team2)
+
+    @patch("pfc_events.signals.notify_match_shared_state_changed")
+    @patch("pfc_events.push_notifications.notify_match_action_required")
+    def test_batch_activation_reuses_existing_starting_team_draw(
+        self,
+        notify_action_required,
+        notify_shared_state,
+    ):
+        with patch("matches.starting_team.choice", return_value=self.team2.id):
+            with self.captureOnCommitCallbacks(execute=True):
+                outcomes = allocate_ready_matches([self.match.id])
+
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(outcomes[0].state, "activated")
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, "active")
+        self.assertEqual(self.match.starting_team, self.team2)
+        notify_action_required.assert_called_once()
+        notify_shared_state.assert_called_once_with(
+            self.match.id,
+            "active",
+            tournament_id=self.tournament.id,
+        )
