@@ -2,7 +2,9 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from courts.models import Court
@@ -94,29 +96,51 @@ class MeleeRoundAssignmentWriterTests(TestCase):
             ),
         ]
 
-    def test_writer_calls_full_clean_before_each_assignment_save(self):
-        """P2 does not rely on Django's default Model.save validation behavior."""
+    def test_writer_validates_complete_roster_then_bulk_inserts(self):
+        """Trusted writer preserves invariants without per-row model validation."""
         first_team = Team.objects.create(name='P2 Writer Temp One', is_tournament_temp=True)
         second_team = Team.objects.create(name='P2 Writer Temp Two', is_tournament_temp=True)
         TournamentTeam.objects.create(tournament=self.tournament, team=first_team)
         TournamentTeam.objects.create(tournament=self.tournament, team=second_team)
         round_obj = self._initial_round()
-        events = []
-        original_full_clean = MeleeRoundAssignment.full_clean
-        original_save = MeleeRoundAssignment.save
 
-        def tracked_full_clean(instance, *args, **kwargs):
-            events.append(('clean', instance.player_id))
-            return original_full_clean(instance, *args, **kwargs)
+        with patch.object(MeleeRoundAssignment, 'full_clean', autospec=True) as clean_mock, patch.object(
+            MeleeRoundAssignment, 'save', autospec=True
+        ) as save_mock:
+            assignment_rows = MeleeRoundAssignmentWriter.write_complete_round(
+                tournament=self.tournament,
+                round=round_obj,
+                assignments=self._writer_inputs(first_team, second_team),
+            )
 
-        def tracked_save(instance, *args, **kwargs):
-            self.assertIn(('clean', instance.player_id), events)
-            events.append(('save', instance.player_id))
-            return original_save(instance, *args, **kwargs)
+        clean_mock.assert_not_called()
+        save_mock.assert_not_called()
+        self.assertEqual(len(assignment_rows), 4)
+        self.assertEqual(
+            MeleeRoundAssignment.objects.filter(
+                tournament=self.tournament,
+                round=round_obj,
+            ).count(),
+            4,
+        )
 
-        with patch.object(MeleeRoundAssignment, 'full_clean', new=tracked_full_clean), patch.object(
-            MeleeRoundAssignment, 'save', new=tracked_save
-        ):
+    def test_writer_query_count_is_bounded_with_unrelated_platform_players(self):
+        """Global Player population must not increase one tournament roster write."""
+        unrelated_team = Team.objects.create(name='P2 Unrelated Platform Team')
+        Player.objects.bulk_create(
+            [
+                Player(name=f'Unrelated Player {index}', team=unrelated_team)
+                for index in range(1000)
+            ],
+            batch_size=500,
+        )
+        first_team = Team.objects.create(name='P2 Bounded Temp One', is_tournament_temp=True)
+        second_team = Team.objects.create(name='P2 Bounded Temp Two', is_tournament_temp=True)
+        TournamentTeam.objects.create(tournament=self.tournament, team=first_team)
+        TournamentTeam.objects.create(tournament=self.tournament, team=second_team)
+        round_obj = self._initial_round()
+
+        with CaptureQueriesContext(connection) as queries:
             assignment_rows = MeleeRoundAssignmentWriter.write_complete_round(
                 tournament=self.tournament,
                 round=round_obj,
@@ -124,12 +148,11 @@ class MeleeRoundAssignmentWriterTests(TestCase):
             )
 
         self.assertEqual(len(assignment_rows), 4)
-        for player in self.players:
-            self.assertIn(('clean', player.id), events)
-            self.assertIn(('save', player.id), events)
-            self.assertLess(
-                events.index(('clean', player.id)), events.index(('save', player.id))
-            )
+        self.assertLessEqual(
+            len(queries),
+            12,
+            f'Roster write issued {len(queries)} queries despite only four registered players.',
+        )
 
     def test_writer_rejects_cross_tournament_round_before_any_save(self):
         """The P2 writer enforces P1's cross-table Round/Tournament check itself."""

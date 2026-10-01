@@ -490,8 +490,15 @@ class Tournament(models.Model):
         # Clear any existing mêlée teams for this tournament to prevent duplicates
         self._clear_existing_melee_teams()
         
-        # Get all registered MeleePlayer objects for this tournament
-        melee_players = list(self.melee_players.all())
+        # Get only this tournament's registered Mêlée players, including the
+        # Player/Profile data used by balanced and Snake Draft generation.
+        # This keeps generation independent of the total platform population
+        # and avoids one profile query per registered player.
+        melee_players = list(
+            self.melee_players.select_related(
+                'player', 'player__profile', 'assigned_team'
+            ).all()
+        )
         
         if not melee_players:
             logger.warning(f"No players registered for Mêlée tournament {self.name}")
