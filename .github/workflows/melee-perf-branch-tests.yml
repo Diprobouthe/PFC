@@ -47,5 +47,10 @@ jobs:
         run: >-
           python manage.py test
           tournaments.test_melee_assignment_writer
+          tournaments.test_melee_round_assignments
+          tournaments.test_melee_p4_write_cutover
           tournaments.test_snake_draft_bye_fairness
+          tournaments.test_snake_draft_odd_byes
+          tournaments.test_player_tournament_history
+          matches.test_melee_round_assignment_consumers
           --verbosity 2
