@@ -434,8 +434,18 @@ def allocate_ready_matches(match_ids: Iterable[int]) -> list[CourtActivationOutc
 
 
 def _schedule_round_batch_state_event(match_id: int, status: str, tournament_id: int) -> None:
-    """Send a lightweight shared event after a Round batch commits."""
+    """Finalize activation-side effects, then publish the shared Round event."""
     try:
+        # Batch Court allocation bypasses _start_locked_match(), so it must
+        # explicitly reuse the same persisted starting-side draw before the
+        # browser receives the shared ACTIVE event. The helper is idempotent:
+        # retries retain the first stored draw.
+        if status == "active":
+            from .starting_team import announce_match_starting_team
+
+            match = Match.objects.get(pk=match_id)
+            announce_match_starting_team(match)
+
         from pfc_events.signals import notify_match_shared_state_changed
 
         notify_match_shared_state_changed(
