@@ -1,4 +1,5 @@
 name: Batch starting-side and Scenario timer tests
+# Focused branch CI; remove before production merge.
 
 on:
   pull_request:
