@@ -82,8 +82,12 @@ class TournamentScenarioAdmin(admin.ModelAdmin):
             )
         }),
         ('Timing Configuration', {
-            'fields': ('default_time_limit_minutes', 'pregame_countdown_minutes'),
-            'description': 'Match time limit and pre-game court countdown. Leave pregame blank to use the system default (3 minutes).'
+            'fields': ('default_time_limit_minutes', 'lineup_selection_seconds', 'pregame_countdown_minutes'),
+            'description': (
+                'Match time limit, lineup / position selection window, and pre-game court countdown. '
+                'A lineup value of 0 freezes valid defaults immediately; leave pregame blank to use '
+                'the system default (3 minutes).'
+            )
         }),
         ('Metadata', {
             'fields': ('created_at',),

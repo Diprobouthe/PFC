@@ -142,6 +142,7 @@ def get_available_scenarios():
                     'max_courts': scenario.max_courts,
                     'recommended_courts': scenario.recommended_courts,
                     'pregame_countdown_minutes': getattr(scenario, 'pregame_countdown_minutes', None),
+                    'lineup_selection_seconds': getattr(scenario, 'lineup_selection_seconds', 0),
                 }
             return scenarios
         except Exception:
@@ -277,10 +278,12 @@ def create_simple_tournament(request):
         # Get timer and pregame countdown from scenario
         timer_minutes = scenario.get('pregame_countdown_minutes', None)  # match time limit
         pregame_countdown = None
+        lineup_selection_seconds = int(scenario.get('lineup_selection_seconds', 0) or 0)
         scenario_certifying_entity = None
         if scenario_obj is not None:
             timer_minutes = scenario_obj.default_time_limit_minutes
             pregame_countdown = scenario_obj.pregame_countdown_minutes  # may be None
+            lineup_selection_seconds = scenario_obj.lineup_selection_seconds
             scenario_certifying_entity = scenario_obj.certifying_entity
 
         # Build tournament kwargs based on mode.
@@ -314,6 +317,7 @@ def create_simple_tournament(request):
             is_active=True,
             automation_status="idle",
             default_time_limit_minutes=timer_minutes,
+            lineup_selection_seconds=lineup_selection_seconds,
             certifying_entity=scenario_certifying_entity,
         )
         if pregame_countdown is not None:

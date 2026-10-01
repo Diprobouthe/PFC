@@ -121,3 +121,44 @@ class ScenarioTournamentNamingTests(TestCase):
                     )
                 ).exists()
             )
+
+
+class ScenarioTimerTransferTests(TestCase):
+    def setUp(self):
+        self.complex = CourtComplex.objects.create(
+            name='Scenario timer transfer complex',
+            description='Synthetic fixture only.',
+        )
+        self.court = Court.objects.create(number=94002, is_available=True)
+        self.complex.courts.add(self.court)
+        self.scenario = TournamentScenario.objects.create(
+            name='scenario-timer-transfer-fixture',
+            display_name='Scenario Timer Transfer Fixture',
+            description='Synthetic fixture only.',
+            default_court_complex=self.complex,
+            tournament_type='swiss',
+            draft_type='snake',
+            is_free=True,
+            max_courts=1,
+            default_time_limit_minutes=55,
+            lineup_selection_seconds=47,
+            pregame_countdown_minutes=2,
+        )
+
+    def test_live_creator_transfers_all_three_scenario_timers(self):
+        response = self.client.post(
+            reverse('create_simple_tournament'),
+            {
+                'scenario': self.scenario.name,
+                'format': 'doubles',
+                'num_courts': '1',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        tournament = Tournament.objects.filter(
+            name__startswith='Scenario Timer Transfer Fixture'
+        ).latest('id')
+        self.assertEqual(tournament.default_time_limit_minutes, 55)
+        self.assertEqual(tournament.lineup_selection_seconds, 47)
+        self.assertEqual(tournament.pregame_countdown_minutes, 2)

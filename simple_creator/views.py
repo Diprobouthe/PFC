@@ -235,7 +235,8 @@ def _create_simple_tournament(form_data):
         melee_teams_generated=False,
         shuffle_players_after_round=shuffle_players,
         automation_status="idle",
-        default_time_limit_minutes=scenario.default_time_limit_minutes  # Apply scenario timer
+        default_time_limit_minutes=scenario.default_time_limit_minutes,  # Apply scenario timer
+        lineup_selection_seconds=scenario.lineup_selection_seconds,
     )
     
     # DEBUG: Log created tournament timer
@@ -339,6 +340,7 @@ def _create_vs_tournament(scenario, form_data, start_date, end_date, tournament_
         melee_teams_generated=False,
         automation_status="idle",
         default_time_limit_minutes=scenario.default_time_limit_minutes,
+        lineup_selection_seconds=scenario.lineup_selection_seconds,
     )
 
     # Assign courts
