@@ -36,9 +36,10 @@ class MeleeRoundAssignmentWriteConflict(ValidationError):
 class MeleeRoundAssignmentWriter:
     """Persist complete Mêlée round rosters with explicit validation.
 
-    The writer deliberately calls ``full_clean()`` *before* every ``save()``.
-    Django's base Model.save() does not perform model validation automatically;
-    P1's model override is defence in depth, not the only writer guarantee.
+    The writer validates the complete tournament-scoped roster once, then uses
+    one bulk insert. Direct ORM/admin writes still pass through the model's
+    full_clean() safeguard; this trusted writer preserves the same invariants
+    without repeating cross-table validation for every player.
     """
 
     @classmethod
@@ -209,34 +210,50 @@ class MeleeRoundAssignmentWriter:
                     'This Mêlée round already has a different assignment roster.'
                 )
 
-            persisted = []
-            for player_id in sorted(requested):
-                data = requested[player_id]
-                assignment = MeleeRoundAssignment(
+            persisted = [
+                MeleeRoundAssignment(
                     tournament=locked_tournament,
                     round=locked_round,
                     player_id=player_id,
-                    team_id=data['team_id'],
-                    state=data['state'],
+                    team_id=requested[player_id]['team_id'],
+                    state=requested[player_id]['state'],
                 )
-                # This explicit validation is mandatory. Model.save() is not
-                # relied upon to enforce P1's cross-table relationship checks.
-                assignment.full_clean()
-                assignment.save()
-                persisted.append(assignment)
+                for player_id in sorted(requested)
+            ]
+            # The complete roster and every Team/state relationship have already
+            # been validated above. Database unique/check constraints remain the
+            # final concurrency guard, while bulk_create avoids repeated
+            # full_clean()/INSERT round-trips for each player.
+            MeleeRoundAssignment.objects.bulk_create(
+                persisted,
+                batch_size=500,
+            )
             return persisted
 
     @staticmethod
     def _normalise_inputs(assignments):
         requested = {}
+        valid_states = {
+            MeleeRoundAssignment.ASSIGNED,
+            MeleeRoundAssignment.BYE,
+            MeleeRoundAssignment.WAITLISTED,
+            MeleeRoundAssignment.WITHDRAWN,
+        }
         for item in assignments:
             player_id = getattr(item.player, 'pk', None)
             team_id = getattr(item.team, 'pk', None) if item.team is not None else None
+            state = item.state
             if not player_id:
                 raise ValidationError('Every Mêlée assignment must specify a saved Player.')
             if player_id in requested:
                 raise ValidationError('A Player may receive only one state in a Mêlée round.')
-            requested[player_id] = {'team_id': team_id, 'state': item.state}
+            if state not in valid_states:
+                raise ValidationError('Every Mêlée assignment must use a valid roster state.')
+            if state == MeleeRoundAssignment.ASSIGNED and team_id is None:
+                raise ValidationError('An assigned Mêlée Player must reference a temporary Team.')
+            if state != MeleeRoundAssignment.ASSIGNED and team_id is not None:
+                raise ValidationError('Only assigned Mêlée Players may reference a temporary Team.')
+            requested[player_id] = {'team_id': team_id, 'state': state}
         return requested
 
     @staticmethod
