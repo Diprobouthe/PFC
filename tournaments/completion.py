@@ -13,6 +13,46 @@ from .badges import assign_tournament_badges, get_tournament_final_standings
 
 logger = logging.getLogger('tournaments')
 
+def finalize_tournament_state(tournament):
+    """Persist the one canonical terminal state for a completed Tournament.
+
+    Completion is intentionally idempotent because it can be reached from the
+    lifecycle engine, legacy tasks, or an explicit admin completion action.
+    """
+    tournament_model = type(tournament)
+    with transaction.atomic():
+        locked = tournament_model.objects.select_for_update(of=("self",)).get(pk=tournament.pk)
+
+        final_stage = locked.stages.order_by("-stage_number").first()
+        if final_stage and not final_stage.is_complete:
+            required_rounds = final_stage.num_rounds_in_stage or 0
+            completed_rounds = final_stage.rounds.filter(is_complete=True).count()
+            if required_rounds and completed_rounds >= required_rounds:
+                final_stage.is_complete = True
+                final_stage.save(update_fields=["is_complete"])
+
+        locked.automation_status = "completed"
+        locked.current_round_number = None
+        locked.is_active = False
+        locked.is_archived = True
+        locked.save(update_fields=[
+            "automation_status",
+            "current_round_number",
+            "is_active",
+            "is_archived",
+            "updated_at",
+        ])
+
+        # Keep the caller's in-memory instance consistent with the locked row.
+        tournament.automation_status = locked.automation_status
+        tournament.current_round_number = locked.current_round_number
+        tournament.is_active = locked.is_active
+        tournament.is_archived = locked.is_archived
+
+    logger.info("Tournament %s finalized and archived", tournament.pk)
+    return tournament
+
+
 def check_and_complete_tournament(tournament):
     """
     Check if a tournament is completed and assign badges if so.
@@ -31,6 +71,7 @@ def check_and_complete_tournament(tournament):
     # Check if tournament is already marked as completed
     if tournament.automation_status == "completed":
         logger.info(f"Tournament {tournament.name} already marked as completed")
+        finalize_tournament_state(tournament)
         return _assign_badges_if_needed(tournament)
     
     # Check if all matches are completed and no more can be generated
@@ -38,10 +79,8 @@ def check_and_complete_tournament(tournament):
         logger.info(f"Tournament {tournament.name} is finished - marking as completed")
         
         with transaction.atomic():
-            # Mark tournament as completed
-            tournament.automation_status = "completed"
-            tournament.save()
-            
+            finalize_tournament_state(tournament)
+
             # Assign badges
             return _assign_badges_if_needed(tournament)
     
