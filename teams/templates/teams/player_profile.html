@@ -520,7 +520,8 @@ a.mh-card::after {
                     {% player_avatar_url player.profile 96 as profile_avatar_1x %}
                     {% player_avatar_url player.profile 192 as profile_avatar_2x %}
                     <img src="{{ profile_avatar_1x }}"
-                         srcset="{{ profile_avatar_1x }} 1x, {{ profile_avatar_2x }} 2x"
+                         srcset="{{ profile_avatar_1x }} 96w, {{ profile_avatar_2x }} 192w"
+                             sizes="68px"
                          alt="{{ player.name }}" class="pp-avatar"
                          width="68" height="68" decoding="async">
                 {% else %}
