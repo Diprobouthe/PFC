@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load avatar_tags %}
 
 {% block title %}{{ team.name }} - Team Profile{% endblock %}
 
@@ -94,8 +95,12 @@
                                         <div class="player-card">
                                             <div class="player-avatar-container">
                                                 {% if player_data.has_picture %}
-                                                    <img src="{{ player_data.profile.profile_picture.url }}" 
-                                                         alt="{{ player_data.player.name }}" class="player-avatar">
+                                                    {% player_avatar_url player_data.profile 96 as team_avatar_1x %}
+                                                    {% player_avatar_url player_data.profile 192 as team_avatar_2x %}
+                                                    <img src="{{ team_avatar_1x }}"
+                                                         srcset="{{ team_avatar_1x }} 1x, {{ team_avatar_2x }} 2x"
+                                                         alt="{{ player_data.player.name }}" class="player-avatar"
+                                                         loading="lazy" decoding="async">
                                                 {% else %}
                                                     <div class="player-avatar-placeholder">
                                                         <i class="fas fa-user"></i>
