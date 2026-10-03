@@ -1,4 +1,4 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from teams.avatar_utils import AVATAR_SIZES, generate_profile_avatar_variants, profile_avatar_exists
 from teams.models import PlayerProfile
@@ -48,4 +48,4 @@ class Command(BaseCommand):
             )
         )
         if failed:
-            raise SystemExit(1)
+            raise CommandError(f"Avatar backfill failed for {failed} profile(s).")
