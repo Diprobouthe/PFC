@@ -411,7 +411,8 @@ button.home-qr-panel { border-color: #c8d6f8; cursor: pointer; }
                         {% player_avatar_url home_player_profile 96 as home_avatar_1x %}
                         {% player_avatar_url home_player_profile 192 as home_avatar_2x %}
                         <img src="{{ home_avatar_1x }}"
-                             srcset="{{ home_avatar_1x }} 1x, {{ home_avatar_2x }} 2x"
+                             srcset="{{ home_avatar_1x }} 96w, {{ home_avatar_2x }} 192w"
+                             sizes="78px"
                              alt="{{ logged_in_player.name }}"
                              width="78" height="78"
                              decoding="async">
