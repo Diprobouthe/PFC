@@ -14,7 +14,6 @@ from pfc_core.media_uploads import (
     team_photo_path,
 )
 from .image_utils import (
-    optimize_profile_picture, 
     optimize_team_logo, 
     optimize_team_photo,
     validate_image_size
@@ -230,24 +229,31 @@ class PlayerProfile(models.Model):
                 raise ValidationError("Profile picture must be smaller than 3MB")
     
     def save(self, *args, **kwargs):
-        """Override save to optimize images.
+        """Persist the original profile picture and maintain tiny UI avatars.
 
-        The upload_to callable (player_profile_picture_path) handles the
-        deterministic folder/filename.  We only need to resize/compress the
-        image content here; the name on the ContentFile is a clean UUID that
-        the callable will replace with player_<id>.<ext>.
+        The original upload stays untouched so it remains available for future
+        uses.  Whenever a new picture is actually written, deterministic 96px
+        and 192px WebP derivatives are regenerated for UI surfaces.
         """
-        # Only optimize new uploads (file object present), not existing records
-        if self.profile_picture and hasattr(self.profile_picture, 'file') and not self.pk:
-            try:
-                optimized_image = optimize_profile_picture(self.profile_picture)
-                # optimized_image.name is already a clean UUID-based name from
-                # image_utils.py; the upload_to callable will set the final path.
-                self.profile_picture = optimized_image
-            except Exception as e:
-                # If optimization fails, keep original image
-                print(f"Image optimization failed: {e}")
+        update_fields = kwargs.get("update_fields")
+        picture_is_new_upload = bool(
+            self.profile_picture
+            and not getattr(self.profile_picture, "_committed", True)
+            and (not update_fields or "profile_picture" in update_fields)
+        )
+
         super().save(*args, **kwargs)
+
+        if picture_is_new_upload:
+            try:
+                from .avatar_utils import generate_profile_avatar_variants
+
+                generate_profile_avatar_variants(self, force=True)
+            except Exception as exc:
+                # A derivative failure must never make the source profile upload
+                # fail.  The UI safely falls back to the original until a
+                # backfill/regeneration succeeds.
+                print(f"Avatar derivative generation failed: {exc}")
     
     def __str__(self):
         return f"Profile for {self.player}"
