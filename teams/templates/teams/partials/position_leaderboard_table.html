@@ -40,7 +40,8 @@
                                 {% player_avatar_url pos_player.profile 96 as pos_avatar_1x %}
                                 {% player_avatar_url pos_player.profile 192 as pos_avatar_2x %}
                                 <img src="{{ pos_avatar_1x }}"
-                                     srcset="{{ pos_avatar_1x }} 1x, {{ pos_avatar_2x }} 2x"
+                                     srcset="{{ pos_avatar_1x }} 96w, {{ pos_avatar_2x }} 192w"
+                             sizes="35px"
                                      alt="{{ pos_player.name }}" class="rounded-circle me-2"
                                      width="35" height="35" loading="lazy" decoding="async">
                             {% else %}
