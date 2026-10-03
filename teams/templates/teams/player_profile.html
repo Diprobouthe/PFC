@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load shot_tracker_tags i18n l10n %}
+{% load shot_tracker_tags i18n l10n avatar_tags %}
 
 {% block title %}{{ player.name }} - {% translate "Player Profile" %}{% endblock %}
 
@@ -517,7 +517,13 @@ a.mh-card::after {
         <div class="pp-hero-main">
             <div class="pp-identity-row">
                 {% if player.profile.profile_picture %}
-                    <img src="{{ player.profile.profile_picture.url }}" alt="{{ player.name }}" class="pp-avatar">
+                    {% player_avatar_url player.profile 96 as profile_avatar_1x %}
+                    {% player_avatar_url player.profile 192 as profile_avatar_2x %}
+                    <img src="{{ profile_avatar_1x }}"
+                         srcset="{{ profile_avatar_1x }} 96w, {{ profile_avatar_2x }} 192w"
+                             sizes="68px"
+                         alt="{{ player.name }}" class="pp-avatar"
+                         width="68" height="68" decoding="async">
                 {% else %}
                     <div class="pp-avatar-placeholder"><i class="fas fa-user"></i></div>
                 {% endif %}

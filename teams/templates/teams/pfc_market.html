@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static i18n %}
+{% load static i18n avatar_tags %}
 
 {% block title %}{% translate "PFC Market" %} - {% translate "Player Rankings" %}{% endblock %}
 
@@ -318,9 +318,15 @@
                         <td>
                             <div class="mkt-player">
                                 {% if data.player.profile.profile_picture %}
-                                    <img src="{{ data.player.profile.profile_picture.url }}"
+                                    {% player_avatar_url data.player.profile 96 as avatar_1x %}
+                                    {% player_avatar_url data.player.profile 192 as avatar_2x %}
+                                    <img src="{{ avatar_1x }}"
+                                         srcset="{{ avatar_1x }} 96w, {{ avatar_2x }} 192w"
+                             sizes="32px"
                                          alt="{{ data.player.name }}"
-                                         class="mkt-avatar">
+                                         class="mkt-avatar"
+                                         width="32" height="32"
+                                         loading="lazy" decoding="async">
                                 {% else %}
                                     <div class="mkt-avatar-placeholder">{{ data.player.name|slice:":1" }}</div>
                                 {% endif %}

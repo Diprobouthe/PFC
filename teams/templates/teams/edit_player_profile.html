@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n avatar_tags %}
 {% block title %}My Profile · PFC{% endblock %}
 
 {% block content %}
@@ -387,10 +387,15 @@
     <div class="ep-identity-card">
       <div class="ep-avatar-wrap">
         {% if player_profile and player_profile.profile_picture %}
-          <img src="{{ player_profile.profile_picture.url }}"
+          {% player_avatar_url player_profile 96 as edit_avatar_1x %}
+          {% player_avatar_url player_profile 192 as edit_avatar_2x %}
+          <img src="{{ edit_avatar_1x }}"
+               srcset="{{ edit_avatar_1x }} 96w, {{ edit_avatar_2x }} 192w"
+                             sizes="56px"
                alt="{{ authenticated_player.name }}"
                class="ep-avatar-img"
                id="ep-avatar-preview"
+               decoding="async"
                onerror="this.style.display='none';document.getElementById('ep-avatar-placeholder').style.display='flex';">
           <div class="ep-avatar-placeholder" id="ep-avatar-placeholder" style="display:none;">🎯</div>
         {% else %}

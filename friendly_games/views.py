@@ -1869,7 +1869,8 @@ def qr_resolve_player(request):
     try:
         profile = pc.player.profile
         if profile.profile_picture:
-            avatar_url = profile.profile_picture.url
+            from teams.avatar_utils import profile_avatar_url
+            avatar_url = profile_avatar_url(profile, 192)
     except Exception:
         pass
     return JsonResponse({
