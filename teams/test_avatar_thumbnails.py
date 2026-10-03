@@ -4,6 +4,7 @@ import tempfile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.template.loader import get_template
 from django.test import TestCase, override_settings
 from PIL import Image
 
@@ -80,3 +81,17 @@ class PlayerAvatarDerivativeTests(TestCase):
 
         for size in AVATAR_SIZES:
             self.assertTrue(profile.profile_picture.storage.exists(profile_avatar_name(profile, size)))
+
+    def test_avatar_templates_compile(self):
+        for template_name in (
+            "home.html",
+            "teams/pfc_market.html",
+            "teams/player_leaderboard.html",
+            "teams/player_profile.html",
+            "teams/partials/position_leaderboard_table.html",
+            "teams/team_detail.html",
+            "teams/team_login.html",
+            "teams/edit_player_profile.html",
+        ):
+            with self.subTest(template=template_name):
+                get_template(template_name)
