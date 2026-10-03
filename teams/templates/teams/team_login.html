@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load avatar_tags %}
 
 {% block title %}Team Login - Petanque Platform{% endblock %}
 
@@ -234,10 +235,15 @@
                                     <div class="col-md-6 mb-2">
                                         <div class="d-flex align-items-center">
                                             {% if player.profile.profile_picture %}
-                                                <img src="{{ player.profile.profile_picture.url }}" 
-                                                     alt="{{ player.name }}" 
-                                                     class="rounded-circle me-2" 
-                                                     style="width: 32px; height: 32px; object-fit: cover;">
+                                                {% player_avatar_url player.profile 96 as login_avatar_1x %}
+                                                {% player_avatar_url player.profile 192 as login_avatar_2x %}
+                                                <img src="{{ login_avatar_1x }}"
+                                                     srcset="{{ login_avatar_1x }} 1x, {{ login_avatar_2x }} 2x"
+                                                     alt="{{ player.name }}"
+                                                     class="rounded-circle me-2"
+                                                     width="32" height="32"
+                                                     loading="lazy" decoding="async"
+                                                     style="object-fit: cover;">
                                             {% else %}
                                                 <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" 
                                                      style="width: 32px; height: 32px;">
