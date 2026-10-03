@@ -1,3 +1,4 @@
+{% load avatar_tags %}
 {% if position_players %}
 <div class="p-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -36,7 +37,12 @@
                     <td>
                         <div class="d-flex align-items-center">
                             {% if pos_player.profile.profile_picture %}
-                                <img src="{{ pos_player.profile.profile_picture.url }}" alt="{{ pos_player.name }}" class="rounded-circle me-2" width="35" height="35">
+                                {% player_avatar_url pos_player.profile 96 as pos_avatar_1x %}
+                                {% player_avatar_url pos_player.profile 192 as pos_avatar_2x %}
+                                <img src="{{ pos_avatar_1x }}"
+                                     srcset="{{ pos_avatar_1x }} 1x, {{ pos_avatar_2x }} 2x"
+                                     alt="{{ pos_player.name }}" class="rounded-circle me-2"
+                                     width="35" height="35" loading="lazy" decoding="async">
                             {% else %}
                                 <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
                                     <span class="text-white small">{{ pos_player.name|slice:":1" }}</span>
