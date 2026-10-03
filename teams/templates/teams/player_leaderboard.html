@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n avatar_tags %}
 
 {% block title %}Player Leaderboard{% endblock %}
 
@@ -436,7 +436,12 @@
                         {{ forloop.counter }}
                     </span>
                     {% if player.profile.profile_picture %}
-                        <img src="{{ player.profile.profile_picture.url }}" alt="{{ player.name }}" class="lb-avatar">
+                        {% player_avatar_url player.profile 96 as avatar_1x %}
+                        {% player_avatar_url player.profile 192 as avatar_2x %}
+                        <img src="{{ avatar_1x }}"
+                             srcset="{{ avatar_1x }} 1x, {{ avatar_2x }} 2x"
+                             alt="{{ player.name }}" class="lb-avatar"
+                             width="38" height="38" loading="lazy" decoding="async">
                     {% else %}
                         <div class="lb-avatar-placeholder">{{ player.name|slice:":1"|upper }}</div>
                     {% endif %}
@@ -471,7 +476,12 @@
                         {{ forloop.counter }}
                     </span>
                     {% if p.profile.profile_picture %}
-                        <img src="{{ p.profile.profile_picture.url }}" alt="{{ p.name }}" class="lb-avatar">
+                        {% player_avatar_url p.profile 96 as avatar_1x %}
+                        {% player_avatar_url p.profile 192 as avatar_2x %}
+                        <img src="{{ avatar_1x }}"
+                             srcset="{{ avatar_1x }} 1x, {{ avatar_2x }} 2x"
+                             alt="{{ p.name }}" class="lb-avatar"
+                             width="38" height="38" loading="lazy" decoding="async">
                     {% else %}
                         <div class="lb-avatar-placeholder">{{ p.name|slice:":1"|upper }}</div>
                     {% endif %}
@@ -507,7 +517,12 @@
                         {{ forloop.counter }}
                     </span>
                     {% if p.profile.profile_picture %}
-                        <img src="{{ p.profile.profile_picture.url }}" alt="{{ p.name }}" class="lb-avatar">
+                        {% player_avatar_url p.profile 96 as avatar_1x %}
+                        {% player_avatar_url p.profile 192 as avatar_2x %}
+                        <img src="{{ avatar_1x }}"
+                             srcset="{{ avatar_1x }} 1x, {{ avatar_2x }} 2x"
+                             alt="{{ p.name }}" class="lb-avatar"
+                             width="38" height="38" loading="lazy" decoding="async">
                     {% else %}
                         <div class="lb-avatar-placeholder">{{ p.name|slice:":1"|upper }}</div>
                     {% endif %}
@@ -543,7 +558,12 @@
                         {{ forloop.counter }}
                     </span>
                     {% if p.profile.profile_picture %}
-                        <img src="{{ p.profile.profile_picture.url }}" alt="{{ p.name }}" class="lb-avatar">
+                        {% player_avatar_url p.profile 96 as avatar_1x %}
+                        {% player_avatar_url p.profile 192 as avatar_2x %}
+                        <img src="{{ avatar_1x }}"
+                             srcset="{{ avatar_1x }} 1x, {{ avatar_2x }} 2x"
+                             alt="{{ p.name }}" class="lb-avatar"
+                             width="38" height="38" loading="lazy" decoding="async">
                     {% else %}
                         <div class="lb-avatar-placeholder">{{ p.name|slice:":1"|upper }}</div>
                     {% endif %}
