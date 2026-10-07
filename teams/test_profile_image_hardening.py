@@ -135,6 +135,33 @@ class ProfileImageValidationTests(TestCase):
             profile.save()
         self.assertFalse(PlayerProfile.objects.filter(player=self.player).exists())
 
+    def test_direct_profile_edit_accepts_safe_upload_and_regenerates_avatars(self):
+        profile = PlayerProfile.objects.create(player=self.player)
+        session = self.client.session
+        session["player_codename"] = self.codename.codename
+        session.save()
+
+        response = self.client.post(
+            reverse("edit_player_profile"),
+            {
+                "action": "update_picture",
+                "profile_picture": make_image_upload(size=(1200, 900)),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        profile.refresh_from_db()
+        self.assertTrue(bool(profile.profile_picture))
+        self.assertTrue(
+            profile.profile_picture.storage.exists(
+                f"player_profiles/avatars/player_{self.player.id}_96.webp"
+            )
+        )
+        self.assertTrue(
+            profile.profile_picture.storage.exists(
+                f"player_profiles/avatars/player_{self.player.id}_192.webp"
+            )
+        )
+
     def test_direct_profile_edit_rejects_unsafe_upload_without_replacing_picture(self):
         profile = PlayerProfile.objects.create(player=self.player)
         session = self.client.session
