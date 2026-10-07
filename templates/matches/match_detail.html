@@ -909,7 +909,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ── WebSocket-based PFC state listener (server-authoritative) ───────
     // The server pushes next_url in the payload.  No polling, no fetch.
-    {% if match.status == 'active' or match.status == 'waiting_validation' or match.status == 'pending_verification' %}
+    {% if match.status == 'pending' or match.status == 'active' or match.status == 'waiting_validation' or match.status == 'pending_verification' %}
     (function() {
         const MATCH_ID    = {{ match.id }};
         const CURRENT_PATH = window.location.pathname;
