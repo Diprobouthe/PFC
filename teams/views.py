@@ -2,12 +2,13 @@ from django.shortcuts import render, redirect, get_object_or_404
 from .views_market import pfc_market
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q, Count, Prefetch
 from django.http import JsonResponse
 from django.utils.translation import gettext as _
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile
 from .forms import TeamForm, PlayerForm, TeamAvailabilityForm, PublicPlayerForm, EditPlayerProfileForm
+from .image_utils import validate_profile_image_upload
 from .utils import get_recent_matches_with_participation, get_player_participation_summary
 from matches.models import Match, MatchActivation
 from pfc_core.session_utils import CodenameSessionManager
@@ -2254,6 +2255,12 @@ def edit_player_profile(request):
         if action == 'update_picture':
             profile_picture = request.FILES.get('profile_picture')
             if profile_picture:
+                try:
+                    validate_profile_image_upload(profile_picture)
+                except ValidationError as exc:
+                    messages.error(request, exc.messages[0])
+                    return redirect('edit_player_profile')
+
                 # Use .save() so the upload_to callable generates the
                 # deterministic path (player_profiles/player_<id>.<ext>)
                 import os as _os3
