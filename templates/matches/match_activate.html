@@ -421,6 +421,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const deadlineMs = {{ lineup_deadline_epoch }};
     const countdown = document.getElementById('lineupWindowCountdown');
     const submitButton = document.getElementById('confirmBtn');
+    const lineupStateUrl = '{% url "match_detail" match.id %}';
+    let lineupTransitionStarted = false;
+    let lineupFallbackTimer = null;
+
+    function moveToRoundState(targetUrl) {
+        if (lineupTransitionStarted) return;
+        lineupTransitionStarted = true;
+        if (lineupFallbackTimer) window.clearTimeout(lineupFallbackTimer);
+        window.location.href = targetUrl || lineupStateUrl;
+    }
+
     function updateLineupDeadline() {
         const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
         if (countdown) {
@@ -433,10 +444,62 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (remaining) {
             window.setTimeout(updateLineupDeadline, 500);
-        } else if (submitButton) {
-            submitButton.disabled = true;
+        } else {
+            if (submitButton) submitButton.disabled = true;
+            // The server clock normally publishes match.state_changed within
+            // milliseconds of the persisted deadline.  If that push is lost,
+            // fall back to the authoritative Match page instead of leaving
+            // the player stranded on an expired lineup form.
+            lineupFallbackTimer = window.setTimeout(function() {
+                moveToRoundState(lineupStateUrl);
+            }, 2500);
         }
     }
+
+    // Round finalisation happens in the server clock, not in this browser.
+    // Listen to the existing shared Match channel so Court allocation can
+    // move this page directly into the "Find your court" state.
+    (function connectLineupStateSocket() {
+        if (!window.WebSocket) return;
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = wsScheme + '://' + window.location.host + '/ws/match/{{ match.id }}/';
+        let socket = null;
+        let reconnectTimer = null;
+        let retryDelay = 1000;
+
+        function connect() {
+            if (lineupTransitionStarted || document.visibilityState === 'hidden') return;
+            if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+            try {
+                socket = new WebSocket(wsUrl);
+                socket.onopen = function() { retryDelay = 1000; };
+                socket.onmessage = function(event) {
+                    let data;
+                    try { data = JSON.parse(event.data); } catch (err) { return; }
+                    if (data.type !== 'match.state_changed') return;
+                    moveToRoundState(data.next_url || data.state_url || lineupStateUrl);
+                };
+                socket.onerror = function() { if (socket) socket.close(); };
+                socket.onclose = function() {
+                    socket = null;
+                    if (lineupTransitionStarted || document.visibilityState === 'hidden') return;
+                    window.clearTimeout(reconnectTimer);
+                    reconnectTimer = window.setTimeout(connect, retryDelay);
+                    retryDelay = Math.min(retryDelay * 2, 10000);
+                };
+            } catch (err) {
+                window.clearTimeout(reconnectTimer);
+                reconnectTimer = window.setTimeout(connect, retryDelay);
+                retryDelay = Math.min(retryDelay * 2, 10000);
+            }
+        }
+
+        connect();
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') connect();
+        });
+    })();
+
     updateLineupDeadline();
     {% endif %}
 });
