@@ -1,8 +1,83 @@
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
+from django.core.exceptions import ValidationError
 import io
 import os
+import warnings
+
+
+PROFILE_IMAGE_MAX_BYTES = 8 * 1024 * 1024
+PROFILE_IMAGE_MAX_DIMENSION = 5000
+# 13 MP includes common 4032x3024 phone photos while still blocking
+# 48/50 MP originals that can create large decoded Pillow buffers.
+PROFILE_IMAGE_MAX_PIXELS = 13_000_000
+PROFILE_IMAGE_ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
+
+
+def validate_profile_image_upload(image_file):
+    """Reject profile uploads that are risky to decode on the 512 MB web worker.
+
+    Validation is deliberately done before persistence/thumbnail generation.
+    File bytes alone are not enough: a small compressed JPEG may decode into
+    a very large pixel buffer, so both dimensions and total pixels are bounded.
+    """
+    if not image_file:
+        return image_file
+
+    file_size = getattr(image_file, "size", None)
+    if file_size is not None and file_size > PROFILE_IMAGE_MAX_BYTES:
+        raise ValidationError("Profile picture must be 8 MB or smaller.")
+
+    try:
+        original_pos = image_file.tell()
+    except Exception:
+        original_pos = None
+
+    try:
+        try:
+            image_file.seek(0)
+        except Exception:
+            pass
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(image_file) as image:
+                image_format = (image.format or "").upper()
+                width, height = image.size
+
+                if image_format not in PROFILE_IMAGE_ALLOWED_FORMATS:
+                    raise ValidationError(
+                        "Profile picture must be JPEG, PNG, or WebP."
+                    )
+                if width <= 0 or height <= 0:
+                    raise ValidationError("Profile picture has invalid dimensions.")
+                if (
+                    width > PROFILE_IMAGE_MAX_DIMENSION
+                    or height > PROFILE_IMAGE_MAX_DIMENSION
+                    or width * height > PROFILE_IMAGE_MAX_PIXELS
+                ):
+                    raise ValidationError(
+                        "Profile picture is too large. "
+                        "Use an image up to 5000 px per side and about 13 megapixels."
+                    )
+
+                # Verify file integrity without decoding the full pixel buffer.
+                image.verify()
+
+    except ValidationError:
+        raise
+    except (Image.DecompressionBombWarning, Image.DecompressionBombError):
+        raise ValidationError("Profile picture dimensions are too large.")
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+        raise ValidationError("Please upload a valid JPEG, PNG, or WebP image.")
+    finally:
+        try:
+            image_file.seek(0 if original_pos is None else original_pos)
+        except Exception:
+            pass
+
+    return image_file
 
 def optimize_image(image_file, max_width=800, max_height=600, quality=85, format_override=None):
     """

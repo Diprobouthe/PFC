@@ -1,5 +1,6 @@
 from django import forms
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile, SubTeam, SubTeamPlayerAssignment
+from .image_utils import validate_profile_image_upload
 
 class TeamForm(forms.ModelForm):
     """Form for creating and editing teams"""
@@ -120,6 +121,13 @@ class PublicPlayerForm(forms.Form):
         help_text="Enter the PIN for the selected team"
     )
     
+    def clean_profile_picture(self):
+        """Validate profile photos before they reach storage or Pillow resizing."""
+        picture = self.cleaned_data.get("profile_picture")
+        if picture:
+            validate_profile_image_upload(picture)
+        return picture
+
     def clean_codename(self):
         """Validate codename uniqueness and format"""
         codename = self.cleaned_data.get('codename', '').upper()

@@ -11,6 +11,8 @@ import io
 from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
 
+from .image_utils import validate_profile_image_upload
+
 
 AVATAR_SIZES = (96, 192)
 AVATAR_QUALITY = 82
@@ -52,6 +54,10 @@ def generate_profile_avatar_variants(profile, *, force: bool = True) -> dict[int
     if not picture:
         return {}
 
+    # Re-check stored sources too.  Normal uploads are validated before save,
+    # while this protects management/backfill callers from legacy oversized files.
+    validate_profile_image_upload(picture)
+
     storage = picture.storage
     generated: dict[int, str] = {}
 
@@ -61,27 +67,35 @@ def generate_profile_avatar_variants(profile, *, force: bool = True) -> dict[int
             if image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGB")
 
+            # Decode/crop the source once at the largest UI size.  The smaller
+            # derivative is then made from this tiny master instead of copying
+            # and resampling the full-resolution source a second time.
+            master_size = max(AVATAR_SIZES)
+            master = ImageOps.fit(
+                image,
+                (master_size, master_size),
+                method=Image.Resampling.LANCZOS,
+                centering=(0.5, 0.5),
+            )
+            if master.mode != "RGB":
+                background = Image.new("RGB", master.size, "white")
+                if "A" in master.getbands():
+                    background.paste(master, mask=master.getchannel("A"))
+                else:
+                    background.paste(master.convert("RGB"))
+                master = background
+
             for size in AVATAR_SIZES:
                 variant_name = profile_avatar_name(profile, size)
                 if not force and storage.exists(variant_name):
                     generated[size] = variant_name
                     continue
 
-                avatar = ImageOps.fit(
-                    image.copy(),
-                    (size, size),
-                    method=Image.Resampling.LANCZOS,
-                    centering=(0.5, 0.5),
+                avatar = (
+                    master
+                    if size == master_size
+                    else master.resize((size, size), Image.Resampling.LANCZOS)
                 )
-                if avatar.mode != "RGB":
-                    # Profile avatars are displayed on opaque UI backgrounds;
-                    # RGB avoids carrying an unnecessary alpha channel.
-                    background = Image.new("RGB", avatar.size, "white")
-                    if "A" in avatar.getbands():
-                        background.paste(avatar, mask=avatar.getchannel("A"))
-                    else:
-                        background.paste(avatar.convert("RGB"))
-                    avatar = background
 
                 output = io.BytesIO()
                 avatar.save(

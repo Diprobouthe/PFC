@@ -14,9 +14,9 @@ from pfc_core.media_uploads import (
     team_photo_path,
 )
 from .image_utils import (
-    optimize_team_logo, 
+    optimize_team_logo,
     optimize_team_photo,
-    validate_image_size
+    validate_profile_image_upload,
 )
 
 def generate_pin():
@@ -223,11 +223,13 @@ class PlayerProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def clean(self):
-        """Validate image uploads"""
-        if self.profile_picture:
-            if not validate_image_size(self.profile_picture, max_size_mb=3):
-                raise ValidationError("Profile picture must be smaller than 3MB")
-    
+        """Validate a newly supplied profile image without re-reading legacy files."""
+        if (
+            self.profile_picture
+            and not getattr(self.profile_picture, "_committed", True)
+        ):
+            validate_profile_image_upload(self.profile_picture)
+
     def save(self, *args, **kwargs):
         """Persist the original profile picture and maintain tiny UI avatars.
 
@@ -241,6 +243,11 @@ class PlayerProfile(models.Model):
             and not getattr(self.profile_picture, "_committed", True)
             and (not update_fields or "profile_picture" in update_fields)
         )
+
+        # Model-level guard for callers that do not use the public form/view.
+        # This still runs before the uploaded source is persisted.
+        if picture_is_new_upload:
+            validate_profile_image_upload(self.profile_picture)
 
         super().save(*args, **kwargs)
 
