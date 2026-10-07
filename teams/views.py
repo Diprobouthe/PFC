@@ -2261,16 +2261,10 @@ def edit_player_profile(request):
                     messages.error(request, exc.messages[0])
                     return redirect('edit_player_profile')
 
-                # Use .save() so the upload_to callable generates the
-                # deterministic path (player_profiles/player_<id>.<ext>)
-                import os as _os3
-                _ext3 = _os3.path.splitext(profile_picture.name)[1].lower() or '.jpg'
-                clean_name = f"player_{player_profile.player_id}{_ext3}"
-                player_profile.profile_picture.save(
-                    clean_name,
-                    profile_picture,
-                    save=True
-                )
+                # Assign through PlayerProfile.save() so the same model-level
+                # safety guard runs and the 96/192 WebP derivatives regenerate.
+                player_profile.profile_picture = profile_picture
+                player_profile.save()
                 messages.success(request, 'Profile picture updated!')
             else:
                 messages.info(request, 'No picture selected.')
