@@ -1,0 +1,25 @@
+name: Lineup transition CI
+
+on:
+  push:
+    branches:
+      - fix/lineup-to-court-autotransition-20261007
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Django checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Transition regression tests
+        run: python manage.py test matches.test_lineup_autotransition tournaments.test_round_lineup_lifecycle
