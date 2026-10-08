@@ -21,9 +21,16 @@ from teams.team_photo_utils import (
 )
 
 
-def make_upload(name="team.jpg", *, fmt="JPEG", size=(1600, 1200), quality=95):
+def make_upload(
+    name="team.jpg",
+    *,
+    fmt="JPEG",
+    size=(1600, 1200),
+    quality=95,
+    color=(90, 120, 150),
+):
     buf = io.BytesIO()
-    Image.new("RGB", size, (90, 120, 150)).save(buf, format=fmt, quality=quality)
+    Image.new("RGB", size, color).save(buf, format=fmt, quality=quality)
     content_type = {
         "JPEG": "image/jpeg",
         "PNG": "image/png",
@@ -92,6 +99,7 @@ class TeamPhotoDerivativeTests(TestCase):
             name="replacement.jpg",
             size=(1200, 900),
             quality=80,
+            color=(180, 60, 40),
         )
         self.profile.save()
 
