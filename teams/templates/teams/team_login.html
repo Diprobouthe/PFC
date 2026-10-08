@@ -88,12 +88,19 @@
 
                 <!-- Team Photo -->
                 {% if profile.team_photo_jpg %}
+                    {% team_photo_url profile 400 as team_photo_400 %}
+                    {% team_photo_url profile 800 as team_photo_800 %}
                     <div class="card shadow mt-3">
                         <div class="card-header">
                             <h6 class="mb-0">Team Photo</h6>
                         </div>
                         <div class="card-body p-2">
-                            <img src="{{ profile.team_photo_jpg.url }}" alt="{{ current_team.name }} Photo" 
+                            <img src="{{ team_photo_800 }}"
+                                 srcset="{{ team_photo_400 }} 400w, {{ team_photo_800 }} 800w"
+                                 sizes="(max-width: 991px) 100vw, 33vw"
+                                 alt="{{ current_team.name }} Photo"
+                                 width="800"
+                                 loading="lazy" decoding="async"
                                  class="img-fluid rounded">
                         </div>
                     </div>
