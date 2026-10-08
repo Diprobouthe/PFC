@@ -627,145 +627,93 @@ def player_login(request):
 
 # New views for player statistics
 def player_leaderboard(request):
-    """
-    Display a leaderboard of all players with their statistics
-    """
-    # Get filter parameters
+    """Display the Tournament Players leaderboard with bounded DB work."""
+    from .leaderboard_stats import bulk_player_leaderboard_stats
+
     team_id = request.GET.get('team')
     skill_level = request.GET.get('skill_level')
     position = request.GET.get('position')
     sort_by = request.GET.get('sort_by', 'win_rate')
     order = request.GET.get('order', 'desc')
-    
-    # Start with all players that have profiles
-    players = Player.objects.filter(
+
+    # One Player query, including the Team/Profile objects the template needs.
+    players_qs = Player.objects.filter(
         profile__isnull=False,
         profile__hide_public_statistics=False,
     ).select_related('team', 'profile')
-    
-    # Apply filters
+
     if team_id:
-        players = players.filter(team_id=team_id)
-    
+        players_qs = players_qs.filter(team_id=team_id)
     if skill_level:
-        players = players.filter(profile__skill_level=skill_level)
-    
+        players_qs = players_qs.filter(profile__skill_level=skill_level)
     if position:
-        players = players.filter(profile__preferred_position=position)
-    
-    # Convert to list and add accurate statistics for each player
-    players_with_stats = []
-    for player in players:
-        try:
-            # Get accurate overall statistics
-            accurate_stats = player.profile.get_accurate_statistics()
-            player.accurate_matches_played = accurate_stats['matches_played']
-            player.accurate_matches_won = accurate_stats['matches_won']
-            player.accurate_win_rate = accurate_stats['win_rate']
-            
-            # Get position-based statistics
-            position_stats = player.profile.get_position_stats()
-            player.position_stats = position_stats
-            
-            # Calculate best position (position with highest win rate)
-            best_position = None
-            best_win_rate = 0
-            for pos, stats in position_stats.items():
-                if stats['matches_played'] > 0 and stats['win_rate'] > best_win_rate:
-                    best_position = pos
-                    best_win_rate = stats['win_rate']
-            
-            player.best_position = best_position
-            player.best_position_win_rate = best_win_rate
-            
-            players_with_stats.append(player)
-        except Exception:
-            # Fallback to stored values if anything goes wrong
-            player.accurate_matches_played = player.profile.matches_played
-            player.accurate_matches_won = player.profile.matches_won
-            player.accurate_win_rate = player.profile.win_rate()
-            player.position_stats = {}
-            player.best_position = None
-            player.best_position_win_rate = 0
-            players_with_stats.append(player)
-    
-    # Apply sorting with accurate statistics
-    if sort_by == 'win_rate':
-        players_with_stats.sort(
-            key=lambda p: p.accurate_win_rate, 
-            reverse=(order == 'desc')
-        )
-    elif sort_by == 'matches_played':
-        players_with_stats.sort(
-            key=lambda p: p.accurate_matches_played, 
-            reverse=(order == 'desc')
-        )
+        players_qs = players_qs.filter(profile__preferred_position=position)
+
+    players_with_stats = list(players_qs)
+
+    # One aggregate participation query for every visible Player on this page.
+    # This replaces two per-Player query loops (overall + position statistics).
+    stats_by_player = bulk_player_leaderboard_stats(
+        player.id for player in players_with_stats
+    )
+
+    for player in players_with_stats:
+        stats = stats_by_player[player.id]
+        player.accurate_matches_played = stats['matches_played']
+        player.accurate_matches_won = stats['matches_won']
+        player.accurate_win_rate = stats['win_rate']
+        player.position_stats = stats['position_stats']
+
+        best_position = None
+        best_win_rate = 0
+        for pos, pos_stats in player.position_stats.items():
+            if (
+                pos_stats['matches_played'] > 0
+                and pos_stats['win_rate'] > best_win_rate
+            ):
+                best_position = pos
+                best_win_rate = pos_stats['win_rate']
+
+        player.best_position = best_position
+        player.best_position_win_rate = best_win_rate
+
+    reverse = order == 'desc'
+    if sort_by == 'matches_played':
+        sort_key = lambda p: p.accurate_matches_played
     elif sort_by == 'matches_won':
-        players_with_stats.sort(
-            key=lambda p: p.accurate_matches_won, 
-            reverse=(order == 'desc')
-        )
+        sort_key = lambda p: p.accurate_matches_won
     elif sort_by == 'best_position_win_rate':
-        players_with_stats.sort(
-            key=lambda p: p.best_position_win_rate, 
-            reverse=(order == 'desc')
-        )
+        sort_key = lambda p: p.best_position_win_rate
+    elif sort_by == 'skill_level':
+        sort_key = lambda p: p.profile.skill_level
     else:
-        # For other fields, use the original sorting
-        order_prefix = '-' if order == 'desc' else ''
-        sort_field = f"{order_prefix}profile__{sort_by}"
-        players_with_stats = list(Player.objects.filter(
-            profile__isnull=False,
-            profile__hide_public_statistics=False,
-        ).select_related('team', 'profile').order_by(sort_field))
-        
-        # Still need to add accurate stats for display
-        for player in players_with_stats:
-            try:
-                accurate_stats = player.profile.get_accurate_statistics()
-                player.accurate_matches_played = accurate_stats['matches_played']
-                player.accurate_matches_won = accurate_stats['matches_won']
-                player.accurate_win_rate = accurate_stats['win_rate']
-                
-                position_stats = player.profile.get_position_stats()
-                player.position_stats = position_stats
-                
-                best_position = None
-                best_win_rate = 0
-                for pos, stats in position_stats.items():
-                    if stats['matches_played'] > 0 and stats['win_rate'] > best_win_rate:
-                        best_position = pos
-                        best_win_rate = stats['win_rate']
-                
-                player.best_position = best_position
-                player.best_position_win_rate = best_win_rate
-            except Exception:
-                player.accurate_matches_played = player.profile.matches_played
-                player.accurate_matches_won = player.profile.matches_won
-                player.accurate_win_rate = player.profile.win_rate()
-                player.position_stats = {}
-                player.best_position = None
-                player.best_position_win_rate = 0
-    
-    # ── 10-match minimum: record total before filtering ──────────────
+        # Win rate remains the safe/default public ordering.
+        sort_by = 'win_rate'
+        sort_key = lambda p: p.accurate_win_rate
+
+    players_with_stats.sort(key=sort_key, reverse=reverse)
+
+    # 10-match minimum is a display rule, not a data-source filter.
     MIN_MATCHES = 10
     total_players = len(players_with_stats)
-    players_with_stats = [p for p in players_with_stats if p.accurate_matches_played >= MIN_MATCHES]
+    players_with_stats = [
+        p for p in players_with_stats
+        if p.accurate_matches_played >= MIN_MATCHES
+    ]
 
-    # Create position-specific leaderboards (Flex removed)
     position_leaderboards = {}
-    positions = ['pointer', 'milieu', 'tirer']  # Flex excluded
+    positions = ['pointer', 'milieu', 'tirer']
     position_display_names = {
         'pointer': 'Pointer',
         'milieu': 'Milieu',
         'tirer': 'Shooter',
     }
-    
+
     for pos in positions:
         position_players = []
         for player in players_with_stats:
-            if pos in player.position_stats and player.position_stats[pos]['matches_played'] > 0:
-                # Create a copy of player with position-specific stats
+            pos_stats = player.position_stats.get(pos)
+            if pos_stats and pos_stats['matches_played'] > 0:
                 pos_player = type('obj', (object,), {
                     'id': player.id,
                     'name': player.name,
@@ -773,25 +721,22 @@ def player_leaderboard(request):
                     'profile': player.profile,
                     'is_captain': getattr(player, 'is_captain', False),
                     'position': position_display_names[pos],
-                    'matches_played': player.position_stats[pos]['matches_played'],
-                    'matches_won': player.position_stats[pos]['matches_won'],
-                    'win_rate': player.position_stats[pos]['win_rate']
+                    'matches_played': pos_stats['matches_played'],
+                    'matches_won': pos_stats['matches_won'],
+                    'win_rate': pos_stats['win_rate'],
                 })()
                 position_players.append(pos_player)
-        
-        # Sort by win rate for this position
+
         position_players.sort(key=lambda p: p.win_rate, reverse=True)
         position_leaderboards[position_display_names[pos]] = position_players
-    
-    # Get selectable teams for the filter dropdown.
-    # Strict visibility rule: not archived, not temp, not subteam, full profile only.
+
     teams = Team.objects.filter(
         is_archived=False,
         is_tournament_temp=False,
         parent_team__isnull=True,
         profile__profile_type='full',
     ).order_by('name')
-    
+
     context = {
         'players': players_with_stats,
         'position_leaderboards': position_leaderboards,
@@ -805,7 +750,6 @@ def player_leaderboard(request):
     }
 
     return render(request, 'teams/player_leaderboard.html', context)
-
 
 def _profile_statistics_visibility(request, player):
     """Return the existing profile statistics visibility decision for a viewer."""
