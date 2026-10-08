@@ -135,11 +135,13 @@ def generate_team_photo_variants(profile, *, force: bool = True) -> dict[int, st
                         image = image.convert("RGB")
 
                 largest = max(TEAM_PHOTO_SIZES)
-                master = image.copy()
-                master.thumbnail(
+                # We no longer need the full-resolution buffer after validation;
+                # resize it in place instead of keeping a second full-size copy.
+                image.thumbnail(
                     (largest, largest),
                     Image.Resampling.LANCZOS,
                 )
+                master = image
 
                 for size in TEAM_PHOTO_SIZES:
                     variant_name = team_photo_variant_name(profile, size)
