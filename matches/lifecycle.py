@@ -434,16 +434,17 @@ def allocate_ready_matches(match_ids: Iterable[int]) -> list[CourtActivationOutc
 
 
 def _schedule_round_batch_state_event(match_id: int, status: str, tournament_id: int) -> None:
-    """Finalize activation-side effects, then publish the shared Round event."""
+    """Finalize activation-side effects while preserving shared state delivery."""
     # Batch Court allocation bypasses _start_locked_match(), so it must
     # explicitly reuse the same persisted starting-side draw before the
     # browser receives the shared ACTIVE event. The helper is idempotent:
     # retries retain the first stored draw.
+    match = None
     if status == "active":
         try:
             from .starting_team import announce_match_starting_team
 
-            match = Match.objects.get(pk=match_id)
+            match = Match.objects.select_related("court").get(pk=match_id)
             announce_match_starting_team(match)
         except Exception:
             # A presentation/notification-side failure must not suppress the
@@ -460,6 +461,19 @@ def _schedule_round_batch_state_event(match_id: int, status: str, tournament_id:
         )
     except Exception:
         logger.exception("Round batch state delivery failed for Match %s", match_id)
+
+    # Presence registration is non-authoritative and deliberately happens only
+    # after the shared state event, so Billboard writes cannot delay or suppress
+    # the live Match transition seen by connected clients.
+    if status == "active":
+        try:
+            from .views import auto_register_players_to_billboard
+
+            if match is None:
+                match = Match.objects.select_related("court").get(pk=match_id)
+            auto_register_players_to_billboard(match)
+        except Exception:
+            logger.exception("Batch Billboard registration failed for Match %s", match_id)
 
 
 def assign_staff_court_and_activate(match_id: int, court_id: int) -> CourtActivationOutcome:

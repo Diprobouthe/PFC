@@ -8,7 +8,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from courts.models import Court
+from billboard.models import BillboardEntry
+from courts.models import Court, CourtComplex
 from matches.lifecycle import allocate_ready_matches
 from matches.models import LiveScoreboard, Match, MatchPlayer, ScoreUpdate
 from matches.starting_team import (
@@ -217,7 +218,11 @@ class TournamentBatchStartingTeamTests(TestCase):
         self.player1 = Player.objects.create(name="Batch North Player", team=self.team1)
         self.player2 = Player.objects.create(name="Batch South Player", team=self.team2)
         self.court = Court.objects.create(number=94101, is_available=True)
+        self.court_complex = CourtComplex.objects.create(name="Batch Presence Complex")
+        self.court_complex.courts.add(self.court)
         self.tournament.courts.add(self.court)
+        PlayerCodename.objects.create(player=self.player1, codename="BATCHN")
+        PlayerCodename.objects.create(player=self.player2, codename="BATCHS")
         self.match = Match.objects.create(
             tournament=self.tournament,
             team1=self.team1,
@@ -248,4 +253,28 @@ class TournamentBatchStartingTeamTests(TestCase):
             self.match.id,
             "active",
             tournament_id=self.tournament.id,
+        )
+
+
+    @patch("pfc_events.signals.notify_match_shared_state_changed")
+    @patch("pfc_events.push_notifications.notify_match_action_required")
+    def test_batch_activation_registers_match_players_at_courts(
+        self,
+        _notify_action_required,
+        _notify_shared_state,
+    ):
+        with self.captureOnCommitCallbacks(execute=True):
+            outcomes = allocate_ready_matches([self.match.id])
+
+        self.assertEqual(outcomes[0].state, "activated")
+        entries = BillboardEntry.objects.filter(
+            action_type="AT_COURTS",
+            court_complex=self.court_complex,
+            game_ref=f"match:{self.match.id}",
+            is_active=True,
+        )
+        self.assertEqual(entries.count(), 2)
+        self.assertSetEqual(
+            set(entries.values_list("codename", flat=True)),
+            {"BATCHN", "BATCHS"},
         )
