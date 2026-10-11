@@ -1,0 +1,55 @@
+name: Fetch two production media originals
+
+on:
+  push:
+    branches:
+      - test/production-readonly-crawl-20261011
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-media:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/production-readonly-crawl-20261011
+      - name: Download originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp_media_download
+          if [ -f tmp_media_download/1000005925.jpg ] && [ -f tmp_media_download/tltc.svg ]; then
+            echo "Media already present; nothing to do."
+            exit 0
+          fi
+          python - <<'PY'
+          from urllib.request import Request, urlopen
+          from pathlib import Path
+
+          files = {
+              "https://pfc-e1ce.onrender.com/media/team_photos/1000005925.jpg":
+                  Path("tmp_media_download/1000005925.jpg"),
+              "https://pfc-e1ce.onrender.com/media/team_logos/tltc.svg":
+                  Path("tmp_media_download/tltc.svg"),
+          }
+          for url, dest in files.items():
+              req = Request(url, headers={"User-Agent":"PFC-Media-Fetch/1.0"})
+              with urlopen(req, timeout=30) as r:
+                  data = r.read()
+              dest.write_bytes(data)
+              print(dest, len(data))
+          PY
+      - name: Commit originals to temporary branch
+        shell: bash
+        run: |
+          if git diff --quiet -- tmp_media_download && [ -n "$(git ls-files tmp_media_download)" ]; then
+            echo "No changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp_media_download/1000005925.jpg tmp_media_download/tltc.svg
+          git commit -m "Temporary fetch of two production media originals"
+          git push origin HEAD:test/production-readonly-crawl-20261011
