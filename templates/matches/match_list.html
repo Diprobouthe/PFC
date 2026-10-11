@@ -707,6 +707,13 @@ function switchType(type) {
     swF.classList.toggle('active-f', !isTournament);
 
     localStorage.setItem('matchViewType', type);
+
+    if (isTournament && localStorage.getItem('activeTournamentTab') === 'done') {
+        ensureHistoryLoaded('tournament');
+    }
+    if (!isTournament && localStorage.getItem('activeFriendlyTab') === 'fdone') {
+        ensureHistoryLoaded('friendly');
+    }
 }
 
 // ── Tournament tab pills ───────────────────────────────────────────
@@ -730,7 +737,7 @@ function showTab(name) {
     var active = document.getElementById('pill-' + name);
     active.classList.add('selected-pill', pillMap[name]);
     localStorage.setItem('activeTournamentTab', name);
-    if (name === 'done') ensureHistoryLoaded('tournament');
+    if (name === 'done' && document.getElementById('section-tournament').style.display !== 'none') ensureHistoryLoaded('tournament');
 }
 
 // ── Friendly tab pills ─────────────────────────────────────────────
@@ -751,7 +758,7 @@ function showFTab(name) {
         }
     });
     localStorage.setItem('activeFriendlyTab', name);
-    if (name === 'fdone') ensureHistoryLoaded('friendly');
+    if (name === 'fdone' && document.getElementById('section-friendly').style.display !== 'none') ensureHistoryLoaded('friendly');
 }
 
 // ── Init ───────────────────────────────────────────────────────────
