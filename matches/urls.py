@@ -4,6 +4,7 @@ from . import views_scoreboard
 
 urlpatterns = [
     path('', views.match_list, name='match_list'),
+    path('history/', views.match_history_page, name='match_history_page'),
     path('<int:tournament_id>/', views.match_list, name='tournament_matches'),
     path('detail/<int:match_id>/', views.match_detail, name='match_detail'),
     path('activate/<int:match_id>/<int:team_id>/', views.match_activate, name='match_activate'),

@@ -326,7 +326,7 @@
                 {% translate "Validate" %} <span class="pill-count">{{ waiting_validation|length }}</span>
             </button>
             <button class="ml-pill p-done" id="pill-done" onclick="showTab('done')">
-                {% translate "Done" %} <span class="pill-count">{{ completed_matches|length }}</span>
+                {% translate "Done" %} <span class="pill-count">{{ completed_count }}</span>
             </button>
         </div>
 
@@ -458,34 +458,11 @@
             {% endif %}
         </div>
 
-        <!-- Done -->
+        <!-- Done — history is fetched only when the user opens this tab. -->
         <div id="tab-done" class="ml-tab" style="display:none;">
-            {% if completed_matches %}
-                <div class="ml-list">
-                {% for match in completed_matches %}
-                    <a href="{% url 'match_detail' match.id %}" class="ml-card">
-                        <div class="ml-card-inner">
-                            <div class="ml-accent accent-done"></div>
-                            <div class="ml-card-body">
-                                <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
-                                <div class="ml-meta">{{ match.tournament.name }}</div>
-                                <div class="ml-score">
-                                    <span>{{ match.team1_score }}</span>
-                                    <span class="ml-score-sep">–</span>
-                                    <span>{{ match.team2_score }}</span>
-                                </div>
-                            </div>
-                            <div class="ml-card-right">
-                                <span class="ml-status-badge badge-done">{% translate "Done" %}</span>
-                                <i class="fas fa-chevron-right ml-chevron"></i>
-                            </div>
-                        </div>
-                    </a>
-                {% endfor %}
-                </div>
-            {% else %}
-                <div class="ml-empty"><i class="fas fa-flag-checkered"></i>{% translate "No completed matches" %}</div>
-            {% endif %}
+            <div id="tournament-history-list" class="ml-list"></div>
+            <div id="tournament-history-status" class="ml-empty" data-total="{{ completed_count }}"></div>
+            <div id="tournament-history-controls" style="text-align:center;padding:0 16px 24px;"></div>
         </div>
 
     </div><!-- /section-tournament -->
@@ -506,7 +483,7 @@
                 {% translate "Validate" %} <span class="pill-count">{{ friendly_pending_validation|length }}</span>
             </button>
             <button class="ml-pill fp-done" id="fpill-done" onclick="showFTab('fdone')">
-                {% translate "Done" %} <span class="pill-count">{{ friendly_completed|length }}</span>
+                {% translate "Done" %} <span class="pill-count">{{ friendly_completed_count }}</span>
             </button>
         </div>
 
@@ -609,34 +586,11 @@
             {% endif %}
         </div>
 
-        <!-- Friendly: Done -->
+        <!-- Friendly: Done — lazy, paginated history. -->
         <div id="tab-fdone" class="ml-ftab" style="display:none;">
-            {% if friendly_completed %}
-                <div class="ml-list">
-                {% for game in friendly_completed %}
-                    <a href="{% url 'friendly_games:game_detail' game.id %}" class="ml-card">
-                        <div class="ml-card-inner">
-                            <div class="ml-accent accent-done"></div>
-                            <div class="ml-card-body">
-                                <div class="ml-teams">{% translate "Game" %} #{{ game.match_number }}</div>
-                                <div class="ml-meta">{{ game.completed_at|court_localtime:game.court_complex|date:"M j, H:i" }}</div>
-                                <div class="ml-score">
-                                    <span>⚫ {{ game.black_team_score }}</span>
-                                    <span class="ml-score-sep">–</span>
-                                    <span>⚪ {{ game.white_team_score }}</span>
-                                </div>
-                            </div>
-                            <div class="ml-card-right">
-                                <span class="ml-status-badge badge-done">{% translate "Done" %}</span>
-                                <i class="fas fa-chevron-right ml-chevron"></i>
-                            </div>
-                        </div>
-                    </a>
-                {% endfor %}
-                </div>
-            {% else %}
-                <div class="ml-empty"><i class="fas fa-flag-checkered"></i>{% translate "No completed friendly games" %}</div>
-            {% endif %}
+            <div id="friendly-history-list" class="ml-list"></div>
+            <div id="friendly-history-status" class="ml-empty" data-total="{{ friendly_completed_count }}"></div>
+            <div id="friendly-history-controls" style="text-align:center;padding:0 16px 24px;"></div>
         </div>
 
     </div><!-- /section-friendly -->
@@ -644,6 +598,102 @@
 </div><!-- /ml-page-wrap -->
 
 <script>
+{% translate "Loading..." as history_loading %}
+{% translate "Load older" as history_load_older %}
+{% translate "Retry" as history_retry %}
+{% translate "Could not load match history." as history_error %}
+{% translate "No completed matches" as history_empty_tournament %}
+{% translate "No completed friendly games" as history_empty_friendly %}
+
+var historyState = {
+    tournament: { loaded: false, loading: false, nextPage: 1 },
+    friendly:   { loaded: false, loading: false, nextPage: 1 }
+};
+var historyEndpoint = "{% url 'match_history_page' %}";
+var historyTournamentId = {% if tournament %}{{ tournament.id }}{% else %}null{% endif %};
+var historyLabels = {
+    loading: "{{ history_loading|escapejs }}",
+    loadOlder: "{{ history_load_older|escapejs }}",
+    retry: "{{ history_retry|escapejs }}",
+    error: "{{ history_error|escapejs }}",
+    emptyTournament: "{{ history_empty_tournament|escapejs }}",
+    emptyFriendly: "{{ history_empty_friendly|escapejs }}"
+};
+
+function historyNodes(kind) {
+    return {
+        list: document.getElementById(kind + '-history-list'),
+        status: document.getElementById(kind + '-history-status'),
+        controls: document.getElementById(kind + '-history-controls')
+    };
+}
+
+function renderHistoryControl(kind, page, label) {
+    var nodes = historyNodes(kind);
+    nodes.controls.innerHTML = '';
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ml-action-btn';
+    button.textContent = label;
+    button.addEventListener('click', function () {
+        loadHistory(kind, page, true);
+    });
+    nodes.controls.appendChild(button);
+}
+
+async function loadHistory(kind, page, append) {
+    var state = historyState[kind];
+    if (!state || state.loading) return;
+
+    var nodes = historyNodes(kind);
+    state.loading = true;
+    nodes.status.textContent = historyLabels.loading;
+    nodes.controls.innerHTML = '';
+
+    try {
+        var url = new URL(historyEndpoint, window.location.origin);
+        url.searchParams.set('kind', kind);
+        url.searchParams.set('page', String(page));
+        if (kind === 'tournament' && historyTournamentId !== null) {
+            url.searchParams.set('tournament_id', String(historyTournamentId));
+        }
+
+        var response = await fetch(url.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!response.ok) throw new Error('history request failed');
+
+        var payload = await response.json();
+        if (append) {
+            nodes.list.insertAdjacentHTML('beforeend', payload.html);
+        } else {
+            nodes.list.innerHTML = payload.html;
+        }
+
+        state.loaded = true;
+        state.nextPage = payload.next_page;
+        nodes.status.textContent = payload.total === 0
+            ? (kind === 'tournament' ? historyLabels.emptyTournament : historyLabels.emptyFriendly)
+            : '';
+
+        if (payload.has_next && payload.next_page) {
+            renderHistoryControl(kind, payload.next_page, historyLabels.loadOlder);
+        }
+    } catch (error) {
+        nodes.status.textContent = historyLabels.error;
+        renderHistoryControl(kind, page, historyLabels.retry);
+    } finally {
+        state.loading = false;
+    }
+}
+
+function ensureHistoryLoaded(kind) {
+    var state = historyState[kind];
+    if (state && !state.loaded && !state.loading) {
+        loadHistory(kind, 1, false);
+    }
+}
+
 // ── Type switcher ──────────────────────────────────────────────────
 function switchType(type) {
     var isTournament = type === 'tournament';
@@ -657,6 +707,13 @@ function switchType(type) {
     swF.classList.toggle('active-f', !isTournament);
 
     localStorage.setItem('matchViewType', type);
+
+    if (isTournament && localStorage.getItem('activeTournamentTab') === 'done') {
+        ensureHistoryLoaded('tournament');
+    }
+    if (!isTournament && localStorage.getItem('activeFriendlyTab') === 'fdone') {
+        ensureHistoryLoaded('friendly');
+    }
 }
 
 // ── Tournament tab pills ───────────────────────────────────────────
@@ -680,6 +737,7 @@ function showTab(name) {
     var active = document.getElementById('pill-' + name);
     active.classList.add('selected-pill', pillMap[name]);
     localStorage.setItem('activeTournamentTab', name);
+    if (name === 'done' && document.getElementById('section-tournament').style.display !== 'none') ensureHistoryLoaded('tournament');
 }
 
 // ── Friendly tab pills ─────────────────────────────────────────────
@@ -700,6 +758,7 @@ function showFTab(name) {
         }
     });
     localStorage.setItem('activeFriendlyTab', name);
+    if (name === 'fdone' && document.getElementById('section-friendly').style.display !== 'none') ensureHistoryLoaded('friendly');
 }
 
 // ── Init ───────────────────────────────────────────────────────────

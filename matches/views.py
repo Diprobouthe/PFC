@@ -5,6 +5,9 @@ from django.utils.translation import gettext as _
 from django.db import transaction
 from django.db.models import Q, Exists, OuterRef
 from django.urls import reverse
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.http import JsonResponse
+from django.template.loader import render_to_string
 from datetime import timedelta
 import logging
 
@@ -224,13 +227,43 @@ def _deactivate_match_presence(match, skip_grace=False):
     except Exception as exc:
         logger.error(f"Error deactivating presence for match {match.id}: {exc}")
 
+MATCH_HISTORY_PAGE_SIZE = 30
+
+
+def _tournament_matches_for_list(status):
+    """List-page queryset with the relations rendered by match_list.html."""
+    queryset = Match.objects.filter(status=status).select_related(
+        "team1",
+        "team2",
+        "tournament",
+        "round",
+        "court",
+    )
+    if status == "pending_verification":
+        queryset = queryset.prefetch_related("activations__team")
+    if status == "active":
+        queryset = queryset.prefetch_related("court__courtcomplex_set")
+    return queryset
+
+
+def _friendly_games_for_list(status):
+    """Friendly list-page queryset with court/result relations preloaded."""
+    queryset = FriendlyGame.objects.filter(status=status).select_related("court_complex")
+    if status == "PENDING_VALIDATION":
+        queryset = queryset.select_related("result")
+    return queryset
+
+
 def match_list(request, tournament_id=None):
-    # Tournament matches (existing functionality)
-    active_matches = Match.objects.filter(status="active").order_by("-start_time")
-    pending_matches = Match.objects.filter(status="pending").order_by("scheduled_time")
-    pending_verification_matches = Match.objects.filter(status="pending_verification").order_by("updated_at")
-    waiting_validation = Match.objects.filter(status="waiting_validation").order_by("updated_at")
-    completed_matches = Match.objects.filter(status="completed").order_by("-end_time")
+    # Keep current/unresolved records on the initial page. Completed history is
+    # intentionally lazy-loaded in MATCH_HISTORY_PAGE_SIZE batches when the
+    # user opens Done, so no historical record becomes inaccessible.
+    active_matches = _tournament_matches_for_list("active").order_by("-start_time")
+    pending_matches = _tournament_matches_for_list("pending").order_by("scheduled_time")
+    pending_verification_matches = _tournament_matches_for_list("pending_verification").order_by("updated_at")
+    waiting_validation = _tournament_matches_for_list("waiting_validation").order_by("updated_at")
+
+    completed_matches = Match.objects.filter(status="completed")
 
     if tournament_id:
         tournament = get_object_or_404(Tournament, id=tournament_id)
@@ -242,26 +275,27 @@ def match_list(request, tournament_id=None):
     else:
         tournament = None
 
-    # Friendly games (new functionality)
-    friendly_waiting = FriendlyGame.objects.filter(status="WAITING_FOR_PLAYERS").order_by("-created_at")
-    friendly_active = FriendlyGame.objects.filter(status="ACTIVE").order_by("-started_at")
-    friendly_pending_validation = FriendlyGame.objects.filter(status="PENDING_VALIDATION").order_by("-created_at")
-    friendly_completed = FriendlyGame.objects.filter(status="COMPLETED").order_by("-completed_at")
+    # Friendly current/unresolved games stay immediately available.
+    friendly_waiting = _friendly_games_for_list("WAITING_FOR_PLAYERS").order_by("-created_at")
+    friendly_active = _friendly_games_for_list("ACTIVE").order_by("-started_at")
+    friendly_pending_validation = _friendly_games_for_list("PENDING_VALIDATION").order_by("-created_at")
 
-    # Calculate totals for badge counts
+    # Counts remain complete even though completed rows are not materialized.
+    completed_count = completed_matches.count()
+    friendly_completed_count = FriendlyGame.objects.filter(status="COMPLETED").count()
+
     tournament_total = (
-        active_matches.count() + 
-        pending_matches.count() + 
-        pending_verification_matches.count() + 
-        waiting_validation.count() + 
-        completed_matches.count()
+        active_matches.count()
+        + pending_matches.count()
+        + pending_verification_matches.count()
+        + waiting_validation.count()
+        + completed_count
     )
-    
     friendly_total = (
-        friendly_waiting.count() + 
-        friendly_active.count() + 
-        friendly_pending_validation.count() + 
-        friendly_completed.count()
+        friendly_waiting.count()
+        + friendly_active.count()
+        + friendly_pending_validation.count()
+        + friendly_completed_count
     )
 
     context = {
@@ -269,18 +303,70 @@ def match_list(request, tournament_id=None):
         "pending_matches": pending_matches,
         "pending_verification_matches": pending_verification_matches,
         "waiting_validation": waiting_validation,
-        "completed_matches": completed_matches,
         "tournament": tournament,
-        # Friendly games data
         "friendly_waiting": friendly_waiting,
         "friendly_active": friendly_active,
         "friendly_pending_validation": friendly_pending_validation,
-        "friendly_completed": friendly_completed,
-        # Total counts for badges
+        "completed_count": completed_count,
+        "friendly_completed_count": friendly_completed_count,
         "tournament_total": tournament_total,
         "friendly_total": friendly_total,
+        "match_history_page_size": MATCH_HISTORY_PAGE_SIZE,
     }
     return render(request, "matches/match_list.html", context)
+
+
+def match_history_page(request):
+    """Return one lazy-rendered completed-history batch.
+
+    Every completed Match/Friendly remains reachable by walking the returned
+    pages. The initial /matches/ response never materializes this history.
+    """
+    kind = request.GET.get("kind")
+    page_number = request.GET.get("page", "1")
+
+    if kind == "tournament":
+        queryset = Match.objects.filter(status="completed").select_related(
+            "team1",
+            "team2",
+            "tournament",
+        ).order_by("-end_time", "-id")
+
+        tournament_id = request.GET.get("tournament_id")
+        if tournament_id:
+            try:
+                tournament_id = int(tournament_id)
+            except (TypeError, ValueError):
+                return JsonResponse({"error": "Invalid tournament_id."}, status=400)
+            queryset = queryset.filter(tournament_id=tournament_id)
+
+        partial = "matches/partials/completed_tournament_cards.html"
+        context_name = "matches"
+    elif kind == "friendly":
+        queryset = FriendlyGame.objects.filter(status="COMPLETED").select_related(
+            "court_complex"
+        ).order_by("-completed_at", "-id")
+        partial = "matches/partials/completed_friendly_cards.html"
+        context_name = "games"
+    else:
+        return JsonResponse({"error": "Invalid history kind."}, status=400)
+
+    paginator = Paginator(queryset, MATCH_HISTORY_PAGE_SIZE)
+    try:
+        page_obj = paginator.page(page_number)
+    except (PageNotAnInteger, EmptyPage):
+        return JsonResponse({"error": "Invalid history page."}, status=400)
+
+    html = render_to_string(
+        partial,
+        {context_name: page_obj.object_list},
+    )
+    return JsonResponse({
+        "html": html,
+        "total": paginator.count,
+        "has_next": page_obj.has_next(),
+        "next_page": page_obj.next_page_number() if page_obj.has_next() else None,
+    })
 
 
 def match_detail(request, match_id):
