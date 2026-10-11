@@ -1,0 +1,21 @@
+{% load court_tz_tags i18n %}
+{% for game in games %}
+<a href="{% url 'friendly_games:game_detail' game.id %}" class="ml-card">
+    <div class="ml-card-inner">
+        <div class="ml-accent accent-done"></div>
+        <div class="ml-card-body">
+            <div class="ml-teams">{% translate "Game" %} #{{ game.match_number }}</div>
+            <div class="ml-meta">{{ game.completed_at|court_localtime:game.court_complex|date:"M j, H:i" }}</div>
+            <div class="ml-score">
+                <span>⚫ {{ game.black_team_score }}</span>
+                <span class="ml-score-sep">–</span>
+                <span>⚪ {{ game.white_team_score }}</span>
+            </div>
+        </div>
+        <div class="ml-card-right">
+            <span class="ml-status-badge badge-done">{% translate "Done" %}</span>
+            <i class="fas fa-chevron-right ml-chevron"></i>
+        </div>
+    </div>
+</a>
+{% endfor %}
