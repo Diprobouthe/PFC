@@ -1,0 +1,65 @@
+name: Fetch production media over 300KB
+
+on:
+  push:
+    branches:
+      - test/fetch-large-media-20261011
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch only media larger than 300KB
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+
+          BASE = "https://pfc-e1ce.onrender.com/media/"
+          THRESHOLD = 300 * 1024
+          paths = json.loads(r'''["court_complex_photos/peta2_TbSbvP2.jpg","court_images/court_10.jpg","court_images/court_11.jpg","court_images/court_14.jpg","court_images/court_19.jpg","court_images/court_779f6eb0d80b.jpg","player_profiles/1000004263.jpg","player_profiles/1000007100.png","player_profiles/1000009326_yoQaVYg.jpg","player_profiles/1000010131.jpg","player_profiles/1000088664.png","player_profiles/582836D8-6400-4154-B175-59FBF0E8FFB9_X0jXdnh.png","player_profiles/EQ2A6705-1.jpg","player_profiles/fargali.jpg","player_profiles/FB_IMG_1708849927576.jpg","player_profiles/player_123.jpg","player_profiles/player_136.jpg","player_profiles/player_147.jpg","player_profiles/player_148.jpg","player_profiles/player_14.jpg","player_profiles/player_17_6gJKcHV.jpg","player_profiles/player_184.jpg","player_profiles/player_192.jpg","player_profiles/player_1_EK1dFML.png","player_profiles/player_215.jpg","player_profiles/player_223_M03V5e8.jpg","player_profiles/player_233.jpg","player_profiles/player_237.jpg","player_profiles/player_238.jpg","player_profiles/player_239.png","player_profiles/player_241.png","player_profiles/player_242.jpg","player_profiles/player_24.jpeg","player_profiles/player_254_j5F1pYn.jpg","player_profiles/player_34.jpg","player_profiles/player_51.jpg","player_profiles/Screenshot_20251003_001109_Viber.jpg","player_profiles/εικόνα_Viber_2025-06-08_00-53-09-019.jpg","player_profiles/λαλα.jpg","player_profiles/μαρα.jpg","player_profiles/νικος.jpg","player_profiles/ντουρο.jpg","player_profiles/πανος.jpg","player_profiles/σταθης.jpg","player_profiles/τζοτζολας.jpg","player_profiles/ΦΥΛΛΑ_ΑΓΩΝΩΝ.jpg","player_profiles/χρηστου.jpg","scenario_images/scenario_14.png","scenario_images/scenario_15.jpg","scenario_images/scenario_16.png","scenario_images/scenario_17.png","scenario_images/scenario_18.jpg","scenario_images/scenario_19.png","scenario_images/scenario_20.jpg","team_logos/agsp.jpg","team_logos/atlas.png","team_logos/boomers.jpg","team_logos/FB_IMG_1757769284354.jpg","team_logos/FB_IMG_1767726471937.jpg","team_logos/file_000000000b506246afb986b2df5f528b.png","team_logos/file_0000000047ec620a9281c25eb0f20145_1zgkD3E.png","team_logos/file_0000000047ec620a9281c25eb0f20145.png","team_logos/file_0000000047ec620a9281c25eb0f20145_UGvMwl1.png","team_logos/file_0000000047ec620a9281c25eb0f20145_VVPL1xm.png","team_logos/file_00000000df7c622fae164561ad5fae8f.png","team_logos/images_3.jpeg","team_logos/IMG_20251008_154739.jpg","team_logos/IMG_20251106_200543.png","team_logos/IMG_20260312_214203.jpg","team_logos/ioanina.webp","team_logos/logo-black.svg","team_logos/myrmidones.svg","team_logos/pfc_FG_logo.svg","team_logos/phantom.svg","team_logos/raptors.svg","team_logos/rebels.jpg","team_logos/stolia_pi.jpg","team_logos/tltc.svg","team_logos/trex2letters.jpg","team_photos/1000002552.jpg","team_photos/1000005618.png","team_photos/1000005908.png","team_photos/1000005925.jpg","team_photos/1000006076.jpg","team_photos/1000006160.jpg","team_photos/1000006261_6ykhMZp.png","team_photos/1000006261_eh2gxK1.png","team_photos/1000006261.png","team_photos/1000006261_zChj3Ci.png","team_photos/1000006290.jpg","team_photos/1000007487.png","team_photos/1000010785.jpg","team_photos/3.ΑΣΠΙΔΑ-ΑΧΙΛΛΕΑ.jpeg","team_photos/petA_naked2.jpg","team_photos/pfc_BLACK_OR_WHITE.jpg","team_photos/stolia_pi.jpg","team_photos/team_11_rzWsLkN.jpg","team_photos/team_5.jpg","team_photos/trex.jpg","tournament_banners/banner_godzila.jpg","tournament_banners/banner_xeimerino_2l0lpZ9.jpg","tournament_banners/banner_xeimerino.jpg","tournament_banners/black_hole.jpg","tournament_banners/godzila_biEEv3C.jpg","tournament_banners/godzila_EZjqmyO.jpg","tournament_banners/godzila_kFEECOu.jpg","tournament_banners/αθλοτυπο.jpg","tournament_banners/γκοτζιλα_YSaGUm2.jpg","tournament_banners/χειμερινο_2026_banner.jpg"]''')
+          out = Path("large_media")
+          out.mkdir(exist_ok=True)
+
+          found = []
+          for path in paths:
+              url = BASE + quote(path, safe="/")
+              try:
+                  req = Request(url, method="HEAD", headers={"User-Agent":"PFC-Large-Media-Audit/1.0"})
+                  with urlopen(req, timeout=20) as r:
+                      size = int(r.headers.get("Content-Length") or 0)
+                  print(f"HEAD {size:>9}  {path}")
+                  if size <= THRESHOLD:
+                      continue
+                  req = Request(url, headers={"User-Agent":"PFC-Large-Media-Audit/1.0"})
+                  with urlopen(req, timeout=30) as r:
+                      data = r.read()
+                  dest = out / Path(path).name
+                  if dest.exists():
+                      dest = out / (Path(path).parent.name + "__" + Path(path).name)
+                  dest.write_bytes(data)
+                  found.append({"path": path, "bytes": len(data), "file": dest.name})
+                  print(f"FETCH {len(data):>8}  {path} -> {dest}")
+              except Exception as exc:
+                  print(f"ERROR {path}: {exc}")
+
+          (out / "manifest.json").write_text(
+              json.dumps(found, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          print("\nFOUND", len(found), "files over 300KB")
+          for item in sorted(found, key=lambda x: x["bytes"], reverse=True):
+              print(item["bytes"], item["path"])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pfc-media-over-300kb
+          path: large_media/
+          if-no-files-found: error
+          retention-days: 1
