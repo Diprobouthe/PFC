@@ -1,0 +1,33 @@
+name: Matches memory repeat probe
+
+on:
+  push:
+    branches:
+      - test/matches-memory-repeat-20261011
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit matches 10 times
+        shell: bash
+        run: |
+          python - <<'PY'
+          import time
+          from urllib.request import Request, urlopen
+
+          url="https://pfc-e1ce.onrender.com/matches/"
+          for i in range(1, 11):
+              started=time.time()
+              with urlopen(Request(url,headers={"User-Agent":"PFC-Matches-Memory-Probe/1.0"}),timeout=30) as r:
+                  body=r.read()
+                  elapsed=time.time()-started
+                  print(f"HIT {i}: status={r.status} bytes={len(body)} elapsed={elapsed:.3f}s", flush=True)
+              if i < 10:
+                  time.sleep(30)
+          print("DONE; cooling 120s", flush=True)
+          time.sleep(120)
+          PY
