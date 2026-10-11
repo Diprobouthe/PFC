@@ -1,0 +1,46 @@
+name: Inspect two production profile images
+
+on:
+  push:
+    branches:
+      - test/inspect-two-profile-images-20261011
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install Pillow==10.1.0
+      - name: Inspect images
+        shell: bash
+        run: |
+          python - <<'PY'
+          from urllib.request import Request, urlopen
+          from io import BytesIO
+          from PIL import Image
+
+          urls = [
+              "https://pfc-e1ce.onrender.com/media/player_profiles/player_24.jpeg",
+              "https://pfc-e1ce.onrender.com/media/player_profiles/player_223_M03V5e8.jpg",
+          ]
+
+          for url in urls:
+              req = Request(url, headers={"User-Agent":"PFC-Image-Inspect/1.0"})
+              with urlopen(req, timeout=30) as r:
+                  data = r.read()
+              with Image.open(BytesIO(data)) as im:
+                  print("URL", url)
+                  print(" bytes=", len(data))
+                  print(" format=", im.format)
+                  print(" size=", im.size)
+                  print(" mode=", im.mode)
+                  print(" is_animated=", getattr(im, "is_animated", False))
+                  print(" n_frames=", getattr(im, "n_frames", 1))
+                  print(" info_keys=", sorted(im.info.keys()))
+                  print("---")
+          PY
