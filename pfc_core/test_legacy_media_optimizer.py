@@ -15,7 +15,7 @@ class LegacyMediaOptimizerTests(TestCase):
         self.test_dir = Path(settings.MEDIA_ROOT) / "legacy_optimizer_test"
         self.test_dir.mkdir(parents=True, exist_ok=True)
         self.team = Team.objects.create(name="Legacy Optimizer Test")
-        self.profile = TeamProfile.objects.create(team=self.team)
+        self.profile = TeamProfile.objects.get(team=self.team)
 
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
