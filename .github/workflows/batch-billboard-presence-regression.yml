@@ -39,5 +39,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
       - run: python manage.py check
-      - name: Run focused batch activation regression tests
-        run: python manage.py test matches.test_tournament_starting_team --verbosity 2
+      - name: Run engine-adjacent regression tests
+        run: >-
+          python manage.py test
+          matches.test_tournament_starting_team
+          tournaments.test_round_lineup_lifecycle
+          matches.test_tournament_lifecycle_postgres
+          --verbosity 2
