@@ -360,7 +360,6 @@ def match_history_page(request):
     html = render_to_string(
         partial,
         {context_name: page_obj.object_list},
-        request=request,
     )
     return JsonResponse({
         "html": html,
