@@ -442,13 +442,15 @@ def _schedule_round_batch_state_event(match_id: int, status: str, tournament_id:
     if status == "active":
         try:
             from .starting_team import announce_match_starting_team
+            from .views import auto_register_players_to_billboard
 
-            match = Match.objects.get(pk=match_id)
+            match = Match.objects.select_related("court").get(pk=match_id)
             announce_match_starting_team(match)
+            auto_register_players_to_billboard(match)
         except Exception:
             # A presentation/notification-side failure must not suppress the
             # authoritative shared Match state event.
-            logger.exception("Batch starting-side draw failed for Match %s", match_id)
+            logger.exception("Batch activation side effects failed for Match %s", match_id)
 
     try:
         from pfc_events.signals import notify_match_shared_state_changed
