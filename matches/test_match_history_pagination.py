@@ -1,6 +1,8 @@
 from datetime import timedelta
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -168,6 +170,33 @@ class MatchHistoryPaginationTests(TestCase):
                 args=[self.friendlies[-1].id],
             ),
             page3["html"],
+        )
+
+    def test_history_page_avoids_n_plus_one_queries(self):
+        url = reverse("match_history_page")
+
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(
+                url,
+                {"kind": "tournament", "page": 1},
+            )
+            self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(
+            len(captured),
+            2,
+            msg="Tournament history page should be COUNT + one select_related page query.",
+        )
+
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(
+                url,
+                {"kind": "friendly", "page": 1},
+            )
+            self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(
+            len(captured),
+            2,
+            msg="Friendly history page should be COUNT + one select_related page query.",
         )
 
     def test_invalid_history_requests_fail_closed(self):
