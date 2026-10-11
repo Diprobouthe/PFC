@@ -1,0 +1,21 @@
+{% load i18n %}
+{% for match in matches %}
+<a href="{% url 'match_detail' match.id %}" class="ml-card">
+    <div class="ml-card-inner">
+        <div class="ml-accent accent-done"></div>
+        <div class="ml-card-body">
+            <div class="ml-teams">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+            <div class="ml-meta">{{ match.tournament.name }}</div>
+            <div class="ml-score">
+                <span>{{ match.team1_score }}</span>
+                <span class="ml-score-sep">–</span>
+                <span>{{ match.team2_score }}</span>
+            </div>
+        </div>
+        <div class="ml-card-right">
+            <span class="ml-status-badge badge-done">{% translate "Done" %}</span>
+            <i class="fas fa-chevron-right ml-chevron"></i>
+        </div>
+    </div>
+</a>
+{% endfor %}
