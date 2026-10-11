@@ -1,0 +1,82 @@
+name: Production read-only crawl
+
+on:
+  push:
+    branches:
+      - test/production-readonly-crawl-20261011
+
+permissions:
+  contents: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Browse public PFC pages read-only
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re, time
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import Request, urlopen
+
+          BASE = "https://pfc-e1ce.onrender.com"
+          PAGES = [
+              "/",
+              "/courts/complexes/",
+              "/teams/",
+              "/teams/players/friendly-leaderboard/",
+              "/matches/",
+          ]
+
+          class Assets(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.urls = []
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag in ("img", "script") and a.get("src"):
+                      self.urls.append(a["src"])
+                  if tag == "link" and a.get("href") and "stylesheet" in (a.get("rel") or ""):
+                      self.urls.append(a["href"])
+
+          def get(url):
+              req = Request(url, headers={"User-Agent":"PFC-Memory-ReadOnly-Test/1.0"})
+              with urlopen(req, timeout=20) as r:
+                  body = r.read()
+                  return r.geturl(), r.status, r.headers.get("Content-Type",""), body
+
+          seen_assets = set()
+          for pass_no in (1, 2):
+              print(f"=== PASS {pass_no} ===")
+              for path in PAGES:
+                  url = urljoin(BASE, path)
+                  try:
+                      final, status, ctype, body = get(url)
+                      print(f"PAGE {path} -> {status} {len(body)} bytes {final}")
+                      if "text/html" in ctype:
+                          parser = Assets()
+                          parser.feed(body.decode("utf-8", "ignore"))
+                          local_assets = []
+                          for u in parser.urls:
+                              au = urljoin(final, u)
+                              if urlparse(au).netloc == urlparse(BASE).netloc:
+                                  local_assets.append(au)
+                          # Fetch each same-origin asset once per full crawl, like a browser cache.
+                          for au in local_assets:
+                              if au in seen_assets:
+                                  continue
+                              seen_assets.add(au)
+                              try:
+                                  af, ast, act, ab = get(au)
+                                  print(f"  ASSET {ast} {len(ab)} bytes {urlparse(af).path}")
+                              except Exception as exc:
+                                  print(f"  ASSET ERROR {au}: {exc}")
+                  except Exception as exc:
+                      print(f"PAGE ERROR {path}: {exc}")
+                  time.sleep(1)
+              time.sleep(8)
+
+          print(f"Unique same-origin assets fetched: {len(seen_assets)}")
+          PY
