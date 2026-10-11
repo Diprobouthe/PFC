@@ -1,0 +1,56 @@
+name: Fetch large production SVG media
+
+on:
+  push:
+    branches:
+      - test/fetch-large-svg-media-20261011
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check SVG media with unknown HEAD size
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+          import json
+
+          BASE="https://pfc-e1ce.onrender.com/media/"
+          paths=[
+            "team_logos/logo-black.svg",
+            "team_logos/myrmidones.svg",
+            "team_logos/pfc_FG_logo.svg",
+            "team_logos/phantom.svg",
+            "team_logos/tltc.svg",
+          ]
+          out=Path("large_svg_media")
+          out.mkdir(exist_ok=True)
+          found=[]
+          for path in paths:
+              url=BASE+quote(path,safe="/")
+              try:
+                  req=Request(url,headers={"User-Agent":"PFC-Large-SVG-Audit/1.0"})
+                  with urlopen(req,timeout=30) as r:
+                      data=r.read()
+                  print(len(data), path)
+                  if len(data) > 300*1024:
+                      dest=out/Path(path).name
+                      dest.write_bytes(data)
+                      found.append({"path":path,"bytes":len(data),"file":dest.name})
+              except Exception as exc:
+                  print("ERROR",path,exc)
+          (out/"manifest_svg.json").write_text(json.dumps(found,indent=2),encoding="utf-8")
+          print("FOUND",len(found))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pfc-large-svg-over-300kb
+          path: large_svg_media/
+          if-no-files-found: error
+          retention-days: 1
