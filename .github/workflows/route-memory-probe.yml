@@ -1,0 +1,140 @@
+name: Route memory probe
+
+on:
+  push:
+    branches:
+      - test/route-memory-probe-20261011
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe homepage
+        shell: bash
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import Request, urlopen
+          BASE="https://pfc-e1ce.onrender.com"
+          PATH="/"
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.urls=[]
+              def handle_starttag(self, tag, attrs):
+                  a=dict(attrs)
+                  if tag in ("img","script") and a.get("src"): self.urls.append(a["src"])
+                  if tag=="link" and a.get("href") and "stylesheet" in (a.get("rel") or ""): self.urls.append(a["href"])
+          def get(u):
+              with urlopen(Request(u,headers={"User-Agent":"PFC-Route-Probe/1.0"}),timeout=20) as r:
+                  return r.geturl(),r.status,r.headers.get("Content-Type",""),r.read()
+          final,status,ctype,body=get(urljoin(BASE,PATH))
+          print("PAGE",PATH,status,len(body))
+          if "text/html" in ctype:
+              p=P(); p.feed(body.decode("utf-8","ignore"))
+              seen=set()
+              for u in p.urls:
+                  au=urljoin(final,u)
+                  if urlparse(au).netloc!=urlparse(BASE).netloc or au in seen: continue
+                  seen.add(au)
+                  try:
+                      af,ast,act,ab=get(au)
+                      print("ASSET",ast,len(ab),urlparse(af).path)
+                  except Exception as e:
+                      print("ASSET ERROR",au,e)
+          PY
+          sleep 75
+
+      - name: Probe teams
+        shell: bash
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import Request, urlopen
+          BASE="https://pfc-e1ce.onrender.com"; PATH="/teams/"
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.urls=[]
+              def handle_starttag(self, tag, attrs):
+                  a=dict(attrs)
+                  if tag in ("img","script") and a.get("src"): self.urls.append(a["src"])
+                  if tag=="link" and a.get("href") and "stylesheet" in (a.get("rel") or ""): self.urls.append(a["href"])
+          def get(u):
+              with urlopen(Request(u,headers={"User-Agent":"PFC-Route-Probe/1.0"}),timeout=20) as r:
+                  return r.geturl(),r.status,r.headers.get("Content-Type",""),r.read()
+          final,status,ctype,body=get(urljoin(BASE,PATH))
+          print("PAGE",PATH,status,len(body))
+          if "text/html" in ctype:
+              p=P(); p.feed(body.decode("utf-8","ignore"))
+              seen=set()
+              for u in p.urls:
+                  au=urljoin(final,u)
+                  if urlparse(au).netloc!=urlparse(BASE).netloc or au in seen: continue
+                  seen.add(au)
+                  try:
+                      af,ast,act,ab=get(au)
+                      print("ASSET",ast,len(ab),urlparse(af).path)
+                  except Exception as e:
+                      print("ASSET ERROR",au,e)
+          PY
+          sleep 75
+
+      - name: Probe courts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import Request, urlopen
+          BASE="https://pfc-e1ce.onrender.com"; PATH="/courts/complexes/"
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.urls=[]
+              def handle_starttag(self, tag, attrs):
+                  a=dict(attrs)
+                  if tag in ("img","script") and a.get("src"): self.urls.append(a["src"])
+                  if tag=="link" and a.get("href") and "stylesheet" in (a.get("rel") or ""): self.urls.append(a["href"])
+          def get(u):
+              with urlopen(Request(u,headers={"User-Agent":"PFC-Route-Probe/1.0"}),timeout=20) as r:
+                  return r.geturl(),r.status,r.headers.get("Content-Type",""),r.read()
+          final,status,ctype,body=get(urljoin(BASE,PATH))
+          print("PAGE",PATH,status,len(body))
+          if "text/html" in ctype:
+              p=P(); p.feed(body.decode("utf-8","ignore"))
+              seen=set()
+              for u in p.urls:
+                  au=urljoin(final,u)
+                  if urlparse(au).netloc!=urlparse(BASE).netloc or au in seen: continue
+                  seen.add(au)
+                  try:
+                      af,ast,act,ab=get(au)
+                      print("ASSET",ast,len(ab),urlparse(af).path)
+                  except Exception as e:
+                      print("ASSET ERROR",au,e)
+          PY
+          sleep 75
+
+      - name: Probe leaderboard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from urllib.request import Request, urlopen
+          u="https://pfc-e1ce.onrender.com/teams/players/friendly-leaderboard/"
+          with urlopen(Request(u,headers={"User-Agent":"PFC-Route-Probe/1.0"}),timeout=20) as r:
+              b=r.read()
+              print("PAGE /teams/players/friendly-leaderboard/",r.status,len(b))
+          PY
+          sleep 75
+
+      - name: Probe matches
+        shell: bash
+        run: |
+          python - <<'PY'
+          from urllib.request import Request, urlopen
+          u="https://pfc-e1ce.onrender.com/matches/"
+          with urlopen(Request(u,headers={"User-Agent":"PFC-Route-Probe/1.0"}),timeout=20) as r:
+              b=r.read()
+              print("PAGE /matches/",r.status,len(b))
+          PY
+          sleep 75
