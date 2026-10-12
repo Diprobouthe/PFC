@@ -717,99 +717,24 @@ a.mh-card::after {
                 {% endif %}
 
                 {% endif %}
-                <!-- Match History (All Games) -->
+                <!-- Match History (All Games) — bounded lazy pages. -->
                 <div class="pp-section">
                     <div class="pp-section-hdr">{% translate "Match History" %}</div>
                     <div class="pp-section-body">
-                        <div class="mh-list">
-                            {% for match in matches %}
-                            {% if match.player_won %}
-                                <a href="{% url 'match_detail' match.id %}" class="mh-card win">
-                                    <div class="mh-result win">W</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent">
-                                            <span class="mh-type-badge">T</span>{{ match.opponent_name }}
-                                        </div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.end_time|date:"M d, Y" }}</div>
-                                    </div>
-                                    <div class="mh-right">
-                                        <div class="mh-score">{{ match.player_score }}&ndash;{{ match.opponent_score }}</div>
-                                    </div>
-                                </a>
-                            {% elif match.player_skull %}
-                                <a href="{% url 'match_detail' match.id %}" class="mh-card skull">
-                                    <div class="mh-result skull">&#x1F480;</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent">
-                                            <span class="mh-type-badge">T</span>{{ match.opponent_name }}
-                                        </div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.end_time|date:"M d, Y" }}</div>
-                                    </div>
-                                    <div class="mh-right">
-                                        <div class="mh-score">{{ match.player_score }}&ndash;{{ match.opponent_score }}</div>
-                                    </div>
-                                </a>
-                            {% else %}
-                                <a href="{% url 'match_detail' match.id %}" class="mh-card loss">
-                                    <div class="mh-result loss">L</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent">
-                                            <span class="mh-type-badge">T</span>{{ match.opponent_name }}
-                                        </div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.end_time|date:"M d, Y" }}</div>
-                                    </div>
-                                    <div class="mh-right">
-                                        <div class="mh-score">{{ match.player_score }}&ndash;{{ match.opponent_score }}</div>
-                                    </div>
-                                </a>
-                            {% endif %}
-                            {% endfor %}
+                        {% if tournament_match_history_count or friendly_match_history_count %}
+                        <div class="mh-list" id="player-overall-tournament-history"></div>
+                        <div id="player-overall-tournament-history-status" class="mh-empty" style="display:none;"></div>
+                        <div id="player-overall-tournament-history-controls" style="text-align:center;padding:0 0 12px;"></div>
 
-                            {% for match in friendly_matches %}
-                            {% if match.won %}
-                            {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card win">{% else %}<div class="mh-card win">{% endif %}
-                                <div class="mh-result win">W</div>
-                                <div class="mh-main">
-                                    <div class="mh-opponent"><span class="mh-type-badge friendly">F</span>{{ match.team|default:"Mixed Teams" }}</div>
-                                    <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.date|date:"M d, Y" }}</div>
-                                </div>
-                                <div class="mh-right">
-                                    <div class="mh-score">{{ match.black_score }}&ndash;{{ match.white_score }}</div>
-                                </div>
-                            {% if match.game_id %}</a>{% else %}</div>{% endif %}
-                            {% else %}
-                                {% if match.black_score == 0 or match.white_score == 0 %}
-                                {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card skull">{% else %}<div class="mh-card skull">{% endif %}
-                                    <div class="mh-result skull">&#x1F480;</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent"><span class="mh-type-badge friendly">F</span>{{ match.team|default:"Mixed Teams" }}</div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.date|date:"M d, Y" }}</div>
-                                    </div>
-                                    <div class="mh-right">
-                                        <div class="mh-score">{{ match.black_score }}&ndash;{{ match.white_score }}</div>
-                                    </div>
-                                {% if match.game_id %}</a>{% else %}</div>{% endif %}
-                                {% else %}
-                                {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card loss">{% else %}<div class="mh-card loss">{% endif %}
-                                    <div class="mh-result loss">L</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent"><span class="mh-type-badge friendly">F</span>{{ match.team|default:"Mixed Teams" }}</div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.date|date:"M d, Y" }}</div>
-                                    </div>
-                                    <div class="mh-right">
-                                        <div class="mh-score">{{ match.black_score }}&ndash;{{ match.white_score }}</div>
-                                    </div>
-                                {% if match.game_id %}</a>{% else %}</div>{% endif %}
-                                {% endif %}
-                            {% endif %}
-                            {% endfor %}
-
-                            {% if not matches and not friendly_matches %}
-                            <div class="mh-empty"><i class="fas fa-history"></i> No matches played yet</div>
-                            {% endif %}
-                        </div>
+                        <div class="mh-list" id="player-overall-friendly-history"></div>
+                        <div id="player-overall-friendly-history-status" class="mh-empty" style="display:none;"></div>
+                        <div id="player-overall-friendly-history-controls" style="text-align:center;padding:0;"></div>
+                        {% else %}
+                        <div class="mh-empty"><i class="fas fa-history"></i> {% translate "No matches played yet" %}</div>
+                        {% endif %}
                     </div>
                 </div>
+
             </div><!-- /pp-overall -->
 
             {% if show_public_statistics %}
@@ -937,53 +862,22 @@ a.mh-card::after {
             <div class="tab-pane fade" id="pp-friendly">
                 <div class="pp-stats-grid" style="margin-top:8px !important;">
                     <div class="pp-stats-item"><strong>{{ friendly_stats.total_games|default:0 }}</strong><small>Games</small></div>
-                    <div class="pp-stats-item"><strong>{{ friendly_stats.win_percentage|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
+                    <div class="pp-stats-item"><strong>{{ friendly_stats.win_rate|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
                     <div class="pp-stats-item"><strong>{{ friendly_stats.total_wins|default:0 }}</strong><small>Wins</small></div>
                     <div class="pp-stats-item"><strong>{{ friendly_stats.total_losses|default:0 }}</strong><small>Losses</small></div>
                 </div>
 
-                {% if friendly_matches %}
+                {% if friendly_match_history_count %}
                 <div class="pp-section">
-                    <div class="pp-section-hdr">Recent Friendly Matches</div>
+                    <div class="pp-section-hdr">{% translate "Recent Friendly Matches" %}</div>
                     <div class="pp-section-body">
-                        <div class="mh-list">
-                            {% for match in friendly_matches %}
-                            {% if match.won %}
-                            {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card win">{% else %}<div class="mh-card win">{% endif %}
-                                <div class="mh-result win">W</div>
-                                <div class="mh-main">
-                                    <div class="mh-opponent">{{ match.opponent_team }}</div>
-                                    <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.date|date:"M d" }}</div>
-                                </div>
-                                <div class="mh-right"><div class="mh-score">{{ match.team_score }}&ndash;{{ match.opponent_score }}</div></div>
-                            {% if match.game_id %}</a>{% else %}</div>{% endif %}
-                            {% else %}
-                                {% if match.team_score == 0 or match.opponent_score == 0 %}
-                                {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card skull">{% else %}<div class="mh-card skull">{% endif %}
-                                    <div class="mh-result skull">&#x1F480;</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent">{{ match.opponent_team }}</div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.date|date:"M d" }}</div>
-                                    </div>
-                                    <div class="mh-right"><div class="mh-score">{{ match.team_score }}&ndash;{{ match.opponent_score }}</div></div>
-                                {% if match.game_id %}</a>{% else %}</div>{% endif %}
-                                {% else %}
-                                {% if match.game_id %}<a href="{% url 'friendly_games:game_detail' match.game_id %}" class="mh-card loss">{% else %}<div class="mh-card loss">{% endif %}
-                                    <div class="mh-result loss">L</div>
-                                    <div class="mh-main">
-                                        <div class="mh-opponent">{{ match.opponent_team }}</div>
-                                        <div class="mh-meta">{{ match.position|default:"" }}{% if match.position %} &middot; {% endif %}{{ match.date|date:"M d" }}</div>
-                                    </div>
-                                    <div class="mh-right"><div class="mh-score">{{ match.team_score }}&ndash;{{ match.opponent_score }}</div></div>
-                                {% if match.game_id %}</a>{% else %}</div>{% endif %}
-                                {% endif %}
-                            {% endif %}
-                            {% endfor %}
-                        </div>
+                        <div class="mh-list" id="player-friendly-tab-history"></div>
+                        <div id="player-friendly-tab-history-status" class="mh-empty" style="display:none;"></div>
+                        <div id="player-friendly-tab-history-controls" style="text-align:center;padding:0;"></div>
                     </div>
                 </div>
                 {% else %}
-                <div class="mh-empty"><i class="fas fa-futbol"></i> No friendly games yet</div>
+                <div class="mh-empty"><i class="fas fa-futbol"></i> {% translate "No friendly games yet" %}</div>
                 {% endif %}
             </div>
 
@@ -1134,6 +1028,117 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.classList.add('active');
             });
         });
+    });
+}());
+
+// ── Lazy player Match History ───────────────────────────────────────────────
+// The profile keeps complete history available, but materializes only one
+// bounded page at a time.
+(function () {
+    var endpoint = "{% url 'player_match_history_page' player.id %}";
+    var state = {};
+
+    function key(kind, prefix) {
+        return prefix + ':' + kind;
+    }
+
+    function nodes(prefix, kind) {
+        var base = prefix + '-' + kind + '-history';
+        return {
+            list: document.getElementById(base),
+            status: document.getElementById(base + '-status'),
+            controls: document.getElementById(base + '-controls')
+        };
+    }
+
+    function showStatus(target, text) {
+        if (!target) return;
+        target.textContent = text;
+        target.style.display = text ? '' : 'none';
+    }
+
+    function addMoreButton(kind, prefix, page) {
+        var target = nodes(prefix, kind);
+        if (!target.controls) return;
+        target.controls.innerHTML = '';
+
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'pp-history-more';
+        button.innerHTML = '<i class="fas fa-list"></i> {% translate "Load more Matches" %}';
+        button.addEventListener('click', function () {
+            loadPage(kind, prefix, page, true);
+        });
+        target.controls.appendChild(button);
+    }
+
+    async function loadPage(kind, prefix, page, append) {
+        var stateKey = key(kind, prefix);
+        if (state[stateKey] && state[stateKey].loading) return;
+
+        state[stateKey] = state[stateKey] || {};
+        state[stateKey].loading = true;
+
+        var target = nodes(prefix, kind);
+        if (!target.list) {
+            state[stateKey].loading = false;
+            return;
+        }
+
+        showStatus(target.status, '{% translate "Loading" %}…');
+        if (target.controls) target.controls.innerHTML = '';
+
+        try {
+            var url = new URL(endpoint, window.location.origin);
+            url.searchParams.set('kind', kind);
+            url.searchParams.set('page', String(page));
+
+            var response = await fetch(url.toString(), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            if (!response.ok) throw new Error('player history request failed');
+
+            var payload = await response.json();
+            if (append) {
+                target.list.insertAdjacentHTML('beforeend', payload.html);
+            } else {
+                target.list.innerHTML = payload.html;
+            }
+
+            state[stateKey].loaded = true;
+            showStatus(target.status, '');
+
+            if (payload.has_next && payload.next_page) {
+                addMoreButton(kind, prefix, payload.next_page);
+            }
+        } catch (error) {
+            showStatus(target.status, '{% translate "Match history could not be loaded." %}');
+            addMoreButton(kind, prefix, page);
+        } finally {
+            state[stateKey].loading = false;
+        }
+    }
+
+    function ensureLoaded(kind, prefix) {
+        var stateKey = key(kind, prefix);
+        if (!state[stateKey] || !state[stateKey].loaded) {
+            loadPage(kind, prefix, 1, false);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Overall is the default visible tab: fetch only the first bounded page
+        // for each history type after the lightweight profile HTML is ready.
+        ensureLoaded('tournament', 'player-overall');
+        ensureLoaded('friendly', 'player-overall');
+    });
+
+    document.addEventListener('click', function (event) {
+        var friendlyTab = event.target.closest('[data-pp-tab="pp-friendly"]');
+        if (friendlyTab) {
+            ensureLoaded('friendly', 'player-friendly-tab');
+        }
     });
 }());
 
