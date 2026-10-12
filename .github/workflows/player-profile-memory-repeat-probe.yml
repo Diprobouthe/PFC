@@ -1,4 +1,4 @@
-name: Player profile memory repeat probe
+name: Player profile history memory repeat probe
 
 on:
   push:
@@ -12,21 +12,25 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Hit player 1 profile 10 times
+      - name: Hit player 1 lazy history 10 cycles
         shell: bash
         run: |
           python - <<'PY'
           import time
           from urllib.request import Request, urlopen
 
-          url="https://pfc-e1ce.onrender.com/teams/players/1/"
+          urls = [
+              ("tournament", "https://pfc-e1ce.onrender.com/teams/players/1/match-history/?kind=tournament&page=1"),
+              ("friendly", "https://pfc-e1ce.onrender.com/teams/players/1/match-history/?kind=friendly&page=1"),
+          ]
           for i in range(1, 11):
-              started=time.time()
-              req=Request(url, headers={"User-Agent":"PFC-Player1-Memory-Probe/1.0"})
-              with urlopen(req, timeout=30) as r:
-                  body=r.read()
-                  elapsed=time.time()-started
-                  print(f"HIT {i}: status={r.status} bytes={len(body)} elapsed={elapsed:.3f}s", flush=True)
+              for kind, url in urls:
+                  started=time.time()
+                  req=Request(url, headers={"User-Agent":"PFC-Player1-History-Memory-Probe/1.0"})
+                  with urlopen(req, timeout=30) as r:
+                      body=r.read()
+                      elapsed=time.time()-started
+                      print(f"CYCLE {i} {kind}: status={r.status} bytes={len(body)} elapsed={elapsed:.3f}s", flush=True)
               if i < 10:
                   time.sleep(30)
           print("DONE; cooling 120s", flush=True)
