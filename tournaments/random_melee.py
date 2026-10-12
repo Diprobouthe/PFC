@@ -15,6 +15,7 @@ The Random goal is:
 from __future__ import annotations
 
 from collections import Counter
+from functools import lru_cache
 from itertools import combinations
 import random as _random
 
@@ -146,6 +147,72 @@ def _partition_score(groups, partnership_counts):
         max_pair_history,
         max(per_player_repeat_load.values(), default=0),
     )
+
+
+def _exact_doublet_partition(*, player_ids, partnership_counts, rng):
+    """Return the globally minimum-repeat doublet partition.
+
+    Random Super Melee doubles are capped at practical event sizes, so an exact
+    bitmask dynamic program is small enough to remove heuristic ambiguity. The
+    primary objective minimises the number of repeated teammate pairs; the
+    secondary objective minimises how many historical repeats those pairs carry.
+    Equal optima retain a random tie-break.
+    """
+    player_ids = tuple(player_ids)
+    if len(player_ids) % 2:
+        return None
+
+    random_rank = {}
+    for first_index in range(len(player_ids)):
+        for second_index in range(first_index + 1, len(player_ids)):
+            random_rank[(first_index, second_index)] = rng.random()
+
+    @lru_cache(maxsize=None)
+    def solve(mask):
+        if mask == 0:
+            return (0, 0), ()
+
+        first_index = (mask & -mask).bit_length() - 1
+        remaining_without_first = mask & ~(1 << first_index)
+        candidates = [
+            second_index
+            for second_index in range(first_index + 1, len(player_ids))
+            if remaining_without_first & (1 << second_index)
+        ]
+        candidates.sort(
+            key=lambda second_index: random_rank[(first_index, second_index)]
+        )
+
+        best_key = None
+        best_groups = None
+        for second_index in candidates:
+            next_mask = remaining_without_first & ~(1 << second_index)
+            sub_score, sub_groups = solve(next_mask)
+            pair = tuple(
+                sorted((player_ids[first_index], player_ids[second_index]))
+            )
+            historical_count = partnership_counts[pair]
+            score = (
+                sub_score[0] + (1 if historical_count else 0),
+                sub_score[1] + historical_count,
+            )
+            if best_key is None or score < best_key:
+                best_key = score
+                best_groups = (
+                    (player_ids[first_index], player_ids[second_index]),
+                    *sub_groups,
+                )
+            elif score == best_key and rng.random() < 0.5:
+                best_groups = (
+                    (player_ids[first_index], player_ids[second_index]),
+                    *sub_groups,
+                )
+
+        return best_key, best_groups
+
+    full_mask = (1 << len(player_ids)) - 1
+    _score, groups = solve(full_mask)
+    return list(groups)
 
 
 def _zero_repeat_partition(
@@ -392,23 +459,33 @@ def build_random_diversity_plan(
     rng.shuffle(active_player_ids)
 
     partnership_counts = _partnership_counts(tournament)
-    groups = _zero_repeat_partition(
-        player_ids=active_player_ids,
-        team_size=team_size,
-        partnership_counts=partnership_counts,
-        rng=rng,
-    )
-    zero_repeat_found = groups is not None
-
-    if groups is None:
-        groups, score = _best_effort_partition(
+    if team_size == 2:
+        # Doublets get an exact global optimum, not a bounded heuristic.
+        groups = _exact_doublet_partition(
+            player_ids=active_player_ids,
+            partnership_counts=partnership_counts,
+            rng=rng,
+        )
+        score = _partition_score(groups, partnership_counts)
+        zero_repeat_found = score[0] == 0
+    else:
+        groups = _zero_repeat_partition(
             player_ids=active_player_ids,
             team_size=team_size,
             partnership_counts=partnership_counts,
             rng=rng,
         )
-    else:
-        score = _partition_score(groups, partnership_counts)
+        zero_repeat_found = groups is not None
+
+        if groups is None:
+            groups, score = _best_effort_partition(
+                player_ids=active_player_ids,
+                team_size=team_size,
+                partnership_counts=partnership_counts,
+                rng=rng,
+            )
+        else:
+            score = _partition_score(groups, partnership_counts)
 
     if groups is None or len(groups) != len(teams):
         return {
