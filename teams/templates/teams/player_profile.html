@@ -718,7 +718,7 @@ a.mh-card::after {
 
                 {% endif %}
                 <!-- Match History (All Games) — bounded lazy pages. -->
-                <div class="pp-section">
+                <div class="pp-section" id="player-overall-match-history-section">
                     <div class="pp-section-hdr">{% translate "Match History" %}</div>
                     <div class="pp-section-body">
                         {% if tournament_match_history_count or friendly_match_history_count %}
@@ -1128,10 +1128,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // Overall is the default visible tab: fetch only the first bounded page
-        // for each history type after the lightweight profile HTML is ready.
-        ensureLoaded('tournament', 'player-overall');
-        ensureLoaded('friendly', 'player-overall');
+        // Overall history is lower on the profile. Fetch its first bounded
+        // pages only when the user actually approaches that section.
+        var historySection = document.getElementById('player-overall-match-history-section');
+        if (!historySection) return;
+
+        var loadOverallHistory = function () {
+            ensureLoaded('tournament', 'player-overall');
+            ensureLoaded('friendly', 'player-overall');
+        };
+
+        if ('IntersectionObserver' in window) {
+            var observer = new IntersectionObserver(function (entries) {
+                if (entries.some(function (entry) { return entry.isIntersecting; })) {
+                    observer.disconnect();
+                    loadOverallHistory();
+                }
+            }, { rootMargin: '250px 0px' });
+            observer.observe(historySection);
+        } else {
+            loadOverallHistory();
+        }
     });
 
     document.addEventListener('click', function (event) {
