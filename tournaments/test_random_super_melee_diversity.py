@@ -1,4 +1,5 @@
 import random
+from collections import Counter
 from itertools import combinations
 from unittest.mock import patch
 
@@ -16,7 +17,11 @@ from tournaments.models import (
     TournamentTeam,
 )
 from tournaments.partnership_models import MeleePartnership
-from tournaments.random_melee import build_random_diversity_plan
+from tournaments.random_melee import (
+    _partition_score,
+    _zero_repeat_partition,
+    build_random_diversity_plan,
+)
 from tournaments.shuffle_utils import shuffle_melee_players
 
 
@@ -225,6 +230,47 @@ class RandomSuperMeleeDiversityTests(TestCase):
         for group in by_team.values():
             pair = tuple(sorted(group))
             self.assertNotIn(pair, historical_pairs)
+
+    def test_core_doublets_simulation_keeps_five_rounds_pair_unique(self):
+        partnership_counts = Counter()
+        player_ids = list(range(1, 21))
+
+        for round_number in range(1, 6):
+            groups = _zero_repeat_partition(
+                player_ids=player_ids,
+                team_size=2,
+                partnership_counts=partnership_counts,
+                rng=random.Random(1000 + round_number),
+            )
+            self.assertIsNotNone(groups, f"Round {round_number} repeated a teammate unnecessarily")
+            self.assertEqual(_partition_score(groups, partnership_counts)[0], 0)
+            for group in groups:
+                for pair in combinations(group, 2):
+                    partnership_counts[tuple(sorted(pair))] += 1
+
+        self.assertEqual(len(partnership_counts), 50)
+        self.assertEqual(set(partnership_counts.values()), {1})
+
+    def test_core_triplets_simulation_keeps_five_rounds_pair_unique(self):
+        partnership_counts = Counter()
+        player_ids = list(range(1, 31))
+
+        for round_number in range(1, 6):
+            groups = _zero_repeat_partition(
+                player_ids=player_ids,
+                team_size=3,
+                partnership_counts=partnership_counts,
+                rng=random.Random(2000 + round_number),
+            )
+            self.assertIsNotNone(groups, f"Round {round_number} repeated a teammate unnecessarily")
+            self.assertEqual(_partition_score(groups, partnership_counts)[0], 0)
+            self.assertEqual(sorted(len(group) for group in groups), [3] * 10)
+            for group in groups:
+                for pair in combinations(group, 2):
+                    partnership_counts[tuple(sorted(pair))] += 1
+
+        self.assertEqual(len(partnership_counts), 150)
+        self.assertEqual(set(partnership_counts.values()), {1})
 
     def test_random_diversity_planner_is_not_used_by_snake_doublets(self):
         tournament, stage, _players, _teams, round_one, _teams_created = self._make_tournament(
