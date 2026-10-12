@@ -260,13 +260,12 @@ class RandomSuperMeleeDiversityTests(TestCase):
         player_ids = list(range(1, 21))
 
         for round_number in range(1, 6):
-            groups = _zero_repeat_partition(
+            groups = _exact_doublet_partition(
                 player_ids=player_ids,
-                team_size=2,
                 partnership_counts=partnership_counts,
                 rng=random.Random(1000 + round_number),
             )
-            self.assertIsNotNone(groups, f"Round {round_number} repeated a teammate unnecessarily")
+            self.assertIsNotNone(groups, f"Round {round_number} failed to produce a complete doublet roster")
             self.assertEqual(_partition_score(groups, partnership_counts)[0], 0)
             for group in groups:
                 for pair in combinations(group, 2):
