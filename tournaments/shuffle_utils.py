@@ -253,6 +253,9 @@ def shuffle_melee_players(
             planned_bye_team = None
             completed_round_bye_team_id = None
             if snake_winner_loser:
+                # IMPORTANT: Snake Draft doubles remains fully isolated from
+                # Random diversity planning. Its winner/loser and BYE fairness
+                # behavior is intentionally unchanged.
                 assignment_inputs = [
                     MeleeRoundAssignmentInput(**input_data)
                     for input_data in snake_plan["assignment_inputs"]
@@ -266,9 +269,51 @@ def shuffle_melee_players(
                 shuffle_description = (
                     "Snake Draft winner-loser doubles assignment"
                 )
+            elif (
+                tournament.melee_team_algorithm
+                == tournament.MELEE_TEAM_ALGORITHM_RANDOM
+            ):
+                from tournaments.random_melee import build_random_diversity_plan
+
+                random_plan = build_random_diversity_plan(
+                    tournament=tournament,
+                    melee_players=melee_players,
+                    teams=teams,
+                    completed_round=completed_round_obj,
+                    rng=random,
+                )
+                if not random_plan["success"]:
+                    return {
+                        "success": False,
+                        "players_shuffled": 0,
+                        "teams_affected": 0,
+                        "message": random_plan["message"],
+                    }
+
+                assignment_inputs = []
+                for melee_player in melee_players:
+                    assigned_team = random_plan["assignments"].get(
+                        melee_player.player_id
+                    )
+                    assignment_inputs.append(
+                        MeleeRoundAssignmentInput(
+                            player=melee_player.player,
+                            team=assigned_team,
+                            state="assigned" if assigned_team else "waitlisted",
+                        )
+                    )
+                players_shuffled = random_plan["players_shuffled"]
+                teams_affected = random_plan["teams_affected"]
+                score = random_plan["diversity_score"]
+                shuffle_description = (
+                    "Random diversity shuffle "
+                    f"(repeat_pairs={score[0]}, repeat_weight={score[1]}, "
+                    f"zero_repeat={random_plan['zero_repeat_found']})"
+                )
             else:
-                # Preserve the existing random Super Mêlée behavior for every
-                # non-Snake algorithm and all non-doubles formats.
+                # Scope guard: Balanced and non-double Snake behavior is not
+                # changed by the Random-diversity work. Preserve the existing
+                # shuffle path until those algorithms are redesigned separately.
                 random.shuffle(all_players)
                 team_size = len(all_players) // len(teams)
                 assignments_by_player_id = {}
@@ -301,7 +346,7 @@ def shuffle_melee_players(
                     )
                 players_shuffled = len(all_players)
                 teams_affected = len(teams)
-                shuffle_description = "Assignment-based random shuffle"
+                shuffle_description = "Assignment-based legacy shuffle"
 
             if planned_bye_team is not None or completed_round_bye_team_id is not None:
                 from tournaments.models import MeleeRoundTeamBye
