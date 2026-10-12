@@ -18,6 +18,7 @@ from tournaments.models import (
 )
 from tournaments.partnership_models import MeleePartnership
 from tournaments.random_melee import (
+    _exact_doublet_partition,
     _partition_score,
     _zero_repeat_partition,
     build_random_diversity_plan,
@@ -230,6 +231,29 @@ class RandomSuperMeleeDiversityTests(TestCase):
         for group in by_team.values():
             pair = tuple(sorted(group))
             self.assertNotIn(pair, historical_pairs)
+
+    def test_exact_doublet_planner_minimises_repeat_weight_when_repeats_are_unavoidable(self):
+        partnership_counts = Counter({
+            (1, 2): 5,
+            (3, 4): 5,
+            (1, 3): 1,
+            (2, 4): 1,
+            (1, 4): 3,
+            (2, 3): 3,
+        })
+
+        groups = _exact_doublet_partition(
+            player_ids=[1, 2, 3, 4],
+            partnership_counts=partnership_counts,
+            rng=random.Random(404),
+        )
+        pair_set = {tuple(sorted(group)) for group in groups}
+
+        self.assertEqual(pair_set, {(1, 3), (2, 4)})
+        self.assertEqual(
+            _partition_score(groups, partnership_counts)[:2],
+            (2, 2),
+        )
 
     def test_core_doublets_simulation_keeps_five_rounds_pair_unique(self):
         partnership_counts = Counter()
