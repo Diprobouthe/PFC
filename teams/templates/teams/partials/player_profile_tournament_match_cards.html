@@ -1,0 +1,17 @@
+{% load i18n %}
+{% for row in rows %}
+<a href="{% url 'match_detail' row.match.id %}" class="mh-card {% if row.won %}win{% elif row.skull %}skull{% else %}loss{% endif %}">
+    <div class="mh-result {% if row.won %}win{% elif row.skull %}skull{% else %}loss{% endif %}">
+        {% if row.won %}W{% elif row.skull %}&#x1F480;{% else %}L{% endif %}
+    </div>
+    <div class="mh-main">
+        <div class="mh-opponent">
+            <span class="mh-type-badge">T</span>{{ row.opponent_name }}
+        </div>
+        <div class="mh-meta">{{ row.position|default:"" }}{% if row.position %} &middot; {% endif %}{{ row.match.end_time|date:"M d, Y" }}</div>
+    </div>
+    <div class="mh-right">
+        <div class="mh-score">{{ row.player_score }}&ndash;{{ row.opponent_score }}</div>
+    </div>
+</a>
+{% endfor %}

@@ -3,6 +3,8 @@ from .views_market import pfc_market
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.template.loader import render_to_string
 from django.db.models import Q, Count, Prefetch
 from django.http import JsonResponse
 from django.utils.translation import gettext as _
@@ -809,153 +811,162 @@ def player_tournament_history_detail(request, player_id, tournament_id):
     )
 
 
+
+PLAYER_PROFILE_HISTORY_PAGE_SIZE = 30
+
+
+def _player_tournament_history_queryset(player):
+    from matches.models_participant import TeamMatchParticipant
+
+    return TeamMatchParticipant.objects.filter(
+        player=player,
+        played=True,
+        match__status='completed',
+    ).select_related(
+        'match__team1',
+        'match__team2',
+        'match__tournament',
+        'match__round',
+        'team',
+    ).order_by('-match__end_time', '-match_id')
+
+
+def _player_tournament_history_rows(player, participations):
+    participations = list(participations)
+    match_ids = [participation.match_id for participation in participations]
+
+    try:
+        from matches.models import MatchPlayer
+
+        match_player_teams = {
+            match_player.match_id: match_player.team
+            for match_player in MatchPlayer.objects.filter(
+                player=player,
+                match_id__in=match_ids,
+            ).select_related('team')
+        }
+    except Exception:
+        match_player_teams = {}
+
+    rows = []
+    for participation in participations:
+        match = participation.match
+        actual_team = match_player_teams.get(match.id) or participation.team
+
+        if actual_team == match.team1:
+            player_score = match.team1_score if match.team1_score is not None else 0
+            opponent_score = match.team2_score if match.team2_score is not None else 0
+            opponent_name = match.team2.name if match.team2 else "Unknown"
+        else:
+            player_score = match.team2_score if match.team2_score is not None else 0
+            opponent_score = match.team1_score if match.team1_score is not None else 0
+            opponent_name = match.team1.name if match.team1 else "Unknown"
+
+        rows.append({
+            'match': match,
+            'position': participation.get_position_display(),
+            'player_score': player_score,
+            'opponent_score': opponent_score,
+            'opponent_name': opponent_name,
+            'won': player_score > opponent_score,
+            'skull': player_score == 0 and opponent_score > 0,
+        })
+    return rows
+
+
+def _player_friendly_history_queryset(player):
+    from friendly_games.models import FriendlyGamePlayer
+
+    return FriendlyGamePlayer.objects.filter(
+        player=player,
+        game__status='COMPLETED',
+    ).select_related('game').order_by('-game__created_at', '-game_id')
+
+
+def _player_friendly_history_rows(participations):
+    rows = []
+    for participation in participations:
+        game = participation.game
+        if participation.team == 'BLACK':
+            player_score = game.black_team_score or 0
+            opponent_score = game.white_team_score or 0
+        else:
+            player_score = game.white_team_score or 0
+            opponent_score = game.black_team_score or 0
+
+        rows.append({
+            'game': game,
+            'team': participation.team,
+            'position': participation.position,
+            'player_score': player_score,
+            'opponent_score': opponent_score,
+            'won': player_score > opponent_score,
+            'skull': player_score == 0 and opponent_score > 0,
+        })
+    return rows
+
+
+def player_match_history_page(request, player_id):
+    """Serve one bounded, authorized page of the player Match History."""
+    player = get_object_or_404(
+        Player.objects.select_related('team', 'profile'),
+        id=player_id,
+    )
+    _is_own_profile, show_public_statistics = _profile_statistics_visibility(
+        request,
+        player,
+    )
+    if not show_public_statistics:
+        raise PermissionDenied
+
+    kind = request.GET.get('kind')
+    page_number = request.GET.get('page', '1')
+
+    if kind == 'tournament':
+        queryset = _player_tournament_history_queryset(player)
+        partial = 'teams/partials/player_profile_tournament_match_cards.html'
+        row_builder = lambda rows: _player_tournament_history_rows(player, rows)
+    elif kind == 'friendly':
+        queryset = _player_friendly_history_queryset(player)
+        partial = 'teams/partials/player_profile_friendly_match_cards.html'
+        row_builder = _player_friendly_history_rows
+    else:
+        return JsonResponse({'error': 'Invalid history kind.'}, status=400)
+
+    paginator = Paginator(queryset, PLAYER_PROFILE_HISTORY_PAGE_SIZE)
+    try:
+        page_obj = paginator.page(page_number)
+    except (PageNotAnInteger, EmptyPage):
+        return JsonResponse({'error': 'Invalid history page.'}, status=400)
+
+    rows = row_builder(page_obj.object_list)
+    html = render_to_string(partial, {'rows': rows})
+
+    return JsonResponse({
+        'html': html,
+        'total': paginator.count,
+        'has_next': page_obj.has_next(),
+        'next_page': page_obj.next_page_number() if page_obj.has_next() else None,
+    })
+
 def player_profile(request, player_id):
     """
     Display detailed profile and statistics for a specific player
     """
     player = get_object_or_404(Player.objects.select_related('team', 'profile'), id=player_id)
     
-    # Get player's tournament match history (for Overall tab)
-    # Include matches from current team AND any Mêlée teams the player participated in
-    from tournaments.models import MeleePlayer
-    
-    # Get all teams this player has been part of (including Mêlée teams)
-    player_teams = [player.team]  # Current team
-    
-    # Add any Mêlée teams from tournament history
-    melee_registrations = MeleePlayer.objects.filter(player=player).select_related('tournament')
-    for melee_reg in melee_registrations:
-        # Find Mêlée teams created for this tournament
-        from tournaments.models import TournamentTeam
-        tournament_teams = TournamentTeam.objects.filter(
-            tournament=melee_reg.tournament
-        ).select_related('team')
-        
-        for tt in tournament_teams:
-            if 'Mêlée Team' in tt.team.name:
-                player_teams.append(tt.team)
-    
-    # Remove duplicates
-    player_teams = list(set(player_teams))
-    
-    # Get matches where any of these teams participated
-    team_queries = Q()
-    for team in player_teams:
-        team_queries |= Q(team1=team) | Q(team2=team)
-    
-    # Get only matches where the player actually participated
+    # Keep only the bounded recent tournament slice needed by the enhanced
+    # summary. Full Tournament/Friendly Match History is lazy-loaded separately.
     try:
-        from matches.models_participant import TeamMatchParticipant
-        
-        # Get matches where player has participation records
-        participated_match_ids = TeamMatchParticipant.objects.filter(
-            player=player,
-            played=True
-        ).values_list('match_id', flat=True)
-        
-        tournament_matches = Match.objects.filter(
-            id__in=participated_match_ids,
-            status='completed'  # Only show completed matches
-        ).select_related('team1', 'team2', 'tournament', 'round').order_by('-end_time')
-        
-        # Add position information from TeamMatchParticipant records
-        for match in tournament_matches:
-            try:
-                participant = TeamMatchParticipant.objects.get(match=match, player=player)
-                match.position = participant.get_position_display()
-            except TeamMatchParticipant.DoesNotExist:
-                match.position = "N/A"
-        
-    except ImportError:
-        # Fallback to old method if TeamMatchParticipant not available
-        tournament_matches = Match.objects.filter(
-            team_queries,
-            status='completed'  # Only show completed matches
-        ).select_related('team1', 'team2', 'tournament', 'round').order_by('-end_time')
-
-    # ---- Player-side detection for result indicators ----
-    # For each match, determine which team the player actually played for
-    # using MatchPlayer records (handles Mêlée players who change teams).
-    # Attach player_team, player_won, player_skull, opponent_name,
-    # player_score, opponent_score to each match object so the template
-    # can render W / L / 💀 correctly without guessing from score position.
-    try:
-        from matches.models import MatchPlayer as _MatchPlayer
-        _mp_map = {
-            mp.match_id: mp.team
-            for mp in _MatchPlayer.objects.filter(
-                match__in=tournament_matches, player=player
-            ).select_related('team')
-        }
+        recent_participations = list(
+            _player_tournament_history_queryset(player)[:10]
+        )
+        recent_tournament_matches = [
+            participation.match for participation in recent_participations
+        ]
     except Exception:
-        _mp_map = {}
+        recent_tournament_matches = []
 
-    for match in tournament_matches:
-        # Determine the team the player was actually on in this match
-        actual_team = _mp_map.get(match.id)
-        if actual_team is None:
-            # Fallback: use current team if no MatchPlayer record found
-            actual_team = player.team
-
-        if actual_team == match.team1:
-            p_score = match.team1_score if match.team1_score is not None else 0
-            o_score = match.team2_score if match.team2_score is not None else 0
-            opp_name = match.team2.name if match.team2 else "Unknown"
-        else:
-            p_score = match.team2_score if match.team2_score is not None else 0
-            o_score = match.team1_score if match.team1_score is not None else 0
-            opp_name = match.team1.name if match.team1 else "Unknown"
-
-        match.player_team = actual_team
-        match.player_score = p_score
-        match.opponent_score = o_score
-        match.opponent_name = opp_name
-        match.player_won = p_score > o_score
-        # Skull = player's side scored 0 and lost (absolute defeat)
-        match.player_skull = (p_score == 0 and o_score > 0)
-
-    # Get friendly game matches (for Friendly Games tab)
-    # NOTE: This early block is overwritten below by the more complete block inside the
-    # FriendlyGameStatistics section. Keeping it here as a fallback in case of ImportError.
-    friendly_matches = []
-    try:
-        from friendly_games.models import FriendlyGame, FriendlyGamePlayer
-
-        # Include ALL participation (not just codename_verified) so QR-added players see their games
-        for fgp in FriendlyGamePlayer.objects.filter(
-            player=player,
-            game__status='COMPLETED'
-        ).select_related('game').order_by('-game__created_at'):
-            game = fgp.game
-            player_team = fgp.team
-            if player_team == 'BLACK':
-                t_score = game.black_team_score or 0
-                o_score = game.white_team_score or 0
-                opp_team = 'White Team'
-            else:
-                t_score = game.white_team_score or 0
-                o_score = game.black_team_score or 0
-                opp_team = 'Black Team'
-            friendly_matches.append({
-                'match_number': game.match_number,
-                'date': game.created_at,
-                'team': player_team,
-                'position': fgp.position,
-                'black_score': game.black_team_score,
-                'white_score': game.white_team_score,
-                'team_score': t_score,
-                'opponent_score': o_score,
-                'opponent_team': opp_team,
-                'won': t_score > o_score,
-                'validation_status': game.validation_status,
-                'game_name': game.name,
-                'game_id': game.id,
-                'codename_verified': fgp.codename_verified,
-            })
-    except ImportError:
-        # If friendly games app is not available, use empty list
-        friendly_matches = []
-    
     # Get accurate statistics (safely synced)
     accurate_stats = {}
     try:
@@ -975,120 +986,92 @@ def player_profile(request, player_id):
                 'format_stats': player.profile.get_format_stats(),
                 'role_distribution': player.profile.get_role_distribution(),
                 'has_data': True,
-                'recent_matches': get_recent_matches_with_participation(player, tournament_matches[:10])
+                'recent_matches': get_recent_matches_with_participation(player, recent_tournament_matches)
             }
         else:
             enhanced_stats = {
                 'has_data': False,
-                'recent_matches': get_recent_matches_with_participation(player, tournament_matches[:10])
+                'recent_matches': get_recent_matches_with_participation(player, recent_tournament_matches)
             }
     except Exception:
         enhanced_stats = {
             'has_data': False,
-            'recent_matches': get_recent_matches_with_participation(player, tournament_matches[:10])
+            'recent_matches': get_recent_matches_with_participation(player, recent_tournament_matches)
         }
     
-    # Get friendly game statistics
+    # Get friendly game statistics without recalculating/writing them on a
+    # profile-page GET. Authoritative completion flows already maintain this row.
     friendly_stats = {}
     friendly_position_stats = {}
     friendly_role_distribution = {}
-    friendly_matches = []
     try:
-        from friendly_games.models import FriendlyGameStatistics, FriendlyGame, FriendlyGamePlayer
+        from friendly_games.models import FriendlyGameStatistics, FriendlyGamePlayer
         from django.db import models
-        
-        # Get friendly game statistics
-        friendly_stats_obj, created = FriendlyGameStatistics.objects.get_or_create(player=player)
-        if not created:
-            friendly_stats_obj.update_statistics()  # Ensure stats are current
-        
-        friendly_stats = {
-            'total_games': friendly_stats_obj.total_games,
-            'total_wins': friendly_stats_obj.total_wins,
-            'total_losses': friendly_stats_obj.total_losses,
-            'win_rate': friendly_stats_obj.win_rate
-        }
-        
-        # Get friendly game position statistics
-        # Include all verified participation (codename OR QR) for position stats
-        friendly_position_stats = {}
+
+        friendly_stats_obj = FriendlyGameStatistics.objects.filter(
+            player=player
+        ).first()
+        if friendly_stats_obj:
+            friendly_stats = {
+                'total_games': friendly_stats_obj.total_games,
+                'total_wins': friendly_stats_obj.total_wins,
+                'total_losses': friendly_stats_obj.total_losses,
+                'win_rate': friendly_stats_obj.win_rate,
+            }
+        else:
+            friendly_stats = {
+                'total_games': 0,
+                'total_wins': 0,
+                'total_losses': 0,
+                'win_rate': 0,
+            }
+
+        # Position-specific friendly statistics stay aggregate-only; no history
+        # rows are materialized in the initial profile response.
         friendly_game_players = FriendlyGamePlayer.objects.filter(
             player=player,
-            codename_verified=True,  # True for both codename-verified AND QR-added players
-            game__status='COMPLETED'
-        ).select_related('game')
-        
-        # Calculate position-specific stats
+            codename_verified=True,
+            game__status='COMPLETED',
+        )
+
         positions = ['TIRER', 'POINTEUR', 'MILIEU']
         for position in positions:
             position_games = friendly_game_players.filter(position=position)
             total_games = position_games.count()
-            total_wins = position_games.aggregate(total=models.Sum('games_won'))['total'] or 0
-            
-            if total_games > 0:
-                win_rate = round((total_wins / total_games) * 100, 1)
-            else:
-                win_rate = 0
-                
+            total_wins = (
+                position_games.aggregate(total=models.Sum('games_won'))['total']
+                or 0
+            )
             friendly_position_stats[position] = {
                 'matches_played': total_games,
                 'matches_won': total_wins,
-                'win_rate': win_rate
+                'win_rate': round((total_wins / total_games) * 100, 1)
+                if total_games > 0 else 0,
             }
-        
-        # Calculate role distribution for friendly games
-        friendly_role_distribution = {}
+
         total_friendly_games = friendly_game_players.count()
         if total_friendly_games > 0:
             for position in positions:
-                position_count = friendly_game_players.filter(position=position).count()
-                percentage = round((position_count / total_friendly_games) * 100, 1)
+                position_count = friendly_game_players.filter(
+                    position=position
+                ).count()
                 friendly_role_distribution[position] = {
                     'count': position_count,
-                    'percentage': percentage
+                    'percentage': round(
+                        (position_count / total_friendly_games) * 100,
+                        1,
+                    ),
                 }
-        
-        # Get friendly match history for this player
-        # Include ALL participation (not just codename_verified) so QR-added players see their games
-        all_friendly_game_players = FriendlyGamePlayer.objects.filter(
-            player=player,
-            game__status='COMPLETED'
-        ).select_related('game').order_by('-game__created_at')
-        friendly_matches = []
-        for fgp in all_friendly_game_players:
-            game = fgp.game
-            player_team = fgp.team  # 'BLACK' or 'WHITE'
-            if player_team == 'BLACK':
-                team_score = game.black_team_score or 0
-                opponent_score = game.white_team_score or 0
-                opponent_team = 'White Team'
-            else:
-                team_score = game.white_team_score or 0
-                opponent_score = game.black_team_score or 0
-                opponent_team = 'Black Team'
-            friendly_matches.append({
-                'match_number': game.match_number,
-                'date': game.created_at,
-                'team': player_team,
-                'position': fgp.position,
-                'black_score': game.black_team_score,
-                'white_score': game.white_team_score,
-                'team_score': team_score,
-                'opponent_score': opponent_score,
-                'opponent_team': opponent_team,
-                'won': team_score > opponent_score,
-                'validation_status': game.validation_status,
-                'game_name': game.name,
-                'game_id': game.id,
-                'codename_verified': fgp.codename_verified,
-            })
-    except Exception as e:
-        # If friendly games app is not available or there's an error, use empty stats
-        friendly_stats = {'total_games': 0, 'total_wins': 0, 'total_losses': 0, 'win_rate': 0}
+    except Exception:
+        friendly_stats = {
+            'total_games': 0,
+            'total_wins': 0,
+            'total_losses': 0,
+            'win_rate': 0,
+        }
         friendly_position_stats = {}
         friendly_role_distribution = {}
-        friendly_matches = []
-    
+
     # Calculate OVERALL statistics (tournament + friendly games combined)
     # This provides comprehensive statistics for the Overall tab
     try:
@@ -1327,10 +1310,22 @@ def player_profile(request, player_id):
 
         tournament_history = profile_history_for_player(player)
 
+    try:
+        tournament_match_history_count = _player_tournament_history_queryset(
+            player
+        ).count()
+    except Exception:
+        tournament_match_history_count = 0
+
+    try:
+        friendly_match_history_count = _player_friendly_history_queryset(
+            player
+        ).count()
+    except Exception:
+        friendly_match_history_count = 0
+
     context = {
         'player': player,
-        'matches': tournament_matches,  # Tournament matches for match history table
-        'friendly_matches': friendly_matches,  # Friendly matches with working data structure
         'accurate_stats': accurate_stats,  # Tournament statistics (unchanged)
         'enhanced_stats': enhanced_stats,  # Enhanced data, safely added
         'friendly_stats': friendly_stats,  # Friendly game statistics
@@ -1340,6 +1335,9 @@ def player_profile(request, player_id):
         'bell_curve_data': bell_curve_data,  # NEW: Bell curve skill comparison data
         'rating_chart_data': rating_chart_data,  # NEW: Rating progression chart data
         'tracker_enabled': True,  # Enable shooting practice tracker tab
+        'tournament_match_history_count': tournament_match_history_count,
+        'friendly_match_history_count': friendly_match_history_count,
+        'player_match_history_page_size': PLAYER_PROFILE_HISTORY_PAGE_SIZE,
         'is_own_profile': is_own_profile,  # True only when viewing your own profile
         'show_public_statistics': show_public_statistics,
         'tournament_history': tournament_history,

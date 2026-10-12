@@ -1,0 +1,17 @@
+{% load i18n %}
+{% for row in rows %}
+<a href="{% url 'friendly_games:game_detail' row.game.id %}" class="mh-card {% if row.won %}win{% elif row.skull %}skull{% else %}loss{% endif %}">
+    <div class="mh-result {% if row.won %}win{% elif row.skull %}skull{% else %}loss{% endif %}">
+        {% if row.won %}W{% elif row.skull %}&#x1F480;{% else %}L{% endif %}
+    </div>
+    <div class="mh-main">
+        <div class="mh-opponent">
+            <span class="mh-type-badge friendly">F</span>{{ row.team|default:"Mixed Teams" }}
+        </div>
+        <div class="mh-meta">{{ row.position|default:"" }}{% if row.position %} &middot; {% endif %}{{ row.game.created_at|date:"M d, Y" }}</div>
+    </div>
+    <div class="mh-right">
+        <div class="mh-score">{{ row.game.black_team_score }}&ndash;{{ row.game.white_team_score }}</div>
+    </div>
+</a>
+{% endfor %}
