@@ -1057,7 +1057,6 @@ def submit_score(request, game_id):
         # Mark the submitting game player as verified
         for game_player in submitting_players:
             try:
-                from .models import PlayerCodename
                 player_codename = game_player.player.codename_profile
                 if player_codename.codename == submitter_codename:
                     game_player.codename_verified = True
