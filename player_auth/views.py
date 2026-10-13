@@ -9,6 +9,7 @@ import secrets
 import logging
 
 from django.conf import settings
+from django.db import transaction
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.shortcuts import redirect, render
@@ -28,11 +29,35 @@ GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 
-def _complete_login(request, pfc_user):
+def _complete_login(request, pfc_user, *, auto_create_player=False):
+    """Finish authentication without exposing legacy linking to new accounts.
+
+    Newly-created Google/email identities can create their Player immediately.
+    Existing unlinked identities keep the legacy codename-link flow as a
+    compatibility fallback so no historic account is silently duplicated.
+    """
     pfc_user.record_login()
+
+    if not pfc_user.player and auto_create_player:
+        try:
+            with transaction.atomic():
+                locked_user = PFCUser.objects.select_for_update().get(pk=pfc_user.pk)
+                if not locked_user.player:
+                    locked_user.legacy_link_skipped = True
+                    locked_user.save(update_fields=['legacy_link_skipped'])
+                    locked_user.create_and_link_player()
+                pfc_user = locked_user
+        except Exception:
+            logger.exception(
+                "Automatic Player creation failed for newly-created PFCUser %s",
+                pfc_user.pk,
+            )
+
     if not pfc_user.player:
         request.session[_KEY_PAUTH_USER_ID] = pfc_user.id
         return redirect('player_auth:link')
+
+    request.session.pop(_KEY_PAUTH_USER_ID, None)
     codename = pfc_user.codename
     if codename:
         CodenameSessionManager.login_player(request, codename)
@@ -142,6 +167,7 @@ def google_callback(request):
         if pfc_user and google_sub and not pfc_user.google_sub:
             pfc_user.google_sub = google_sub
             pfc_user.save(update_fields=['google_sub'])
+    is_new_account = False
     if not pfc_user:
         pfc_user = PFCUser.objects.create(
             email=email,
@@ -150,12 +176,17 @@ def google_callback(request):
             display_name=display_name,
             avatar_url=avatar_url,
         )
+        is_new_account = True
     else:
         pfc_user.display_name = display_name or pfc_user.display_name
         pfc_user.avatar_url = avatar_url or pfc_user.avatar_url
         pfc_user.save(update_fields=['display_name', 'avatar_url'])
 
-    return _complete_login(request, pfc_user)
+    return _complete_login(
+        request,
+        pfc_user,
+        auto_create_player=is_new_account,
+    )
 
 
 def email_login(request):
@@ -192,13 +223,18 @@ def email_verify(request):
         request.session.pop(_KEY_PAUTH_PENDING_EMAIL, None)
 
         pfc_user = PFCUser.objects.filter(email=email).first()
-        if not pfc_user:
+        is_new_account = pfc_user is None
+        if is_new_account:
             pfc_user = PFCUser.objects.create(
                 email=email,
                 provider=PFCUser.PROVIDER_EMAIL,
             )
 
-        return _complete_login(request, pfc_user)
+        return _complete_login(
+            request,
+            pfc_user,
+            auto_create_player=is_new_account,
+        )
 
     return render(request, 'player_auth/email_step2.html', {'email': email})
 
