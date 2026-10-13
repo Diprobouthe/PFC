@@ -112,6 +112,10 @@ class NewPlayerOnboardingTests(TestCase):
         response = self.client.get(reverse("player_auth:link"))
 
         self.assertRedirects(response, "/", fetch_redirect_response=False)
+        user.refresh_from_db()
+        self.assertIsNotNone(user.player_id)
+        self.assertTrue(user.legacy_link_skipped)
+        self.assertTrue(self.client.session.get("session_active"))
         self.assertNotContains(response, "Link My Player")
 
     def test_existing_linked_account_login_behavior_is_unchanged(self):
