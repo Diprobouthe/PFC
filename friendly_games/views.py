@@ -1016,8 +1016,6 @@ def submit_score(request, game_id):
 
         submitted_by_team = participation.team
         submitting_players = game.players.filter(team=submitted_by_team)
-        valid_submitter = True
-        
         # Validate scores
         if black_score < 0 or white_score < 0:
             messages.error(request, 'Scores cannot be negative.')
