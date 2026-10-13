@@ -976,41 +976,47 @@ def submit_score(request, game_id):
     if request.method == 'POST':
         black_score = int(request.POST.get('black_score', 0))
         white_score = int(request.POST.get('white_score', 0))
-        submitter_codename = request.POST.get('submitter_codename', '').strip().upper()
+
+        # Resolve the acting participant exclusively server-side.
+        # Priority:
+        #   1. short-lived QR action proof for the scanned participant
+        #   2. the browser's normal logged-in player session
+        # Raw codenames supplied by the browser are deliberately ignored.
         _qr_action_player = get_qr_action_player(request)
-        if _qr_action_player:
-            try:
-                submitter_codename = _qr_action_player.codename_profile.codename
-            except Exception:
-                submitter_codename = ''
-        submitted_by_team = request.POST.get('submitting_team', '').upper()
-        
-        # STRICT REQUIREMENT: Submitter must provide a valid codename
-        if not submitter_codename:
-            messages.error(request, 'You must provide your codename to submit scores.')
+        submitter_player = _qr_action_player
+        if submitter_player is None:
+            session_codename = CodenameSessionManager.get_logged_in_codename(request)
+            if session_codename:
+                try:
+                    submitter_player = PlayerCodename.objects.get(
+                        codename=session_codename.upper()
+                    ).player
+                except PlayerCodename.DoesNotExist:
+                    submitter_player = None
+
+        if submitter_player is None:
+            messages.error(request, 'Scan a participating player card or log in as a participant to submit the result.')
             return redirect('friendly_games:submit_score', game_id=game.id)
-        
-        # Validate submitted_by_team
-        if submitted_by_team not in ['BLACK', 'WHITE']:
-            messages.error(request, 'Please select which team is submitting the scores.')
+
+        participation = (
+            game.players
+            .filter(player=submitter_player)
+            .select_related('player')
+            .first()
+        )
+        if participation is None:
+            messages.error(request, 'The authorized player is not a participant in this Friendly Game.')
             return redirect('friendly_games:submit_score', game_id=game.id)
-        
-        # Verify submitter codename belongs to a player from the submitting team
-        valid_submitter = False
+
+        try:
+            submitter_codename = submitter_player.codename_profile.codename
+        except PlayerCodename.DoesNotExist:
+            messages.error(request, 'The authorized participant has no active player identity.')
+            return redirect('friendly_games:submit_score', game_id=game.id)
+
+        submitted_by_team = participation.team
         submitting_players = game.players.filter(team=submitted_by_team)
-        for game_player in submitting_players:
-            try:
-                from .models import PlayerCodename
-                player_codename = game_player.player.codename_profile
-                if player_codename.codename == submitter_codename:
-                    valid_submitter = True
-                    break
-            except PlayerCodename.DoesNotExist:
-                continue
-        
-        if not valid_submitter:
-            messages.error(request, f'Invalid codename "{submitter_codename}". Please provide a correct codename from the {submitted_by_team.lower()} team.')
-            return redirect('friendly_games:submit_score', game_id=game.id)
+        valid_submitter = True
         
         # Validate scores
         if black_score < 0 or white_score < 0:
@@ -1082,25 +1088,27 @@ def submit_score(request, game_id):
     black_players = game.players.filter(team='BLACK')
     white_players = game.players.filter(team='WHITE')
 
-    # Auto-detect which team the logged-in player belongs to
-    session_codename = ''
+    # Resolve display/side context from the authorized player without exposing
+    # the internal codename to HTML or JavaScript.
     _qr_action_player = get_qr_action_player(request)
-    if _qr_action_player:
-        try:
-            session_codename = _qr_action_player.codename_profile.codename
-        except Exception:
-            session_codename = ''
-    if not session_codename:
+    submitter_player = _qr_action_player
+    if submitter_player is None:
         session_codename = CodenameSessionManager.get_logged_in_codename(request)
-    auto_team = None
-    if session_codename:
-        for gp in game.players.all():
+        if session_codename:
             try:
-                if gp.player.codename_profile.codename == session_codename:
-                    auto_team = gp.team  # 'BLACK' or 'WHITE'
-                    break
-            except Exception:
-                pass
+                submitter_player = PlayerCodename.objects.get(
+                    codename=session_codename.upper()
+                ).player
+            except PlayerCodename.DoesNotExist:
+                submitter_player = None
+
+    auto_team = None
+    submitter_player_name = ''
+    if submitter_player is not None:
+        participation = game.players.filter(player=submitter_player).first()
+        if participation is not None:
+            auto_team = participation.team
+            submitter_player_name = submitter_player.name
 
     # Pre-fill scores from live scoreboard if available.
     # Use the latest scoreboard values as source of truth even if is_active=False
@@ -1123,7 +1131,7 @@ def submit_score(request, game_id):
         'game': game,
         'black_players': black_players,
         'white_players': white_players,
-        'session_codename': session_codename,
+        'submitter_player_name': submitter_player_name,
         'auto_team': auto_team,
         'prefill_black_score': prefill_black_score,
         'prefill_white_score': prefill_white_score,
