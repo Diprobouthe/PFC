@@ -128,6 +128,26 @@ class MatchTrackingBrowserDelegationTests(TestCase):
         self.assertEqual(score.status_code, 200)
         self.assertEqual(score.json()["last_updated_by"], self.codename1.codename)
 
+    def test_normal_score_page_keeps_existing_session_identity_even_with_tracking_delegation(self):
+        self._authorize_with_qr(self.client, self.player1, self.codename1.codename)
+
+        session = self.client.session
+        session["player_codename"] = self.codename2.codename
+        session.save()
+
+        score = self.client.post(
+            reverse("update_scoreboard", args=[self.scoreboard.id]),
+            data=json.dumps({
+                "team1_score": 0,
+                "team2_score": 1,
+                "codename": "UNTRUSTED",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(score.status_code, 200)
+        self.assertTrue(score.json()["success"])
+        self.assertEqual(score.json()["last_updated_by"], self.codename2.codename)
+
     def test_manual_end_revokes_server_authorization_and_browser_delegation(self):
         self._authorize_with_qr(self.client, self.player1, self.codename1.codename)
         self.assertIn(BROWSER_DELEGATIONS_SESSION_KEY, self.client.session)
