@@ -1,0 +1,25 @@
+name: Temporary Friendly final-result QR regression test
+
+on:
+  push:
+    branches:
+      - fix/friendly-final-result-qr-identity
+
+jobs:
+  targeted-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run targeted regression tests
+        run: >
+          python manage.py test
+          friendly_games.tests.test_qr_final_result_authorization
+          friendly_games.tests.test_legacy_join_preserves_affiliation.FriendlyLegacyJoinAffiliationTests.test_existing_players_join_and_complete_without_affiliation_changes
+          --verbosity 2
