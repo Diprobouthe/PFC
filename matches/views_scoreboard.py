@@ -339,10 +339,11 @@ def scoreboard_detail(request, scoreboard_id):
                 except Exception:
                     pass
 
-    # The score page has a child proof for AJAX score updates. When a
-    # tournament participant is QR-authorized, issue a second child proof for
-    # the existing Submit Result page so the same temporary authorization
-    # survives this final handoff without exposing a player codename or PIN.
+    # The score page has a child proof for AJAX score updates. If the
+    # scoreboard itself was opened through a scanned-player proof, issue a
+    # second proof for the exact final-result page as well. This preserves the
+    # scanned participant across Scoreboard → Submit Result without ever
+    # replacing the phone holder's normal login session.
     qr_submit_action_token = ''
     if scoreboard.tournament_match and qr_action_player and my_team_id:
         qr_submit_action_token = issue_qr_action_token(
@@ -353,6 +354,18 @@ def scoreboard_detail(request, scoreboard_id):
                 'team_id': my_team_id,
             }),
         )
+    elif scoreboard.friendly_game_id and qr_action_player:
+        if FriendlyGamePlayer.objects.filter(
+            game_id=scoreboard.friendly_game_id,
+            player=qr_action_player,
+        ).exists():
+            qr_submit_action_token = issue_qr_action_token(
+                request,
+                qr_action_player,
+                reverse('friendly_games:submit_score', kwargs={
+                    'game_id': scoreboard.friendly_game_id,
+                }),
+            )
 
     # Friendly draw communication is presentation-only. The stored starting side
     # is announced until an actual score (not a 0–0 correction/reset) exists.
