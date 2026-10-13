@@ -442,7 +442,16 @@ def update_scoreboard(request, scoreboard_id):
         team1_score = int(data.get('team1_score', 0))
         team2_score = int(data.get('team2_score', 0))
         scorekeeper_codename = data.get('codename', '').strip().upper()
-        if scoreboard.tournament_match_id:
+        tracking_delegated = bool(data.get('tracking_delegated', False))
+        if tracking_delegated:
+            from match_tracking.services import delegated_scorekeeper_codename_for_scoreboard
+            scorekeeper_codename = delegated_scorekeeper_codename_for_scoreboard(request, scoreboard)
+            if not scorekeeper_codename:
+                return JsonResponse(
+                    {'success': False, 'error': 'This browser no longer has an active Match Tracking delegation for this match.'},
+                    status=403,
+                )
+        elif scoreboard.tournament_match_id:
             scorekeeper_codename = _trusted_tournament_scorekeeper_codename(request, scoreboard)
             if not scorekeeper_codename:
                 return JsonResponse(
