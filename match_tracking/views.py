@@ -288,21 +288,18 @@ def tracking_page(request, match_type, pk):
     # ── Participants ─────────────────────────────────────────────────────────
     players = _build_player_list(match_type, pk)
 
-    # ── Existing match-scoped authorization state ───────────────────────────
-    from .services import get_active_tracking_session
-    tracking_session = get_active_tracking_session(match_type, pk, create=False)
-    if tracking_session:
-        broadcast_by_player = {
-            auth.player_id: auth.broadcast_permitted
-            for auth in tracking_session.authorizations.filter(is_active=True)
-        }
-        for player_data in players:
-            player_data['broadcast_permitted'] = bool(broadcast_by_player.get(player_data['player_id'], False))
-    else:
-        for player_data in players:
-            player_data['broadcast_permitted'] = False
+    # ── Browser-scoped tracking delegation + persistent broadcast state ─────
+    from .services import (
+        authorize_player,
+        browser_delegated_authorizations,
+        browser_score_authorization,
+        get_active_tracking_session,
+        remember_browser_delegation,
+    )
 
-    # ── Detect logged-in player ──────────────────────────────────────────────
+    # A participant already logged in under their own codename keeps the
+    # existing self-authorization convenience. Bind it to this browser session
+    # exactly like a QR-granted tracking delegation.
     from pfc_core.session_utils import CodenameSessionManager
     logged_in_codename = CodenameSessionManager.get_logged_in_codename(request)
     auto_auth_player_id = None
@@ -312,8 +309,49 @@ def tracking_page(request, match_type, pk):
             pc = PlayerCodename.objects.select_related('player').get(codename=logged_in_codename)
             if any(p['player_id'] == pc.player_id for p in players):
                 auto_auth_player_id = pc.player_id
+                if _is_tracking_active(match_type, pk):
+                    tracking_session, authorization = authorize_player(
+                        match_type, pk, pc.player, pc.codename
+                    )
+                    remember_browser_delegation(request, tracking_session, authorization)
         except Exception:
             pass
+
+    tracking_session = get_active_tracking_session(match_type, pk, create=False)
+    if tracking_session:
+        broadcast_by_player = {
+            auth.player_id: auth.broadcast_permitted
+            for auth in tracking_session.authorizations.filter(is_active=True)
+        }
+    else:
+        broadcast_by_player = {}
+    for player_data in players:
+        player_data['broadcast_permitted'] = bool(
+            broadcast_by_player.get(player_data['player_id'], False)
+        )
+
+    # Restore only the authorizations that this browser itself acquired. The
+    # active DB rows alone never unlock another browser.
+    browser_authorizations = browser_delegated_authorizations(
+        request, match_type, pk, tracking_session=tracking_session
+    )
+    score_authorization = browser_score_authorization(request, match_type, pk)
+    score_actor_player_id = score_authorization.player_id if score_authorization else None
+    participant_by_id = {player['player_id']: player for player in players}
+    browser_authorizations.sort(
+        key=lambda authorization: 0 if authorization.player_id == score_actor_player_id else 1
+    )
+    browser_authorization_payload = []
+    for authorization in browser_authorizations:
+        participant = participant_by_id.get(authorization.player_id)
+        if not participant:
+            continue
+        browser_authorization_payload.append({
+            'player_id': authorization.player_id,
+            'player_name': participant['player_name'],
+            'broadcast_permitted': authorization.broadcast_permitted,
+            'stats': _get_player_shot_stats(authorization.player_id, match_type, pk),
+        })
 
     # ── Score history ────────────────────────────────────────────────────────
     score_history = _get_score_history(scoreboard) if scoreboard else []
@@ -341,6 +379,7 @@ def tracking_page(request, match_type, pk):
         'players': players,
         'auto_auth_player_id': auto_auth_player_id,
         'logged_in_codename': logged_in_codename,
+        'browser_authorizations_json': json.dumps(browser_authorization_payload),
         'score_history_json': json.dumps(score_history),
         'qr_resolve_url': qr_resolve_url,
         'timer_start_epoch': timer_start_epoch,
@@ -403,8 +442,9 @@ def verify_participant(request, match_type, pk):
     if pc.player_id != player_id:
         return JsonResponse({'ok': False, 'error': 'QR identity mismatch'}, status=403)
 
-    from .services import authorize_player
+    from .services import authorize_player, remember_browser_delegation
     tracking_session, authorization = authorize_player(match_type, pk, pc.player, pc.codename)
+    remember_browser_delegation(request, tracking_session, authorization)
     stats = _get_player_shot_stats(player_id, match_type, pk)
     return JsonResponse({
         'ok': True,
@@ -413,9 +453,6 @@ def verify_participant(request, match_type, pk):
         'player_name': participant['player_name'],
         'team': participant['team'],
         'position': participant['position'],
-        # Returned only to the verified scanning browser; the server also retains
-        # the identity in TrackingAuthorization for this match-scoped period.
-        'codename': authorization.codename,
         'broadcast_permitted': authorization.broadcast_permitted,
         'stats': stats,
     })
@@ -499,7 +536,6 @@ def record_shot(request, match_type, pk):
         data = json.loads(request.body)
         outcome = data.get('outcome', '').strip().lower()
         player_id = int(data.get('player_id', 0))
-        codename = data.get('codename', '').strip().upper()
     except (json.JSONDecodeError, ValueError, TypeError):
         return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
 
@@ -515,23 +551,37 @@ def record_shot(request, match_type, pk):
         end_tracking_sessions(match_type, pk, 'match_completed')
         return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
-    from .services import active_authorization, authorize_player, get_or_create_tracking_practice_session
-    authorization = active_authorization(match_type, pk, player_id, codename=codename or None)
+    from .services import (
+        authorize_player,
+        browser_authorization,
+        get_or_create_tracking_practice_session,
+        remember_browser_delegation,
+    )
+    authorization = browser_authorization(request, match_type, pk, player_id)
     if not authorization:
-        # Preserve the existing logged-in participant convenience: their own active
-        # codename is sufficient to start a scoped tracking period for themselves.
+        # Preserve the existing logged-in participant convenience, but bind it
+        # to this browser before accepting any tracking mutation.
         from pfc_core.session_utils import CodenameSessionManager
         logged_in_codename = (CodenameSessionManager.get_logged_in_codename(request) or '').upper()
-        if logged_in_codename and codename == logged_in_codename:
+        if logged_in_codename:
             try:
                 from friendly_games.models import PlayerCodename
                 pc = PlayerCodename.objects.select_related('player').get(codename=logged_in_codename)
-                if pc.player_id == player_id and any(p['player_id'] == player_id for p in _build_player_list(match_type, pk)):
-                    _, authorization = authorize_player(match_type, pk, pc.player, pc.codename)
+                if (
+                    pc.player_id == player_id
+                    and any(p['player_id'] == player_id for p in _build_player_list(match_type, pk))
+                ):
+                    tracking_session, authorization = authorize_player(
+                        match_type, pk, pc.player, pc.codename
+                    )
+                    remember_browser_delegation(request, tracking_session, authorization)
             except PlayerCodename.DoesNotExist:
                 authorization = None
         if not authorization:
-            return JsonResponse({'ok': False, 'error': 'Scan this participant QR card to authorize tracking'}, status=403)
+            return JsonResponse(
+                {'ok': False, 'error': 'Scan this participant QR card to authorize tracking'},
+                status=403,
+            )
 
     try:
         from practice.models import Shot
@@ -572,7 +622,6 @@ def undo_last_shot(request, match_type, pk):
     try:
         data = json.loads(request.body)
         player_id = int(data.get('player_id', 0))
-        codename = data.get('codename', '').strip().upper()
     except (json.JSONDecodeError, ValueError, TypeError):
         return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
 
@@ -581,10 +630,13 @@ def undo_last_shot(request, match_type, pk):
         end_tracking_sessions(match_type, pk, 'match_completed')
         return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
-    from .services import active_authorization
-    authorization = active_authorization(match_type, pk, player_id, codename=codename or None)
+    from .services import browser_authorization
+    authorization = browser_authorization(request, match_type, pk, player_id)
     if not authorization:
-        return JsonResponse({'ok': False, 'error': 'Scan this participant QR card to authorize tracking'}, status=403)
+        return JsonResponse(
+            {'ok': False, 'error': 'Scan this participant QR card to authorize tracking'},
+            status=403,
+        )
 
     try:
         from practice.models import Shot
@@ -821,8 +873,9 @@ def end_tracking_session(request, match_type, pk):
     """End the current Match Tracking period and revoke all QR authorizations."""
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
-    from .services import end_tracking_sessions
+    from .services import clear_browser_delegation, end_tracking_sessions
     ended_count = end_tracking_sessions(match_type, pk, 'manual')
+    clear_browser_delegation(request, match_type, pk)
     return JsonResponse({
         'ok': True,
         'ended_count': ended_count,
@@ -844,8 +897,9 @@ def game_status_api(request, match_type, pk):
             obj = FriendlyGame.objects.only('status').get(pk=pk)
         is_active = _is_tracking_active(match_type, pk)
         if not is_active:
-            from .services import end_tracking_sessions
+            from .services import clear_browser_delegation, end_tracking_sessions
             end_tracking_sessions(match_type, pk, 'match_completed')
+            clear_browser_delegation(request, match_type, pk)
         return JsonResponse({'ok': True, 'status': obj.status, 'tracking_active': is_active})
     except Exception:
         return JsonResponse({'ok': False, 'error': 'Not found'}, status=404)
