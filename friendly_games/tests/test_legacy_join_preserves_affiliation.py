@@ -168,13 +168,14 @@ class FriendlyLegacyJoinAffiliationTests(TestCase):
         self.assertEqual(live_score_response.status_code, 200)
         self.assertTrue(live_score_response.json()["success"])
 
+        # Official result identity is server-resolved from the active player
+        # session; the browser no longer supplies a codename or side.
+        self._login_as(self.creator)
         score_response = self.client.post(
             reverse("friendly_games:submit_score", args=[game.pk]),
             {
                 "black_score": "13",
                 "white_score": "8",
-                "submitting_team": "BLACK",
-                "submitter_codename": self.creator.codename_profile.codename,
             },
         )
         self.assertEqual(score_response.status_code, 302)
