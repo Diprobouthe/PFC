@@ -82,7 +82,7 @@ class NewPlayerOnboardingTests(TestCase):
         self.assertFalse(user.legacy_codename_linked)
         self.assertTrue(self.client.session.get("session_active"))
 
-    def test_existing_unlinked_account_keeps_legacy_link_fallback(self):
+    def test_existing_unlinked_account_also_skips_legacy_link_screen(self):
         user = PFCUser.objects.create(
             email="old-unlinked@example.com",
             provider=PFCUser.PROVIDER_EMAIL,
@@ -90,19 +90,29 @@ class NewPlayerOnboardingTests(TestCase):
 
         response = self._verify_email(user.email)
 
-        self.assertRedirects(
-            response,
-            reverse("player_auth:link"),
-            fetch_redirect_response=False,
-        )
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
         user.refresh_from_db()
-        self.assertIsNone(user.player_id)
-        self.assertFalse(user.legacy_link_skipped)
+        self.assertIsNotNone(user.player_id)
+        self.assertTrue(user.legacy_link_skipped)
         self.assertFalse(user.legacy_codename_linked)
 
         session = self.client.session
-        self.assertEqual(session.get("pauth_user_id"), user.id)
-        self.assertFalse(session.get("session_active", False))
+        self.assertTrue(session.get("session_active"))
+        self.assertNotIn("pauth_user_id", session)
+
+    def test_legacy_link_get_no_longer_renders_link_my_player_screen(self):
+        user = PFCUser.objects.create(
+            email="legacy-route@example.com",
+            provider=PFCUser.PROVIDER_EMAIL,
+        )
+        session = self.client.session
+        session["pauth_user_id"] = user.id
+        session.save()
+
+        response = self.client.get(reverse("player_auth:link"))
+
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        self.assertNotContains(response, "Link My Player")
 
     def test_existing_linked_account_login_behavior_is_unchanged(self):
         user = PFCUser.objects.create(
