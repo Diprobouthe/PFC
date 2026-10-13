@@ -826,7 +826,7 @@ window.submitPendingScore = function() {
     fetch(SCORE_UPDATE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ team1_score: currentT1, team2_score: currentT2 })
+        body: JSON.stringify({ team1_score: currentT1, team2_score: currentT2, tracking_delegated: true })
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {
