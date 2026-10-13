@@ -29,7 +29,7 @@ GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 
-def _complete_login(request, pfc_user, *, auto_create_player=False):
+def _complete_login(request, pfc_user):
     """Finish authentication without exposing the legacy player-link screen.
 
     Any authenticated identity without a Player gets one automatically.  The
@@ -168,7 +168,6 @@ def google_callback(request):
         if pfc_user and google_sub and not pfc_user.google_sub:
             pfc_user.google_sub = google_sub
             pfc_user.save(update_fields=['google_sub'])
-    is_new_account = False
     if not pfc_user:
         pfc_user = PFCUser.objects.create(
             email=email,
@@ -177,7 +176,6 @@ def google_callback(request):
             display_name=display_name,
             avatar_url=avatar_url,
         )
-        is_new_account = True
     else:
         pfc_user.display_name = display_name or pfc_user.display_name
         pfc_user.avatar_url = avatar_url or pfc_user.avatar_url
@@ -220,8 +218,7 @@ def email_verify(request):
         request.session.pop(_KEY_PAUTH_PENDING_EMAIL, None)
 
         pfc_user = PFCUser.objects.filter(email=email).first()
-        is_new_account = pfc_user is None
-        if is_new_account:
+        if not pfc_user:
             pfc_user = PFCUser.objects.create(
                 email=email,
                 provider=PFCUser.PROVIDER_EMAIL,
@@ -250,59 +247,19 @@ def _send_otp_email(email, code):
 
 
 def link_player(request):
+    """Compatibility route: never expose the retired legacy-link interface."""
     pfc_user = _get_pending_user(request)
     if not pfc_user:
         return redirect('player_auth:login')
-
-    if request.method == 'POST':
-        action = request.POST.get('action')
-
-        if action == 'link':
-            codename = request.POST.get('codename', '').strip().upper()
-            if not codename:
-                messages.error(request, 'Please enter your codename.')
-                return render(request, 'player_auth/link.html', {'pfc_user': pfc_user})
-            player, error = pfc_user.link_legacy_player(codename)
-            if error:
-                messages.error(request, error)
-                return render(request, 'player_auth/link.html', {'pfc_user': pfc_user})
-            return render(request, 'player_auth/link_confirm.html', {
-                'pfc_user': pfc_user,
-                'player': player,
-                'codename': codename,
-            })
-
-        elif action == 'confirm':
-            codename = pfc_user.codename
-            if codename:
-                CodenameSessionManager.login_player(request, codename)
-            request.session.pop(_KEY_PAUTH_USER_ID, None)
-            messages.success(request, f'Welcome back, {pfc_user.player.name}!')
-            return redirect('/')
-
-        elif action == 'skip':
-            return redirect('player_auth:link_skip')
-
-    messages.info(request, 'Player linking is no longer required.')
-    return redirect('/')
+    return _complete_login(request, pfc_user)
 
 
 def link_skip(request):
+    """Backward-compatible alias for stale links/bookmarks."""
     pfc_user = _get_pending_user(request)
     if not pfc_user:
         return redirect('player_auth:login')
-
-    pfc_user.legacy_link_skipped = True
-    pfc_user.save(update_fields=['legacy_link_skipped'])
-    pfc_user.create_and_link_player()
-
-    codename = pfc_user.codename
-    if codename:
-        CodenameSessionManager.login_player(request, codename)
-
-    request.session.pop(_KEY_PAUTH_USER_ID, None)
-    messages.success(request, f'Welcome to PFC, {pfc_user.player.name}!')
-    return redirect('/')
+    return _complete_login(request, pfc_user)
 
 
 def logout(request):
