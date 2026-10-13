@@ -71,7 +71,7 @@ class MatchTrackingBrowserDelegationTests(TestCase):
 
         score = self.client.post(
             reverse("update_scoreboard", args=[self.scoreboard.id]),
-            data=json.dumps({"team1_score": 1, "team2_score": 0}),
+            data=json.dumps({"team1_score": 1, "team2_score": 0, "tracking_delegated": True}),
             content_type="application/json",
         )
         self.assertEqual(score.status_code, 200)
@@ -97,7 +97,7 @@ class MatchTrackingBrowserDelegationTests(TestCase):
 
         score = other.post(
             reverse("update_scoreboard", args=[self.scoreboard.id]),
-            data=json.dumps({"team1_score": 1, "team2_score": 0}),
+            data=json.dumps({"team1_score": 1, "team2_score": 0, "tracking_delegated": True}),
             content_type="application/json",
         )
         self.assertEqual(score.status_code, 403)
@@ -121,6 +121,7 @@ class MatchTrackingBrowserDelegationTests(TestCase):
                 "team1_score": 1,
                 "team2_score": 0,
                 "codename": self.codename2.codename,
+                "tracking_delegated": True,
             }),
             content_type="application/json",
         )
@@ -144,7 +145,7 @@ class MatchTrackingBrowserDelegationTests(TestCase):
 
         score = self.client.post(
             reverse("update_scoreboard", args=[self.scoreboard.id]),
-            data=json.dumps({"team1_score": 1, "team2_score": 0}),
+            data=json.dumps({"team1_score": 1, "team2_score": 0, "tracking_delegated": True}),
             content_type="application/json",
         )
         self.assertEqual(score.status_code, 403)
