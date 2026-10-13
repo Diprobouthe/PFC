@@ -218,9 +218,6 @@
         {% csrf_token %}
         {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
 
-        {# Hidden: codename (session-managed, never shown) #}
-        <input type="hidden" name="submitter_codename" value="{{ session_codename|default:'' }}">
-
         {# Hidden: submitting team (auto-detected from session) #}
         {% if auto_team %}
         <input type="hidden" name="submitting_team" value="{{ auto_team }}" id="submitting_team_hidden">
@@ -261,10 +258,10 @@
 
         </div><!-- /.ss-panels -->
 
-        <!-- Submitting-as info -->
-        {% if session_codename %}
+        <!-- Authorized participant display — never expose the internal codename -->
+        {% if submitter_player_name %}
         <div class="ss-submitting-as">
-            {% translate "Submitting as" %} <strong>{{ session_codename }}</strong>
+            {% translate "Submitting as" %} <strong>{{ submitter_player_name }}</strong>
         </div>
         {% endif %}
 
