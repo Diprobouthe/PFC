@@ -1,3 +1,6 @@
+import json
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.urls import reverse
 
@@ -37,6 +40,47 @@ class NewPlayerOnboardingTests(TestCase):
         self.assertTrue(session.get("session_active"))
         self.assertEqual(session.get("player_codename"), codename)
         self.assertNotIn("pauth_user_id", session)
+
+    def test_brand_new_google_account_skips_legacy_link_screen(self):
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps(self.payload).encode()
+
+        session = self.client.session
+        session["pauth_oauth_state"] = "expected-state"
+        session.save()
+
+        responses = [
+            FakeResponse({"access_token": "test-token"}),
+            FakeResponse({
+                "email": "brand-new-google@example.com",
+                "sub": "google-sub-new-player",
+                "name": "Brand New Google Player",
+                "picture": "",
+            }),
+        ]
+        with patch("player_auth.views.urllib.request.urlopen", side_effect=responses):
+            response = self.client.get(
+                reverse("player_auth:google_callback"),
+                {"state": "expected-state", "code": "test-code"},
+            )
+
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+        user = PFCUser.objects.get(email="brand-new-google@example.com")
+        self.assertIsNotNone(user.player_id)
+        self.assertEqual(user.player.name, "Brand New Google Player")
+        self.assertTrue(user.legacy_link_skipped)
+        self.assertFalse(user.legacy_codename_linked)
+        self.assertTrue(self.client.session.get("session_active"))
 
     def test_existing_unlinked_account_keeps_legacy_link_fallback(self):
         user = PFCUser.objects.create(
