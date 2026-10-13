@@ -442,11 +442,17 @@ def update_scoreboard(request, scoreboard_id):
         team1_score = int(data.get('team1_score', 0))
         team2_score = int(data.get('team2_score', 0))
         scorekeeper_codename = data.get('codename', '').strip().upper()
-        if scoreboard.tournament_match_id:
+        from match_tracking.services import delegated_scorekeeper_codename_for_scoreboard
+        delegated_codename = delegated_scorekeeper_codename_for_scoreboard(request, scoreboard)
+        if delegated_codename:
+            # Match Tracking delegation is browser-scoped and resolved entirely
+            # server-side; a client-supplied codename cannot select the actor.
+            scorekeeper_codename = delegated_codename
+        elif scoreboard.tournament_match_id:
             scorekeeper_codename = _trusted_tournament_scorekeeper_codename(request, scoreboard)
             if not scorekeeper_codename:
                 return JsonResponse(
-                    {'success': False, 'error': 'Tournament score updates require a valid Match session or QR authorization.'},
+                    {'success': False, 'error': 'Tournament score updates require a valid Match session, QR authorization, or active Match Tracking delegation.'},
                     status=403,
                 )
         else:
@@ -565,11 +571,15 @@ def reset_scoreboard(request, scoreboard_id):
         # Parse JSON data
         data = json.loads(request.body)
         scorekeeper_codename = data.get('codename', '').strip().upper()
-        if scoreboard.tournament_match_id:
+        from match_tracking.services import delegated_scorekeeper_codename_for_scoreboard
+        delegated_codename = delegated_scorekeeper_codename_for_scoreboard(request, scoreboard)
+        if delegated_codename:
+            scorekeeper_codename = delegated_codename
+        elif scoreboard.tournament_match_id:
             scorekeeper_codename = _trusted_tournament_scorekeeper_codename(request, scoreboard)
             if not scorekeeper_codename:
                 return JsonResponse(
-                    {'success': False, 'error': 'Tournament score resets require a valid Match session or QR authorization.'},
+                    {'success': False, 'error': 'Tournament score resets require a valid Match session, QR authorization, or active Match Tracking delegation.'},
                     status=403,
                 )
         else:
