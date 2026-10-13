@@ -369,7 +369,7 @@
     {% if has_submit_links %}
         <div class="text-center mt-2">
             {% if scoreboard.friendly_game %}
-                <a href="{% url 'friendly_games:submit_score' match_id %}" class="btn btn-outline-success btn-sm">
+                <a href="{% url 'friendly_games:submit_score' match_id %}{% if qr_submit_action_token %}?qr_action={{ qr_submit_action_token|urlencode }}{% endif %}" class="btn btn-outline-success btn-sm">
                     <i class="fas fa-trophy"></i> {% translate "Submit Result" %}
                 </a>
             {% elif scoreboard.tournament_match %}
