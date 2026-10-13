@@ -30,15 +30,15 @@ GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 
 def _complete_login(request, pfc_user, *, auto_create_player=False):
-    """Finish authentication without exposing legacy linking to new accounts.
+    """Finish authentication without exposing the legacy player-link screen.
 
-    Newly-created Google/email identities can create their Player immediately.
-    Existing unlinked identities keep the legacy codename-link flow as a
-    compatibility fallback so no historic account is silently duplicated.
+    Any authenticated identity without a Player gets one automatically.  The
+    legacy codename-link backend remains available for compatibility/recovery,
+    but it is no longer part of normal Google/email onboarding.
     """
     pfc_user.record_login()
 
-    if not pfc_user.player and auto_create_player:
+    if not pfc_user.player:
         try:
             with transaction.atomic():
                 locked_user = PFCUser.objects.select_for_update().get(pk=pfc_user.pk)
@@ -49,13 +49,14 @@ def _complete_login(request, pfc_user, *, auto_create_player=False):
                 pfc_user = locked_user
         except Exception:
             logger.exception(
-                "Automatic Player creation failed for newly-created PFCUser %s",
+                "Automatic Player creation failed for PFCUser %s",
                 pfc_user.pk,
             )
-
-    if not pfc_user.player:
-        request.session[_KEY_PAUTH_USER_ID] = pfc_user.id
-        return redirect('player_auth:link')
+            messages.error(
+                request,
+                "We could not finish creating your player profile. Please try again.",
+            )
+            return redirect('player_auth:login')
 
     request.session.pop(_KEY_PAUTH_USER_ID, None)
     codename = pfc_user.codename
@@ -182,11 +183,7 @@ def google_callback(request):
         pfc_user.avatar_url = avatar_url or pfc_user.avatar_url
         pfc_user.save(update_fields=['display_name', 'avatar_url'])
 
-    return _complete_login(
-        request,
-        pfc_user,
-        auto_create_player=is_new_account,
-    )
+    return _complete_login(request, pfc_user)
 
 
 def email_login(request):
@@ -230,11 +227,7 @@ def email_verify(request):
                 provider=PFCUser.PROVIDER_EMAIL,
             )
 
-        return _complete_login(
-            request,
-            pfc_user,
-            auto_create_player=is_new_account,
-        )
+        return _complete_login(request, pfc_user)
 
     return render(request, 'player_auth/email_step2.html', {'email': email})
 
@@ -290,7 +283,8 @@ def link_player(request):
         elif action == 'skip':
             return redirect('player_auth:link_skip')
 
-    return render(request, 'player_auth/link.html', {'pfc_user': pfc_user})
+    messages.info(request, 'Player linking is no longer required.')
+    return redirect('/')
 
 
 def link_skip(request):
