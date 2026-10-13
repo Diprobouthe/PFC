@@ -218,14 +218,6 @@
         {% csrf_token %}
         {% if qr_action_token %}<input type="hidden" name="qr_action" value="{{ qr_action_token }}">{% endif %}
 
-        {# Hidden: codename (session-managed, never shown) #}
-        <input type="hidden" name="submitter_codename" value="{{ session_codename|default:'' }}">
-
-        {# Hidden: submitting team (auto-detected from session) #}
-        {% if auto_team %}
-        <input type="hidden" name="submitting_team" value="{{ auto_team }}" id="submitting_team_hidden">
-        {% endif %}
-
         <!-- Score panels -->
         <div class="ss-panels">
 
@@ -261,26 +253,21 @@
 
         </div><!-- /.ss-panels -->
 
-        <!-- Submitting-as info -->
-        {% if session_codename %}
+        <!-- Authorized participant display — never expose the internal codename -->
+        {% if submitter_player_name %}
         <div class="ss-submitting-as">
-            {% translate "Submitting as" %} <strong>{{ session_codename }}</strong>
+            {% translate "Submitting as" %} <strong>{{ submitter_player_name }}</strong>
         </div>
         {% endif %}
 
-        <!-- Team selector: only when team cannot be auto-detected -->
         {% if not auto_team %}
-        <div class="ss-team-select" id="teamSelector">
-            <button type="button" class="ss-team-btn active-black" id="btnBlack"
-                    onclick="selectTeam('BLACK')">⚫ {% translate "Black" %}</button>
-            <button type="button" class="ss-team-btn" id="btnWhite"
-                    onclick="selectTeam('WHITE')">⚪ {% translate "White" %}</button>
+        <div class="ss-submitting-as">
+            {% translate "Scan a participating player card or log in as a participant to submit the result." %}
         </div>
-        <input type="hidden" name="submitting_team" id="submitting_team_input" value="BLACK">
         {% endif %}
 
         <!-- Submit -->
-        <button type="submit" class="ss-submit">
+        <button type="submit" class="ss-submit"{% if not auto_team %} disabled{% endif %}>
             {% translate "Submit Score" %}
         </button>
 
@@ -296,21 +283,6 @@
 <div class="ss-toast" id="ssToast"></div>
 
 <script>
-{% if not auto_team %}
-function selectTeam(team) {
-    document.getElementById('submitting_team_input').value = team;
-    const btnB = document.getElementById('btnBlack');
-    const btnW = document.getElementById('btnWhite');
-    if (team === 'BLACK') {
-        btnB.className = 'ss-team-btn active-black';
-        btnW.className = 'ss-team-btn';
-    } else {
-        btnB.className = 'ss-team-btn';
-        btnW.className = 'ss-team-btn active-white';
-    }
-}
-{% endif %}
-
 function showToast(msg) {
     const t = document.getElementById('ssToast');
     t.textContent = msg;
@@ -326,14 +298,6 @@ document.getElementById('scoreForm').addEventListener('submit', function(e) {
         showToast('Scores cannot be tied — one team must win.');
         return false;
     }
-    {% if not auto_team %}
-    const team = document.getElementById('submitting_team_input').value;
-    if (!team) {
-        e.preventDefault();
-        showToast('Please select which team is submitting.');
-        return false;
-    }
-    {% endif %}
 });
 
 {% if game.is_timed and game.time_limit_minutes and game.status == 'ACTIVE' and not game.is_time_expired %}
