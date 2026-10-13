@@ -314,18 +314,33 @@ def _resolve_friendly_games(player):
                 pass
 
         if game.status == 'ACTIVE':
-            # Route to live scoreboard if available, so player enters live score mode
+            # While Live Score is active, route to the scoreboard. Once the
+            # scoreboard has ended (for example a side reached 13), the next
+            # actionable step is the official Friendly result submission.
             try:
                 scoreboard = game.live_scoreboard
-                active_url = reverse('scoreboard_detail',
-                                     kwargs={'scoreboard_id': scoreboard.id})
+                if scoreboard.is_active:
+                    active_url = reverse(
+                        'scoreboard_detail',
+                        kwargs={'scoreboard_id': scoreboard.id},
+                    )
+                    active_label = _("Active Friendly Game — Live Score")
+                else:
+                    active_url = reverse(
+                        'friendly_games:submit_score',
+                        kwargs={'game_id': game.id},
+                    )
+                    active_label = _("Submit Friendly Game Result")
             except Exception:
-                active_url = reverse('friendly_games:game_detail',
-                                     kwargs={'game_id': game.id})
+                active_url = reverse(
+                    'friendly_games:game_detail',
+                    kwargs={'game_id': game.id},
+                )
+                active_label = _("Active Friendly Game")
             candidates.append({
                 'priority': PRIORITY_FRIENDLY_ACTIVE,
                 'url': active_url,
-                'label': _("Active Friendly Game — Live Score"),
+                'label': active_label,
                 'match_type': 'friendly',
             })
         elif game.status == 'PENDING_VALIDATION':
