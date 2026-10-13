@@ -116,7 +116,7 @@ class NewPlayerOnboardingTests(TestCase):
         self.assertIsNotNone(user.player_id)
         self.assertTrue(user.legacy_link_skipped)
         self.assertTrue(self.client.session.get("session_active"))
-        self.assertNotContains(response, "Link My Player")
+        self.assertNotIn(b"Link My Player", response.content)
 
     def test_existing_linked_account_login_behavior_is_unchanged(self):
         user = PFCUser.objects.create(
