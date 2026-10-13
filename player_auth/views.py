@@ -9,6 +9,7 @@ import secrets
 import logging
 
 from django.conf import settings
+from django.db import transaction
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.shortcuts import redirect, render
@@ -29,10 +30,35 @@ GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 
 def _complete_login(request, pfc_user):
+    """Finish authentication without exposing the legacy player-link screen.
+
+    Any authenticated identity without a Player gets one automatically.  The
+    legacy codename-link backend remains available for compatibility/recovery,
+    but it is no longer part of normal Google/email onboarding.
+    """
     pfc_user.record_login()
+
     if not pfc_user.player:
-        request.session[_KEY_PAUTH_USER_ID] = pfc_user.id
-        return redirect('player_auth:link')
+        try:
+            with transaction.atomic():
+                locked_user = PFCUser.objects.select_for_update().get(pk=pfc_user.pk)
+                if not locked_user.player:
+                    locked_user.legacy_link_skipped = True
+                    locked_user.save(update_fields=['legacy_link_skipped'])
+                    locked_user.create_and_link_player()
+                pfc_user = locked_user
+        except Exception:
+            logger.exception(
+                "Automatic Player creation failed for PFCUser %s",
+                pfc_user.pk,
+            )
+            messages.error(
+                request,
+                "We could not finish creating your player profile. Please try again.",
+            )
+            return redirect('player_auth:login')
+
+    request.session.pop(_KEY_PAUTH_USER_ID, None)
     codename = pfc_user.codename
     if codename:
         CodenameSessionManager.login_player(request, codename)
@@ -221,58 +247,19 @@ def _send_otp_email(email, code):
 
 
 def link_player(request):
+    """Compatibility route: never expose the retired legacy-link interface."""
     pfc_user = _get_pending_user(request)
     if not pfc_user:
         return redirect('player_auth:login')
-
-    if request.method == 'POST':
-        action = request.POST.get('action')
-
-        if action == 'link':
-            codename = request.POST.get('codename', '').strip().upper()
-            if not codename:
-                messages.error(request, 'Please enter your codename.')
-                return render(request, 'player_auth/link.html', {'pfc_user': pfc_user})
-            player, error = pfc_user.link_legacy_player(codename)
-            if error:
-                messages.error(request, error)
-                return render(request, 'player_auth/link.html', {'pfc_user': pfc_user})
-            return render(request, 'player_auth/link_confirm.html', {
-                'pfc_user': pfc_user,
-                'player': player,
-                'codename': codename,
-            })
-
-        elif action == 'confirm':
-            codename = pfc_user.codename
-            if codename:
-                CodenameSessionManager.login_player(request, codename)
-            request.session.pop(_KEY_PAUTH_USER_ID, None)
-            messages.success(request, f'Welcome back, {pfc_user.player.name}!')
-            return redirect('/')
-
-        elif action == 'skip':
-            return redirect('player_auth:link_skip')
-
-    return render(request, 'player_auth/link.html', {'pfc_user': pfc_user})
+    return _complete_login(request, pfc_user)
 
 
 def link_skip(request):
+    """Backward-compatible alias for stale links/bookmarks."""
     pfc_user = _get_pending_user(request)
     if not pfc_user:
         return redirect('player_auth:login')
-
-    pfc_user.legacy_link_skipped = True
-    pfc_user.save(update_fields=['legacy_link_skipped'])
-    pfc_user.create_and_link_player()
-
-    codename = pfc_user.codename
-    if codename:
-        CodenameSessionManager.login_player(request, codename)
-
-    request.session.pop(_KEY_PAUTH_USER_ID, None)
-    messages.success(request, f'Welcome to PFC, {pfc_user.player.name}!')
-    return redirect('/')
+    return _complete_login(request, pfc_user)
 
 
 def logout(request):
