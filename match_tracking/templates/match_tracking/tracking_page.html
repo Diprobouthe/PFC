@@ -521,6 +521,7 @@ var SHOT_RECORD  = '{{ shot_record_url }}';
 var SHOT_END     = '{{ shot_end_url }}';
 var AUTO_AUTH_ID = {% if auto_auth_player_id %}{{ auto_auth_player_id }}{% else %}null{% endif %};
 var LOGGED_IN_CODENAME = {% if logged_in_codename %}'{{ logged_in_codename }}'{% else %}null{% endif %};
+var RESTORED_AUTHORIZATIONS = {{ browser_authorizations_json|safe }};
 var TIMER_START_EPOCH  = {% if timer_start_epoch %}{{ timer_start_epoch }}{% else %}null{% endif %};
 var TIMER_TOTAL_SEC    = {% if timer_total_seconds %}{{ timer_total_seconds }}{% else %}null{% endif %};
 var SCORE_HISTORY      = {{ score_history_json|safe }};
@@ -532,9 +533,9 @@ var CSRF = (function() {
 })();
 
 /* ── State ───────────────────────────────────────────────────────────── */
-var authorizedPlayers = {};   // player_id → { codename, name, stats }
-var scoreAuthName = null;     // display name of the first authorised participant
-var scoreAuthCodename = null; // first codename that grants score update permission
+var authorizedPlayers = {};   // player_id → { name, stats, broadcastPermitted }
+var scoreAuthName = null;     // display name of the first delegated score actor
+var scoreAuthPlayerId = null; // first browser-delegated participant for score updates
 var selectedPlayerId  = null;
 var activeSessionId   = null; // current PracticeSession id for shot recording
 var pendingBroadcastPlayerId = null; // fresh QR proof target for public-feed consent
@@ -589,11 +590,15 @@ window.toggleCollapse = function(id) {
     header.classList.toggle('open', !isOpen);
 };
 
-/* ── Auto-authorize logged-in player ─────────────────────────────────── */
-if (AUTO_AUTH_ID && LOGGED_IN_CODENAME) {
-    // Logged-in player is a participant — authorize them immediately
-    _authorizePlayer(AUTO_AUTH_ID, LOGGED_IN_CODENAME, null);
-}
+/* ── Restore only this browser's active tracking delegations ─────────── */
+(RESTORED_AUTHORIZATIONS || []).forEach(function(auth) {
+    _authorizePlayer(
+        auth.player_id,
+        auth.stats || null,
+        auth.player_name || '',
+        !!auth.broadcast_permitted
+    );
+});
 
 /* ── QR resolved event ───────────────────────────────────────────────── */
 document.addEventListener('qrPlayerResolved', function(e) {
@@ -616,11 +621,8 @@ document.addEventListener('qrPlayerResolved', function(e) {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.ok) {
-            // res.codename is the server-side resolved codename from the QR session;
-            // it is only present when the QR scan happened in this same browser session.
-            _authorizePlayer(res.player_id, res.codename || null, res.stats, res.player_name || '', !!res.broadcast_permitted);
+            _authorizePlayer(res.player_id, res.stats, res.player_name || '', !!res.broadcast_permitted);
             var authMsg = '\u2713 ' + res.player_name + ' authorized';
-            if (!res.codename) authMsg += ' (view only — rescan to enable shots)';
             _showScoreFeedback(authMsg, 'ok');
         } else {
             _showScoreFeedback('\u2717 ' + (res.error || TRACKING_I18N.notParticipant), 'err');
@@ -631,14 +633,14 @@ document.addEventListener('qrPlayerResolved', function(e) {
     });
 });
 
-function _authorizePlayer(playerId, codename, stats, displayName, broadcastPermitted) {
+function _authorizePlayer(playerId, stats, displayName, broadcastPermitted) {
     // Resolve display name: prefer the passed displayName, fall back to the player card's data attribute
     var resolvedName = displayName || '';
     if (!resolvedName) {
         var card = document.getElementById('pcard-' + playerId);
         if (card) resolvedName = card.getAttribute('data-player-name') || '';
     }
-    authorizedPlayers[playerId] = { codename: codename, name: resolvedName, stats: stats || {}, broadcastPermitted: !!broadcastPermitted };
+    authorizedPlayers[playerId] = { name: resolvedName, stats: stats || {}, broadcastPermitted: !!broadcastPermitted };
 
     // Unlock card
     var card = document.getElementById('pcard-' + playerId);
@@ -647,18 +649,12 @@ function _authorizePlayer(playerId, codename, stats, displayName, broadcastPermi
     if (lock) { lock.className = 'mt-lock-icon unlocked'; lock.innerHTML = '<i class="fas fa-lock-open"></i>'; }
     _setBroadcastState(playerId, !!broadcastPermitted);
 
-    // Grant score update permission to first authorised participant
-    if (!scoreAuthCodename) {
-        // Retrieve codename from session or from the verify response
-        if (codename) {
-            scoreAuthCodename = codename;
-        } else if (LOGGED_IN_CODENAME && playerId === AUTO_AUTH_ID) {
-            scoreAuthCodename = LOGGED_IN_CODENAME;
-        }
-        if (scoreAuthCodename) {
-            scoreAuthName = resolvedName;  // store display name for history rows
-            _enableScoreControls();
-        }
+    // The server persists the first scanned participant as this browser's
+    // delegated score actor. Restored authorizations are ordered actor-first.
+    if (!scoreAuthPlayerId) {
+        scoreAuthPlayerId = playerId;
+        scoreAuthName = resolvedName;
+        _enableScoreControls();
     }
 
     // Hide auth notice once at least one player is authorized
@@ -815,14 +811,14 @@ function _renderPendingScore() {
 }
 
 window.adjustScore = function(team, delta) {
-    if (!SCORE_UPDATE_URL || !scoreAuthCodename || _matchEnded) return;
+    if (!SCORE_UPDATE_URL || !scoreAuthPlayerId || _matchEnded) return;
     currentT1 = Math.max(0, Math.min(13, currentT1 + (team === 't1' ? delta : 0)));
     currentT2 = Math.max(0, Math.min(13, currentT2 + (team === 't2' ? delta : 0)));
     _renderPendingScore();
 };
 
 window.submitPendingScore = function() {
-    if (!SCORE_UPDATE_URL || !scoreAuthCodename || _matchEnded) return;
+    if (!SCORE_UPDATE_URL || !scoreAuthPlayerId || _matchEnded) return;
     if (currentT1 === officialT1 && currentT2 === officialT2) {
         _showScoreFeedback(TRACKING_I18N.noScoreChange, 'err');
         return;
@@ -830,7 +826,7 @@ window.submitPendingScore = function() {
     fetch(SCORE_UPDATE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ team1_score: currentT1, team2_score: currentT2, codename: scoreAuthCodename })
+        body: JSON.stringify({ team1_score: currentT1, team2_score: currentT2 })
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {
@@ -888,14 +884,11 @@ function _showScoreFeedback(msg, cls) {
 window.undoLastShot = function() {
     if (!selectedPlayerId) return;
     var auth = authorizedPlayers[selectedPlayerId];
-    if (!auth || !auth.codename) {
-        _showShotFeedback('\u2717 ' + TRACKING_I18N.noCodename, 'err');
-        return;
-    }
+    if (!auth) return;
     fetch('/track/' + MATCH_TYPE + '/' + MATCH_PK + '/undo/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ player_id: selectedPlayerId, codename: auth.codename })
+        body: JSON.stringify({ player_id: selectedPlayerId })
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {
@@ -913,31 +906,15 @@ window.recordShot = function(outcome) {
     if (!selectedPlayerId) return;
     var auth = authorizedPlayers[selectedPlayerId];
     if (!auth) return;
-
-    // Determine codename for this player
-    var codename = auth.codename || (selectedPlayerId === AUTO_AUTH_ID ? LOGGED_IN_CODENAME : null);
-    if (!codename) {
-        _showShotFeedback('\u2717 ' + TRACKING_I18N.noCodename, 'err');
-        return;
-    }
-
-    // Temporarily login as this player to use the practice API
-    // The practice API uses CodenameSessionManager which reads from session.
-    // Since we can't change the server session from JS, we call the shot record
-    // endpoint directly using the codename header approach.
-    // The practice/api/record-shot/ endpoint reads from session, so we need
-    // the player to be logged in.  For the logged-in player this works directly.
-    // For QR-authorized players we use the match_tracking shot endpoint which
-    // handles the codename lookup server-side.
-    _doRecordShot(outcome, codename, currentMode);
+    _doRecordShot(outcome, currentMode);
 };
 
-function _doRecordShot(outcome, codename, mode) {
-    // Use the match_tracking shot endpoint (handles auth via codename param)
+function _doRecordShot(outcome, mode) {
+    // Server resolves the player identity from this browser's delegation.
     fetch('/track/' + MATCH_TYPE + '/' + MATCH_PK + '/shot/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: JSON.stringify({ outcome: outcome, codename: codename, player_id: selectedPlayerId, mode: mode || 'shooting' })
+        body: JSON.stringify({ outcome: outcome, player_id: selectedPlayerId, mode: mode || 'shooting' })
     })
     .then(function(r) { return r.json(); })
     .then(function(res) {
