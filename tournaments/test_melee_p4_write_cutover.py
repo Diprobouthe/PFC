@@ -9,6 +9,7 @@ from courts.models import Court
 from friendly_games.models import PlayerCodename
 from matches.melee_roster_resolution import players_for_match_team
 from matches.models import Match, MatchActivation, MatchPlayer
+from tournaments.lineup_lifecycle import open_round_lineup_window, finalize_round_lineups
 from matches.rating_integration import get_players_with_profiles
 from teams.models import Player, PlayerProfile, Team
 from tournaments.admin_melee_swap import perform_melee_swap
@@ -97,43 +98,36 @@ class MeleeP4WriteCutoverTests(TestCase):
             ).order_by("player_id").values_list("player_id", flat=True)
         )
 
-    def _activate_both_sides_by_qr(self, match):
+    def _activate_round_from_assignments(self, match):
+        """Current P4: freeze exact Round assignments; do not wait for QR Start."""
         team_one_players = list(players_for_match_team(match, match.team1))
         team_two_players = list(players_for_match_team(match, match.team2))
         self.assertEqual(len(team_one_players), 2)
         self.assertEqual(len(team_two_players), 2)
-        self._set_player_session(team_one_players[0])
-        session = self.client.session
-        session["qr_resolved_codename"] = PlayerCodename.objects.get(
-            player=team_two_players[0]
-        ).codename
-        session.save()
-        response = self.client.post(
-            reverse(
-                "match_activate",
-                kwargs={"match_id": match.id, "team_id": match.team1_id},
-            ),
-            {
-                "pin": match.team1.pin,
-                "players": [player.id for player in team_one_players],
-            },
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(MatchActivation.objects.filter(match=match, team=match.team1).exists())
-        self.assertTrue(MatchActivation.objects.filter(match=match, team=match.team2).exists())
-        self.assertEqual(
-            set(
-                MatchPlayer.objects.filter(match=match, team=match.team1)
-                .values_list("player_id", flat=True)
-            ),
-            {player.id for player in team_one_players},
+        match.refresh_from_db()
+        round_obj = match.round
+        if round_obj.lineup_deadline_at is None:
+            open_round_lineup_window(round_obj.id)
+        outcome = finalize_round_lineups(round_obj.id)
+        self.assertTrue(outcome.frozen, outcome.blocked_match_ids)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "active")
+        self.assertIsNotNone(match.court_id)
+        self.assertFalse(
+            MatchActivation.objects.filter(match=match).exists(),
+            "Current P4 should not depend on legacy two-phone activation records",
         )
         self.assertEqual(
-            set(
-                MatchPlayer.objects.filter(match=match, team=match.team2)
-                .values_list("player_id", flat=True)
-            ),
-            {player.id for player in team_two_players},
+            set(MatchPlayer.objects.filter(
+                match=match, team=match.team1,
+            ).values_list("player_id", flat=True)),
+            {p.id for p in team_one_players},
+        )
+        self.assertEqual(
+            set(MatchPlayer.objects.filter(
+                match=match, team=match.team2,
+            ).values_list("player_id", flat=True)),
+            {p.id for p in team_two_players},
         )
 
     def test_end_to_end_assignment_based_lifecycle_keeps_home_team(self):
@@ -183,7 +177,7 @@ class MeleeP4WriteCutoverTests(TestCase):
                 round=round_one,
             )
         }
-        self._activate_both_sides_by_qr(round_one_match)
+        self._activate_round_from_assignments(round_one_match)
         round_one_snapshot = set(
             MatchPlayer.objects.filter(match=round_one_match).values_list(
                 "player_id", "team_id"
@@ -251,7 +245,7 @@ class MeleeP4WriteCutoverTests(TestCase):
             team2=round_two_teams[1].team,
             status="pending",
         )
-        self._activate_both_sides_by_qr(round_two_match)
+        self._activate_round_from_assignments(round_two_match)
         self.assertEqual(
             set(
                 MatchPlayer.objects.filter(match=round_two_match, team=round_two_match.team1)
