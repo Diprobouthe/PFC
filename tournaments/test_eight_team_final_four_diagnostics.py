@@ -5,6 +5,7 @@ These tests intentionally assert the actual winner-first podium and real Round
 handoffs, not merely row counts or the presence of a published leaderboard.
 """
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -46,7 +47,29 @@ class EightTeamTournamentDiagnosticTests(TestCase):
 
     def _complete_round(self, round_obj, *, choose_winner):
         matches = list(Match.objects.filter(round=round_obj).order_by("id"))
-        result = finalize_round_lineups(round_obj.id)
+        round_obj.refresh_from_db()
+        if round_obj.tournament.lineup_selection_seconds:
+            self.assertIsNotNone(round_obj.lineup_deadline_at)
+            remaining = (round_obj.lineup_deadline_at - timezone.now()).total_seconds()
+            self.assertGreater(remaining, 0)
+            self.assertLessEqual(
+                remaining, round_obj.tournament.lineup_selection_seconds,
+            )
+            before_deadline = finalize_round_lineups(round_obj.id)
+            self.assertFalse(before_deadline.frozen)
+            self.assertEqual(
+                Match.objects.filter(round=round_obj, status="pending").count(),
+                len(matches), "Matches activated before lineup deadline",
+            )
+            # Simulate passage of 120 seconds deterministically; no real wait,
+            # no production clock or database.
+            with patch(
+                "tournaments.lineup_lifecycle.timezone.now",
+                return_value=round_obj.lineup_deadline_at + timedelta(seconds=1),
+            ):
+                result = finalize_round_lineups(round_obj.id)
+        else:
+            result = finalize_round_lineups(round_obj.id)
         self.assertTrue(
             result.frozen,
             f"Round {round_obj.id}: invalid roster: {result.blocked_match_ids}",
@@ -260,7 +283,7 @@ class EightTeamTournamentDiagnosticTests(TestCase):
             num_rounds=3, draft_type="random",
             is_free=True, requires_voucher=False,
             max_courts=4, recommended_courts=4,
-            lineup_selection_seconds=0,
+            lineup_selection_seconds=120,
         )
         ScenarioStage.objects.create(
             scenario=scenario, stage_number=1, name="Swiss",
@@ -324,7 +347,23 @@ class EightTeamTournamentDiagnosticTests(TestCase):
             {bronze.team1_id, bronze.team2_id}, set(semi_losers),
         )
         self.assertEqual(Match.objects.filter(round=final_round).count(), 2)
-        freeze = finalize_round_lineups(final_round.id)
+        self.assertEqual(tournament.lineup_selection_seconds, 120)
+        final_round.refresh_from_db()
+        self.assertIsNotNone(final_round.lineup_deadline_at)
+        remaining = (final_round.lineup_deadline_at - timezone.now()).total_seconds()
+        self.assertGreater(remaining, 0)
+        self.assertLessEqual(remaining, 120)
+        before_deadline = finalize_round_lineups(final_round.id)
+        self.assertFalse(before_deadline.frozen)
+        self.assertEqual(
+            Match.objects.filter(round=final_round, status="pending").count(),
+            2, "Neither final may activate before the shared lineup deadline",
+        )
+        with patch(
+            "tournaments.lineup_lifecycle.timezone.now",
+            return_value=final_round.lineup_deadline_at + timedelta(seconds=1),
+        ):
+            freeze = finalize_round_lineups(final_round.id)
         self.assertTrue(freeze.frozen)
         self.assertEqual(len(freeze.ready_match_ids), 2)
 
