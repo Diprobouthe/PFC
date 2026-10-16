@@ -23,6 +23,7 @@ from teams.models import Player, Team
 from tournaments.lineup_lifecycle import finalize_round_lineups
 from tournaments.models import (
     Round, RoundLifecycleTransition, Stage, Tournament, TournamentTeam,
+    PlayerTournamentAchievement,
 )
 
 
@@ -233,6 +234,19 @@ class EightTeamTournamentDiagnosticTests(TestCase):
         self.assertEqual(
             entries[1].tournament_status, "finalist",
             "The runner-up must be marked finalist, not active",
+        )
+        self.assertEqual(
+            [e.official_place for e in entries[:4]], [1, 2, 3, 3],
+            "CEP model requires two official joint bronze positions",
+        )
+        self.assertEqual(
+            {e.tournament_status for e in entries[2:4]}, {"shared_third"},
+        )
+        self.assertEqual(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=tournament,
+                award_type=PlayerTournamentAchievement.MEDAL_BRONZE,
+            ).count(), 4, "Both semifinal-losing doublets must get bronze",
         )
 
     def test_ordinary_knockout_8_teams_generates_winner_only_successor(self):
