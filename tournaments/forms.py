@@ -134,7 +134,7 @@ class StageForm(forms.ModelForm):
         if cleaned_data.get('third_place_playoff'):
             if (
                 format_type != 'knockout'
-                or cleaned_data.get('stage_number', self.instance.stage_number) < 2
+                or (cleaned_data.get('stage_number') or self.instance.stage_number or 0) < 2
                 or (num_rounds_in_stage or 0) < 2
             ):
                 self.add_error(
