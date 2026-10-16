@@ -495,3 +495,107 @@ class TeamTournamentEndToEndBaselineTests(TestCase):
 
     def test_three_round_round_robin_from_ui_to_final_leaderboard(self):
         self._run_all_three_rounds("round_robin")
+
+
+    def test_round_robin_groups_to_two_round_knockout_final(self):
+        """Configured Team Stage handoff must work through the actual match lifecycle."""
+        from matches.lifecycle import (
+            submit_official_result, validate_official_result,
+            process_tournament_transition,
+        )
+        from tournaments.lineup_lifecycle import finalize_round_lineups
+        from tournaments.models import Round, RoundLifecycleTransition
+        from leaderboards.models import LeaderboardEntry
+
+        scenario = TournamentScenario.objects.create(
+            name="e2e-groups-final",
+            display_name="E2E Groups Final",
+            description="Round Robin qualifier then knockout",
+            default_court_complex=self.complex,
+            scenario_mode="team", tournament_type="round_robin",
+            num_rounds=3, matches_per_team=3,
+            draft_type="random", is_free=True, requires_voucher=False,
+            max_courts=2, recommended_courts=2,
+            lineup_selection_seconds=0,
+        )
+        ScenarioStage.objects.create(
+            scenario=scenario, stage_number=1, name="Groups",
+            format="round_robin", num_qualifiers=4, num_rounds_in_stage=3,
+        )
+        ScenarioStage.objects.create(
+            scenario=scenario, stage_number=2, name="Final",
+            format="knockout", num_qualifiers=0, num_rounds_in_stage=2,
+        )
+        response = self.client.post(reverse("create_simple_tournament"), {
+            "scenario": scenario.name, "format": "doubles", "num_courts": "2",
+        })
+        self.assertEqual(response.status_code, 302)
+        tournament = Tournament.objects.filter(
+            name__startswith=scenario.display_name
+        ).order_by("-id").first()
+        self.assertIsNotNone(tournament)
+        groups, final = list(tournament.stages.order_by("stage_number"))
+        self.assertEqual((groups.name, groups.format), ("Groups", "round_robin"))
+        self.assertEqual((final.name, final.format), ("Final", "knockout"))
+        for team in self.teams:
+            activate_team_tournament_signin(team=team, tournament=tournament)
+        self.assertEqual(
+            self.client.post(reverse("start_tournament", args=[tournament.id])).status_code,
+            302,
+        )
+        for stage, stage_round_num, expected_matches in (
+            (groups, 1, 2), (groups, 2, 2), (groups, 3, 2),
+            (final, 1, 2), (final, 2, 1),
+        ):
+            round_obj = Round.objects.filter(
+                tournament=tournament,
+                stage=stage,
+                number_in_stage=stage_round_num,
+            ).first()
+            self.assertIsNotNone(
+                round_obj,
+                f"No round {stage_round_num} in {stage.name}; "
+                "Team Stage progression did not produce the expected matches",
+            )
+            matches = list(Match.objects.filter(round=round_obj).order_by("id"))
+            self.assertEqual(len(matches), expected_matches)
+            outcome = finalize_round_lineups(round_obj.id)
+            self.assertTrue(outcome.frozen, f"Lineup blocked: {outcome.blocked_match_ids}")
+            self.assertEqual(len(outcome.ready_match_ids), expected_matches)
+            for match in matches:
+                match.refresh_from_db()
+                self.assertEqual(match.status, "active")
+                self.assertIsNotNone(match.court_id)
+                self.assertEqual(
+                    submit_official_result(
+                        match.id, submitted_by_id=match.team1_id,
+                        team1_score=13, team2_score=7,
+                    ).state, "submitted",
+                )
+                self.assertEqual(
+                    validate_official_result(
+                        match.id, validating_team_id=match.team2_id, agree=True,
+                    ).state, "completed",
+                )
+                self.assertTrue(process_tournament_transition(match.id))
+            trans = RoundLifecycleTransition.objects.filter(round=round_obj).first()
+            self.assertIsNotNone(trans, f"Missing lifecycle transition for {stage.name}")
+            self.assertEqual(trans.status, RoundLifecycleTransition.COMPLETED, trans.last_error)
+            print(
+                f"TEAM_STAGES {stage.name} stage_round={stage_round_num} "
+                f"complete={len(matches)} total_rounds={tournament.rounds.count()}",
+                flush=True,
+            )
+            if stage == groups and stage_round_num == 3:
+                self.assertEqual(
+                    TournamentTeam.objects.filter(
+                        tournament=tournament, current_stage_number=2, is_active=True
+                    ).count(), 4, "Four qualifiers did not advance to final Stage",
+                )
+        tournament.refresh_from_db()
+        self.assertEqual(tournament.automation_status, "completed")
+        self.assertTrue(tournament.is_archived)
+        self.assertEqual(
+            LeaderboardEntry.objects.filter(leaderboard__tournament=tournament).count(), 4
+        )
+        print("TEAM_STAGES GROUPS+FINAL COMPLETE", flush=True)
