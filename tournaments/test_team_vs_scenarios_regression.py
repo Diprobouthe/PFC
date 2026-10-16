@@ -325,3 +325,173 @@ class VSModeRegressionTests(TestCase):
         }
         self.assertEqual(points_by_team[self.teams[0].pk], 7)
         self.assertEqual(points_by_team[self.teams[1].pk], 3)
+
+
+class TeamTournamentEndToEndBaselineTests(TestCase):
+    """Baseline: real UI -> team signins -> 3 played Rounds -> final publication.
+
+    Uses Django's disposable PostgreSQL test database; never production data.
+    Official result services are exercised, and the pending post-commit
+    lifecycle dispatcher is explicitly drained because TestCase wraps the
+    whole method in a rollback-only test transaction.
+    """
+
+    def setUp(self):
+        from courts.models import Court, CourtComplex
+        self.complex = CourtComplex.objects.create(
+            name="E2E team baseline courts", description="Disposable test"
+        )
+        courts = [Court.objects.create(number=88901 + n, is_available=True)
+                  for n in range(2)]
+        self.complex.courts.add(*courts)
+        self.teams = []
+        for n in range(4):
+            team = Team.objects.create(name=f"E2E Team {n}", pin=f"88900{n}")
+            for p in range(2):
+                Player.objects.create(name=f"E2E Player {n}-{p}", team=team)
+            self.teams.append(team)
+
+    def _create_and_signin(self, algorithm):
+        scenario = TournamentScenario.objects.create(
+            name=f"e2e-{algorithm}",
+            display_name=f"E2E {algorithm}",
+            description="Three-round team baseline",
+            default_court_complex=self.complex,
+            scenario_mode="team", tournament_type=algorithm,
+            num_rounds=3, matches_per_team=3,
+            draft_type="random", is_free=True, requires_voucher=False,
+            max_courts=2, recommended_courts=2,
+            lineup_selection_seconds=0,
+        )
+        response = self.client.post(reverse("create_simple_tournament"), {
+            "scenario": scenario.name, "format": "doubles", "num_courts": "2",
+        })
+        self.assertEqual(response.status_code, 302)
+        tournament = Tournament.objects.filter(
+            name__startswith=scenario.display_name
+        ).order_by("-pk").first()
+        self.assertIsNotNone(tournament, "Simple Creator returned no tournament")
+        self.assertFalse(tournament.is_melee)
+        self.assertEqual(tournament.stages.count(), 1)
+        for team in self.teams:
+            signin = activate_team_tournament_signin(
+                team=team, tournament=tournament
+            )
+            self.assertIsNotNone(signin["tournament_team"])
+        self.assertEqual(
+            TournamentTeam.objects.filter(tournament=tournament, is_active=True).count(), 4
+        )
+        return tournament
+
+    def _run_all_three_rounds(self, algorithm):
+        from matches.lifecycle import (
+            submit_official_result, validate_official_result,
+            process_tournament_transition,
+        )
+        from matches.models import MatchPlayer
+        from tournaments.lineup_lifecycle import finalize_round_lineups
+        from tournaments.models import Round, RoundLifecycleTransition
+        from leaderboards.models import Leaderboard, LeaderboardEntry
+
+        tournament = self._create_and_signin(algorithm)
+        start = self.client.post(reverse("start_tournament", args=[tournament.id]))
+        self.assertEqual(start.status_code, 302)
+        all_pairs = []
+        for round_number in (1, 2, 3):
+            round_obj = Round.objects.filter(
+                tournament=tournament, number_in_stage=round_number
+            ).order_by("id").first()
+            self.assertIsNotNone(
+                round_obj, f"{algorithm}: Round {round_number} not generated"
+            )
+            matches = list(Match.objects.filter(round=round_obj).order_by("id"))
+            self.assertEqual(
+                len(matches), 2, f"{algorithm}: Round {round_number} match count"
+            )
+            for match in matches:
+                self.assertNotEqual(match.team1_id, match.team2_id)
+                all_pairs.append(frozenset((match.team1_id, match.team2_id)))
+            outcome = finalize_round_lineups(round_obj.id)
+            self.assertTrue(
+                outcome.frozen,
+                f"{algorithm}: Round {round_number} lineups blocked {outcome.blocked_match_ids}"
+            )
+            self.assertEqual(
+                len(outcome.ready_match_ids), 2,
+                f"{algorithm}: Round {round_number} eligible matches"
+            )
+            for match in matches:
+                match.refresh_from_db()
+                self.assertEqual(
+                    MatchPlayer.objects.filter(match=match).count(), 4,
+                    f"{algorithm}: match {match.pk} missing saved player lineup"
+                )
+                self.assertEqual(
+                    match.status, "active",
+                    f"{algorithm}: Round {round_number} match {match.id} not on Court"
+                )
+                self.assertIsNotNone(match.court_id)
+                submitted = submit_official_result(
+                    match.id, submitted_by_id=match.team1_id,
+                    team1_score=13, team2_score=7,
+                )
+                self.assertEqual(submitted.state, "submitted")
+                validated = validate_official_result(
+                    match.id, validating_team_id=match.team2_id, agree=True,
+                )
+                self.assertEqual(validated.state, "completed")
+                self.assertTrue(
+                    process_tournament_transition(match.id),
+                    f"{algorithm}: match {match.id} post-result transition failed"
+                )
+            round_obj.refresh_from_db()
+            transition = RoundLifecycleTransition.objects.filter(round=round_obj).first()
+            self.assertIsNotNone(
+                transition, f"{algorithm}: Round {round_number} never triggered lifecycle"
+            )
+            self.assertEqual(
+                transition.status, RoundLifecycleTransition.COMPLETED,
+                f"{algorithm}: Round {round_number} transition failed: {transition.last_error}"
+            )
+            print(
+                f"TEAM_BASELINE {algorithm} round={round_number} "
+                f"completed={Match.objects.filter(round=round_obj, status='completed').count()} "
+                f"next_round={Round.objects.filter(tournament=tournament).count()}",
+                flush=True,
+            )
+
+        self.assertEqual(Match.objects.filter(tournament=tournament).count(), 6)
+        self.assertEqual(len(all_pairs), 6)
+        if algorithm == "round_robin":
+            self.assertEqual(len(set(all_pairs)), 6, "Round Robin repeated opponents")
+
+        tournament.refresh_from_db()
+        self.assertEqual(
+            tournament.automation_status, "completed",
+            f"{algorithm}: three rounds played but tournament not finalized"
+        )
+        self.assertTrue(tournament.is_archived)
+        self.assertFalse(tournament.is_active)
+        self.assertEqual(
+            LeaderboardEntry.objects.filter(leaderboard__tournament=tournament).count(), 4,
+            f"{algorithm}: final standings did not contain four Teams"
+        )
+        self.assertEqual(
+            sorted(
+                LeaderboardEntry.objects.filter(
+                    leaderboard__tournament=tournament
+                ).values_list("position", flat=True)
+            ), [1, 2, 3, 4],
+        )
+        for team in self.teams:
+            self.assertEqual(
+                Player.objects.filter(team=team).count(), 2,
+                f"{algorithm}: regular Player.team affiliation changed"
+            )
+        print(f"TEAM_BASELINE {algorithm} FINALIZED OK", flush=True)
+
+    def test_three_round_swiss_from_ui_to_final_leaderboard(self):
+        self._run_all_three_rounds("swiss")
+
+    def test_three_round_round_robin_from_ui_to_final_leaderboard(self):
+        self._run_all_three_rounds("round_robin")
