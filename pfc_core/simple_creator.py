@@ -418,6 +418,10 @@ def create_simple_tournament(request):
                         num_qualifiers=stage_template.num_qualifiers,
                         num_rounds_in_stage=stage_template.num_rounds_in_stage,
                         num_matches_per_team=stage_template.num_matches_per_team,
+                        third_place_playoff=(
+                            stage_template.third_place_playoff
+                            if stage_template.format == "knockout" else False
+                        ),
                         is_complete=False,
                     )
             else:
