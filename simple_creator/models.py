@@ -272,8 +272,23 @@ class ScenarioStage(models.Model):
         unique_together = ("scenario", "stage_number")
         ordering = ["stage_number"]
     
+    def clean(self):
+        super().clean()
+        if self.third_place_playoff and (
+            self.format != "knockout"
+            or (self.stage_number or 0) < 2
+            or self.num_rounds_in_stage < 2
+        ):
+            from django.core.exceptions import ValidationError
+            raise ValidationError({
+                "third_place_playoff": (
+                    "A bronze playoff needs a second-or-later Knockout Stage "
+                    "with semifinals and a final."
+                ),
+            })
+
     def __str__(self):
-        return f"Stage {self.stage_number}: {self.name} ({self.scenario.display_name})"
+        return f"Stage {self.stage_number}: {self.name} ({self.scenario.display_name})
 
 
 class VoucherCode(models.Model):
