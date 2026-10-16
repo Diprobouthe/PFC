@@ -211,7 +211,7 @@ class EightTeamTournamentDiagnosticTests(TestCase):
             f"champion={champion} runner_up={runner_up} "
             f"semifinal_losers={semi_losers} "
             f"published_top4={[(e.team_id,e.position,e.tournament_status) for e in entries[:4]]} "
-            f"third_place_match={'none' if Match.objects.filter(tournament=tournament,stage=final_four).count()==3 else 'present'}",
+            f"third_place_match={'absent' if Match.objects.filter(tournament=tournament,round__stage=final_four).count()==3 else 'CHECK'}",
             flush=True,
         )
         self.assertEqual(
@@ -225,6 +225,14 @@ class EightTeamTournamentDiagnosticTests(TestCase):
         self.assertEqual(
             {e.team_id for e in entries[2:4]}, set(semi_losers),
             "Semifinal losers should occupy #3 and #4 pending a bronze match",
+        )
+        self.assertEqual(
+            entries[0].tournament_status, "champion",
+            "The winner must be marked champion, not active",
+        )
+        self.assertEqual(
+            entries[1].tournament_status, "finalist",
+            "The runner-up must be marked finalist, not active",
         )
 
     def test_ordinary_knockout_8_teams_generates_winner_only_successor(self):
@@ -259,4 +267,12 @@ class EightTeamTournamentDiagnosticTests(TestCase):
             {tid for match in semis for tid in (match.team1_id, match.team2_id)},
             set(winners),
         )
-        print(f"EIGHT_TEAM ADMIN_KNOCKOUT round2 winner_ids={winners}", flush=True)
+        print(
+            f"EIGHT_TEAM ADMIN_KNOCKOUT round2 winner_ids={winners} "
+            f"lineup_deadline={second.lineup_deadline_at}", flush=True,
+        )
+        self.assertIsNotNone(
+            second.lineup_deadline_at,
+            "Ordinary Knockout next Round has no lineup deadline, so teams cannot "
+            "freeze official lineups and activate Courts normally",
+        )
