@@ -288,7 +288,7 @@ class ScenarioStage(models.Model):
             })
 
     def __str__(self):
-        return f"Stage {self.stage_number}: {self.name} ({self.scenario.display_name})
+        return f"Stage {self.stage_number}: {self.name} ({self.scenario.display_name})"
 
 
 class VoucherCode(models.Model):
