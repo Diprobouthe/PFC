@@ -472,27 +472,40 @@ class TournamentEngine:
                 current_stage_number=self.current_stage.stage_number,
                 is_active=True,
             )
+            bronze_loser_ids = None
             if self.current_stage.format == "knockout":
                 completed = list(Match.objects.filter(
                     tournament=self.tournament, round=latest,
-                ).values_list("status", "winner_id"))
+                ).order_by("id").values_list("status", "winner_id", "loser_id"))
                 if (not completed or
                         any(status != "completed" or winner_id is None
-                            for status, winner_id in completed)):
+                            for status, winner_id, _loser_id in completed)):
                     logger.warning(
                         "Knockout Stage %s has unresolved winners; no next Round",
                         self.current_stage.id,
                     )
                     return False
-                winner_ids = {winner_id for _status, winner_id in completed}
+                winner_ids = {winner_id for _status, winner_id, _loser_id in completed}
                 if len(winner_ids) != len(completed):
                     return False
                 active_teams = active_teams.filter(team_id__in=winner_ids)
+                # Final Four is the only supported bronze-playoff configuration.
+                if (self.current_stage.third_place_playoff
+                        and next_local == self.current_stage.num_rounds_in_stage
+                        and len(completed) == 2):
+                    loser_ids = [loser for _status, _winner, loser in completed]
+                    if (None in loser_ids or len(set(loser_ids)) != 2
+                            or set(loser_ids) & winner_ids):
+                        return False
+                    bronze_loser_ids = tuple(loser_ids)
 
             teams = list(active_teams.order_by("-swiss_points", "-buchholz_score", "id"))
             if len(teams) < 2:
                 return False
-            return self.generate_stage_round(self.current_stage, teams, next_local)
+            return self.generate_stage_round(
+                self.current_stage, teams, next_local,
+                bronze_loser_ids=bronze_loser_ids,
+            )
 
         # Determine next round number
         current_round = self.tournament.current_round_number or 0
@@ -638,8 +651,8 @@ class TournamentEngine:
             )
         return True
     
-    def generate_stage_round(self, stage, teams, round_number):
-        """Generate round based on stage format"""
+    def generate_stage_round(self, stage, teams, round_number, *, bronze_loser_ids=None):
+        """Generate round based on stage format (optionally two simultaneous finals)."""
         try:
             with transaction.atomic():
                 if stage.format == 'round_robin':
@@ -723,6 +736,46 @@ class TournamentEngine:
                     logger.error(f"Unknown stage format: {stage.format}")
                     return False
                 
+                if (
+                    matches_created > 0
+                    and not self.tournament.is_melee
+                    and stage.format == "knockout"
+                    and stage.stage_number > 1
+                    and round_number == stage.num_rounds_in_stage
+                    and len(teams) == 2
+                ):
+                    # MatchGenerator created the actual championship Match.
+                    # Optional bronze is an independent Match in the SAME Round,
+                    # so the Round cannot finalize before both Matches finish.
+                    main_matches = list(
+                        Match.objects.filter(
+                            tournament=self.tournament, round=round_obj,
+                        ).order_by("id")
+                    )
+                    if len(main_matches) != 1:
+                        raise ValueError("Final Four expects exactly one championship Match")
+                    main_matches[0].placement_role = "championship_final"
+                    main_matches[0].save(update_fields=["placement_role"])
+                    if bronze_loser_ids is not None:
+                        from teams.models import Team
+                        if not stage.third_place_playoff or len(set(bronze_loser_ids)) != 2:
+                            raise ValueError("Invalid third-place Match participants")
+                        if set(bronze_loser_ids) & {
+                            main_matches[0].team1_id, main_matches[0].team2_id
+                        }:
+                            raise ValueError("Bronze Match must contain semifinal losers")
+                        Match.objects.create(
+                            tournament=self.tournament,
+                            stage=stage,
+                            round=round_obj,
+                            team1_id=bronze_loser_ids[0],
+                            team2_id=bronze_loser_ids[1],
+                            placement_role="third_place_playoff",
+                            status="pending",
+                            time_limit_minutes=self.tournament.default_time_limit_minutes,
+                        )
+                        matches_created += 1
+
                 if matches_created > 0:
                     # Successor Match generation opens one Round-scoped server
                     # lineup window. Court allocation waits for its deadline.
