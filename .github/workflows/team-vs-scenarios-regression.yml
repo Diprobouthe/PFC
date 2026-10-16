@@ -46,6 +46,8 @@ jobs:
           pip install -r requirements.txt
       - name: Django system checks
         run: python manage.py check
+      - name: Verify additive migrations match models
+        run: python manage.py makemigrations --check --dry-run
       - name: Team/VS focused regression
         run: |
           set -o pipefail
