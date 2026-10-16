@@ -33,7 +33,7 @@ class StageInline(admin.TabularInline):
     model = Stage
     form = StageForm
     extra = 0  # Don't auto-create empty stages that break match generation
-    fields = ("stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team")
+    fields = ("stage_number", "name", "format", "num_rounds_in_stage", "num_qualifiers", "num_matches_per_team", "third_place_playoff")
     ordering = ["stage_number"]
     verbose_name = "Multi-Stage configuration"
     verbose_name_plural = "Multi-Stage configuration"
