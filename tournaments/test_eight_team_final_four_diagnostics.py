@@ -273,6 +273,12 @@ class EightTeamTournamentDiagnosticTests(TestCase):
         )
 
     def test_optional_bronze_match_finalizes_only_after_both_finals(self):
+        self._run_optional_bronze_match(bronze_first=False)
+
+    def test_bronze_finishes_before_championship_final_no_early_completion(self):
+        self._run_optional_bronze_match(bronze_first=True)
+
+    def _run_optional_bronze_match(self, *, bronze_first):
         """8 Swiss → 4 knockout → championship + bronze in one terminal Round."""
         scenario = TournamentScenario.objects.create(
             name="e2e-eight-bronze-option",
@@ -383,12 +389,22 @@ class EightTeamTournamentDiagnosticTests(TestCase):
             )
             self.assertTrue(process_tournament_transition(match.id))
 
-        # Championship has ended, but bronze remains unresolved: no completion.
-        complete_one(final)
+        # Either final may complete first; both results must be official
+        # before archival, podium publication or frozen player medals.
+        first_match, second_match = (
+            (bronze, final) if bronze_first else (final, bronze)
+        )
+        complete_one(first_match)
         tournament.refresh_from_db()
         self.assertNotEqual(tournament.automation_status, "completed")
         self.assertFalse(tournament.is_archived)
-        complete_one(bronze)
+        self.assertEqual(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=tournament,
+                award_type=PlayerTournamentAchievement.MEDAL_BRONZE,
+            ).count(), 0, "Bronze medals must not be frozen before tournament finality",
+        )
+        complete_one(second_match)
         tournament.refresh_from_db()
         self.assertEqual(tournament.automation_status, "completed")
         self.assertTrue(tournament.is_archived)
