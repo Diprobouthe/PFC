@@ -263,6 +263,11 @@ class ScenarioStage(models.Model):
         help_text="Number of matches per team for Incomplete Round Robin format (leave blank for full Round Robin)"
     )
     
+    third_place_playoff = models.BooleanField(
+        default=False,
+        help_text="Optional bronze match in a final Knockout Stage; otherwise two shared third places.",
+    )
+
     class Meta:
         unique_together = ("scenario", "stage_number")
         ordering = ["stage_number"]
