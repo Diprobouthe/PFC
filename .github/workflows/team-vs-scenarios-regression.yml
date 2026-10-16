@@ -50,10 +50,17 @@ jobs:
         run: |
           set -o pipefail
           python manage.py test tournaments.test_team_vs_scenarios_regression --verbosity 2 2>&1 | tee team-vs-regression.log
+      - name: P4 Melee and Super Melee isolation regression
+        if: always()
+        run: |
+          set -o pipefail
+          python manage.py test tournaments.test_melee_p4_write_cutover tournaments.test_melee_assignment_writer matches.test_melee_round_assignment_consumers --verbosity 2 2>&1 | tee p4-isolation-regression.log
       - name: Archive output for investigation
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: team-vs-regression-results
-          path: team-vs-regression.log
+          path: |
+            team-vs-regression.log
+            p4-isolation-regression.log
           if-no-files-found: ignore
