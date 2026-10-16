@@ -424,6 +424,11 @@
                         <div class="d-flex justify-content-between align-items-center">
                           <div>
                             <div style="font-weight:600;font-size:.85rem;">{{ match.team1.name }} vs {{ match.team2.name }}</div>
+                            {% if match.placement_role == 'championship_final' %}
+                              <span class="badge bg-warning text-dark">Championship Final</span>
+                            {% elif match.placement_role == 'third_place_playoff' %}
+                              <span class="badge bg-info text-dark">Third-place Playoff</span>
+                            {% endif %}
                             {% if match.status == 'completed' %}
                               <div style="font-size:.78rem;color:#6b7280;">{{ match.team1_score }} – {{ match.team2_score }}</div>
                             {% endif %}
