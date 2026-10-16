@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from courts.models import Court
 from friendly_games.models import PlayerCodename
 from matches.forms import MatchActivationForm, _get_team_players_for_match
 from matches.melee_roster_resolution import (
@@ -15,6 +16,7 @@ from matches.models import Match, MatchActivation, MatchPlayer
 from pfc_core.session_refresh import refresh_player_team_session
 from pfc_core.smart_router import _resolve_tournament_matches
 from teams.models import Player, Team
+from tournaments.lineup_lifecycle import open_round_lineup_window, finalize_round_lineups
 from tournaments.models import (
     MeleePlayer,
     MeleeRoundAssignment,
@@ -415,78 +417,84 @@ class MeleeRoundAssignmentConsumerTests(TestCase):
             {self.player_b.id, self.player_d.id},
         )
 
-    def test_initial_qr_activation_uses_exact_assignment_for_scanned_opponent(self):
-        """Initial QR activation does not require scanned Player.team to match."""
+    def _start_current_round_one(self):
+        """Current P4 starts on a server deadline, not a QR Start handshake."""
+        court = Court.objects.create(number=98123, is_available=True)
+        self.tournament.courts.add(court)
+        opened = open_round_lineup_window(self.round_one.id)
+        self.assertIsNotNone(opened.lineup_deadline_at)
+        freeze = finalize_round_lineups(self.round_one.id)
+        self.assertTrue(freeze.frozen)
+        self.pending_round_one.refresh_from_db()
+        self.assertEqual(self.pending_round_one.status, "active")
+        self.assertIsNotNone(self.pending_round_one.court_id)
+        self.assertEqual(
+            set(MatchPlayer.objects.filter(
+                match=self.pending_round_one,
+            ).values_list("player_id", flat=True)),
+            {player.id for player in self.players},
+        )
+        self.assertEqual(
+            set(MatchPlayer.objects.filter(
+                match=self.pending_round_one, team=self.round_one_team_a,
+            ).values_list("player_id", flat=True)),
+            {self.player_a.id, self.player_b.id},
+        )
+        self.assertEqual(
+            set(MatchPlayer.objects.filter(
+                match=self.pending_round_one, team=self.round_one_team_b,
+            ).values_list("player_id", flat=True)),
+            {self.player_c.id, self.player_d.id},
+        )
+        # Tournament activation no longer requires either phone to Start.
+        self.assertFalse(MatchActivation.objects.filter(match=self.pending_round_one).exists())
+
+    def test_current_round_lineup_freeze_uses_exact_assigned_sides(self):
+        """A mismatch in Player.team must not corrupt the auto-frozen roster."""
+        self._start_current_round_one()
+
+    def test_current_round_activation_does_not_require_opponent_started_push(self):
+        """No obsolete opponent Start handshake; the Court must still go live."""
+        with patch("pfc_events.push_notifications.notify_match_action_required") as push:
+            self._start_current_round_one()
+        self.assertFalse(
+            any(call.args[1] == "opponent_started" for call in push.call_args_list),
+            "The modern lineup deadline must not require the legacy Start notification.",
+        )
+
+    def test_qr_result_validation_uses_exact_opponent_assignment(self):
+        """QR still authorizes the real score-validation flow after auto-start."""
+        self._start_current_round_one()
         self._session_for(self.player_a)
+        response = self.client.post(
+            reverse("match_submit_result", kwargs={
+                "match_id": self.pending_round_one.id,
+                "team_id": self.round_one_team_a.id,
+            }),
+            {"team1_score": 13, "team2_score": 7},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.pending_round_one.refresh_from_db()
+        self.assertEqual(self.pending_round_one.status, "waiting_validation")
+
         session = self.client.session
-        session['qr_resolved_codename'] = PlayerCodename.objects.get(
-            player=self.player_c
+        session["qr_resolved_codename"] = PlayerCodename.objects.get(
+            player=self.player_c,
         ).codename
         session.save()
-
         response = self.client.post(
-            reverse(
-                'match_activate',
-                kwargs={
-                    'match_id': self.pending_round_one.id,
-                    'team_id': self.round_one_team_a.id,
-                },
-            ),
-            {
-                'pin': self.round_one_team_a.pin,
-                'players': [self.player_a.id, self.player_b.id],
-            },
+            reverse("match_validate_result", kwargs={
+                "match_id": self.pending_round_one.id,
+                "team_id": self.round_one_team_b.id,
+            }),
+            {"validation_action": "agree"},
         )
-
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            MatchActivation.objects.filter(
-                match=self.pending_round_one, team=self.round_one_team_a
-            ).exists()
-        )
-        self.assertTrue(
-            MatchActivation.objects.filter(
-                match=self.pending_round_one, team=self.round_one_team_b
-            ).exists()
-        )
-        self.assertEqual(
-            set(
-                MatchPlayer.objects.filter(
-                    match=self.pending_round_one, team=self.round_one_team_b
-                ).values_list('player_id', flat=True)
-            ),
-            {self.player_c.id, self.player_d.id},
-        )
-
-    def test_activation_notification_uses_exact_pending_opponent_roster(self):
-        """First-activation Push target comes from Round assignment, not Team.players."""
-        self._session_for(self.player_a)
-        with patch(
-            'pfc_events.push_notifications.notify_match_action_required'
-        ) as notification_mock:
-            response = self.client.post(
-                reverse(
-                    'match_activate',
-                    kwargs={
-                        'match_id': self.pending_round_one.id,
-                        'team_id': self.round_one_team_a.id,
-                    },
-                ),
-                {
-                    'pin': self.round_one_team_a.pin,
-                    'players': [self.player_a.id, self.player_b.id],
-                },
-            )
-
-        self.assertEqual(response.status_code, 302)
-        recipients, action, object_type, object_id = notification_mock.call_args.args
-        self.assertEqual(action, 'opponent_started')
-        self.assertEqual(object_type, 'match')
-        self.assertEqual(object_id, self.pending_round_one.id)
-        self.assertEqual(
-            {player.id for player in recipients},
-            {self.player_c.id, self.player_d.id},
-        )
+        self.pending_round_one.refresh_from_db()
+        self.assertEqual(self.pending_round_one.status, "completed")
+        self.assertEqual(self.pending_round_one.winner_id, self.round_one_team_a.id)
+        self.assertEqual(self.pending_round_one.result.validated_by_id, self.round_one_team_b.id)
+        self.assertFalse(MatchActivation.objects.filter(match=self.pending_round_one).exists())
 
     def test_new_match_notification_uses_exact_round_assignment_rosters(self):
         """The post-commit new-Match Push uses P3 exact assignment recipients."""
