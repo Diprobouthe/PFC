@@ -59,7 +59,7 @@ jobs:
           python manage.py test \
             tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_swiss_8_to_4_semifinals_final_and_champion_ranked_first \
             tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_optional_bronze_match_finalizes_only_after_both_finals \
-            tournaments.test_player_tournament_history \
+            tournaments.test_player_tournament_history.PlayerTournamentHistoryTests.test_final_history_and_medals_use_match_snapshots_and_are_idempotent \
             --verbosity 2 2>&1 | tee cep-final-four.log
       - name: Eight-team Swiss Final Four and ordinary Knockout diagnostics
         if: always()
