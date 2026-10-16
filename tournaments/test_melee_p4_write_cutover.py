@@ -8,6 +8,7 @@ from django.utils import timezone
 from courts.models import Court
 from friendly_games.models import PlayerCodename
 from matches.melee_roster_resolution import players_for_match_team
+from matches.lifecycle import submit_official_result, validate_official_result
 from matches.models import Match, MatchActivation, MatchPlayer
 from tournaments.lineup_lifecycle import open_round_lineup_window, finalize_round_lineups
 from matches.rating_integration import get_players_with_profiles
@@ -185,9 +186,23 @@ class MeleeP4WriteCutoverTests(TestCase):
         )
         self._assert_home_affiliations_unchanged()
 
-        # A completed Round can now shuffle into a concrete Round 2 without
-        # changing Player.team. Scores are not material to the reshuffle test.
-        Match.objects.filter(pk=round_one_match.pk).update(status="completed")
+        # Complete through the official lifecycle: it validates the winner AND
+        # releases the Court. A direct status UPDATE would fake completion and
+        # leave Round 2 waiting for a Court that never became available.
+        submission = submit_official_result(
+            round_one_match.id, submitted_by_id=round_one_match.team1_id,
+            team1_score=13, team2_score=7,
+        )
+        self.assertEqual(submission.state, "submitted")
+        validation = validate_official_result(
+            round_one_match.id, validating_team_id=round_one_match.team2_id,
+            agree=True,
+        )
+        self.assertEqual(validation.state, "completed")
+        round_one_match.refresh_from_db()
+        self.assertEqual(round_one_match.status, "completed")
+        self.assertEqual(round_one_match.winner_id, round_one_match.team1_id)
+        self.assertTrue(Court.objects.get(id=round_one_match.court_id).is_available)
         with patch("tournaments.shuffle_utils.random.shuffle", side_effect=lambda values: values.reverse()):
             shuffle_result = shuffle_melee_players(
                 tournament=self.tournament,
@@ -255,7 +270,18 @@ class MeleeP4WriteCutoverTests(TestCase):
         )
         self._assert_home_affiliations_unchanged()
 
-        Match.objects.filter(pk=round_two_match.pk).update(status="completed")
+        second_submission = submit_official_result(
+            round_two_match.id, submitted_by_id=round_two_match.team1_id,
+            team1_score=13, team2_score=7,
+        )
+        self.assertEqual(second_submission.state, "submitted")
+        second_validation = validate_official_result(
+            round_two_match.id, validating_team_id=round_two_match.team2_id,
+            agree=True,
+        )
+        self.assertEqual(second_validation.state, "completed")
+        round_two_match.refresh_from_db()
+        self.assertEqual(round_two_match.status, "completed")
         self.assertTrue(self.tournament.is_tournament_complete())
         self.assertEqual(self.tournament.auto_restore_players_on_completion(), 0)
         self._assert_home_affiliations_unchanged()
