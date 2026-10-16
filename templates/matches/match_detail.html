@@ -332,6 +332,11 @@
             {% else %}{{ match.get_status_display }}{% endif %}
         </span>
     </div>
+    {% if match.placement_role == 'championship_final' %}
+    <div class="alert alert-warning py-2 mb-1" role="note"><i class="fas fa-trophy"></i> {% translate "Championship Final" %}</div>
+    {% elif match.placement_role == 'third_place_playoff' %}
+    <div class="alert alert-info py-2 mb-1" role="note"><i class="fas fa-medal"></i> {% translate "Third-place Playoff" %}</div>
+    {% endif %}
 
     {% if messages %}
     {% for msg in messages %}
