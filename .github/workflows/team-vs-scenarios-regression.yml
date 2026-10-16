@@ -52,6 +52,15 @@ jobs:
         run: |
           set -o pipefail
           python manage.py test tournaments.test_team_vs_scenarios_regression --verbosity 2 2>&1 | tee team-vs-regression.log
+      - name: CEP Final Four feature and tournament history regression
+        if: always()
+        run: |
+          set -o pipefail
+          python manage.py test \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_swiss_8_to_4_semifinals_final_and_champion_ranked_first \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_optional_bronze_match_finalizes_only_after_both_finals \
+            tournaments.test_player_tournament_history \
+            --verbosity 2 2>&1 | tee cep-final-four.log
       - name: Eight-team Swiss Final Four and ordinary Knockout diagnostics
         if: always()
         run: |
@@ -70,5 +79,6 @@ jobs:
           path: |
             team-vs-regression.log
             eight-team-diagnostics.log
+            cep-final-four.log
             p4-isolation-regression.log
           if-no-files-found: ignore
