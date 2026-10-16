@@ -249,6 +249,141 @@ class EightTeamTournamentDiagnosticTests(TestCase):
             ).count(), 4, "Both semifinal-losing doublets must get bronze",
         )
 
+    def test_optional_bronze_match_finalizes_only_after_both_finals(self):
+        """8 Swiss → 4 knockout → championship + bronze in one terminal Round."""
+        scenario = TournamentScenario.objects.create(
+            name="e2e-eight-bronze-option",
+            display_name="E2E 8 Swiss Played Bronze",
+            description="3 Swiss + two finals",
+            default_court_complex=self.complex,
+            scenario_mode="team", tournament_type="swiss",
+            num_rounds=3, draft_type="random",
+            is_free=True, requires_voucher=False,
+            max_courts=4, recommended_courts=4,
+            lineup_selection_seconds=0,
+        )
+        ScenarioStage.objects.create(
+            scenario=scenario, stage_number=1, name="Swiss",
+            format="swiss", num_rounds_in_stage=3, num_qualifiers=4,
+        )
+        ScenarioStage.objects.create(
+            scenario=scenario, stage_number=2, name="Final Four",
+            format="knockout", num_rounds_in_stage=2, num_qualifiers=0,
+            third_place_playoff=True,
+        )
+        response = self.client.post(reverse("create_simple_tournament"), {
+            "scenario": scenario.name, "format": "doubles", "num_courts": "4",
+        })
+        self.assertEqual(response.status_code, 302)
+        tournament = Tournament.objects.filter(
+            name__startswith=scenario.display_name
+        ).order_by("-pk").first()
+        self.assertIsNotNone(tournament)
+        swiss, final_four = list(tournament.stages.order_by("stage_number"))
+        self.assertTrue(final_four.third_place_playoff)
+        for team in self.teams:
+            activate_team_tournament_signin(team=team, tournament=tournament)
+        self.assertEqual(
+            self.client.post(
+                reverse("start_tournament", args=[tournament.id])
+            ).status_code, 302,
+        )
+        for number in (1, 2, 3):
+            playing_round = Round.objects.get(
+                tournament=tournament, stage=swiss, number_in_stage=number,
+            )
+            self.assertEqual(Match.objects.filter(round=playing_round).count(), 4)
+            self._complete_round(
+                playing_round, choose_winner=lambda match: match.team1_id,
+            )
+        qualifiers = set(TournamentTeam.objects.filter(
+            tournament=tournament, current_stage_number=2, is_active=True,
+        ).values_list("team_id", flat=True))
+        self.assertEqual(len(qualifiers), 4)
+        semi_round = Round.objects.get(
+            tournament=tournament, stage=final_four, number_in_stage=1,
+        )
+        semifinal_matches = list(Match.objects.filter(round=semi_round))
+        self.assertEqual(len(semifinal_matches), 2)
+        self.assertEqual(
+            {tid for m in semifinal_matches for tid in (m.team1_id, m.team2_id)},
+            qualifiers,
+        )
+        semi_winners, semi_losers = self._complete_round(
+            semi_round, choose_winner=lambda match: match.team1_id,
+        )
+        final_round = Round.objects.get(
+            tournament=tournament, stage=final_four, number_in_stage=2,
+        )
+        final = Match.objects.get(round=final_round, placement_role="championship_final")
+        bronze = Match.objects.get(round=final_round, placement_role="third_place_playoff")
+        self.assertEqual(
+            {final.team1_id, final.team2_id}, set(semi_winners),
+        )
+        self.assertEqual(
+            {bronze.team1_id, bronze.team2_id}, set(semi_losers),
+        )
+        self.assertEqual(Match.objects.filter(round=final_round).count(), 2)
+        freeze = finalize_round_lineups(final_round.id)
+        self.assertTrue(freeze.frozen)
+        self.assertEqual(len(freeze.ready_match_ids), 2)
+
+        def complete_one(match):
+            match.refresh_from_db()
+            self.assertEqual(match.status, "active")
+            self.assertEqual(
+                submit_official_result(
+                    match.id, submitted_by_id=match.team1_id,
+                    team1_score=13, team2_score=7,
+                ).state, "submitted",
+            )
+            self.assertEqual(
+                validate_official_result(
+                    match.id, validating_team_id=match.team2_id, agree=True,
+                ).state, "completed",
+            )
+            self.assertTrue(process_tournament_transition(match.id))
+
+        # Championship has ended, but bronze remains unresolved: no completion.
+        complete_one(final)
+        tournament.refresh_from_db()
+        self.assertNotEqual(tournament.automation_status, "completed")
+        self.assertFalse(tournament.is_archived)
+        complete_one(bronze)
+        tournament.refresh_from_db()
+        self.assertEqual(tournament.automation_status, "completed")
+        self.assertTrue(tournament.is_archived)
+        self.assertEqual(Match.objects.filter(tournament=tournament).count(), 16)
+        ranks = list(
+            LeaderboardEntry.objects.filter(
+                leaderboard__tournament=tournament,
+            ).order_by("position")
+        )
+        self.assertEqual(len(ranks), 8)
+        self.assertEqual(
+            [e.official_place for e in ranks[:4]], [1, 2, 3, 4],
+        )
+        self.assertEqual(ranks[0].team_id, final.team1_id)
+        self.assertEqual(ranks[1].team_id, final.team2_id)
+        self.assertEqual(ranks[2].team_id, bronze.team1_id)
+        self.assertEqual(ranks[3].team_id, bronze.team2_id)
+        self.assertEqual(
+            [e.tournament_status for e in ranks[:4]],
+            ["champion", "finalist", "third_place", "fourth_place"],
+        )
+        self.assertEqual(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=tournament,
+                award_type=PlayerTournamentAchievement.MEDAL_BRONZE,
+            ).count(), 2, "Only winning bronze doublet earns bronze",
+        )
+        self.assertTrue(process_tournament_transition(bronze.id))
+        self.assertEqual(Match.objects.filter(tournament=tournament).count(), 16)
+        print(
+            f"EIGHT_TEAM_BRONZE MATCHES=16 ranks={[e.official_place for e in ranks[:4]]}",
+            flush=True,
+        )
+
     def test_ordinary_knockout_8_teams_generates_winner_only_successor(self):
         """Control test for the non-Scenario ordinary Tournament model path."""
         now = timezone.now()
