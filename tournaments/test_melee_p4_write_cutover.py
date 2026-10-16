@@ -8,7 +8,11 @@ from django.utils import timezone
 from courts.models import Court
 from friendly_games.models import PlayerCodename
 from matches.melee_roster_resolution import players_for_match_team
+from matches.lifecycle import (
+    submit_official_result, validate_official_result, process_tournament_transition,
+)
 from matches.models import Match, MatchActivation, MatchPlayer
+from tournaments.lineup_lifecycle import open_round_lineup_window, finalize_round_lineups
 from matches.rating_integration import get_players_with_profiles
 from teams.models import Player, PlayerProfile, Team
 from tournaments.admin_melee_swap import perform_melee_swap
@@ -97,43 +101,36 @@ class MeleeP4WriteCutoverTests(TestCase):
             ).order_by("player_id").values_list("player_id", flat=True)
         )
 
-    def _activate_both_sides_by_qr(self, match):
+    def _activate_round_from_assignments(self, match):
+        """Current P4: freeze exact Round assignments; do not wait for QR Start."""
         team_one_players = list(players_for_match_team(match, match.team1))
         team_two_players = list(players_for_match_team(match, match.team2))
         self.assertEqual(len(team_one_players), 2)
         self.assertEqual(len(team_two_players), 2)
-        self._set_player_session(team_one_players[0])
-        session = self.client.session
-        session["qr_resolved_codename"] = PlayerCodename.objects.get(
-            player=team_two_players[0]
-        ).codename
-        session.save()
-        response = self.client.post(
-            reverse(
-                "match_activate",
-                kwargs={"match_id": match.id, "team_id": match.team1_id},
-            ),
-            {
-                "pin": match.team1.pin,
-                "players": [player.id for player in team_one_players],
-            },
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(MatchActivation.objects.filter(match=match, team=match.team1).exists())
-        self.assertTrue(MatchActivation.objects.filter(match=match, team=match.team2).exists())
-        self.assertEqual(
-            set(
-                MatchPlayer.objects.filter(match=match, team=match.team1)
-                .values_list("player_id", flat=True)
-            ),
-            {player.id for player in team_one_players},
+        match.refresh_from_db()
+        round_obj = match.round
+        if round_obj.lineup_deadline_at is None:
+            open_round_lineup_window(round_obj.id)
+        outcome = finalize_round_lineups(round_obj.id)
+        self.assertTrue(outcome.frozen, outcome.blocked_match_ids)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "active")
+        self.assertIsNotNone(match.court_id)
+        self.assertFalse(
+            MatchActivation.objects.filter(match=match).exists(),
+            "Current P4 should not depend on legacy two-phone activation records",
         )
         self.assertEqual(
-            set(
-                MatchPlayer.objects.filter(match=match, team=match.team2)
-                .values_list("player_id", flat=True)
-            ),
-            {player.id for player in team_two_players},
+            set(MatchPlayer.objects.filter(
+                match=match, team=match.team1,
+            ).values_list("player_id", flat=True)),
+            {p.id for p in team_one_players},
+        )
+        self.assertEqual(
+            set(MatchPlayer.objects.filter(
+                match=match, team=match.team2,
+            ).values_list("player_id", flat=True)),
+            {p.id for p in team_two_players},
         )
 
     def test_end_to_end_assignment_based_lifecycle_keeps_home_team(self):
@@ -183,7 +180,7 @@ class MeleeP4WriteCutoverTests(TestCase):
                 round=round_one,
             )
         }
-        self._activate_both_sides_by_qr(round_one_match)
+        self._activate_round_from_assignments(round_one_match)
         round_one_snapshot = set(
             MatchPlayer.objects.filter(match=round_one_match).values_list(
                 "player_id", "team_id"
@@ -191,9 +188,23 @@ class MeleeP4WriteCutoverTests(TestCase):
         )
         self._assert_home_affiliations_unchanged()
 
-        # A completed Round can now shuffle into a concrete Round 2 without
-        # changing Player.team. Scores are not material to the reshuffle test.
-        Match.objects.filter(pk=round_one_match.pk).update(status="completed")
+        # Complete through the official lifecycle: it validates the winner AND
+        # releases the Court. A direct status UPDATE would fake completion and
+        # leave Round 2 waiting for a Court that never became available.
+        submission = submit_official_result(
+            round_one_match.id, submitted_by_id=round_one_match.team1_id,
+            team1_score=13, team2_score=7,
+        )
+        self.assertEqual(submission.state, "submitted")
+        validation = validate_official_result(
+            round_one_match.id, validating_team_id=round_one_match.team2_id,
+            agree=True,
+        )
+        self.assertEqual(validation.state, "completed")
+        round_one_match.refresh_from_db()
+        self.assertEqual(round_one_match.status, "completed")
+        self.assertEqual(round_one_match.winner_id, round_one_match.team1_id)
+        self.assertTrue(Court.objects.get(id=round_one_match.court_id).is_available)
         with patch("tournaments.shuffle_utils.random.shuffle", side_effect=lambda values: values.reverse()):
             shuffle_result = shuffle_melee_players(
                 tournament=self.tournament,
@@ -251,7 +262,7 @@ class MeleeP4WriteCutoverTests(TestCase):
             team2=round_two_teams[1].team,
             status="pending",
         )
-        self._activate_both_sides_by_qr(round_two_match)
+        self._activate_round_from_assignments(round_two_match)
         self.assertEqual(
             set(
                 MatchPlayer.objects.filter(match=round_two_match, team=round_two_match.team1)
@@ -261,10 +272,63 @@ class MeleeP4WriteCutoverTests(TestCase):
         )
         self._assert_home_affiliations_unchanged()
 
-        Match.objects.filter(pk=round_two_match.pk).update(status="completed")
+        second_submission = submit_official_result(
+            round_two_match.id, submitted_by_id=round_two_match.team1_id,
+            team1_score=13, team2_score=7,
+        )
+        self.assertEqual(second_submission.state, "submitted")
+        second_validation = validate_official_result(
+            round_two_match.id, validating_team_id=round_two_match.team2_id,
+            agree=True,
+        )
+        self.assertEqual(second_validation.state, "completed")
+        round_two_match.refresh_from_db()
+        self.assertEqual(round_two_match.status, "completed")
         self.assertTrue(self.tournament.is_tournament_complete())
         self.assertEqual(self.tournament.auto_restore_players_on_completion(), 0)
         self._assert_home_affiliations_unchanged()
+
+    def test_real_auto_transition_starts_each_super_melee_round_after_qr_score(self):
+        """A full real Round handoff: deadline, Court, validated score, next Round."""
+        self.assertEqual(self.tournament.generate_melee_teams("random"), 2)
+        self.assertEqual(self.tournament.generate_matches(), 1)
+        for number in (1, 2, 3):
+            round_obj = Round.objects.filter(
+                tournament=self.tournament, stage=self.stage,
+                number_in_stage=number,
+            ).first()
+            self.assertIsNotNone(round_obj, f"Round {number} was not generated")
+            matches = list(Match.objects.filter(round=round_obj))
+            self.assertEqual(len(matches), 1, f"Round {number} should have one Match")
+            match = matches[0]
+            self._activate_round_from_assignments(match)
+            submitted = submit_official_result(
+                match.id, submitted_by_id=match.team1_id,
+                team1_score=13, team2_score=7,
+            )
+            self.assertEqual(submitted.state, "submitted")
+            validated = validate_official_result(
+                match.id, validating_team_id=match.team2_id, agree=True,
+            )
+            self.assertEqual(validated.state, "completed")
+            self.assertTrue(
+                process_tournament_transition(match.id),
+                f"Round {number} lifecycle projection failed",
+            )
+            round_obj.refresh_from_db()
+            self.assertTrue(round_obj.is_complete, f"Round {number} never closed")
+            self._assert_home_affiliations_unchanged()
+            if number < 3:
+                self.assertTrue(
+                    Round.objects.filter(
+                        tournament=self.tournament, stage=self.stage,
+                        number_in_stage=number + 1, matches__isnull=False,
+                    ).exists(),
+                    f"Round {number + 1} Match not created automatically",
+                )
+        self.tournament.refresh_from_db()
+        self.assertEqual(self.tournament.automation_status, "completed")
+        self.assertTrue(self.tournament.is_archived)
 
     def test_rating_fallback_uses_exact_assignment_not_empty_temp_team_members(self):
         self.tournament.generate_melee_teams("balanced")
