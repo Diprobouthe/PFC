@@ -84,7 +84,7 @@ class StageForm(forms.ModelForm):
         model = Stage
         fields = [
             'tournament', 'stage_number', 'name', 'format',
-            'num_rounds_in_stage', 'num_qualifiers', 'num_matches_per_team'
+            'num_rounds_in_stage', 'num_qualifiers', 'num_matches_per_team', 'third_place_playoff'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'e.g., Qualification Round, Semi-Finals'}),
@@ -131,6 +131,16 @@ class StageForm(forms.ModelForm):
         if tournament is None and self.instance.tournament_id:
             tournament = self.instance.tournament
         num_rounds_in_stage = cleaned_data.get('num_rounds_in_stage')
+        if cleaned_data.get('third_place_playoff'):
+            if (
+                format_type != 'knockout'
+                or cleaned_data.get('stage_number', self.instance.stage_number) < 2
+                or (num_rounds_in_stage or 0) < 2
+            ):
+                self.add_error(
+                    'third_place_playoff',
+                    'A bronze playoff requires a later Knockout Stage with at least two rounds.',
+                )
 
         if format_type == 'round_robin' and not num_rounds_in_stage:
             # This persisted placeholder is replaced by the authoritative RR
