@@ -237,7 +237,33 @@ def _multi_stage_is_finished(tournament):
     final_stage = tournament.stages.filter(stage_number=max_stage).first()
     if not final_stage:
         return False
-    
+
+    if not tournament.is_melee:
+        # Completion is a property of the configured final Stage and its
+        # *Rounds*, not the number of distinct winners in its semifinals.
+        # Preserve legacy Mêlée semantics below unchanged.
+        rounds = list(final_stage.rounds.order_by("number_in_stage"))
+        if (len(rounds) < final_stage.num_rounds_in_stage or not rounds):
+            return False
+        from matches.models import Match
+        matches = Match.objects.filter(
+            tournament=tournament, round__stage=final_stage,
+        )
+        if not matches.exists() or matches.exclude(status="completed").exists():
+            return False
+        if final_stage.format == "knockout":
+            if len(rounds) >= 2:
+                from tournaments.final_placements import final_four_podium
+                return final_four_podium(tournament) is not None
+            # A single championship Match is the only valid single-Round
+            # terminal Knockout (e.g. 2-Team finals without semifinals).
+            if matches.count() != 1:
+                return False
+            return matches.filter(
+                winner__isnull=False, loser__isnull=False,
+            ).exists()
+        return True
+
     # Check if final stage has any incomplete matches
     from matches.models import Match
     incomplete_matches = Match.objects.filter(

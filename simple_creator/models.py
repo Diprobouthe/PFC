@@ -263,10 +263,30 @@ class ScenarioStage(models.Model):
         help_text="Number of matches per team for Incomplete Round Robin format (leave blank for full Round Robin)"
     )
     
+    third_place_playoff = models.BooleanField(
+        default=False,
+        help_text="Optional bronze match in a final Knockout Stage; otherwise two shared third places.",
+    )
+
     class Meta:
         unique_together = ("scenario", "stage_number")
         ordering = ["stage_number"]
     
+    def clean(self):
+        super().clean()
+        if self.third_place_playoff and (
+            self.format != "knockout"
+            or (self.stage_number or 0) < 2
+            or self.num_rounds_in_stage < 2
+        ):
+            from django.core.exceptions import ValidationError
+            raise ValidationError({
+                "third_place_playoff": (
+                    "A bronze playoff needs a second-or-later Knockout Stage "
+                    "with semifinals and a final."
+                ),
+            })
+
     def __str__(self):
         return f"Stage {self.stage_number}: {self.name} ({self.scenario.display_name})"
 

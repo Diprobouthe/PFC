@@ -267,8 +267,25 @@ def _official_team_placements(tournament):
         # PFC does not create or store an authoritative third-place Match.
         return [("gold", final_match.winner), ("silver", final_match.loser)]
 
-    # Multi-stage and Independent Games currently have no standalone immutable
-    # placement contract. Do not convert a projection or VS points into medals.
+    if tournament.format == "multi_stage" and not tournament.is_melee:
+        from tournaments.final_placements import final_four_podium
+        podium = final_four_podium(tournament)
+        if not podium:
+            # Never grant medals based on a provisional leaderboard.
+            return []
+        teams_by_id = {
+            tt.team_id: tt.team for tt in tournament.tournamentteam_set.select_related("team")
+        }
+        medal_name = {1: "gold", 2: "silver", 3: "bronze"}
+        return [
+            (medal_name[data["rank"]], teams_by_id[team_id])
+            for team_id, data in sorted(
+                podium.items(), key=lambda item: (item[1]["rank"], item[0])
+            )
+            if data["rank"] in medal_name and team_id in teams_by_id
+        ]
+
+    # VS still has no immutable podium contract.
     return []
 
 

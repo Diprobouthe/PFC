@@ -73,14 +73,14 @@
                 {% for entry in entries %}
                 <tr class="{% if entry.tournament_status == 'champion' %}table-warning{% elif entry.tournament_status == 'finalist' %}table-info{% elif entry.tournament_status != 'active' and is_multistage %}text-muted{% endif %}">
                   <td>
-                    {% if entry.position == 1 %}
+                    {% if entry.display_position == 1 %}
                       <span class="fw-bold text-warning">1</span>
-                    {% elif entry.position == 2 %}
+                    {% elif entry.display_position == 2 %}
                       <span class="fw-bold text-secondary">2</span>
-                    {% elif entry.position == 3 %}
+                    {% elif entry.display_position == 3 %}
                       <span class="fw-bold">3</span>
                     {% else %}
-                      {{ entry.position }}
+                      {{ entry.display_position }}
                     {% endif %}
                   </td>
                   <td>
@@ -97,6 +97,12 @@
                         <span class="badge bg-warning text-dark">Champion</span>
                       {% elif entry.tournament_status == 'finalist' %}
                         <span class="badge bg-info text-dark">Finalist</span>
+                      {% elif entry.tournament_status == 'shared_third' %}
+                        <span class="badge bg-warning text-dark">Joint Bronze</span>
+                      {% elif entry.tournament_status == 'third_place' %}
+                        <span class="badge bg-warning text-dark">Third Place</span>
+                      {% elif entry.tournament_status == 'fourth_place' %}
+                        <span class="badge bg-secondary">Fourth Place</span>
                       {% elif entry.tournament_status == 'semi-finalist' %}
                         <span class="badge bg-primary">Semi-finalist</span>
                       {% elif entry.tournament_status == 'active' %}
@@ -139,7 +145,8 @@
               <small class="text-muted">
                 <strong>Global Tournament Ranking:</strong>
                 All teams that participated are shown regardless of which stage they were eliminated in.
-                Teams that advanced further rank higher; within the same stage, Swiss points and Buchholz score are used as tie-breakers.
+                Completed championship and bronze Matches determine podium places first.
+                Without a bronze playoff both semifinal losers share third place; Swiss and Buchholz break other ties.
               </small>
             {% elif is_swiss %}
               <small class="text-muted">

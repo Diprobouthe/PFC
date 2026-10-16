@@ -1,0 +1,58 @@
+name: CEP Final Four release gate
+
+on:
+  push:
+    branches:
+      - test/team-vs-scenarios-regression-20261016
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cep-final-four:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_cep_release_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_cep_release_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_cep_release_test
+      SECRET_KEY: cep-isolated-release-gate-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Check Django and migrations
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Final Four both bronze modes, both final completion orders, and frozen history
+        run: |
+          python manage.py test \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_swiss_8_to_4_semifinals_final_and_champion_ranked_first \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_optional_bronze_match_finalizes_only_after_both_finals \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_bronze_finishes_before_championship_final_no_early_completion \
+            tournaments.test_player_tournament_history.PlayerTournamentHistoryTests.test_final_history_and_medals_use_match_snapshots_and_are_idempotent \
+            --verbosity 2

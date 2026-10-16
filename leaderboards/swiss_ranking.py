@@ -265,6 +265,9 @@ def get_global_multistage_rankings(tournament):
     # Get ALL tournament teams — do NOT filter by is_active or current_stage_number
     all_tournament_teams = tournament.tournamentteam_set.select_related('team').all()
 
+    from tournaments.final_placements import final_four_podium
+    podium = final_four_podium(tournament)
+
     rankings = []
     for team_tt in all_tournament_teams:
         # Aggregate stats across ALL stages this team participated in
@@ -291,7 +294,15 @@ def get_global_multistage_rankings(tournament):
                 points_conceded += match.team1_score or 0
 
         # Determine status
-        status = _determine_team_status(team_tt, tournament, stages, current_stage_number)
+        status = (
+            podium[team_tt.team_id]["status"]
+            if podium is not None and team_tt.team_id in podium
+            else (
+                f"eliminated ({stages[-2].name})"
+                if podium is not None and team_tt.current_stage_number < max_stage
+                else _determine_team_status(team_tt, tournament, stages, current_stage_number)
+            )
+        )
 
         rankings.append({
             'team': team_tt.team,
@@ -308,18 +319,24 @@ def get_global_multistage_rankings(tournament):
             'point_difference': points_scored - points_conceded,
         })
 
-    # Sort: stage_reached desc → swiss_points desc → buchholz desc → point_diff desc
+    # Swiss points only tie-break equally placed Teams; actual final results
+    # determine podium ranks. Keep the unique ordinal position for compatibility.
     rankings.sort(key=lambda x: (
-        x['stage_reached'],
-        x['swiss_points'],
-        x['buchholz_score'],
-        x['point_difference'],
-        x['points_scored'],
+        x['stage_reached'], x['swiss_points'], x['buchholz_score'],
+        x['point_difference'], x['points_scored'],
     ), reverse=True)
-
-    # Assign positions
-    for i, r in enumerate(rankings):
-        r['position'] = i + 1
+    if podium is not None:
+        rankings.sort(key=lambda x: (
+            0 if x["team"].id in podium else 1,
+            podium[x["team"].id]["rank"] if x["team"].id in podium else 999,
+        ))
+    for i, ranking in enumerate(rankings, 1):
+        ranking["position"] = i
+        ranking["official_place"] = (
+            podium[ranking["team"].id]["rank"]
+            if podium is not None and ranking["team"].id in podium
+            else i if podium is not None else None
+        )
 
     logger.info(
         f"Global multi-stage rankings: {len(rankings)} teams "

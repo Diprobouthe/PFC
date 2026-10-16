@@ -279,6 +279,10 @@ def _create_simple_tournament(form_data):
                 num_qualifiers=scenario_stage.num_qualifiers,
                 num_rounds_in_stage=scenario_stage.num_rounds_in_stage,
                 num_matches_per_team=scenario_stage.num_matches_per_team,
+                third_place_playoff=(
+                    scenario_stage.third_place_playoff
+                    if scenario_stage.format == "knockout" else False
+                ),
                 is_complete=False
             )
     else:

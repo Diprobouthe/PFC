@@ -15,7 +15,12 @@ class LeaderboardEntry(models.Model):
     """Model for individual team entries in a leaderboard with Swiss support"""
     leaderboard = models.ForeignKey(Leaderboard, related_name='entries', on_delete=models.CASCADE)
     team = models.ForeignKey(Team, related_name='leaderboard_entries', on_delete=models.CASCADE)
+    # Unique position is an ordinal; official_place may be tied (3/3).
     position = models.PositiveIntegerField()
+    official_place = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Official rank; two semifinal losers can share third place.",
+    )
     matches_played = models.PositiveIntegerField(default=0)
     matches_won = models.PositiveIntegerField(default=0)
     matches_lost = models.PositiveIntegerField(default=0)

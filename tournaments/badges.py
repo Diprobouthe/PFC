@@ -57,11 +57,16 @@ def assign_tournament_badges(tournament, final_standings):
         logger.warning(f"No final standings provided for tournament {tournament.name}")
         return {}
         
+    from tournaments.final_placements import final_four_podium
+    podium = final_four_podium(tournament)
+
     badges_assigned = {}
     total_teams = len(final_standings)
     
     # Assign badges based on position
     for position, team in enumerate(final_standings, 1):
+        # Official Bronze may be shared; unique row order never defines rank.
+        official_rank = podium[team.id]["rank"] if podium and team.id in podium else position
         team_badges = []
         
         # Get or create team profile
@@ -70,7 +75,7 @@ def assign_tournament_badges(tournament, final_standings):
             logger.info(f"Created new TeamProfile for {team.name}")
             
         # Assign position-based badges
-        if position == 1 and total_teams >= 1:
+        if official_rank == 1 and total_teams >= 1:
             # First place
             badge_data = {
                 'tournament_id': tournament.id,
@@ -83,7 +88,7 @@ def assign_tournament_badges(tournament, final_standings):
                 team_badges.append('🥇 1st Place')
                 logger.info(f"Awarded 1st place badge to {team.name}")
                 
-        elif position == 2 and total_teams >= 2:
+        elif official_rank == 2 and total_teams >= 2:
             # Second place
             badge_data = {
                 'tournament_id': tournament.id,
@@ -96,7 +101,7 @@ def assign_tournament_badges(tournament, final_standings):
                 team_badges.append('🥈 2nd Place')
                 logger.info(f"Awarded 2nd place badge to {team.name}")
                 
-        elif position == 3 and total_teams >= 3:
+        elif official_rank == 3 and total_teams >= 3:
             # Third place
             badge_data = {
                 'tournament_id': tournament.id,
@@ -158,7 +163,16 @@ def get_tournament_final_standings(tournament):
     elif tournament.format == "swiss" or tournament.format == "smart_swiss":
         return _get_swiss_standings(tournament, tournament_teams)
     elif tournament.format == "multi_stage":
-        return _get_multi_stage_standings(tournament, tournament_teams)
+        from tournaments.final_placements import final_four_podium
+        podium = final_four_podium(tournament)
+        existing = _get_multi_stage_standings(tournament, tournament_teams)
+        if not podium:
+            return existing
+        ordered_podium = sorted(
+            (team for team in existing if team.id in podium),
+            key=lambda team: (podium[team.id]["rank"], team.id),
+        )
+        return ordered_podium + [team for team in existing if team.id not in podium]
     else:
         logger.warning(f"Unknown tournament format: {tournament.format}")
         return [tt.team for tt in tournament_teams]

@@ -53,6 +53,16 @@ class Match(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    PLACEMENT_ROLES = (
+        ("normal", "Regular Match"),
+        ("championship_final", "Championship Final"),
+        ("third_place_playoff", "Third-place Playoff"),
+    )
+    placement_role = models.CharField(
+        max_length=24, choices=PLACEMENT_ROLES, default="normal",
+        help_text="Finals purpose; separate from doubles/triples Match format.",
+    )
+
     # Add field to store winner/loser for progression
     winner = models.ForeignKey("teams.Team", related_name="won_matches", on_delete=models.SET_NULL, null=True, blank=True)
     loser = models.ForeignKey("teams.Team", related_name="lost_matches", on_delete=models.SET_NULL, null=True, blank=True)

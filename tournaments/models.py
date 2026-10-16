@@ -1868,6 +1868,11 @@ class Stage(models.Model):
         help_text="Number of matches per team for Incomplete Round Robin format (leave blank for full Round Robin)"
     )
     
+    third_place_playoff = models.BooleanField(
+        default=False,
+        help_text="Optional bronze Match after Knockout semifinals; off means shared third place.",
+    )
+
     # settings = models.JSONField(null=True, blank=True) # For group size, etc.
     is_complete = models.BooleanField(default=False)
     progression_message = models.CharField(

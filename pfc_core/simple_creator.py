@@ -401,24 +401,47 @@ def create_simple_tournament(request):
         # are created only when the second team registers, so it must never
         # receive a generic Stage, Round, or bracket-generation configuration.
         if not is_vs_mode:
-            stage = Stage.objects.create(
-                tournament=tournament,
-                name="Main Stage",
-                stage_number=1,
-                format=scenario['tournament_type'],
-                num_qualifiers=1,
-                is_complete=False
+            # Only a normal Team Scenario copies its explicitly configured
+            # Stage templates. Mêlée/Super Mêlée keep their established
+            # single-stage generation behavior and VS remains stage-free.
+            configured_team_stages = (
+                list(scenario_obj.scenario_stages.order_by("stage_number"))
+                if is_team_mode and scenario_obj is not None else []
             )
+            if configured_team_stages:
+                for stage_template in configured_team_stages:
+                    Stage.objects.create(
+                        tournament=tournament,
+                        name=stage_template.name or f"Stage {stage_template.stage_number}",
+                        stage_number=stage_template.stage_number,
+                        format=stage_template.format,
+                        num_qualifiers=stage_template.num_qualifiers,
+                        num_rounds_in_stage=stage_template.num_rounds_in_stage,
+                        num_matches_per_team=stage_template.num_matches_per_team,
+                        third_place_playoff=(
+                            stage_template.third_place_playoff
+                            if stage_template.format == "knockout" else False
+                        ),
+                        is_complete=False,
+                    )
+            else:
+                # Backwards-compatible default for every Scenario without
+                # explicit Team Stage templates (including Mêlée variants).
+                stage = Stage.objects.create(
+                    tournament=tournament,
+                    name="Main Stage",
+                    stage_number=1,
+                    format=scenario['tournament_type'],
+                    num_qualifiers=1,
+                    is_complete=False
+                )
 
-            if scenario['tournament_type'] == 'swiss':
-                stage.num_rounds_in_stage = scenario['num_rounds']
-            else:  # round_robin
-                # The shared Round Robin generator derives its playing Round
-                # count from the stable registered Team set.  Scenario input
-                # remains only the optional total matches-per-Team value for a
-                # partial schedule; it is never a Court or Round-size input.
-                stage.num_matches_per_team = scenario.get('matches_per_team') or None
-            stage.save()
+                if scenario['tournament_type'] == 'swiss':
+                    stage.num_rounds_in_stage = scenario['num_rounds']
+                else:  # round_robin
+                    # Court count is never a Round Robin schedule-size input.
+                    stage.num_matches_per_team = scenario.get('matches_per_team') or None
+                stage.save()
         
         # No real court assignment needed for virtual courts
         

@@ -20,7 +20,7 @@ class ScenarioDisplayTranslationInline(admin.TabularInline):
 class ScenarioStageInline(admin.TabularInline):
     model = ScenarioStage
     extra = 1
-    fields = ['stage_number', 'name', 'format', 'num_rounds_in_stage', 'num_qualifiers', 'num_matches_per_team']
+    fields = ['stage_number', 'name', 'format', 'num_rounds_in_stage', 'num_qualifiers', 'num_matches_per_team', 'third_place_playoff']
     ordering = ['stage_number']
 
 

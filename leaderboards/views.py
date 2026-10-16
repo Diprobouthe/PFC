@@ -27,7 +27,13 @@ def leaderboard_index(request):
             continue
         
         # Get top entries
-        top_entries = leaderboard.entries.all().order_by('position')[:3]
+        # Shared bronze is a tie, not a fourth-place finisher.
+        published_podium = leaderboard.entries.filter(official_place__lte=3)
+        top_entries = (
+            list(published_podium.order_by('position'))
+            if published_podium.exists()
+            else list(leaderboard.entries.all().order_by('position')[:3])
+        )
         
         leaderboards.append({
             'tournament': tournament,
@@ -230,6 +236,7 @@ def _rebuild_tournament_leaderboard_locked(tournament, leaderboard):
                 buchholz_score=ranking.get('buchholz_score', 0.0),
                 stage_reached=ranking.get('stage_reached', 1),
                 tournament_status=ranking.get('tournament_status', 'active'),
+                official_place=ranking.get('official_place'),
             ))
     elif is_swiss_tournament(tournament):
         for ranking in get_swiss_rankings(tournament):

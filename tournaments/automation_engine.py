@@ -270,7 +270,28 @@ class TournamentEngine:
                 self._round_robin_next_round_number(self.current_stage)
                 <= self._round_robin_schedule_length(self.current_stage)
             )
-        
+
+        # A later, normal Team Stage starts its *local* Round counter at 1.
+        # Tournament.current_round_number is an overall counter, so it must
+        # not be compared to Stage.num_rounds_in_stage. Leave all P4 Mêlée
+        # paths, including legacy and Super Mêlée, unchanged.
+        if not self.tournament.is_melee and self.current_stage.stage_number > 1:
+            if self.is_current_stage_complete():
+                return False
+            latest = Round.objects.filter(
+                tournament=self.tournament, stage=self.current_stage,
+            ).order_by("-number_in_stage", "-number").first()
+            if latest and not self.is_round_complete(latest):
+                return False
+            next_local = latest.number_in_stage + 1 if latest else 1
+            if next_local > self.current_stage.num_rounds_in_stage:
+                return False
+            return not Match.objects.filter(
+                tournament=self.tournament,
+                round__stage=self.current_stage,
+                round__number_in_stage=next_local,
+            ).exists()
+
         # FIXED: Check if current stage is complete first
         if self.is_current_stage_complete():
             logger.debug(f"Stage {self.current_stage.stage_number} is complete, should advance to next stage instead")
@@ -332,11 +353,19 @@ class TournamentEngine:
         if not final_stage:
             return False
             
-        # Check if final stage is complete and has only 1 qualifier (winner)
-        if (self.current_stage and 
+        # A standalone legacy final may nominate 1 winner. Explicit
+        # multi-Stage Team finals conventionally nominate 0 *outgoing*
+        # qualifiers: the tournament ends after that Stage is completed.
+        final_completion_marker = (
+            final_stage.num_qualifiers == 1 or
+            (not self.tournament.is_melee and
+             final_stage.stage_number > 1 and
+             final_stage.num_qualifiers == 0)
+        )
+        if (self.current_stage and
             self.current_stage.stage_number == final_stage.stage_number and
             self.is_current_stage_complete() and
-            final_stage.num_qualifiers == 1):
+            final_completion_marker):
             
             logger.info(f"🏆 Tournament {self.tournament.id} is complete")
             return True
@@ -418,7 +447,66 @@ class TournamentEngine:
 
         if self.current_stage.format == "round_robin":
             return self._generate_round_robin_successor(stage=self.current_stage)
-            
+
+        # Subsequent normal Team Stages use Stage-local numbering. For a
+        # Knockout successor, only winners of that Stage's previous Round
+        # may enter. Existing P4/Super Mêlée generation is not changed.
+        if not self.tournament.is_melee and self.current_stage.stage_number > 1:
+            latest = Round.objects.filter(
+                tournament=self.tournament, stage=self.current_stage,
+            ).order_by("-number_in_stage", "-number").first()
+            if latest is None or not self.is_round_complete(latest):
+                return False
+            next_local = latest.number_in_stage + 1
+            if next_local > self.current_stage.num_rounds_in_stage:
+                return False
+            if Match.objects.filter(
+                tournament=self.tournament,
+                round__stage=self.current_stage,
+                round__number_in_stage=next_local,
+            ).exists():
+                return True
+
+            active_teams = TournamentTeam.objects.filter(
+                tournament=self.tournament,
+                current_stage_number=self.current_stage.stage_number,
+                is_active=True,
+            )
+            bronze_loser_ids = None
+            if self.current_stage.format == "knockout":
+                completed = list(Match.objects.filter(
+                    tournament=self.tournament, round=latest,
+                ).order_by("id").values_list("status", "winner_id", "loser_id"))
+                if (not completed or
+                        any(status != "completed" or winner_id is None
+                            for status, winner_id, _loser_id in completed)):
+                    logger.warning(
+                        "Knockout Stage %s has unresolved winners; no next Round",
+                        self.current_stage.id,
+                    )
+                    return False
+                winner_ids = {winner_id for _status, winner_id, _loser_id in completed}
+                if len(winner_ids) != len(completed):
+                    return False
+                active_teams = active_teams.filter(team_id__in=winner_ids)
+                # Final Four is the only supported bronze-playoff configuration.
+                if (self.current_stage.third_place_playoff
+                        and next_local == self.current_stage.num_rounds_in_stage
+                        and len(completed) == 2):
+                    loser_ids = [loser for _status, _winner, loser in completed]
+                    if (None in loser_ids or len(set(loser_ids)) != 2
+                            or set(loser_ids) & winner_ids):
+                        return False
+                    bronze_loser_ids = tuple(loser_ids)
+
+            teams = list(active_teams.order_by("-swiss_points", "-buchholz_score", "id"))
+            if len(teams) < 2:
+                return False
+            return self.generate_stage_round(
+                self.current_stage, teams, next_local,
+                bronze_loser_ids=bronze_loser_ids,
+            )
+
         # Determine next round number
         current_round = self.tournament.current_round_number or 0
         next_round_num = current_round + 1
@@ -563,8 +651,8 @@ class TournamentEngine:
             )
         return True
     
-    def generate_stage_round(self, stage, teams, round_number):
-        """Generate round based on stage format"""
+    def generate_stage_round(self, stage, teams, round_number, *, bronze_loser_ids=None):
+        """Generate round based on stage format (optionally two simultaneous finals)."""
         try:
             with transaction.atomic():
                 if stage.format == 'round_robin':
@@ -648,6 +736,46 @@ class TournamentEngine:
                     logger.error(f"Unknown stage format: {stage.format}")
                     return False
                 
+                if (
+                    matches_created > 0
+                    and not self.tournament.is_melee
+                    and stage.format == "knockout"
+                    and stage.stage_number > 1
+                    and round_number == stage.num_rounds_in_stage
+                    and len(teams) == 2
+                ):
+                    # MatchGenerator created the actual championship Match.
+                    # Optional bronze is an independent Match in the SAME Round,
+                    # so the Round cannot finalize before both Matches finish.
+                    main_matches = list(
+                        Match.objects.filter(
+                            tournament=self.tournament, round=round_obj,
+                        ).order_by("id")
+                    )
+                    if len(main_matches) != 1:
+                        raise ValueError("Final Four expects exactly one championship Match")
+                    main_matches[0].placement_role = "championship_final"
+                    main_matches[0].save(update_fields=["placement_role"])
+                    if bronze_loser_ids is not None:
+                        from teams.models import Team
+                        if not stage.third_place_playoff or len(set(bronze_loser_ids)) != 2:
+                            raise ValueError("Invalid third-place Match participants")
+                        if set(bronze_loser_ids) & {
+                            main_matches[0].team1_id, main_matches[0].team2_id
+                        }:
+                            raise ValueError("Bronze Match must contain semifinal losers")
+                        Match.objects.create(
+                            tournament=self.tournament,
+                            stage=stage,
+                            round=round_obj,
+                            team1_id=bronze_loser_ids[0],
+                            team2_id=bronze_loser_ids[1],
+                            placement_role="third_place_playoff",
+                            status="pending",
+                            time_limit_minutes=self.tournament.default_time_limit_minutes,
+                        )
+                        matches_created += 1
+
                 if matches_created > 0:
                     # Successor Match generation opens one Round-scoped server
                     # lineup window. Court allocation waits for its deadline.
@@ -657,7 +785,13 @@ class TournamentEngine:
                     open_round_lineup_window(round_obj.id)
                     transaction.on_commit(wake_lineup_clock)
                     # Update tournament state
-                    self.tournament.current_round_number = round_number
+                    # Subsequent Team Stages have their own local
+                    # number_in_stage; preserve the Tournament-wide Round ID.
+                    self.tournament.current_round_number = (
+                        round_obj.number
+                        if not self.tournament.is_melee and stage.stage_number > 1
+                        else round_number
+                    )
                     self.tournament.automation_status = "idle"
                     self.tournament.save()
                     
