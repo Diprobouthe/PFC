@@ -109,6 +109,53 @@ class TeamScenarioRegressionTests(TestCase):
             [(1, "Groups", "round_robin", 4), (2, "Finals", "knockout", 0)],
         )
 
+    def test_explicit_team_stage_settings_are_copied_without_mutating_templates(self):
+        scenario = self.scenario("settings", algorithm="round_robin")
+        first = ScenarioStage.objects.create(
+            scenario=scenario, stage_number=1, name="Qualifiers",
+            format="round_robin", num_qualifiers=2, num_rounds_in_stage=3,
+            num_matches_per_team=2,
+        )
+        second = ScenarioStage.objects.create(
+            scenario=scenario, stage_number=2, name="Final",
+            format="knockout", num_qualifiers=0, num_rounds_in_stage=1,
+        )
+        tournament = self.create_via_active_ui(scenario)
+        stages = list(tournament.stages.order_by("stage_number"))
+        self.assertEqual(len(stages), 2)
+        self.assertEqual(stages[0].num_qualifiers, 2)
+        self.assertEqual(stages[0].num_rounds_in_stage, 3)
+        self.assertEqual(stages[0].num_matches_per_team, 2)
+        self.assertEqual(stages[1].num_rounds_in_stage, 1)
+        self.assertIsNone(stages[1].num_matches_per_team)
+        self.assertEqual((first.num_qualifiers, second.num_qualifiers), (2, 0))
+
+    def test_melee_variants_ignore_team_stage_templates(self):
+        for mode in ("melee", "super_melee"):
+            with self.subTest(mode=mode):
+                scenario = self.scenario(f"isolated-{mode}")
+                scenario.scenario_mode = mode
+                scenario.save(update_fields=["scenario_mode"])
+                ScenarioStage.objects.create(
+                    scenario=scenario, stage_number=1, name="Unexpected group",
+                    format="round_robin", num_qualifiers=2, num_rounds_in_stage=2,
+                )
+                ScenarioStage.objects.create(
+                    scenario=scenario, stage_number=2, name="Unexpected final",
+                    format="knockout", num_qualifiers=0, num_rounds_in_stage=1,
+                )
+                tournament = self.create_via_active_ui(scenario)
+                self.assertTrue(tournament.is_melee)
+                self.assertEqual(
+                    tournament.shuffle_players_after_round,
+                    mode == "super_melee",
+                )
+                self.assertEqual(
+                    list(tournament.stages.values_list("name", "format")),
+                    [("Main Stage", "swiss")],
+                    "Existing P4 scenario creation must remain unchanged",
+                )
+
     def test_swiss_first_round_with_four_six_eight_teams(self):
         for count in (4, 6, 8):
             with self.subTest(teams=count):
