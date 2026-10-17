@@ -55,6 +55,11 @@ class VSTournamentReportPDFTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
+        sample_dir = os.getenv("PFC_PDF_SAMPLE_DIR")
+        if sample_dir:
+            Path(sample_dir).mkdir(parents=True, exist_ok=True)
+            kind = "final" if not self.tournament.is_active else "provisional"
+            (Path(sample_dir) / f"vs_tournament_{kind}_demo.pdf").write_bytes(response.content)
         return "\n".join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
 
     def test_tournament_pdf_is_read_only_and_discloses_only_locked_lineups(self):
