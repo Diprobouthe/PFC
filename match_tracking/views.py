@@ -104,6 +104,27 @@ def _is_tracking_active(match_type, pk):
     ).exists()
 
 
+def _close_tracking_only_if_terminal(match_type, pk):
+    """Finalize common tracking only when the underlying game is terminal.
+
+    A submitted result awaiting validation is NOT terminal: it can be rejected
+    and the same match can reopen without losing anyone's tracking period.
+    """
+    if match_type == "match":
+        from matches.models import Match
+        status = Match.objects.filter(pk=pk).values_list("status", flat=True).first()
+        terminal = status in {"completed", "cancelled"}
+    else:
+        from friendly_games.models import FriendlyGame
+        status = FriendlyGame.objects.filter(pk=pk).values_list("status", flat=True).first()
+        terminal = status in {"COMPLETED", "CANCELLED", "EXPIRED"}
+
+    if terminal:
+        from .services import end_tracking_sessions
+        end_tracking_sessions(match_type, pk, "match_completed")
+    return terminal
+
+
 def _serialize_practice_stats(session):
     """Return the established open-ended statistics shape for one PracticeSession."""
     total = session.total_shots
@@ -415,8 +436,7 @@ def verify_participant(request, match_type, pk):
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
     if not _is_tracking_active(match_type, pk):
-        from .services import end_tracking_sessions
-        end_tracking_sessions(match_type, pk, 'match_completed')
+        _close_tracking_only_if_terminal(match_type, pk)
         return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
     try:
@@ -547,8 +567,7 @@ def record_shot(request, match_type, pk):
         return JsonResponse({'ok': False, 'error': 'Invalid outcome'}, status=400)
 
     if not _is_tracking_active(match_type, pk):
-        from .services import end_tracking_sessions
-        end_tracking_sessions(match_type, pk, 'match_completed')
+        _close_tracking_only_if_terminal(match_type, pk)
         return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
     from .services import (
@@ -626,8 +645,7 @@ def undo_last_shot(request, match_type, pk):
         return JsonResponse({'ok': False, 'error': 'Invalid request'}, status=400)
 
     if not _is_tracking_active(match_type, pk):
-        from .services import end_tracking_sessions
-        end_tracking_sessions(match_type, pk, 'match_completed')
+        _close_tracking_only_if_terminal(match_type, pk)
         return JsonResponse({'ok': False, 'error': 'Match is no longer active'}, status=403)
 
     from .services import browser_authorization
@@ -867,20 +885,19 @@ def export_pdf(request, match_type, pk):
 # AJAX: tracking session lifecycle
 # ─────────────────────────────────────────────────────────────────────────────
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def end_tracking_session(request, match_type, pk):
-    """End the current Match Tracking period and revoke all QR authorizations."""
+    """Disabled legacy route: a participant must never end shared tracking.
+
+    Keep a rejecting endpoint for existing open browser tabs; removing only
+    the button would leave the destructive POST callable.
+    """
     if match_type not in ('match', 'game'):
         return JsonResponse({'error': 'Invalid match type'}, status=400)
-    from .services import clear_browser_delegation, end_tracking_sessions
-    ended_count = end_tracking_sessions(match_type, pk, 'manual')
-    clear_browser_delegation(request, match_type, pk)
-    return JsonResponse({
-        'ok': True,
-        'ended_count': ended_count,
-        'message': 'Tracking session ended',
-    })
+    return JsonResponse(
+        {'ok': False, 'error': 'Tracking ends automatically with the match.'},
+        status=403,
+    )
 
 
 @require_http_methods(["GET"])
@@ -896,9 +913,8 @@ def game_status_api(request, match_type, pk):
             from friendly_games.models import FriendlyGame
             obj = FriendlyGame.objects.only('status').get(pk=pk)
         is_active = _is_tracking_active(match_type, pk)
-        if not is_active:
-            from .services import clear_browser_delegation, end_tracking_sessions
-            end_tracking_sessions(match_type, pk, 'match_completed')
+        if not is_active and _close_tracking_only_if_terminal(match_type, pk):
+            from .services import clear_browser_delegation
             clear_browser_delegation(request, match_type, pk)
         return JsonResponse({'ok': True, 'status': obj.status, 'tracking_active': is_active})
     except Exception:
