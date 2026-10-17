@@ -248,6 +248,55 @@
     {% endif %}
   </div>
 
+  {% if is_vs_mode %}
+  <section class="card shadow-sm mt-3 mb-3">
+    <div class="card-body">
+      <h5 class="card-title"><i class="fas fa-file-pdf text-danger"></i> Φύλλο διοργάνωσης VS</h5>
+      <p class="text-muted small">Όλα τα παιχνίδια και η τρέχουσα κατάταξη. Προσωρινό μέχρι την ολοκλήρωση της διοργάνωσης.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-danger btn-sm" href="{% url 'tournament_report_pdf' tournament.id %}" target="_blank" rel="noopener">
+          <i class="fas fa-download"></i> PDF
+        </a>
+        <button type="button" class="btn btn-outline-primary btn-sm"
+          onclick="sharePFCTournamentReport('{% url 'tournament_report_pdf' tournament.id %}', {{ tournament.id }})">
+          <i class="fas fa-share-alt"></i> Κοινοποίηση PDF
+        </button>
+      </div>
+      {% if can_edit_report_notes %}
+      <form class="mt-3" action="{% url 'update_tournament_report_notes' tournament.id %}" method="post">
+        {% csrf_token %}
+        <label for="tournament-report-notes" class="form-label fw-semibold">Παρατηρήσεις διοργάνωσης (διαχειριστής)</label>
+        <textarea id="tournament-report-notes" name="report_notes" maxlength="2000"
+                  class="form-control" rows="3">{{ tournament.report_notes }}</textarea>
+        <button class="btn btn-sm btn-primary mt-2" type="submit">Αποθήκευση παρατηρήσεων</button>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+  <script>
+  async function sharePFCTournamentReport(path, tournamentId) {
+    const url = new URL(path, location.origin).href;
+    if (navigator.share) {
+      try {
+        const response = await fetch(url, {credentials: 'same-origin'});
+        if (!response.ok) throw new Error('PDF fetch failed');
+        const blob = await response.blob();
+        const file = new File([blob], 'PFC_VS_Tournament_' + tournamentId + '.pdf', {type: 'application/pdf'});
+        if (navigator.canShare && navigator.canShare({files: [file]})) {
+          await navigator.share({files: [file], title: 'PFC VS - Φύλλο διοργάνωσης'});
+          return;
+        }
+        await navigator.share({title: 'PFC VS - Φύλλο διοργάνωσης', url: url});
+        return;
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+      }
+    }
+    window.open(url, '_blank', 'noopener');
+  }
+  </script>
+  {% endif %}
+
   <!-- ── Secondary actions (Mêlée-specific) ─────────────────────── -->
   {% if tournament.is_melee %}
   <div class="td-secondary-actions">
