@@ -773,6 +773,9 @@
         {% endif %}
 
     {% elif match.status == 'completed' %}
+        <a href="{% url 'match_tracking:tracking_page' 'match' match.id %}" class="md-primary-btn" style="background:#194c88;color:#fff;">
+            <i class="fas fa-file-pdf"></i> {% translate "Match Analysis / PDF" %}
+        </a>
         <a href="{% url 'match_list' %}" class="md-primary-btn" style="background:#6c757d;color:#fff;">
             <i class="fas fa-list"></i> {% translate "Matches" %}
         </a>

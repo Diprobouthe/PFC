@@ -11,8 +11,6 @@
 {% translate "No codename available" as i18n_no_codename %}
 {% translate "Undo failed" as i18n_undo_failed %}
 {% translate "Failed" as i18n_failed %}
-{% translate "End this Match Tracking session? QR permissions and active shooting/pointing sessions will be closed." as i18n_end_tracking_confirm %}
-{% translate "Could not end tracking" as i18n_end_tracking_failed %}
 {% translate "Match completed" as i18n_match_completed %}
 {% translate "read-only history" as i18n_read_only_history %}
 {% translate "Scan the player QR code to confirm broadcast permission." as i18n_scan_broadcast_permission %}
@@ -166,12 +164,6 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     text-decoration: none; display: inline-flex; align-items: center; gap: 6px; justify-content: center;
 }
     .mt-export-btn:hover { background: #fee2e2; color: #b91c1c; }
-    .mt-end-session-btn {
-        flex: 1; padding: 9px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
-        border: 2px solid #475569; background: #f8fafc; color: #334155;
-        cursor: pointer; display: inline-flex; align-items: center; gap: 6px; justify-content: center;
-    }
-    .mt-end-session-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Stats section ───────────────────────────────────────────────────────── */
 .mt-stats-section { padding: 0 14px 12px; }
@@ -398,9 +390,6 @@ body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     <a id="btn-export-pdf" class="mt-export-btn" href="#" onclick="exportPDF(); return false;" title="{% translate 'Export match analysis to PDF' %}">
         <i class="fas fa-file-pdf"></i> {% translate "Export PDF" %}
     </a>
-    <button id="btn-end-session" class="mt-end-session-btn" onclick="endTrackingSession()" title="{% translate 'End this tracking period and revoke all QR authorizations' %}">
-        <i class="fas fa-stop-circle"></i> {% translate "End Session" %}
-    </button>
 </div>
 
 <!-- ── Stats tables (Shooting + Pointing) ──────────────────────────────────── -->
@@ -501,8 +490,6 @@ var TRACKING_I18N = {
     noCodename: '{{ i18n_no_codename|escapejs }}',
     undoFailed: '{{ i18n_undo_failed|escapejs }}',
     failed: '{{ i18n_failed|escapejs }}',
-    endTrackingConfirm: '{{ i18n_end_tracking_confirm|escapejs }}',
-    endTrackingFailed: '{{ i18n_end_tracking_failed|escapejs }}',
     matchCompleted: '{{ i18n_match_completed|escapejs }}',
     readOnlyHistory: '{{ i18n_read_only_history|escapejs }}',
     scanBroadcastPermission: '{{ i18n_scan_broadcast_permission|escapejs }}',
@@ -1041,9 +1028,8 @@ function _connectScoreboardSocket() {
 _connectScoreboardSocket();
 
 var _matchEnded = false;
+var _trackingPaused = false;
 var STATUS_URL = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/status/';
-var END_SESSION_URL = '/track/' + MATCH_TYPE + '/' + MATCH_PK + '/end-session/';
-var ACTIVE_STATUSES = ['active', 'ACTIVE', 'pending_verification', 'PENDING_VERIFICATION', 'READY', 'ready'];
 
 function _pollMatchStatus() {
     if (_matchEnded) return;
@@ -1051,34 +1037,18 @@ function _pollMatchStatus() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (!res.ok) return;
-        var isActive = ACTIVE_STATUSES.indexOf(res.status) >= 0;
-        if (!isActive) {
-            _matchEnded = true;
+        var isActive = !!res.tracking_active;
+        if (isActive && _trackingPaused) {
+            // Result was rejected: recover the same shared period after reopen.
+            window.location.reload();
+        } else if (!isActive) {
+            _trackingPaused = true;
+            _matchEnded = ['completed', 'COMPLETED', 'cancelled', 'CANCELLED', 'EXPIRED'].indexOf(res.status) >= 0;
             _lockAllControls(res.status);
         }
     })
     .catch(function() {});
 }
-
-window.endTrackingSession = function() {
-    if (_matchEnded) return;
-    if (!window.confirm(TRACKING_I18N.endTrackingConfirm)) return;
-    fetch(END_SESSION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-        body: '{}'
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
-        if (!res.ok) {
-            _showShotFeedback('\u2717 ' + (res.error || TRACKING_I18N.endTrackingFailed), 'err');
-            return;
-        }
-        _matchEnded = true;
-        _lockAllControls('tracking ended', 'Tracking session ended — read-only history. Reopen and scan again only to start a separate tracking period.');
-    })
-    .catch(function() { _showShotFeedback('\u2717 ' + TRACKING_I18N.networkError, 'err'); });
-};
 
 function _lockAllControls(status, noticeText) {
     // Disable score buttons
@@ -1093,9 +1063,8 @@ function _lockAllControls(status, noticeText) {
         var btn = document.getElementById(id);
         if (btn) btn.disabled = true;
     });
-    // Disable undo and end-session buttons
+    // Disable undo. Shared tracking closes only with the match itself.
     var undoBtn2 = document.getElementById('btn-undo'); if (undoBtn2) undoBtn2.disabled = true;
-    var endBtn = document.getElementById('btn-end-session'); if (endBtn) endBtn.disabled = true;
     // Disable QR scan button
     var qrBtn = document.querySelector('.mt-qr-btn');
     if (qrBtn) { qrBtn.disabled = true; qrBtn.style.opacity = '0.4'; }

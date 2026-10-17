@@ -23,6 +23,7 @@ from teams.models import Player, Team
 from tournaments.models import Tournament, TournamentTeam, VSEncounter
 from tournaments.registration_services import register_team_for_tournament
 from tournaments.vs_utils import update_vs_encounter_points
+from leaderboards.models import Leaderboard
 
 
 class TeamScenarioRegressionTests(TestCase):
@@ -349,6 +350,126 @@ class VSModeRegressionTests(TestCase):
                 self.assertEqual(match.vs_points_value, pts)
                 self.assertEqual(match.team1_player_count, count)
                 self.assertEqual(match.team2_player_count, count)
+
+    def test_real_team_pin_vs_single_match_score_and_points(self):
+        """Real login -> lineup locks -> Court -> score -> opponent validation."""
+        encounter = self.register_two()
+        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
+
+        for team in self.teams[:2]:
+            login = self.client.post(
+                reverse("team_pin_login"),
+                data=json.dumps({"team_pin": team.pin, "remember_me": False}),
+                content_type="application/json",
+            )
+            self.assertEqual(login.status_code, 200)
+            self.assertTrue(login.json()["success"])
+            selected_player = self.players[team.pk][0]
+            response = self.client.post(
+                reverse("vs_lineup_submit", args=[match.pk]),
+                data=json.dumps({"player_ids": [selected_player.pk]}),
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+
+        match.refresh_from_db()
+        self.assertEqual(match.status, "active")
+        self.assertIsNotNone(match.court_id)
+        self.assertEqual(match.vs_points_value, 2)
+
+        login = self.client.post(
+            reverse("team_pin_login"),
+            data=json.dumps({
+                "team_pin": self.teams[0].pin, "remember_me": False,
+            }), content_type="application/json",
+        )
+        self.assertTrue(login.json()["success"])
+        submitted = self.client.post(
+            reverse("match_submit_result", kwargs={
+                "match_id": match.pk, "team_id": self.teams[0].pk,
+            }),
+            {"team1_score": 13, "team2_score": 7},
+        )
+        self.assertEqual(submitted.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "waiting_validation")
+
+        login = self.client.post(
+            reverse("team_pin_login"),
+            data=json.dumps({
+                "team_pin": self.teams[1].pin, "remember_me": False,
+            }), content_type="application/json",
+        )
+        self.assertTrue(login.json()["success"])
+        with self.captureOnCommitCallbacks(execute=True):
+            validated = self.client.post(
+                reverse("match_validate_result", kwargs={
+                    "match_id": match.pk, "team_id": self.teams[1].pk,
+                }),
+                {"validation_action": "agree"},
+            )
+        self.assertEqual(validated.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "completed")
+        self.assertEqual(match.winner_id, self.teams[0].pk)
+        encounter.refresh_from_db()
+        self.assertEqual(
+            (encounter.team1_points, encounter.team2_points), (2, 0)
+        )
+        self.assertTrue(Leaderboard.objects.filter(tournament=self.tournament).exists())
+        response = self.client.get(
+            reverse("tournament_leaderboard", args=[self.tournament.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["entries"][0].swiss_points, 2)
+
+    def test_current_team_pin_precedes_legacy_scoped_vs_pin(self):
+        """A stale VS compatibility key must not override a new Team login."""
+        self.register_two()
+        match = Match.objects.filter(tournament=self.tournament).first()
+        self.use_vs_compat_pin(self.teams[0])
+        login = self.client.post(
+            reverse("team_pin_login"),
+            data=json.dumps({
+                "team_pin": self.teams[1].pin, "remember_me": False,
+            }), content_type="application/json",
+        )
+        self.assertTrue(login.json()["success"])
+        response = self.client.get(reverse("vs_lineup_submit", args=[match.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertFalse(response.json()["own_lineup_locked"])
+
+    def test_legacy_vs_leaderboard_is_read_only_without_recreating_tournament(self):
+        encounter = self.register_two()
+        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
+        Match.objects.filter(pk=match.pk).update(
+            status="completed", winner=self.teams[0],
+            match_type="doublet", vs_points_value=3,
+            team1_score=13, team2_score=9,
+        )
+        self.assertFalse(Leaderboard.objects.filter(tournament=self.tournament).exists())
+        response = self.client.get(
+            reverse("tournament_leaderboard", args=[self.tournament.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [(row.team_id, row.swiss_points) for row in response.context["entries"]],
+            [(self.teams[0].pk, 3), (self.teams[1].pk, 0)],
+        )
+        self.assertFalse(Leaderboard.objects.filter(tournament=self.tournament).exists())
+
+    def test_legacy_activation_cannot_bypass_vs_captain_lineups(self):
+        self.register_two()
+        match = Match.objects.filter(tournament=self.tournament).first()
+        response = self.client.post(
+            reverse("match_activate", args=[match.pk, self.teams[0].pk]), {}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("vs_sub_game_detail", args=[match.pk]), response.url)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "pending")
+        self.assertEqual(match.activations.count(), 0)
 
     def test_recalculating_vs_points_is_idempotent(self):
         encounter = self.register_two()

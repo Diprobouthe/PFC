@@ -7,6 +7,12 @@
   <div class="row">
     <div class="col-12">
       <h1 class="mb-2">{{ tournament.name }} — Leaderboard</h1>
+      {% if is_vs %}
+      <a class="btn btn-outline-danger btn-sm mb-3"
+         href="{% url 'tournament_report_pdf' tournament.id %}" target="_blank" rel="noopener">
+        <i class="fas fa-file-pdf"></i> Φύλλο διοργάνωσης PDF
+      </a>
+      {% endif %}
 
       {# ------------------------------------------------------------------ #}
       {# Multi-stage: show stage pipeline summary                            #}
@@ -57,7 +63,9 @@
                   <th>Played</th>
                   <th>Won</th>
                   <th>Lost</th>
-                  {% if is_swiss %}
+                  {% if is_vs %}
+                    <th>VS Pts</th>
+                  {% elif is_swiss %}
                     <th>Swiss Pts</th>
                     <th>Buchholz</th>
                   {% elif is_wtf %}
@@ -73,14 +81,14 @@
                 {% for entry in entries %}
                 <tr class="{% if entry.tournament_status == 'champion' %}table-warning{% elif entry.tournament_status == 'finalist' %}table-info{% elif entry.tournament_status != 'active' and is_multistage %}text-muted{% endif %}">
                   <td>
-                    {% if entry.display_position == 1 %}
+                    {% if entry.official_place|default:entry.position == 1 %}
                       <span class="fw-bold text-warning">1</span>
-                    {% elif entry.display_position == 2 %}
+                    {% elif entry.official_place|default:entry.position == 2 %}
                       <span class="fw-bold text-secondary">2</span>
-                    {% elif entry.display_position == 3 %}
+                    {% elif entry.official_place|default:entry.position == 3 %}
                       <span class="fw-bold">3</span>
                     {% else %}
-                      {{ entry.display_position }}
+                      {{ entry.official_place|default:entry.position }}
                     {% endif %}
                   </td>
                   <td>
@@ -115,7 +123,9 @@
                   <td>{{ entry.matches_played }}</td>
                   <td>{{ entry.matches_won }}</td>
                   <td>{{ entry.matches_lost }}</td>
-                  {% if is_swiss %}
+                  {% if is_vs %}
+                    <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
+                  {% elif is_swiss %}
                     <td><strong>{{ entry.swiss_points|default:0 }}</strong></td>
                     <td>{{ entry.buchholz_score|default:0|floatformat:1 }}</td>
                   {% elif is_wtf %}
@@ -147,6 +157,11 @@
                 All teams that participated are shown regardless of which stage they were eliminated in.
                 Completed championship and bronze Matches determine podium places first.
                 Without a bronze playoff both semifinal losers share third place; Swiss and Buchholz break other ties.
+              </small>
+            {% elif is_vs %}
+              <small class="text-muted">
+                <strong>VS ranking:</strong> Each completed tête-à-tête win earns
+                2 points, doublettes 3, and triplettes 5. Pending games do not score.
               </small>
             {% elif is_swiss %}
               <small class="text-muted">

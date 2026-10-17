@@ -252,6 +252,15 @@
     }
 
     function _showConfirmPanel(data) {
+        // Opt-in handoff for final VS sheet: its own remarks panel is the
+        // explicit approval, so do not ask for two separate confirmations.
+        // All existing match and friendly-game QR flows keep their normal
+        // identity-confirmation panel.
+        if (window.QR_DIRECT_TO_VS_SHEET_REMARKS === true) {
+            closeQrScanner();
+            document.dispatchEvent(new CustomEvent('qrPlayerResolved', { detail: data }));
+            return;
+        }
         // Hide scan panel
         document.getElementById('qrScanPanel').style.display = 'none';
 
@@ -359,11 +368,17 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) {
-                /* Stop camera, then show confirmation panel.
-                   qrPlayerResolved is NOT dispatched yet — only after organizer taps Confirm. */
                 _stopCamera();
-                _pendingData = data;
-                _showConfirmPanel(data);
+                if (window.QR_DIRECT_TO_VS_SHEET_REMARKS === true) {
+                    /* VS final sheet ONLY: go from verified scan directly to
+                       the remarks/OK dialog. That dialog is the consent step.
+                       Other QR workflows keep their existing confirm panel. */
+                    closeQrScanner();
+                    document.dispatchEvent(new CustomEvent('qrPlayerResolved', { detail: data }));
+                } else {
+                    _pendingData = data;
+                    _showConfirmPanel(data);
+                }
             } else {
                 document.getElementById('qrStatus').textContent = '\u2717 ' + (data.error || QR_I18N.invalid);
                 document.getElementById('qrStatus').className = 'qr-modal-status error';

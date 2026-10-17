@@ -20,13 +20,13 @@
                                 {% for entry in item.top_entries %}
                                     <div class="list-group-item d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="badge bg-primary rounded-pill me-2">{{ entry.display_position }}</span>
+                                            <span class="badge bg-primary rounded-pill me-2">{{ entry.official_place|default:entry.position }}</span>
                                             <strong>{{ entry.team.name }}</strong>
                                         </div>
                                         <div>
                                             <span class="badge bg-success">{{ entry.matches_won }} W</span>
                                             <span class="badge bg-danger">{{ entry.matches_lost }} L</span>
-                                            <span class="badge bg-info">{{ entry.points_scored }} pts</span>
+                                            <span class="badge bg-info">{% if item.is_vs %}{{ entry.swiss_points }} VS pts{% else %}{{ entry.points_scored }} pts{% endif %}</span>
                                         </div>
                                     </div>
                                 {% empty %}

@@ -3,8 +3,9 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.template.loader import render_to_string
-from django.db import models
+from django.db import models, transaction
 import json
 from .models import Tournament, TournamentTeam, Round, Bracket
 from .forms import TournamentForm, TeamAssignmentForm
@@ -15,6 +16,139 @@ import math
 
 def is_staff(user):
     return user.is_staff
+
+# ── VS final sheet QR acceptance, independent from per-game validation ──
+
+@require_POST
+def vs_sheet_qr_resolve(request, encounter_id):
+    """Reuse PFC's existing HMAC card verification; hand off one-use QR proof."""
+    from django.utils import timezone
+    from friendly_games.models import PlayerCodename
+    from pfc_core.qr_utils import verify_player_token
+    from .models import VSEncounter
+    from .sheet_attestation import qr_role, sheet_status
+
+    encounter = get_object_or_404(
+        VSEncounter.objects.select_related("team1", "team2", "tournament"),
+        pk=encounter_id,
+    )
+    request.session.pop("vs_sheet_qr_proof", None)
+    request.session.modified = True
+    if not sheet_status(encounter)["ready"] or encounter.sheet_issued_at:
+        return JsonResponse({"ok": False, "error": "Το φύλλο δεν είναι διαθέσιμο για επικύρωση."}, status=409)
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        token = data.get("token", "")
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return JsonResponse({"ok": False, "error": "Μη έγκυρο αίτημα QR."}, status=400)
+    player_id = verify_player_token(token)
+    if player_id is None:
+        return JsonResponse({"ok": False, "error": "Μη έγκυρη κάρτα PFC."}, status=403)
+    person = PlayerCodename.objects.select_related("player__team").filter(
+        player_id=player_id
+    ).first()
+    if person is None:
+        return JsonResponse({"ok": False, "error": "Η κάρτα δεν αντιστοιχεί σε παίκτη PFC."}, status=403)
+    player = person.player
+    role = qr_role(encounter, player)
+    if not role:
+        return JsonResponse({"ok": False, "error": "Ο παίκτης δεν ανήκει στις ομάδες VS."}, status=403)
+    if role in sheet_status(encounter)["records"]:
+        return JsonResponse({"ok": False, "error": "Η πλευρά αυτή έχει ήδη επικυρώσει."}, status=409)
+    # Neither a client-supplied identity nor a claimed role can authorize the
+    # final POST. The QR identity remains only in this browser's session.
+    request.session["vs_sheet_qr_proof"] = {
+        "encounter_id": encounter.pk,
+        "player_id": player.pk,
+        "issued": int(timezone.now().timestamp()),
+    }
+    request.session.modified = True
+    labels = {
+        "team1": "Ομάδα Α", "team2": "Ομάδα Β",
+        "referee": "Διαιτητής (χωρίς πιστοποίηση)",
+    }
+    return JsonResponse({
+        "ok": True, "player_name": player.name,
+        "team_name": player.team.name, "role_name": labels[role],
+    })
+
+
+@require_POST
+def vs_sheet_attest(request, encounter_id):
+    """Consume one scoped QR scan; atomically freeze PDF after the last one."""
+    from django.utils import timezone
+    from teams.models import Player
+    from .models import VSEncounter
+    from .sheet_attestation import attest_and_maybe_freeze
+
+    # The client may submit *remarks only*, never identity or affiliation.
+    # Empty remarks mean affirmative acceptance without additional observations.
+    if "application/json" in (request.content_type or ""):
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError
+        except (ValueError, UnicodeDecodeError):
+            return JsonResponse({"ok": False, "error": "Μη έγκυρες παρατηρήσεις."}, status=400)
+        remarks = data.get("remarks", "")
+    else:
+        remarks = request.POST.get("remarks", "")
+    if not isinstance(remarks, str) or len(remarks) > 1000:
+        return JsonResponse(
+            {"ok": False, "error": "Οι παρατηρήσεις δεν μπορούν να ξεπερνούν τους 1000 χαρακτήρες."},
+            status=400,
+        )
+
+    proof = request.session.pop("vs_sheet_qr_proof", None)
+    request.session.modified = True
+    if not isinstance(proof, dict) or proof.get("encounter_id") != encounter_id:
+        return JsonResponse({"ok": False, "error": "Σάρωσε πρώτα μια κάρτα QR."}, status=403)
+    issued = proof.get("issued")
+    if not isinstance(issued, int) or not (0 <= timezone.now().timestamp() - issued <= 180):
+        return JsonResponse({"ok": False, "error": "Η σάρωση έληξε. Δοκίμασε ξανά."}, status=403)
+    with transaction.atomic():
+        encounter = get_object_or_404(
+            VSEncounter.objects.select_for_update().select_related(
+                "team1", "team2", "tournament",
+            ), pk=encounter_id,
+        )
+        player = Player.objects.select_related("team").filter(
+            pk=proof.get("player_id")
+        ).first()
+        if player is None:
+            return JsonResponse({"ok": False, "error": "Η κάρτα δεν αναγνωρίζεται."}, status=403)
+        try:
+            role, frozen = attest_and_maybe_freeze(encounter, player, remarks=remarks)
+        except ValueError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=409)
+    return JsonResponse({
+        "ok": True, "role": role, "issued": frozen,
+        "message": "Το φύλλο εκδόθηκε." if frozen else "Η επικύρωση καταγράφηκε.",
+    })
+
+
+@require_POST
+@user_passes_test(is_staff)
+def vs_sheet_referee_setting(request, encounter_id):
+    """Staff set referee requirement before the first acceptance."""
+    from .models import VSEncounter
+    from .sheet_attestation import ready_for_sheet
+    enabled = request.POST.get("enabled") == "on"
+    with transaction.atomic():
+        encounter = get_object_or_404(
+            VSEncounter.objects.select_for_update(), pk=encounter_id,
+        )
+        if not ready_for_sheet(encounter):
+            from django.http import HttpResponse
+            return HttpResponse("Πρώτα πρέπει να ολοκληρωθούν τα παιχνίδια.", status=409)
+        if encounter.sheet_issued_at is not None or encounter.sheet_attestations.exists():
+            from django.http import HttpResponse
+            return HttpResponse("Ο ορισμός διαιτητή κλείδωσε με την πρώτη επικύρωση.", status=409)
+        encounter.sheet_referee_required = enabled
+        encounter.save(update_fields=["sheet_referee_required", "updated_at"])
+    messages.success(request, "Η απαίτηση επικύρωσης διαιτητή ενημερώθηκε.")
+    return redirect("vs_encounter_detail", encounter_id=encounter_id)
+
 
 # Removed login_required decorator
 def tournament_list(request):
@@ -69,14 +203,77 @@ def tournament_detail(request, tournament_id):
     
     is_vs_mode = bool((tournament.allowed_match_types or {}).get('vs_mode'))
     vs_encounter = tournament.vs_encounters.first() if is_vs_mode else None
+    if is_vs_mode:
+        from .sheet_attestation import sheet_status
+        vs_encounter_one = tournament.vs_encounters.first()
+        vs_report_ready = bool(
+            vs_encounter_one and sheet_status(vs_encounter_one)["locked"]
+        )
+        can_edit_notes = bool(
+            request.user.is_authenticated and request.user.is_staff
+            and not tournament.vs_encounters.filter(sheet_attestations__isnull=False).exists()
+            and not tournament.vs_encounters.filter(sheet_issued_at__isnull=False).exists()
+        )
+    else:
+        vs_report_ready = False
+        can_edit_notes = False
     context = {
         'tournament': tournament,
         'rounds': rounds,
         'teams': teams,
         'is_vs_mode': is_vs_mode,
         'vs_encounter': vs_encounter,
+        'vs_report_ready': vs_report_ready,
+        'can_edit_report_notes': can_edit_notes,
     }
     return render(request, 'tournaments/tournament_detail.html', context)
+
+@require_GET
+def tournament_report_pdf(request, tournament_id):
+    """Read-only on-demand report; only VS is supported in this release."""
+    from django.http import Http404, HttpResponse
+    from .models import VSEncounter
+    from .sheet_attestation import sheet_status
+    tournament = get_object_or_404(Tournament, pk=tournament_id)
+    if not (tournament.allowed_match_types or {}).get("vs_mode"):
+        raise Http404("Tournament report is not enabled for this format")
+    encounters = list(VSEncounter.objects.filter(tournament=tournament))
+    if len(encounters) != 1:
+        return HttpResponse("Απαιτείται συγκεκριμένη αναμέτρηση VS.", status=409)
+    encounter = encounters[0]
+    if not sheet_status(encounter)["locked"]:
+        return HttpResponse(
+            "Το τελικό PDF εκδίδεται αφού επικυρώσουν και οι δύο ομάδες "
+            "και, αν έχει δηλωθεί, ο διαιτητής.",
+            content_type="text/plain; charset=utf-8", status=409,
+        )
+    return HttpResponse(
+        bytes(encounter.sheet_pdf), content_type="application/pdf",
+        headers={"Content-Disposition":
+                 f'attachment; filename="PFC_VS_Tournament_{tournament.pk}.pdf"'},
+    )
+
+
+@user_passes_test(is_staff)
+@require_POST
+def update_tournament_report_notes(request, tournament_id):
+    """Staff-only text for the printed report; never attests referee identity."""
+    tournament = get_object_or_404(Tournament, pk=tournament_id)
+    if not (tournament.allowed_match_types or {}).get("vs_mode"):
+        from django.http import Http404
+        raise Http404("Report notes unavailable")
+    notes = request.POST.get("report_notes", "")
+    if len(notes) > 2000:
+        from django.http import HttpResponseBadRequest
+        return HttpResponseBadRequest("Maximum 2000 characters")
+    if tournament.vs_encounters.filter(sheet_attestations__isnull=False).exists() or tournament.vs_encounters.filter(sheet_issued_at__isnull=False).exists():
+        from django.http import HttpResponse
+        return HttpResponse("Οι παρατηρήσεις κλειδώνουν μετά την πρώτη επικύρωση.", status=409)
+    tournament.report_notes = notes
+    tournament.save(update_fields=["report_notes", "updated_at"])
+    messages.success(request, "Report notes saved.")
+    return redirect("tournament_detail", tournament_id=tournament.id)
+
 
 @user_passes_test(is_staff)
 def tournament_create(request):
@@ -999,16 +1196,22 @@ def _get_team_from_pin(request, tournament):
     uses so VS Mode integrates naturally with the existing login mechanism.
     """
     from teams.models import Team as _Team
-    pin = request.session.get(f"team_pin_{tournament.id}")
+    from pfc_core.team_session_utils import TeamSessionManager
+    from pfc_core.session_utils import TeamPinSessionManager
+
+    # Prefer the currently authenticated Team session. The tournament-scoped
+    # key is a legacy VS compatibility fallback (not written by normal login).
+    pin = (
+        TeamPinSessionManager.get_logged_in_pin(request)
+        or TeamSessionManager.get_team_pin(request)
+        or request.session.get(f"team_pin_{tournament.id}")
+    )
     if not pin:
         return None
     try:
-        # Eligibility: not archived, not temp.
-        # Public-page visibility (profile_type) is separate from tournament eligibility.
+        # Enrollment in this VS encounter is separately checked by each view.
         return _Team.objects.get(
-            pin=pin,
-            is_archived=False,
-            is_tournament_temp=False,
+            pin=pin, is_archived=False, is_tournament_temp=False,
         )
     except _Team.DoesNotExist:
         return None
@@ -1033,7 +1236,7 @@ def _activate_locked_vs_match(match_id):
     from .models import VSLineup
 
     with transaction.atomic():
-        match = Match.objects.select_for_update().select_related(
+        match = Match.objects.select_for_update(of=("self",)).select_related(
             'tournament', 'team1', 'team2'
         ).get(pk=match_id)
         if match.status != 'pending':
@@ -1228,12 +1431,16 @@ def vs_lineup_submit(request, match_id):
             ])
             match = locked_match
 
-        # When the second side locks an equal lineup, create the normal match
-        # activation records and preserve the existing court-assignment flow.
-        if match.vs_lineup_team1_locked and match.vs_lineup_team2_locked:
-            activated, activation_message = _activate_locked_vs_match(match.id)
-            if not activated:
-                return JsonResponse({"ok": False, "error": activation_message}, status=400)
+            # The second captain's lineup freeze and match activation are one
+            # transaction under the same Match lock. Failure rolls back the
+            # second lineup lock, so a retry can never strand this game.
+            if match.vs_lineup_team1_locked and match.vs_lineup_team2_locked:
+                activated, activation_message = _activate_locked_vs_match(match.id)
+                if not activated:
+                    transaction.set_rollback(True)
+                    return JsonResponse(
+                        {"ok": False, "error": activation_message}, status=400
+                    )
 
         match.refresh_from_db()
 
@@ -1285,6 +1492,7 @@ def vs_lineup_submit(request, match_id):
     })
 
 
+@ensure_csrf_cookie
 def vs_encounter_detail(request, encounter_id):
     """
     Display the VS Encounter overview: all sub-games, current scores, and
@@ -1336,6 +1544,8 @@ def vs_encounter_detail(request, encounter_id):
             "opp_lineup": opp_lineup,
         })
 
+    from .sheet_attestation import sheet_status
+    sheet = sheet_status(encounter)
     context = {
         "encounter": encounter,
         "tournament": tournament,
@@ -1343,6 +1553,15 @@ def vs_encounter_detail(request, encounter_id):
         "sub_game_data": sub_game_data,
         "team1": encounter.team1,
         "team2": encounter.team2,
+        "sheet": sheet,
+        "sheet_team1": sheet["records"].get("team1"),
+        "sheet_team2": sheet["records"].get("team2"),
+        "sheet_referee": sheet["records"].get("referee"),
+        "can_set_sheet_referee": bool(
+            request.user.is_authenticated and request.user.is_staff
+            and sheet["ready"] and not sheet["locked"]
+            and not encounter.sheet_attestations.exists()
+        ),
     }
     return render(request, "tournaments/vs_encounter_detail.html", context)
 

@@ -40,6 +40,10 @@ class Tournament(models.Model):
     
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    report_notes = models.TextField(
+        blank=True, default="",
+        help_text="Organizer observations printed on the tournament PDF report.",
+    )
     format = models.CharField(max_length=20, choices=TOURNAMENT_FORMATS, default="knockout")
     play_format = models.CharField(max_length=20, choices=PLAY_FORMATS)
     has_triplets = models.BooleanField(default=False)
@@ -2363,6 +2367,11 @@ class VSEncounter(models.Model):
     )
     team1_points = models.IntegerField(default=0, help_text="VS points scored by team1 in this encounter")
     team2_points = models.IntegerField(default=0, help_text="VS points scored by team2 in this encounter")
+    sheet_referee_required = models.BooleanField(default=False)
+    sheet_digest = models.CharField(max_length=64, blank=True, default="")
+    sheet_issued_at = models.DateTimeField(null=True, blank=True)
+    # Immutable frozen PDF bytes live in Postgres; not an ephemeral Render filesystem.
+    sheet_pdf = models.BinaryField(null=True, blank=True, editable=False)
     is_complete = models.BooleanField(
         default=False,
         help_text="True when all sub-games in this encounter have been completed",
@@ -2378,6 +2387,50 @@ class VSEncounter(models.Model):
             f"VS: {self.team1.name} vs {self.team2.name} "
             f"({self.team1_points}–{self.team2_points}) [{self.tournament.name}]"
         )
+
+
+class VSSheetAttestation(models.Model):
+    """QR-confirmed acknowledgement of one completed VS encounter's match sheet.
+
+    Roles are explicitly scoped to an encounter, not a global tournament.
+    Retain printable identity snapshots and a digest of the approved contents;
+    subsequent data edits invalidate the displayed acknowledgement.
+    This is an accountable QR action, not a qualified digital signature.
+    """
+    ROLE_TEAM1 = "team1"
+    ROLE_TEAM2 = "team2"
+    ROLE_REFEREE = "referee"
+    ROLE_CHOICES = [
+        (ROLE_TEAM1, "Team 1 representative"),
+        (ROLE_TEAM2, "Team 2 representative"),
+        (ROLE_REFEREE, "Voluntary referee (not certified)"),
+    ]
+
+    encounter = models.ForeignKey(
+        "tournaments.VSEncounter", on_delete=models.CASCADE,
+        related_name="sheet_attestations",
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    player = models.ForeignKey(
+        "teams.Player", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="vs_sheet_attestations",
+    )
+    player_name = models.CharField(max_length=100)
+    team_name = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True, default="Όλα καλώς")
+    sheet_digest = models.CharField(max_length=64)
+    attested_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("encounter", "role"),
+                name="unique_vs_sheet_attestation_role",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.encounter_id}: {self.role} by {self.player_name}"
 
 
 class VSLineup(models.Model):

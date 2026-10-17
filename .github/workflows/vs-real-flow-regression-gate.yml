@@ -1,0 +1,86 @@
+name: VS real-flow regression gate
+
+on:
+  push:
+    branches:
+      - fix/vs-session-registration-20261017
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vs-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_vs_flow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_vs_flow_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_vs_flow_test
+      SECRET_KEY: isolated-vs-testing-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Django check and migration drift check
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: VS actual Team login, lineup, Court, result and leaderboard
+        run: |
+          python manage.py test tournaments.test_team_vs_scenarios_regression.VSModeRegressionTests --verbosity 2
+      - name: PostgreSQL concurrent VS scoring
+        run: |
+          python manage.py test \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_vs_game_completions_preserve_both_awards \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_vs_captains_activate_exactly_once \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_result_validations_finalize_once \
+            --verbosity 2
+      - name: Shared Match Tracking session lifecycle
+        run: |
+          python manage.py test match_tracking.tests --verbosity 2
+      - name: Match Analysis and VS Tournament PDF exports
+        env:
+          PFC_PDF_SAMPLE_DIR: pfc-pdf-preview
+        run: |
+          python manage.py test match_tracking.test_pdf_reports tournaments.test_vs_tournament_pdf --verbosity 2
+      - name: Downloadable PDF preview samples
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfc-pdf-report-previews
+          path: pfc-pdf-preview/*.pdf
+          if-no-files-found: error
+          retention-days: 14
+      - name: Super Melee P4 isolation
+        run: |
+          python manage.py test tournaments.test_melee_p4_write_cutover tournaments.test_melee_assignment_writer matches.test_melee_round_assignment_consumers --verbosity 1
+      - name: CEP Final Four isolation
+        run: |
+          python manage.py test \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_swiss_8_to_4_semifinals_final_and_champion_ranked_first \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_optional_bronze_match_finalizes_only_after_both_finals \
+            tournaments.test_eight_team_final_four_diagnostics.EightTeamTournamentDiagnosticTests.test_bronze_finishes_before_championship_final_no_early_completion \
+            --verbosity 1
