@@ -10,6 +10,26 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.AddField(
+            model_name="vsencounter",
+            name="sheet_referee_required",
+            field=models.BooleanField(default=False),
+        ),
+        migrations.AddField(
+            model_name="vsencounter",
+            name="sheet_digest",
+            field=models.CharField(blank=True, default="", max_length=64),
+        ),
+        migrations.AddField(
+            model_name="vsencounter",
+            name="sheet_issued_at",
+            field=models.DateTimeField(blank=True, null=True),
+        ),
+        migrations.AddField(
+            model_name="vsencounter",
+            name="sheet_pdf",
+            field=models.BinaryField(blank=True, editable=False, null=True),
+        ),
         migrations.CreateModel(
             name="VSSheetAttestation",
             fields=[
