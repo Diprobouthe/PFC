@@ -187,6 +187,13 @@
     <script>
     (function() {
       let processing = false;
+      // Identity confirmation in this context must also be a clear action:
+      // the person confirms acceptance of the final VS score sheet.
+      const confirmButton = document.getElementById('qrConfirmYes');
+      const confirmQuestion = document.querySelector('.qr-confirm-question');
+      if (confirmButton) confirmButton.textContent = 'Επικυρώνω το τελικό φύλλο αγώνα';
+      if (confirmQuestion) confirmQuestion.textContent =
+        'Επιβεβαιώνεις ότι αποδέχεσαι το τελικό αποτέλεσμα με αυτή την κάρτα PFC;';
       const finishUrl = "{% url 'vs_sheet_attest' encounter.id %}";
       const pdfUrl = "{% url 'tournament_report_pdf' tournament.id %}";
       function csrfToken() {
