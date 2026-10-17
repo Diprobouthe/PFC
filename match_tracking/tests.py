@@ -27,8 +27,8 @@ class MatchTrackingBrowserDelegationTests(TestCase):
         self.team2 = Team.objects.create(name="Tracking South", pin="771002")
         self.player1 = Player.objects.create(name="Tracking Player One", team=self.team1)
         self.player2 = Player.objects.create(name="Tracking Player Two", team=self.team2)
-        self.codename1 = PlayerCodename.objects.create(player=self.player1, codename="TRACK01")
-        self.codename2 = PlayerCodename.objects.create(player=self.player2, codename="TRACK02")
+        self.codename1 = PlayerCodename.objects.create(player=self.player1, codename="TRK001")
+        self.codename2 = PlayerCodename.objects.create(player=self.player2, codename="TRK002")
         self.match = Match.objects.create(
             tournament=self.tournament,
             team1=self.team1,
