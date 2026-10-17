@@ -11,15 +11,12 @@ from io import BytesIO
 
 from django.http import HttpResponse
 from django.utils import timezone
-from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
-from reportlab.platypus import KeepTogether, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Spacer
 
 from matches.models import Match
-from pfc_core.pdf_reporting import (
-    BORDER, BLUE, font_names, header, heading, page_footer, table, text,
-)
+from pfc_core.pdf_reporting import header, heading, page_footer, table, text
 from tournaments.vs_utils import get_vs_points_for_match_type, get_vs_rankings
 
 
@@ -96,28 +93,6 @@ def _match_row(match, *, show_team_names=False):
         f"#{match.pk}", first, score, second, vs,
         STATUS_LABELS.get(match.status, match.status),
     ]
-
-
-def _sheet_signatures(teams):
-    """Blank signature fields; an AI-generated report never forges signatures."""
-    regular, _ = font_names()
-    left = f"Αρχηγός: {teams[0].name}" if len(teams) == 2 else "Αρχηγός γηπεδούχου"
-    right = f"Αρχηγός: {teams[1].name}" if len(teams) == 2 else "Αρχηγός φιλοξενούμενου"
-    rows = [
-        [text(left + "\nΥπογραφή: __________________________", size=8),
-         text(right + "\nΥπογραφή: __________________________", size=8)],
-        [text("Διαιτητής: _______________________\nΥπογραφή: ________________________", size=8),
-         text("Παρατηρητής: _____________________\nΥπογραφή: ________________________", size=8)],
-    ]
-    block = Table(rows, colWidths=[90 * mm, 90 * mm], hAlign="LEFT")
-    block.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("GRID", (0, 0), (-1, -1), 0.6, BORDER),
-        ("TOPPADDING", (0, 0), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    return block
 
 
 def vs_sheet_ready(tournament):
@@ -246,14 +221,13 @@ def render_vs_tournament_report(tournament):
     if tournament.report_notes.strip():
         story.append(text(tournament.report_notes.strip(), size=8))
     else:
-        story.append(text("_______________________________________________________________", size=8))
+        story.append(text("Δεν καταχωρίστηκαν παρατηρήσεις.", size=8))
 
     story.append(Spacer(1, 3 * mm))
-    story.append(KeepTogether([
-        text("Αυτόματη καταγραφή: πετΑ UMP / PFC. "
-             "Δεν αποτελεί υπογραφή φυσικού διαιτητή.", size=7),
-        _sheet_signatures(unique_pair or ()),
-    ]))
+    story.append(text(
+        "πετΑ UMP / PFC · Ψηφιακή σύνοψη των τελικών επικυρωμένων παιχνιδιών. "
+        "Δεν αποτελεί ξεχωριστή επικύρωση του φύλλου αγώνα με QR.", size=7,
+    ))
     doc.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
     buff.seek(0)
     response = HttpResponse(buff.getvalue(), content_type="application/pdf")
