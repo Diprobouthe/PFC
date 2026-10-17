@@ -41,6 +41,7 @@ class Migration(migrations.Migration):
                 ], max_length=10)),
                 ("player_name", models.CharField(max_length=100)),
                 ("team_name", models.CharField(blank=True, max_length=100)),
+                ("remarks", models.TextField(blank=True, default="Όλα καλώς")),
                 ("sheet_digest", models.CharField(max_length=64)),
                 ("attested_at", models.DateTimeField(default=django.utils.timezone.now)),
                 ("encounter", models.ForeignKey(
