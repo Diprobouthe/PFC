@@ -185,6 +185,7 @@
     {# Reuse the exact PFC camera/QR confirmation modal; only server-side target changes. #}
     <script>
       window.QR_RESOLVE_URL = "{% url 'vs_sheet_qr_resolve' encounter.id %}";
+      window.QR_DIRECT_TO_VS_SHEET_REMARKS = true;
     </script>
     {% include "partials/qr_scanner_modal.html" %}
     {# QR proof stays server-side; a scan alone NEVER writes an attestation. #}
