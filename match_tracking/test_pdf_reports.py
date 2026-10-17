@@ -63,6 +63,10 @@ class HistoricalMatchPDFTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
+        sample_dir = os.getenv("PFC_PDF_SAMPLE_DIR")
+        if sample_dir:
+            Path(sample_dir).mkdir(parents=True, exist_ok=True)
+            (Path(sample_dir) / "match_analysis_demo.pdf").write_bytes(response.content)
         return "\n".join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
 
     def test_historical_periods_aggregate_by_player_without_crossing_other_players(self):
