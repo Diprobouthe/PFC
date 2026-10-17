@@ -69,12 +69,18 @@ def tournament_detail(request, tournament_id):
     
     is_vs_mode = bool((tournament.allowed_match_types or {}).get('vs_mode'))
     vs_encounter = tournament.vs_encounters.first() if is_vs_mode else None
+    if is_vs_mode:
+        from .pdf_reports import vs_sheet_ready
+        vs_report_ready = vs_sheet_ready(tournament)
+    else:
+        vs_report_ready = False
     context = {
         'tournament': tournament,
         'rounds': rounds,
         'teams': teams,
         'is_vs_mode': is_vs_mode,
         'vs_encounter': vs_encounter,
+        'vs_report_ready': vs_report_ready,
         'can_edit_report_notes': bool(request.user.is_authenticated and request.user.is_staff and is_vs_mode),
     }
     return render(request, 'tournaments/tournament_detail.html', context)
@@ -82,11 +88,18 @@ def tournament_detail(request, tournament_id):
 @require_GET
 def tournament_report_pdf(request, tournament_id):
     """Read-only on-demand report; only VS is supported in this release."""
-    from .pdf_reports import render_vs_tournament_report
+    from .pdf_reports import render_vs_tournament_report, vs_sheet_ready
     tournament = get_object_or_404(Tournament, pk=tournament_id)
     if not (tournament.allowed_match_types or {}).get("vs_mode"):
         from django.http import Http404
         raise Http404("Tournament report is not enabled for this format")
+    if not vs_sheet_ready(tournament):
+        from django.http import HttpResponse
+        return HttpResponse(
+            "Το φύλλο αγώνα είναι διαθέσιμο μετά την επικύρωση όλων των παιχνιδιών VS.",
+            content_type="text/plain; charset=utf-8",
+            status=409,
+        )
     return render_vs_tournament_report(tournament)
 
 
