@@ -60,11 +60,18 @@
 
     <!-- Team Photo Section -->
     {% if profile.team_photo_jpg %}
+    {% team_photo_url profile 400 as team_photo_400 %}
+    {% team_photo_url profile 800 as team_photo_800 %}
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="team-photo-hero" style="height: 300px; overflow: hidden; position: relative;">
-                    <img src="{{ profile.team_photo_jpg.url }}" alt="{{ team.name }} Team Photo" 
+                    <img src="{{ team_photo_800 }}"
+                         srcset="{{ team_photo_400 }} 400w, {{ team_photo_800 }} 800w"
+                         sizes="100vw"
+                         alt="{{ team.name }} Team Photo"
+                         width="800" height="300"
+                         decoding="async"
                          style="width: 100%; height: 100%; object-fit: cover;">
                     <div class="photo-overlay">
                         <h3 class="text-white">{{ team.name }} Team</h3>
