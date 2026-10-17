@@ -665,17 +665,22 @@ def validate_official_result(match_id: int, *, validating_team_id: int, agree: b
         _release_or_promote_locked(match)
 
         def deliver_completed() -> None:
+            # Tracking closure is an independent match-lifecycle obligation,
+            # never conditional on a push notification or presence hook working.
+            try:
+                from match_tracking.services import end_tracking_sessions
+                end_tracking_sessions("match", match.id, "match_completed")
+            except Exception:
+                logger.exception("Post-commit tracking closure failed for Match %s", match.id)
             try:
                 from .views import _deactivate_match_presence
-                from match_tracking.services import end_tracking_sessions
                 from pfc_events.signals import notify_match_state_changed
 
                 committed = Match.objects.get(pk=match.id)
                 notify_match_state_changed(committed.id, committed.status)
-                end_tracking_sessions("match", committed.id, "match_completed")
                 _deactivate_match_presence(committed)
             except Exception:
-                logger.exception("Post-commit completion delivery failed for Match %s", match.id)
+                logger.exception("Post-commit completion notification failed for Match %s", match.id)
             process_tournament_transition(match.id)
 
         transaction.on_commit(deliver_completed)
