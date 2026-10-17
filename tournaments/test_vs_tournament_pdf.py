@@ -103,11 +103,17 @@ class VSTournamentReportPDFTests(TestCase):
             content_type="application/json",
         )
 
-    def accept(self, player):
+    def accept(self, player, remarks=None):
         scan = self.scan(player)
         self.assertEqual(scan.status_code, 200, scan.content)
         self.assertTrue(scan.json()["ok"])
-        return self.client.post(self.attest_url)
+        if remarks is None:
+            return self.client.post(self.attest_url)
+        return self.client.post(
+            self.attest_url,
+            data=json.dumps({"remarks": remarks}),
+            content_type="application/json",
+        )
 
     def sign_both(self):
         self.assertTrue(self.accept(self.not_playing).json()["ok"])
@@ -167,6 +173,61 @@ class VSTournamentReportPDFTests(TestCase):
         self.assertEqual(self.client.post(self.attest_url).status_code, 403)
         self.assertEqual(self.scan(self.extra_a[0]).status_code, 409)  # one signer per side
         self.assertEqual(self.scan(self.player_b).status_code, 200)
+
+    def test_optional_qr_remarks_default_and_explicit_text_appear_in_frozen_pdf(self):
+        self.finish()
+        # An empty text field must be a real attestation with automatic status.
+        first = self.accept(self.not_playing, remarks="")
+        self.assertEqual(first.status_code, 200)
+        self.assertFalse(first.json()["issued"])
+        signed_a = VSSheetAttestation.objects.get(
+            encounter=self.encounter, role="team1",
+        )
+        self.assertEqual(signed_a.remarks, "Όλα καλώς")
+
+        # The other side attaches its own observations, not a shared note.
+        note = "Στο διπλό σημειώθηκε διακοπή λόγω βροχής, χωρίς αλλαγή σκορ."
+        second = self.accept(self.player_b, remarks=note)
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json()["issued"])
+        signed_b = VSSheetAttestation.objects.get(
+            encounter=self.encounter, role="team2",
+        )
+        self.assertEqual(signed_b.remarks, note)
+        self.assertEqual(signed_a.player_name, "Ανθή βοηθός")
+        self.assertEqual(signed_b.player_name, "Πέτρος")
+        text = self.pdf_text()
+        self.assertIn("Παρατήρηση: Όλα καλώς", text)
+        self.assertIn(note, text)
+        self.assertIn("Ανθή βοηθός", text)
+        self.assertIn("Πέτρος", text)
+        view = self.client.get(self.page_url)
+        self.assertContains(view, note)
+        self.assertContains(view, "Όλα καλώς")
+        pdf = self.client.get(self.pdf_url).content
+        self.assertEqual(pdf, self.client.get(self.pdf_url).content)
+
+    def test_invalid_qr_remarks_are_rejected_before_consuming_qr_proof(self):
+        self.finish()
+        self.assertEqual(self.scan(self.player_a).status_code, 200)
+        too_long = self.client.post(
+            self.attest_url,
+            data=json.dumps({"remarks": "Λ" * 1001}),
+            content_type="application/json",
+        )
+        self.assertEqual(too_long.status_code, 400)
+        self.assertEqual(VSSheetAttestation.objects.count(), 0)
+        # The same verified QR is still usable after fixing the input.
+        accepted = self.client.post(
+            self.attest_url,
+            data=json.dumps({"remarks": "Συμφωνώ"}),
+            content_type="application/json",
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(
+            VSSheetAttestation.objects.get(encounter=self.encounter).remarks,
+            "Συμφωνώ",
+        )
 
     def test_referee_requires_organizer_opt_in_and_neutral_qr(self):
         self.finish()
