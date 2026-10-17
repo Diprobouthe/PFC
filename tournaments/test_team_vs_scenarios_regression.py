@@ -573,15 +573,31 @@ class VSModeRegressionTests(TestCase):
         )
         self.assertFalse(Leaderboard.objects.filter(tournament=self.tournament).exists())
 
-    def test_vs_match_activate_is_not_redirected_to_parallel_lineup(self):
+    def test_vs_match_activate_requires_side_authority_and_uses_old_form(self):
+        """Anonymous viewers and third teams cannot receive the hidden PIN."""
         self.register_two()
         match = Match.objects.filter(tournament=self.tournament).first()
-        page = self.client.get(reverse(
-            "match_activate", args=[match.pk, self.teams[0].pk]
-        ))
+        url = reverse("match_activate", args=[match.pk, self.teams[0].pk])
+        unauth = self.client.get(url)
+        self.assertEqual(unauth.status_code, 302)
+        self.assertIn(reverse("match_detail", args=[match.pk]), unauth.url)
+        forbidden_post = self.client.post(url, {
+            "pin": self.teams[0].pin, "players": [self.players[self.teams[0].pk][0].pk],
+        })
+        self.assertEqual(forbidden_post.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.activations.count(), 0)
+
+        login = self.client.post(reverse("team_pin_login"),
+            data=json.dumps({"team_pin": self.teams[0].pin, "remember_me": False}),
+            content_type="application/json")
+        self.assertEqual(login.status_code, 200)
+        page = self.client.get(url)
         self.assertEqual(page.status_code, 200)
         self.assertTemplateUsed(page, "matches/match_activate.html")
         self.assertNotContains(page, "Lock Lineup")
+        self.assertContains(page, "role_")
+
 
     def test_recalculating_vs_points_is_idempotent(self):
         encounter = self.register_two()
