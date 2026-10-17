@@ -184,43 +184,92 @@
       window.QR_RESOLVE_URL = "{% url 'vs_sheet_qr_resolve' encounter.id %}";
     </script>
     {% include "partials/qr_scanner_modal.html" %}
+    {# QR proof stays server-side; a scan alone NEVER writes an attestation. #}
+    <div id="vs-sheet-remarks-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="vs-sheet-remarks-title" aria-hidden="true"
+         style="display:none;position:fixed;inset:0;z-index:10020;background:rgba(15,23,42,.85);align-items:center;justify-content:center;padding:18px;">
+      <div style="background:white;border-radius:16px;padding:22px;width:min(96vw,470px);max-height:90vh;overflow-y:auto;box-shadow:0 16px 64px rgba(0,0,0,.2);">
+        <h5 id="vs-sheet-remarks-title" class="mb-2 fw-bold">Επικύρωση τελικού φύλλου αγώνα</h5>
+        <p class="small text-muted mb-3" id="vs-sheet-remarks-person"></p>
+        <label for="vs-sheet-remarks-text" class="form-label fw-semibold">Παρατηρήσεις (προαιρετικά)</label>
+        <textarea id="vs-sheet-remarks-text" class="form-control" rows="4" maxlength="1000"
+                  placeholder="Αν δεν έχεις παρατηρήσεις, άφησέ το κενό. Θα καταγραφεί «Όλα καλώς»."></textarea>
+        <div class="form-text mb-3">Το κείμενο θα συνοδεύει το όνομά σου στο τελικό PDF. Κενό = «Όλα καλώς».</div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button id="vs-sheet-remarks-cancel" type="button" class="btn btn-outline-secondary">Ακύρωση</button>
+          <button id="vs-sheet-remarks-accept" type="button" class="btn btn-primary">ΟΚ · Επικύρωση</button>
+        </div>
+        <p id="vs-sheet-remarks-error" role="alert" class="small text-danger mt-2 mb-0" style="display:none;"></p>
+      </div>
+    </div>
     <script>
     (function() {
       let processing = false;
-      // Identity confirmation in this context must also be a clear action:
-      // the person confirms acceptance of the final VS score sheet.
+      // First QR confirmation establishes the scanned identity, then we ask
+      // for optional remarks. The FINAL consent is the second explicit OK.
       const confirmButton = document.getElementById('qrConfirmYes');
       const confirmQuestion = document.querySelector('.qr-confirm-question');
-      if (confirmButton) confirmButton.textContent = 'Επικυρώνω το τελικό φύλλο αγώνα';
+      if (confirmButton) confirmButton.textContent = 'Συνέχεια στις παρατηρήσεις';
       if (confirmQuestion) confirmQuestion.textContent =
-        'Επιβεβαιώνεις ότι αποδέχεσαι το τελικό αποτέλεσμα με αυτή την κάρτα PFC;';
+        'Επιβεβαίωσε την κάρτα σου για να επικυρώσεις το συνολικό φύλλο αγώνα.';
       const finishUrl = "{% url 'vs_sheet_attest' encounter.id %}";
       const pdfUrl = "{% url 'tournament_report_pdf' tournament.id %}";
+      const dialog = document.getElementById('vs-sheet-remarks-dialog');
+      const remarksInput = document.getElementById('vs-sheet-remarks-text');
+      const remarksError = document.getElementById('vs-sheet-remarks-error');
+      const accept = document.getElementById('vs-sheet-remarks-accept');
+      const cancel = document.getElementById('vs-sheet-remarks-cancel');
+
       function csrfToken() {
         const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
         if (input) return input.value;
         const m = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
         return m ? decodeURIComponent(m[1]) : '';
       }
-      document.addEventListener('qrPlayerResolved', async function(e) {
+      function closeRemarks() {
         if (processing) return;
+        dialog.style.display = 'none';
+        dialog.setAttribute('aria-hidden', 'true');
+        remarksInput.value = '';
+      }
+      cancel.addEventListener('click', closeRemarks);
+      document.addEventListener('qrPlayerResolved', function(e) {
+        if (processing) return;
+        remarksError.style.display = 'none';
+        remarksError.textContent = '';
+        remarksInput.value = '';
+        document.getElementById('vs-sheet-remarks-person').textContent =
+          (e.detail.player_name || 'Παίκτης') + ' · ' + (e.detail.role_name || 'Επικύρωση');
+        dialog.style.display = 'flex';
+        dialog.setAttribute('aria-hidden', 'false');
+        remarksInput.focus();
+      });
+      accept.addEventListener('click', async function() {
+        if (processing || dialog.style.display !== 'flex') return;
         processing = true;
+        accept.disabled = true;
+        cancel.disabled = true;
+        remarksError.style.display = 'none';
         const feedback = document.getElementById('vs-sheet-feedback');
-        feedback.textContent = "Καταχώριση επικύρωσης για " + (e.detail.player_name || 'παίκτη') + "...";
+        feedback.textContent = 'Καταχώριση τελικής επικύρωσης...';
         try {
           const response = await fetch(finishUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {"X-CSRFToken": csrfToken()},
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-CSRFToken': csrfToken(), 'Content-Type': 'application/json'},
+            body: JSON.stringify({remarks: remarksInput.value.trim()}),
           });
           const data = await response.json();
           if (!response.ok || !data.ok) {
-            feedback.classList.add('text-danger');
-            feedback.textContent = data.error || "Η επικύρωση δεν ολοκληρώθηκε.";
+            remarksError.textContent = data.error || 'Η επικύρωση δεν ολοκληρώθηκε.';
+            remarksError.style.display = 'block';
+            feedback.textContent = 'Δεν έγινε επικύρωση.';
             return;
           }
           feedback.classList.add('text-success');
           feedback.textContent = data.message;
+          dialog.style.display = 'none';
+          dialog.setAttribute('aria-hidden', 'true');
           if (data.issued) {
             window.location.href = pdfUrl;
             setTimeout(function() { window.location.reload(); }, 1400);
@@ -228,9 +277,13 @@
             window.location.reload();
           }
         } catch (_) {
-          feedback.classList.add('text-danger');
-          feedback.textContent = "Σφάλμα σύνδεσης. Έλεγξε την κατάσταση πριν ξανασαρώσεις.";
-        } finally { processing = false; }
+          remarksError.textContent = 'Σφάλμα σύνδεσης. Έλεγξε την κατάσταση πριν ξανασαρώσεις.';
+          remarksError.style.display = 'block';
+        } finally {
+          processing = false;
+          accept.disabled = false;
+          cancel.disabled = false;
+        }
       });
     }());
     </script>
