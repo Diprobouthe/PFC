@@ -62,8 +62,18 @@ jobs:
         run: |
           python manage.py test match_tracking.tests --verbosity 2
       - name: Match Analysis and VS Tournament PDF exports
+        env:
+          PFC_PDF_SAMPLE_DIR: pfc-pdf-preview
         run: |
           python manage.py test match_tracking.test_pdf_reports tournaments.test_vs_tournament_pdf --verbosity 2
+      - name: Downloadable PDF preview samples
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfc-pdf-report-previews
+          path: pfc-pdf-preview/*.pdf
+          if-no-files-found: error
+          retention-days: 14
       - name: Super Melee P4 isolation
         run: |
           python manage.py test tournaments.test_melee_p4_write_cutover tournaments.test_melee_assignment_writer matches.test_melee_round_assignment_consumers --verbosity 1
