@@ -885,6 +885,11 @@ def process_tournament_transition(match_id: int) -> bool:
         # This cheap predicate locks only the Round if this was the final Match.
         if round_id:
             process_round_transition(round_id)
+        elif match.vs_encounter_id:
+            # No Round exists for VS. Publish after the Match/Encounter commit,
+            # rather than holding their locks while acquiring a Tournament lock.
+            from leaderboards.views import publish_tournament_leaderboard
+            publish_tournament_leaderboard(match.tournament)
         return True
     except Exception as exc:
         logger.exception("Match lifecycle projection failed for Match %s", match_id)
