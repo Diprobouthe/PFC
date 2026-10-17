@@ -1039,7 +1039,7 @@ def _activate_locked_vs_match(match_id):
     from .models import VSLineup
 
     with transaction.atomic():
-        match = Match.objects.select_for_update().select_related(
+        match = Match.objects.select_for_update(of=("self",)).select_related(
             'tournament', 'team1', 'team2'
         ).get(pk=match_id)
         if match.status != 'pending':
