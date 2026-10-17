@@ -1674,76 +1674,16 @@ def vs_encounter_detail(request, encounter_id):
 
 @ensure_csrf_cookie
 def vs_sub_game_detail(request, match_id):
-    """
-    Display a single VS sub-game detail page.  Lineup visibility is enforced
-    server-side: opponent players are only shown once both lineups are locked.
-    """
-    from .models import VSEncounter, VSLineup
+    """Historical VS URL; the canonical Match lifecycle owns player selection.
 
+    Keep old bookmarks valid without exposing a second writable activation UI.
+    The original match_detail -> match_activate flow preserves roles, Court,
+    clocks and QR opponent handoff.
+    """
     match = get_object_or_404(Match, id=match_id)
     if not match.vs_encounter_id:
         return JsonResponse({"error": "Not a VS sub-game"}, status=400)
-
-    encounter: VSEncounter = match.vs_encounter
-    tournament = match.tournament
-    requesting_team = _get_team_from_pin(request, tournament, encounter)
-
-    is_team1 = requesting_team and requesting_team.pk == encounter.team1_id
-    is_team2 = requesting_team and requesting_team.pk == encounter.team2_id
-
-    t1_locked = match.vs_lineup_team1_locked
-    t2_locked = match.vs_lineup_team2_locked
-    both_locked = t1_locked and t2_locked
-
-    lineup1 = VSLineup.objects.filter(match=match, team=encounter.team1).first()
-    lineup2 = VSLineup.objects.filter(match=match, team=encounter.team2).first()
-
-    # Apply server-side visibility rules
-    if is_team1:
-        own_lineup = lineup1
-        opp_lineup = lineup2 if both_locked else None
-        own_locked = t1_locked
-        opp_locked = t2_locked
-    elif is_team2:
-        own_lineup = lineup2
-        opp_lineup = lineup1 if both_locked else None
-        own_locked = t2_locked
-        opp_locked = t1_locked
-    else:
-        # Spectator
-        own_lineup = None
-        opp_lineup = None
-        own_locked = t1_locked
-        opp_locked = t2_locked
-
-    # Determine opponent status text
-    if both_locked:
-        opponent_status = "Both lineups revealed"
-    elif opp_locked and not own_locked:
-        opponent_status = "Opponent lineup submitted — waiting for yours"
-    elif own_locked and not opp_locked:
-        opponent_status = "Your lineup submitted — waiting for opponent"
-    else:
-        opponent_status = "Waiting for both lineups"
-
-    context = {
-        "match": match,
-        "encounter": encounter,
-        "tournament": tournament,
-        "requesting_team": requesting_team,
-        "own_roster": list(requesting_team.players.order_by("name", "pk")) if requesting_team else [],
-        "is_team1": is_team1,
-        "is_team2": is_team2,
-        "both_locked": both_locked,
-        "own_locked": own_locked,
-        "opp_locked": opp_locked,
-        "own_lineup": own_lineup,
-        "opp_lineup": opp_lineup,
-        "opponent_status": opponent_status,
-        "team1": encounter.team1,
-        "team2": encounter.team2,
-    }
-    return render(request, "tournaments/vs_sub_game_detail.html", context)
+    return redirect("match_detail", match_id=match.pk)
 
 
 # ── Simplified tournament registration AJAX endpoints ─────────────────────────
