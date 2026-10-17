@@ -12,6 +12,21 @@ from .wtf_ranking import get_wtf_rankings, get_wtf_stage_rankings, update_wtf_st
 from tournaments.models import Tournament
 from teams.models import Team
 from matches.models import Match
+from tournaments.vs_utils import is_vs_tournament, get_vs_rankings
+
+
+def _vs_entries_for_display(tournament):
+    """Unsaved leaderboard rows computed from the completed VS games."""
+    return [
+        LeaderboardEntry(
+            team=row["team"], position=row["position"],
+            matches_played=row["matches_played"],
+            matches_won=row["matches_won"], matches_lost=row["matches_lost"],
+            points_scored=row["points_scored"], points_conceded=row["points_conceded"],
+            swiss_points=row["vs_points"],
+        )
+        for row in get_vs_rankings(tournament)
+    ]
 
 def leaderboard_index(request):
     """View for displaying all leaderboards"""
@@ -23,17 +38,23 @@ def leaderboard_index(request):
         # refreshes this projection; an unopened/new tournament simply has no
         # published leaderboard yet.
         leaderboard = Leaderboard.objects.filter(tournament=tournament).first()
-        if leaderboard is None:
+        vs_mode = is_vs_tournament(tournament)
+        if leaderboard is None and not vs_mode:
             continue
         
         # Get top entries
         # Shared bronze is a tie, not a fourth-place finisher.
-        published_podium = leaderboard.entries.filter(official_place__lte=3)
-        top_entries = (
-            list(published_podium.order_by('position'))
-            if published_podium.exists()
-            else list(leaderboard.entries.all().order_by('position')[:3])
-        )
+        if vs_mode:
+            top_entries = _vs_entries_for_display(tournament)[:3]
+            if not top_entries:
+                continue
+        else:
+            published_podium = leaderboard.entries.filter(official_place__lte=3)
+            top_entries = (
+                list(published_podium.order_by('position'))
+                if published_podium.exists()
+                else list(leaderboard.entries.all().order_by('position')[:3])
+            )
         
         leaderboards.append({
             'tournament': tournament,
@@ -41,6 +62,7 @@ def leaderboard_index(request):
             'top_entries': top_entries,
             'is_swiss': is_swiss_tournament(tournament),
             'is_wtf': is_wtf_tournament(tournament),
+            'is_vs': vs_mode,
         })
     
     context = {
@@ -56,10 +78,11 @@ def tournament_leaderboard(request, tournament_id):
     leaderboard = Leaderboard.objects.filter(tournament=tournament).first()
 
     # Get entries ordered by position
+    vs_mode = is_vs_tournament(tournament)
     entries = (
-        leaderboard.entries.all().order_by('position')
-        if leaderboard is not None
-        else LeaderboardEntry.objects.none()
+        _vs_entries_for_display(tournament) if vs_mode
+        else leaderboard.entries.all().order_by('position')
+        if leaderboard is not None else LeaderboardEntry.objects.none()
     )
 
     # Get Swiss-specific data if applicable
@@ -104,6 +127,7 @@ def tournament_leaderboard(request, tournament_id):
         'entries': entries,
         'is_swiss': is_swiss_tournament(tournament),
         'is_wtf': is_wtf_tournament(tournament),
+        'is_vs': vs_mode,
         'is_multistage': is_multistage,
         'stages_summary': stages_summary,
         'swiss_data': swiss_data,
@@ -220,7 +244,11 @@ def _rebuild_tournament_leaderboard_locked(tournament, leaderboard):
     LeaderboardEntry.objects.filter(leaderboard=leaderboard).delete()
     entries_to_create = []
 
-    if is_multistage_team_tournament(tournament):
+    if is_vs_tournament(tournament):
+        for entry in _vs_entries_for_display(tournament):
+            entry.leaderboard = leaderboard
+            entries_to_create.append(entry)
+    elif is_multistage_team_tournament(tournament):
         rankings = get_global_multistage_rankings(tournament)
         for ranking in rankings:
             entries_to_create.append(LeaderboardEntry(
