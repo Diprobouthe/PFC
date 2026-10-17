@@ -75,6 +75,7 @@ def tournament_detail(request, tournament_id):
         'teams': teams,
         'is_vs_mode': is_vs_mode,
         'vs_encounter': vs_encounter,
+        'can_edit_report_notes': bool(request.user.is_authenticated and request.user.is_staff and is_vs_mode),
     }
     return render(request, 'tournaments/tournament_detail.html', context)
 
