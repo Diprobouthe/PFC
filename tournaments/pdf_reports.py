@@ -37,32 +37,32 @@ STATUS_LABELS = {
 
 
 def _player_names(match, team_id):
-    """Return only the recorded game lineup, never a team's current roster.
+    """Use the historical MatchPlayer snapshot as canonical completed roster.
 
-    Partial lineups stay hidden even if the requesting browser belongs to one
-    team: the exported file is externally shareable.
+    Before VS route restoration, some pending games acquired provisional
+    VSLineup records without starting. Once a real Match is completed its
+    MatchPlayer entries supersede *all* provisional lineup data for printing.
+    Preserve the VSLineup fallback only for older validated games with no
+    MatchPlayer snapshot; never show partial/unvalidated rosters.
     """
-    if not (
-        match.status == "completed"
-        or (match.vs_lineup_team1_locked and match.vs_lineup_team2_locked)
+    if match.status != "completed" and not (
+        match.vs_lineup_team1_locked and match.vs_lineup_team2_locked
     ):
         return "Σύνθεση σε αναμονή"
+
+    if match.status == "completed":
+        players = [
+            row.player.name for row in match.match_players.all()
+            if row.team_id == team_id
+        ]
+        if players:
+            return "\n".join(players)
 
     for lineup in match.vs_lineups.all():
         if lineup.team_id == team_id and (lineup.is_locked or match.status == "completed"):
             names = [player.name for player in lineup.players.all()]
             if names:
                 return "\n".join(names)
-
-    # Completed historical games may predate VSLineup storage. MatchPlayer is
-    # match-scoped historical membership, unlike the current Team.players.
-    if match.status == "completed":
-        names = [
-            player.player.name for player in match.match_players.all()
-            if player.team_id == team_id
-        ]
-        if names:
-            return "\n".join(names)
     return "Δεν καταγράφηκε σύνθεση"
 
 
