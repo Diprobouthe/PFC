@@ -16,6 +16,121 @@ import math
 def is_staff(user):
     return user.is_staff
 
+# ── VS final sheet QR acceptance, independent from per-game validation ──
+
+@require_POST
+def vs_sheet_qr_resolve(request, encounter_id):
+    """Reuse PFC's existing HMAC card verification; hand off one-use QR proof."""
+    from django.utils import timezone
+    from friendly_games.models import PlayerCodename
+    from pfc_core.qr_utils import verify_player_token
+    from .models import VSEncounter
+    from .sheet_attestation import qr_role, sheet_status
+
+    encounter = get_object_or_404(
+        VSEncounter.objects.select_related("team1", "team2", "tournament"),
+        pk=encounter_id,
+    )
+    request.session.pop("vs_sheet_qr_proof", None)
+    request.session.modified = True
+    if not sheet_status(encounter)["ready"] or encounter.sheet_issued_at:
+        return JsonResponse({"ok": False, "error": "Το φύλλο δεν είναι διαθέσιμο για επικύρωση."}, status=409)
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        token = data.get("token", "")
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return JsonResponse({"ok": False, "error": "Μη έγκυρο αίτημα QR."}, status=400)
+    player_id = verify_player_token(token)
+    if player_id is None:
+        return JsonResponse({"ok": False, "error": "Μη έγκυρη κάρτα PFC."}, status=403)
+    person = PlayerCodename.objects.select_related("player__team").filter(
+        player_id=player_id
+    ).first()
+    if person is None:
+        return JsonResponse({"ok": False, "error": "Η κάρτα δεν αντιστοιχεί σε παίκτη PFC."}, status=403)
+    player = person.player
+    role = qr_role(encounter, player)
+    if not role:
+        return JsonResponse({"ok": False, "error": "Ο παίκτης δεν ανήκει στις ομάδες VS."}, status=403)
+    if encounter.sheet_attestations.filter(role=role).exists():
+        return JsonResponse({"ok": False, "error": "Η πλευρά αυτή έχει ήδη επικυρώσει."}, status=409)
+    # Neither a client-supplied identity nor a claimed role can authorize the
+    # final POST. The QR identity remains only in this browser's session.
+    request.session["vs_sheet_qr_proof"] = {
+        "encounter_id": encounter.pk,
+        "player_id": player.pk,
+        "issued": int(timezone.now().timestamp()),
+    }
+    request.session.modified = True
+    labels = {
+        "team1": "Ομάδα Α", "team2": "Ομάδα Β",
+        "referee": "Διαιτητής (χωρίς πιστοποίηση)",
+    }
+    return JsonResponse({
+        "ok": True, "player_name": player.name,
+        "team_name": player.team.name, "role_name": labels[role],
+    })
+
+
+@require_POST
+def vs_sheet_attest(request, encounter_id):
+    """Consume one scoped QR scan; atomically freeze PDF after the last one."""
+    from django.utils import timezone
+    from teams.models import Player
+    from .models import VSEncounter
+    from .sheet_attestation import attest_and_maybe_freeze
+
+    proof = request.session.pop("vs_sheet_qr_proof", None)
+    request.session.modified = True
+    if not isinstance(proof, dict) or proof.get("encounter_id") != encounter_id:
+        return JsonResponse({"ok": False, "error": "Σάρωσε πρώτα μια κάρτα QR."}, status=403)
+    issued = proof.get("issued")
+    if not isinstance(issued, int) or not (0 <= timezone.now().timestamp() - issued <= 180):
+        return JsonResponse({"ok": False, "error": "Η σάρωση έληξε. Δοκίμασε ξανά."}, status=403)
+    with transaction.atomic():
+        encounter = get_object_or_404(
+            VSEncounter.objects.select_for_update().select_related(
+                "team1", "team2", "tournament",
+            ), pk=encounter_id,
+        )
+        player = Player.objects.select_related("team").filter(
+            pk=proof.get("player_id")
+        ).first()
+        if player is None:
+            return JsonResponse({"ok": False, "error": "Η κάρτα δεν αναγνωρίζεται."}, status=403)
+        try:
+            role, frozen = attest_and_maybe_freeze(encounter, player)
+        except ValueError as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=409)
+    return JsonResponse({
+        "ok": True, "role": role, "issued": frozen,
+        "message": "Το φύλλο εκδόθηκε." if frozen else "Η επικύρωση καταγράφηκε.",
+    })
+
+
+@require_POST
+@user_passes_test(is_staff)
+def vs_sheet_referee_setting(request, encounter_id):
+    """Staff set referee requirement before the first acceptance."""
+    from .models import VSEncounter
+    from .sheet_attestation import ready_for_sheet
+    enabled = request.POST.get("enabled") == "on"
+    with transaction.atomic():
+        encounter = get_object_or_404(
+            VSEncounter.objects.select_for_update(), pk=encounter_id,
+        )
+        if not ready_for_sheet(encounter):
+            from django.http import HttpResponse
+            return HttpResponse("Πρώτα πρέπει να ολοκληρωθούν τα παιχνίδια.", status=409)
+        if encounter.sheet_issued_at is not None or encounter.sheet_attestations.exists():
+            from django.http import HttpResponse
+            return HttpResponse("Ο ορισμός διαιτητή κλείδωσε με την πρώτη επικύρωση.", status=409)
+        encounter.sheet_referee_required = enabled
+        encounter.save(update_fields=["sheet_referee_required", "updated_at"])
+    messages.success(request, "Η απαίτηση επικύρωσης διαιτητή ενημερώθηκε.")
+    return redirect("vs_encounter_detail", encounter_id=encounter_id)
+
+
 # Removed login_required decorator
 def tournament_list(request):
     """View for listing all tournaments — mobile-friendly directory with search."""
