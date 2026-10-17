@@ -80,6 +80,24 @@ def vs_sheet_attest(request, encounter_id):
     from .models import VSEncounter
     from .sheet_attestation import attest_and_maybe_freeze
 
+    # The client may submit *remarks only*, never identity or affiliation.
+    # Empty remarks mean affirmative acceptance without additional observations.
+    if "application/json" in (request.content_type or ""):
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError
+        except (ValueError, UnicodeDecodeError):
+            return JsonResponse({"ok": False, "error": "Μη έγκυρες παρατηρήσεις."}, status=400)
+        remarks = data.get("remarks", "")
+    else:
+        remarks = request.POST.get("remarks", "")
+    if not isinstance(remarks, str) or len(remarks) > 1000:
+        return JsonResponse(
+            {"ok": False, "error": "Οι παρατηρήσεις δεν μπορούν να ξεπερνούν τους 1000 χαρακτήρες."},
+            status=400,
+        )
+
     proof = request.session.pop("vs_sheet_qr_proof", None)
     request.session.modified = True
     if not isinstance(proof, dict) or proof.get("encounter_id") != encounter_id:
@@ -99,7 +117,7 @@ def vs_sheet_attest(request, encounter_id):
         if player is None:
             return JsonResponse({"ok": False, "error": "Η κάρτα δεν αναγνωρίζεται."}, status=403)
         try:
-            role, frozen = attest_and_maybe_freeze(encounter, player)
+            role, frozen = attest_and_maybe_freeze(encounter, player, remarks=remarks)
         except ValueError as exc:
             return JsonResponse({"ok": False, "error": str(exc)}, status=409)
     return JsonResponse({
