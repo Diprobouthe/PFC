@@ -264,7 +264,14 @@
         </button>
       </div>
       {% else %}
-      <p class="text-muted small mb-0"><i class="fas fa-clock"></i> Το φύλλο αγώνα θα είναι διαθέσιμο όταν ολοκληρωθούν και επικυρωθούν όλα τα παιχνίδια VS.</p>
+      <p class="text-muted small mb-1"><i class="fas fa-clock"></i>
+        Το επίσημο PDF θα είναι διαθέσιμο μετά την ολοκλήρωση όλων των παιχνιδιών και την τελική επικύρωση μέσω QR από τις δύο ομάδες.
+      </p>
+      {% if vs_encounter %}
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'vs_encounter_detail' vs_encounter.id %}#vs-sheet-section">
+        <i class="fas fa-qrcode"></i> Τελικό αποτέλεσμα / επικύρωση
+      </a>
+      {% endif %}
       {% endif %}
       {% if can_edit_report_notes %}
       <form class="mt-3" action="{% url 'update_tournament_report_notes' tournament.id %}" method="post">
