@@ -212,5 +212,42 @@ class TournamentLifecyclePostgreSQLTests(TransactionTestCase):
         self.assertEqual(len({entry.position for entry in entries}), 3)
         self.assertEqual(len({entry.team_id for entry in entries}), 3)
 
+    def test_concurrent_vs_game_completions_preserve_both_awards(self):
+        from tournaments.models import VSEncounter, TournamentTeam
+        from tournaments.vs_utils import update_vs_encounter_points
+
+        self.tournament.format = "independent_games"
+        self.tournament.allowed_match_types = {"vs_mode": True}
+        self.tournament.save(update_fields=["format", "allowed_match_types"])
+        TournamentTeam.objects.create(tournament=self.tournament, team=self.team1)
+        TournamentTeam.objects.create(tournament=self.tournament, team=self.team2)
+        encounter = VSEncounter.objects.create(
+            tournament=self.tournament, team1=self.team1, team2=self.team2
+        )
+        first = self._match(self.team1, self.team2, status="pending")
+        second = self._match(self.team1, self.team2, status="pending")
+        Match.objects.filter(pk__in=(first.pk, second.pk)).update(vs_encounter=encounter)
+
+        def finish_and_recalculate(match_id, winner_id, points):
+            with transaction.atomic():
+                Match.objects.filter(pk=match_id).update(
+                    status="completed", winner_id=winner_id, vs_points_value=points
+                )
+                update_vs_encounter_points(encounter)
+
+        _outcomes, errors = self._run_concurrently(
+            lambda: finish_and_recalculate(first.pk, self.team1.pk, 2),
+            lambda: finish_and_recalculate(second.pk, self.team2.pk, 3),
+        )
+        self.assertEqual(errors, [None, None])
+        encounter.refresh_from_db()
+        self.assertTrue(encounter.is_complete)
+        self.assertEqual((encounter.team1_points, encounter.team2_points), (2, 3))
+        self.assertEqual(
+            dict(TournamentTeam.objects.filter(tournament=self.tournament)
+                 .values_list("team_id", "vs_points")),
+            {self.team1.pk: 2, self.team2.pk: 3},
+        )
+
     def test_database_vendor_is_postgresql(self):
         self.assertEqual(connection.vendor, "postgresql")
