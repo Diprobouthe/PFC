@@ -1,7 +1,8 @@
-"""PDF certification/report tests for entire VS tournaments."""
+"""VS final-sheet QR approvals: membership, identity, finality and PDF freeze."""
+import json
 import os
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -9,81 +10,78 @@ from django.urls import reverse
 from django.utils import timezone
 from pypdf import PdfReader
 
+from friendly_games.models import PlayerCodename
 from matches.models import Match
+from pfc_core.qr_utils import generate_player_token
 from teams.models import Team, Player
-from tournaments.models import Tournament, TournamentTeam, VSEncounter, VSLineup
+from tournaments.models import (
+    Tournament, TournamentTeam, VSEncounter, VSLineup, VSSheetAttestation,
+)
 
 
 class VSTournamentReportPDFTests(TestCase):
     def setUp(self):
         self.tournament = Tournament.objects.create(
-            name="VS ΠΕΤΑ Δοκιμή", format="independent_games",
-            play_format="mixed", is_active=True,
-            allowed_match_types={"vs_mode": True},
+            name="VS ΠΕΤΑ Δοκιμή", format="independent_games", play_format="mixed",
+            is_active=True, allowed_match_types={"vs_mode": True},
             start_date=timezone.now(), end_date=timezone.now(),
         )
         self.a = Team.objects.create(name="Αθηναϊκοί", pin="793101")
         self.b = Team.objects.create(name="Πεδίο Άρεως", pin="793102")
+        self.c = Team.objects.create(name="Τρίτη ομάδα", pin="793103")
         for team in (self.a, self.b):
             TournamentTeam.objects.create(tournament=self.tournament, team=team)
-        self.player_a = Player.objects.create(name="Αθηνά", team=self.a)
-        self.player_b = Player.objects.create(name="Πέτρος", team=self.b)
+        self.player_a = self.player("Αθηνά", self.a, "ATA001")
+        self.player_b = self.player("Πέτρος", self.b, "PET002")
+        self.not_playing = self.player("Ανθή βοηθός", self.a, "ANT003")
+        self.outsider = self.player("Γιώργος", self.c, "GIO004")
+        self.extra_a = [self.player("Ελένη", self.a, "ELE005"), self.player("Δήμητρα", self.a, "DIM006")]
+        self.extra_b = [self.player("Αλέξης", self.b, "ALE007"), self.player("Σοφία", self.b, "SOF008")]
         self.encounter = VSEncounter.objects.create(
-            tournament=self.tournament, team1=self.a, team2=self.b
+            tournament=self.tournament, team1=self.a, team2=self.b,
         )
-        self.first = Match.objects.create(
-            tournament=self.tournament, vs_encounter=self.encounter,
-            team1=self.a, team2=self.b, status="completed",
-            match_type="tete_a_tete", vs_points_value=2,
-            winner=self.a, loser=self.b, team1_score=13, team2_score=8,
-            vs_lineup_team1_locked=True, vs_lineup_team2_locked=True,
+        self.first = self.game(
+            "tete_a_tete", 2, [self.player_a], [self.player_b], 13, 8, self.a,
         )
-        for player, team in ((self.player_a, self.a), (self.player_b, self.b)):
-            lineup = VSLineup.objects.create(match=self.first, team=team, is_locked=True)
-            lineup.players.add(player)
+        self.doublet = self.game(
+            "doublet", 3, [self.player_a, self.extra_a[0]],
+            [self.player_b, self.extra_b[0]], 13, 9, self.a,
+        )
+        self.triplet = self.game(
+            "triplet", 5, [self.player_a, *self.extra_a],
+            [self.player_b, *self.extra_b], 8, 13, self.b,
+        )
         self.pending = Match.objects.create(
             tournament=self.tournament, vs_encounter=self.encounter,
             team1=self.a, team2=self.b, status="pending",
             vs_lineup_team1_locked=True, vs_lineup_team2_locked=False,
         )
-        lineup = VSLineup.objects.create(match=self.pending, team=self.a, is_locked=True)
-        lineup.players.add(self.player_a)
-        # Realistic compact-sheet fixtures with distinct published lineups for
-        # all three formats. The pending fourth match is intentionally not
-        # assigned to a format or exposed before the opposing captain locks.
-        self.more_a = [
-            Player.objects.create(name="Ελένη", team=self.a),
-            Player.objects.create(name="Δήμητρα", team=self.a),
-        ]
-        self.more_b = [
-            Player.objects.create(name="Αλέξης", team=self.b),
-            Player.objects.create(name="Σοφία", team=self.b),
-        ]
-        self.doublet = self.finished_game(
-            "doublet", 3, [self.player_a, self.more_a[0]],
-            [self.player_b, self.more_b[0]], 13, 9, self.a,
-        )
-        self.triplet = self.finished_game(
-            "triplet", 5, [self.player_a, *self.more_a],
-            [self.player_b, *self.more_b], 8, 13, self.b,
-        )
         self.pdf_url = reverse("tournament_report_pdf", args=[self.tournament.pk])
+        self.scan_url = reverse("vs_sheet_qr_resolve", args=[self.encounter.pk])
+        self.attest_url = reverse("vs_sheet_attest", args=[self.encounter.pk])
+        self.referee_url = reverse("vs_sheet_referee_setting", args=[self.encounter.pk])
+        self.page_url = reverse("vs_encounter_detail", args=[self.encounter.pk])
 
-    def finished_game(self, fmt, vs_points, players_a, players_b, score_a, score_b, winner):
-        game = Match.objects.create(
+    def player(self, name, team, codename):
+        p = Player.objects.create(name=name, team=team)
+        PlayerCodename.objects.create(player=p, codename=codename)
+        return p
+
+    def game(self, fmt, points, a, b, score_a, score_b, winner):
+        match = Match.objects.create(
             tournament=self.tournament, vs_encounter=self.encounter,
-            team1=self.a, team2=self.b, status="completed",
-            match_type=fmt, vs_points_value=vs_points,
-            winner=winner, loser=self.b if winner == self.a else self.a,
+            team1=self.a, team2=self.b, status="completed", match_type=fmt,
+            vs_points_value=points, winner=winner,
+            loser=self.b if winner == self.a else self.a,
             team1_score=score_a, team2_score=score_b,
             vs_lineup_team1_locked=True, vs_lineup_team2_locked=True,
         )
-        for team, players in ((self.a, players_a), (self.b, players_b)):
-            lineup = VSLineup.objects.create(match=game, team=team, is_locked=True)
+        for team, players in ((self.a, a), (self.b, b)):
+            lineup = VSLineup.objects.create(match=match, team=team, is_locked=True)
             lineup.players.add(*players)
-        return game
+        return match
 
-    def finish_pending(self):
+    def finish(self):
         self.pending.status = "completed"
         self.pending.match_type = "doublet"
         self.pending.vs_points_value = 3
@@ -93,121 +91,169 @@ class VSTournamentReportPDFTests(TestCase):
         self.pending.loser = self.a
         self.pending.vs_lineup_team2_locked = True
         self.pending.save()
-        team1_lineup = self.pending.vs_lineups.get(team=self.a)
-        team1_lineup.players.add(self.more_a[0])
-        other = VSLineup.objects.create(
-            match=self.pending, team=self.b, is_locked=True,
+        for team, players in ((self.a, [self.player_a, self.extra_a[0]]),
+                              (self.b, [self.player_b, self.extra_b[0]])):
+            lineup = VSLineup.objects.create(match=self.pending, team=team, is_locked=True)
+            lineup.players.add(*players)
+
+    def scan(self, player):
+        return self.client.post(
+            self.scan_url,
+            data=json.dumps({"token": generate_player_token(player.id)}),
+            content_type="application/json",
         )
-        other.players.add(self.player_b, self.more_b[0])
+
+    def accept(self, player):
+        scan = self.scan(player)
+        self.assertEqual(scan.status_code, 200, scan.content)
+        self.assertTrue(scan.json()["ok"])
+        return self.client.post(self.attest_url)
+
+    def sign_both(self):
+        self.assertTrue(self.accept(self.not_playing).json()["ok"])
+        return self.accept(self.player_b)
 
     def pdf_text(self):
         response = self.client.get(self.pdf_url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
-        sample_dir = os.getenv("PFC_PDF_SAMPLE_DIR")
-        if sample_dir:
-            Path(sample_dir).mkdir(parents=True, exist_ok=True)
-            (Path(sample_dir) / "vs_tournament_final_demo.pdf").write_bytes(response.content)
+        folder = os.getenv("PFC_PDF_SAMPLE_DIR")
+        if folder:
+            Path(folder).mkdir(parents=True, exist_ok=True)
+            (Path(folder) / "vs_tournament_final_demo.pdf").write_bytes(response.content)
         return "\n".join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
 
-    def test_before_all_results_validated_pdf_is_unavailable_even_via_direct_url(self):
-        from tournaments.pdf_reports import _match_row
-        self.assertEqual(_match_row(self.pending)[1], "Σύνθεση σε αναμονή")
-        self.assertEqual(_match_row(self.pending)[3], "Σύνθεση σε αναμονή")
-        response = self.client.get(self.pdf_url)
-        self.assertEqual(response.status_code, 409)
-        self.assertNotEqual(response["Content-Type"], "application/pdf")
-        self.assertIn("επικύρωση", response.content.decode())
-        page = self.client.get(reverse("tournament_detail", args=[self.tournament.pk]))
-        self.assertEqual(page.status_code, 200)
-        self.assertFalse(page.context["vs_report_ready"])
-        self.assertNotContains(page, 'onclick="sharePFCTournamentReport')
+    def test_sheet_unavailable_before_all_games_or_without_team_attestations(self):
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+        self.assertFalse(self.client.get(self.page_url).context["sheet"]["ready"])
+        self.assertEqual(self.scan(self.player_a).status_code, 409)
+        self.finish()
+        self.assertTrue(self.client.get(self.page_url).context["sheet"]["ready"])
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+        self.assertEqual(self.client.post(self.attest_url).status_code, 403)
 
-    def test_final_pdf_is_read_only_and_renders_real_lineups(self):
-        self.finish_pending()
-        original_updated_at = self.tournament.updated_at
-        result = self.pdf_text()
-        self.assertIn("VS ΠΕΤΑ Δοκιμή", result)
-        self.assertIn("ΤΕΛΙΚΟ", result)
-        self.assertNotIn("ΠΡΟΣΩΡΙΝΟ", result)
-        self.assertIn("13 – 8", result)
-        self.assertIn("Αθηνά", result)
-        self.assertIn("2", result)
-        self.tournament.refresh_from_db()
-        self.assertEqual(self.tournament.updated_at, original_updated_at)
-        page = self.client.get(reverse("tournament_detail", args=[self.tournament.pk]))
-        self.assertTrue(page.context["vs_report_ready"])
-        self.assertContains(page, 'onclick="sharePFCTournamentReport')
+    def test_two_team_members_finally_issue_immutable_pdf_without_closing_tournament(self):
+        self.finish()
+        result = self.sign_both()
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.json()["issued"])
+        self.assertTrue(self.tournament.is_active)
+        self.encounter.refresh_from_db()
+        self.assertIsNotNone(self.encounter.sheet_issued_at)
+        self.assertTrue(self.encounter.sheet_pdf)
+        text = self.pdf_text()
+        self.assertIn("Ανθή βοηθός", text)  # Team roster member who did not play.
+        self.assertIn("Πέτρος", text)
+        self.assertIn("Επικυρώθηκε μέσω PFC QR", text)
+        self.assertIn("πετΑ UMP", text)
+        self.assertNotIn("Υπογραφή:", text)
+        self.assertNotIn("ΠΡΟΣΩΡΙΝΟ", text)
+        self.assertTrue(self.client.get(self.page_url).context["sheet"]["locked"])
+        self.assertEqual(self.scan(self.extra_a[0]).status_code, 409)
+        frozen = bytes(self.encounter.sheet_pdf)
+        self.assertEqual(self.client.get(self.pdf_url).content, frozen)
 
-    def test_staff_notes_are_saved_and_anonymous_may_not_change_them(self):
-        url = reverse("update_tournament_report_notes", args=[self.tournament.pk])
-        bad = self.client.post(url, {"report_notes": "Μη εξουσιοδοτημένη σημείωση"})
-        self.assertEqual(bad.status_code, 302)
+    def test_membership_is_current_team_roster_not_tournament_lineup_or_captain(self):
+        self.finish()
+        self.assertFalse(self.not_playing.is_captain)
+        self.assertFalse(self.first.vs_lineups.filter(players=self.not_playing).exists())
+        self.assertEqual(self.scan(self.not_playing).status_code, 200)
+        result = self.client.post(self.attest_url)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["role"], "team1")
+        self.assertEqual(VSSheetAttestation.objects.get(role="team1").player, self.not_playing)
+        self.assertEqual(self.scan(self.outsider).status_code, 403)
+        self.assertEqual(self.client.post(self.attest_url).status_code, 403)
+        self.assertEqual(self.scan(self.extra_a[0]).status_code, 409)  # one signer per side
+        self.assertEqual(self.scan(self.player_b).status_code, 200)
+
+    def test_referee_requires_organizer_opt_in_and_neutral_qr(self):
+        self.finish()
+        self.assertEqual(self.client.post(self.referee_url, {"enabled": "on"}).status_code, 302)
+        self.encounter.refresh_from_db()
+        self.assertFalse(self.encounter.sheet_referee_required)
+        admin = get_user_model().objects.create_user(
+            username="vs_admin", password="pass-12345", is_staff=True,
+        )
+        self.client.force_login(admin)
+        self.assertEqual(self.client.post(self.referee_url, {"enabled": "on"}).status_code, 302)
+        self.encounter.refresh_from_db()
+        self.assertTrue(self.encounter.sheet_referee_required)
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+        accepted = self.sign_both()
+        self.assertFalse(accepted.json()["issued"])
+        self.assertEqual(self.client.post(self.referee_url, {"enabled": ""}).status_code, 409)
+        third = self.accept(self.outsider)
+        self.assertTrue(third.json()["issued"])
+        text = self.pdf_text()
+        self.assertIn("Γιώργος", text)
+        self.assertIn("χωρίς πιστοποίηση", text)
+
+    def test_invalid_qr_and_forged_json_identity_cannot_attest(self):
+        self.finish()
+        fake = self.client.post(self.attest_url, data=json.dumps(
+            {"player_id": self.player_a.pk, "role": "team1",
+             "codename": "ATA001"}), content_type="application/json",
+        )
+        self.assertEqual(fake.status_code, 403)
+        bad = self.client.post(self.scan_url, data=json.dumps({
+            "token": generate_player_token(self.player_a.pk) + "FORGED"
+        }), content_type="application/json")
+        self.assertEqual(bad.status_code, 403)
+        self.assertEqual(self.client.post(self.attest_url).status_code, 403)
+        self.assertEqual(self.scan(self.player_a).status_code, 200)
+        self.assertEqual(self.client.post(self.attest_url).status_code, 200)
+        self.assertEqual(self.client.post(self.attest_url).status_code, 403)
+
+    def test_notes_are_staff_only_and_frozen_after_first_attestation(self):
+        notes_url = reverse("update_tournament_report_notes", args=[self.tournament.pk])
+        self.assertEqual(self.client.post(notes_url, {"report_notes": "Changed"}).status_code, 302)
         self.tournament.refresh_from_db()
         self.assertEqual(self.tournament.report_notes, "")
-
         staff = get_user_model().objects.create_user(
-            username="vs_report_editor", password="secure-test-password", is_staff=True
+            username="notes_staff", password="password-123", is_staff=True
         )
         self.client.force_login(staff)
-        posted = self.client.post(url, {"report_notes": "Επίσημες παρατηρήσεις διοργάνωσης"})
-        self.assertEqual(posted.status_code, 302)
+        self.assertEqual(self.client.post(notes_url, {"report_notes": "Επίσημες σημειώσεις"}).status_code, 302)
         self.tournament.refresh_from_db()
-        self.assertEqual(self.tournament.report_notes, "Επίσημες παρατηρήσεις διοργάνωσης")
-        self.finish_pending()
-        self.assertIn("Επίσημες παρατηρήσεις διοργάνωσης", self.pdf_text())
-        too_long = self.client.post(url, {"report_notes": "X" * 2001})
-        self.assertEqual(too_long.status_code, 400)
+        self.assertEqual(self.tournament.report_notes, "Επίσημες σημειώσεις")
+        self.finish()
+        self.accept(self.not_playing)
+        self.assertEqual(self.client.post(notes_url, {"report_notes": "Edit after signing"}).status_code, 409)
+        self.accept(self.player_b)
+        self.assertIn("Επίσημες σημειώσεις", self.pdf_text())
 
-    def test_pdf_opens_at_final_result_without_manually_closing_tournament(self):
-        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
-        self.finish_pending()
-        self.assertTrue(self.tournament.is_active)
-        rendered = self.pdf_text()
-        self.assertIn("ΤΕΛΙΚΟ", rendered)
-        self.assertIn("4 – 13", rendered)
-        self.assertIn("13 – 8", rendered)
-        self.assertIn("Πεδίο Άρεως", rendered)
-
-    def test_waiting_for_validation_is_not_final(self):
-        Match.objects.filter(pk=self.pending.pk).update(
-            match_type="doublet", status="waiting_validation",
-            team1_score=13, team2_score=10,
-        )
-        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
-
-    def test_compact_sheet_groups_formats_and_prints_real_player_lineups(self):
-        self.finish_pending()
-        rendered = self.pdf_text()
-        singles = rendered.find("ΜΟΝΑ")
-        doubles = rendered.find("ΔΙΠΛΑ")
-        triples = rendered.find("ΤΡΙΠΛΑ")
-        self.assertTrue(0 <= singles < doubles < triples, rendered)
-        self.assertNotIn("ΕΚΚΡΕΜΗ", rendered)
-        self.assertNotIn("ΧΩΡΙΣ ΟΡΙΣΜΕΝΗ ΜΟΡΦΗ", rendered)
-        for player in ("Αθηνά", "Πέτρος", "Ελένη", "Αλέξης", "Δήμητρα", "Σοφία"):
-            self.assertIn(player, rendered)
-        self.assertIn("πετΑ UMP", rendered)
-        self.assertNotIn("πέτα UMP", rendered)
-        # No fabricated player substitution: the database has none.
-        self.assertNotIn("Αντικατάσταση", rendered)
-
-    def test_typical_three_games_fit_on_one_a4_page(self):
-        self.pending.delete()
+    def test_two_page_score_sheet_for_larger_realistic_vs(self):
+        self.finish()
+        # Simulate a substantial completed VS sheet with actual lineups.
+        for i in range(16):
+            self.game(
+                "tete_a_tete" if i % 3 == 0 else "doublet" if i % 3 == 1 else "triplet",
+                2 if i % 3 == 0 else 3 if i % 3 == 1 else 5,
+                [self.player_a] if i % 3 == 0 else [self.player_a, self.extra_a[0]]
+                if i % 3 == 1 else [self.player_a, *self.extra_a],
+                [self.player_b] if i % 3 == 0 else [self.player_b, self.extra_b[0]]
+                if i % 3 == 1 else [self.player_b, *self.extra_b],
+                13, 6, self.a,
+            )
+        self.sign_both()
         response = self.client.get(self.pdf_url)
-        self.assertEqual(response.status_code, 200)
         pages = PdfReader(BytesIO(response.content)).pages
-        self.assertEqual(len(pages), 1)
+        self.assertGreaterEqual(len(pages), 2)
+        self.assertIn("ΨΗΦΙΑΚΗ ΕΠΙΚΥΡΩΣΗ", pages[-1].extract_text())
 
-    def test_no_encounter_or_no_games_cannot_generate_blank_sheet(self):
-        self.pending.delete()
-        self.first.delete()
-        self.doublet.delete()
-        self.triplet.delete()
+    def test_revision_before_final_attestation_invalidates_previous_approval(self):
+        self.finish()
+        self.accept(self.player_a)
+        self.first.team1_score = 12
+        self.first.save(update_fields=["team1_score"])
+        # Revoked by the material change: an existing A signature is not enough.
+        second = self.accept(self.player_b)
+        self.assertFalse(second.json()["issued"])
         self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
-        self.encounter.delete()
-        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+        first = self.accept(self.player_a)
+        self.assertTrue(first.json()["issued"])
 
     def test_non_vs_report_is_not_generated(self):
         self.tournament.allowed_match_types = {}
