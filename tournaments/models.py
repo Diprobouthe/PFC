@@ -2384,6 +2384,49 @@ class VSEncounter(models.Model):
         )
 
 
+class VSSheetAttestation(models.Model):
+    """QR-confirmed acknowledgement of one completed VS encounter's match sheet.
+
+    Roles are explicitly scoped to an encounter, not a global tournament.
+    Retain printable identity snapshots and a digest of the approved contents;
+    subsequent data edits invalidate the displayed acknowledgement.
+    This is an accountable QR action, not a qualified digital signature.
+    """
+    ROLE_TEAM1 = "team1"
+    ROLE_TEAM2 = "team2"
+    ROLE_REFEREE = "referee"
+    ROLE_CHOICES = [
+        (ROLE_TEAM1, "Team 1 representative"),
+        (ROLE_TEAM2, "Team 2 representative"),
+        (ROLE_REFEREE, "Voluntary referee (not certified)"),
+    ]
+
+    encounter = models.ForeignKey(
+        "tournaments.VSEncounter", on_delete=models.CASCADE,
+        related_name="sheet_attestations",
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    player = models.ForeignKey(
+        "teams.Player", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="vs_sheet_attestations",
+    )
+    player_name = models.CharField(max_length=100)
+    team_name = models.CharField(max_length=100, blank=True)
+    sheet_digest = models.CharField(max_length=64)
+    attested_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("encounter", "role"),
+                name="unique_vs_sheet_attestation_role",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.encounter_id}: {self.role} by {self.player_name}"
+
+
 class VSLineup(models.Model):
     """
     Records the player lineup submitted by one team for a single VS sub-game.
