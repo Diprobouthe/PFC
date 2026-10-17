@@ -707,7 +707,6 @@ def undo_last_shot(request, match_type, pk):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @require_http_methods(["GET"])
-@require_http_methods(["GET"])
 def export_pdf(request, match_type, pk):
     """Render Match Analysis on demand, including historical tracking periods."""
     if match_type not in ("match", "game"):
