@@ -101,6 +101,134 @@
     {% endfor %}
   </div>
 
+  {# ── Independent FINAL SHEET validation; match result lifecycle unchanged ── #}
+  <section class="card border-0 shadow-sm mt-4" id="vs-sheet-section">
+    <div class="card-body">
+      <h5 class="card-title fw-bold">Τελικό φύλλο αγώνα · πετΑ UMP</h5>
+      {% if not sheet.ready %}
+        <p class="text-muted small mb-0">
+          Η τελική επικύρωση θα εμφανιστεί όταν ολοκληρωθούν και επικυρωθούν όλα τα παιχνίδια VS.
+          Δεν επηρεάζει την επικύρωση των επιμέρους παιχνιδιών.
+        </p>
+      {% else %}
+        <p class="small text-muted">
+          Έλεγξε το τελικό αποτέλεσμα {{ team1.name }} – {{ team2.name }}.
+          Η σάρωση QR καταγράφει ποιος αποδέχθηκε το συνολικό φύλλο αγώνα.
+        </p>
+
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span>Ομάδα Α · {{ team1.name }}</span>
+          {% if sheet_team1 %}
+            <span class="text-success text-end"><i class="fas fa-check-circle"></i>
+              {{ sheet_team1.player_name }} · {{ sheet_team1.attested_at|date:"d/m/Y H:i" }}
+            </span>
+          {% else %}<span class="text-muted">Αναμονή QR</span>{% endif %}
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span>Ομάδα Β · {{ team2.name }}</span>
+          {% if sheet_team2 %}
+            <span class="text-success text-end"><i class="fas fa-check-circle"></i>
+              {{ sheet_team2.player_name }} · {{ sheet_team2.attested_at|date:"d/m/Y H:i" }}
+            </span>
+          {% else %}<span class="text-muted">Αναμονή QR</span>{% endif %}
+        </div>
+        {% if encounter.sheet_referee_required %}
+          <div class="d-flex justify-content-between py-2 border-bottom">
+            <span>Διαιτητής · μη πιστοποιημένος</span>
+            {% if sheet_referee %}
+              <span class="text-success text-end"><i class="fas fa-check-circle"></i>
+                {{ sheet_referee.player_name }} · {{ sheet_referee.attested_at|date:"d/m/Y H:i" }}
+              </span>
+            {% else %}<span class="text-muted">Αναμονή QR</span>{% endif %}
+          </div>
+        {% endif %}
+
+        {% if can_set_sheet_referee %}
+        <form action="{% url 'vs_sheet_referee_setting' encounter.id %}" method="post" class="my-3">
+          {% csrf_token %}
+          <label class="form-check-label d-flex align-items-center gap-2">
+            <input class="form-check-input m-0" type="checkbox" name="enabled"
+                   {% if encounter.sheet_referee_required %}checked{% endif %}>
+            Υπάρχει διαιτητής — να απαιτείται τρίτη επικύρωση
+          </label>
+          <button class="btn btn-sm btn-outline-secondary mt-2" type="submit">
+            Αποθήκευση επιλογής διαιτητή
+          </button>
+          <div class="form-text">Μόνο διαχειριστής · η επιλογή κλειδώνει με την πρώτη επικύρωση.</div>
+        </form>
+        {% endif %}
+
+        {% if sheet.locked %}
+          <div class="alert alert-success mt-3 mb-2">
+            <i class="fas fa-file-circle-check"></i>
+            <strong>Επικυρωμένο και κλειδωμένο.</strong> Το PDF έχει εκδοθεί.
+          </div>
+          <a class="btn btn-danger" href="{% url 'tournament_report_pdf' tournament.id %}">
+            <i class="fas fa-file-pdf"></i> Λήψη τελικού PDF
+          </a>
+        {% else %}
+          <button class="btn btn-primary w-100 mt-3" type="button" onclick="openQrScanner()">
+            <i class="fas fa-qrcode"></i> Επικύρωση · Σάρωση κάρτας PFC
+          </button>
+          <p id="vs-sheet-feedback" role="status" aria-live="polite" class="small mt-2 mb-0 text-muted">
+            Ο ρόλος αναγνωρίζεται αυτόματα από την ομάδα της κάρτας.
+          </p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </section>
+
+  {% if sheet.ready and not sheet.locked %}
+    {# Reuse the exact PFC camera/QR confirmation modal; only server-side target changes. #}
+    <script>
+      window.QR_RESOLVE_URL = "{% url 'vs_sheet_qr_resolve' encounter.id %}";
+    </script>
+    {% include "partials/qr_scanner_modal.html" %}
+    <script>
+    (function() {
+      let processing = false;
+      const finishUrl = "{% url 'vs_sheet_attest' encounter.id %}";
+      const pdfUrl = "{% url 'tournament_report_pdf' tournament.id %}";
+      function csrfToken() {
+        const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (input) return input.value;
+        const m = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+        return m ? decodeURIComponent(m[1]) : '';
+      }
+      document.addEventListener('qrPlayerResolved', async function(e) {
+        if (processing) return;
+        processing = true;
+        const feedback = document.getElementById('vs-sheet-feedback');
+        feedback.textContent = "Καταχώριση επικύρωσης για " + (e.detail.player_name || 'παίκτη') + "...";
+        try {
+          const response = await fetch(finishUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {"X-CSRFToken": csrfToken()},
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            feedback.classList.add('text-danger');
+            feedback.textContent = data.error || "Η επικύρωση δεν ολοκληρώθηκε.";
+            return;
+          }
+          feedback.classList.add('text-success');
+          feedback.textContent = data.message;
+          if (data.issued) {
+            window.location.href = pdfUrl;
+            setTimeout(function() { window.location.reload(); }, 1400);
+          } else {
+            window.location.reload();
+          }
+        } catch (_) {
+          feedback.classList.add('text-danger');
+          feedback.textContent = "Σφάλμα σύνδεσης. Έλεγξε την κατάσταση πριν ξανασαρώσεις.";
+        } finally { processing = false; }
+      });
+    }());
+    </script>
+  {% endif %}
+
   {# ── Back link ── #}
   <div class="mt-4">
     <a href="{% url 'tournament_detail' tournament.id %}" class="btn btn-outline-secondary btn-sm">
