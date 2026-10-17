@@ -190,8 +190,14 @@ def tournament_detail(request, tournament_id):
         vs_report_ready = bool(
             vs_encounter_one and sheet_status(vs_encounter_one)["locked"]
         )
+        can_edit_notes = bool(
+            request.user.is_authenticated and request.user.is_staff
+            and not tournament.vs_encounters.filter(sheet_attestations__isnull=False).exists()
+            and not tournament.vs_encounters.filter(sheet_issued_at__isnull=False).exists()
+        )
     else:
         vs_report_ready = False
+        can_edit_notes = False
     context = {
         'tournament': tournament,
         'rounds': rounds,
@@ -199,7 +205,7 @@ def tournament_detail(request, tournament_id):
         'is_vs_mode': is_vs_mode,
         'vs_encounter': vs_encounter,
         'vs_report_ready': vs_report_ready,
-        'can_edit_report_notes': bool(request.user.is_authenticated and request.user.is_staff and is_vs_mode),
+        'can_edit_report_notes': can_edit_notes,
     }
     return render(request, 'tournaments/tournament_detail.html', context)
 
