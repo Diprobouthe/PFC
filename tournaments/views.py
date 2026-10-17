@@ -1234,12 +1234,16 @@ def vs_lineup_submit(request, match_id):
             ])
             match = locked_match
 
-        # When the second side locks an equal lineup, create the normal match
-        # activation records and preserve the existing court-assignment flow.
-        if match.vs_lineup_team1_locked and match.vs_lineup_team2_locked:
-            activated, activation_message = _activate_locked_vs_match(match.id)
-            if not activated:
-                return JsonResponse({"ok": False, "error": activation_message}, status=400)
+            # The second captain's lineup freeze and match activation are one
+            # transaction under the same Match lock. Failure rolls back the
+            # second lineup lock, so a retry can never strand this game.
+            if match.vs_lineup_team1_locked and match.vs_lineup_team2_locked:
+                activated, activation_message = _activate_locked_vs_match(match.id)
+                if not activated:
+                    transaction.set_rollback(True)
+                    return JsonResponse(
+                        {"ok": False, "error": activation_message}, status=400
+                    )
 
         match.refresh_from_db()
 
