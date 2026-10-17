@@ -94,8 +94,15 @@
             {% csrf_token %}
             <p class="small text-muted mb-2">Select 1, 2, or 3 players. The opponent must select the same number.</p>
             <div id="player-checkboxes" class="mb-3">
-              {# Populated via JS below #}
-              <p class="text-muted small">Loading players…</p>
+              {% for player in own_roster %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="player"
+                         value="{{ player.id }}" id="vs_player_{{ player.id }}">
+                  <label class="form-check-label" for="vs_player_{{ player.id }}">{{ player.name }}</label>
+                </div>
+              {% empty %}
+                <p class="text-muted small">No players found for your team.</p>
+              {% endfor %}
             </div>
             <button type="submit" class="btn btn-primary btn-sm w-100">
               Lock Lineup
@@ -145,6 +152,23 @@
 
   </div>{# /row #}
 
+  {% if not requesting_team and match.status == 'pending' %}
+  <div class="card shadow-sm border-0 mt-3">
+    <div class="card-body">
+      <p class="mb-2 fw-semibold">Εξουσιοδότηση ομάδας για επιλογή σύνθεσης</p>
+      <p class="small text-muted">
+        Αν είσαι συνδεδεμένος ως παίκτης της {{ team1.name }} ή της {{ team2.name }},
+        η ομάδα αναγνωρίζεται αυτόματα. Διαφορετικά, σάρωσε κάρτα QR
+        από οποιονδήποτε παίκτη του roster της ομάδας.
+      </p>
+      <button class="btn btn-outline-primary w-100" type="button" onclick="openQrScanner()">
+        <i class="fas fa-qrcode"></i> Σάρωση κάρτας ομάδας
+      </button>
+      <p class="small mt-2 mb-0 text-muted" id="vs-lineup-qr-feedback" role="status"></p>
+    </div>
+  </div>
+  {% endif %}
+
   {# ── Navigation ── #}
   <div class="mt-4 d-flex gap-2">
     <a href="{% url 'vs_encounter_detail' encounter.id %}" class="btn btn-outline-secondary btn-sm">
@@ -159,38 +183,41 @@
 
 </div>
 
+{# ── Optional delegated roster access through the existing verified PFC QR modal ── #}
+{% if not requesting_team and match.status == 'pending' %}
+<script>window.QR_RESOLVE_URL = "{% url 'vs_lineup_qr_resolve' encounter.id %}";</script>
+{% include "partials/qr_scanner_modal.html" %}
+<script>
+document.addEventListener('qrPlayerResolved', async function() {
+  const info = document.getElementById('vs-lineup-qr-feedback');
+  info.textContent = 'Επιβεβαίωση εξουσιοδότησης...';
+  const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+  const csrf = csrfInput ? csrfInput.value : (document.cookie.match(/(?:^|; )csrftoken=([^;]*)/) || [,''])[1];
+  try {
+    const response = await fetch("{% url 'vs_lineup_qr_authorize' encounter.id %}", {
+      method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': csrf }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      info.classList.add('text-danger');
+      info.textContent = data.error || 'Δεν ολοκληρώθηκε η ταυτοποίηση.';
+      return;
+    }
+    location.reload();
+  } catch(err) {
+    info.classList.add('text-danger');
+    info.textContent = 'Αποτυχία σύνδεσης. Δοκίμασε ξανά.';
+  }
+});
+</script>
+{% endif %}
+
 {# ── Lineup submission JS ── #}
 {% if requesting_team and not own_locked and match.status == 'pending' %}
 <script>
 (function () {
   const matchId = {{ match.id }};
-  const teamId  = {{ requesting_team.id }};
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-  // Fetch team players and render checkboxes
-  fetch(`/teams/api/players/?team_id=${teamId}`)
-    .then(r => r.json())
-    .then(data => {
-      const container = document.getElementById('player-checkboxes');
-      container.innerHTML = '';
-      if (!data.players || data.players.length === 0) {
-        container.innerHTML = '<p class="text-muted small">No players found for your team.</p>';
-        return;
-      }
-      data.players.forEach(p => {
-        const div = document.createElement('div');
-        div.className = 'form-check';
-        div.innerHTML = `
-          <input class="form-check-input" type="checkbox" name="player" value="${p.id}" id="p_${p.id}">
-          <label class="form-check-label" for="p_${p.id}">${p.name}</label>
-        `;
-        container.appendChild(div);
-      });
-    })
-    .catch(() => {
-      document.getElementById('player-checkboxes').innerHTML =
-        '<p class="text-danger small">Could not load players. Please refresh.</p>';
-    });
 
   // Submit lineup
   document.getElementById('lineup-form').addEventListener('submit', function (e) {

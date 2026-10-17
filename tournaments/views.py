@@ -1187,20 +1187,59 @@ def tournament_melee_qr_resolve(request, tournament_id):
 # VS Mode views
 # ---------------------------------------------------------------------------
 
-def _get_team_from_pin(request, tournament):
-    """
-    Return the Team whose PIN matches the session-stored team PIN for this
-    tournament, or None if the team cannot be identified.
+def _get_team_from_pin(request, tournament, encounter=None):
+    """Resolve an authorized VS side from existing PFC login or scoped QR.
 
-    We reuse the same PIN-based session key that the existing tournament flow
-    uses so VS Mode integrates naturally with the existing login mechanism.
+    Normal Google/email player login stores an active player codename, *not*
+    a Team-PIN session. Respect that identity before the older Team-PIN
+    compatibility formats. A verified QR card may grant browser-scoped,
+    encounter-only delegated lineup access for a bounded time. All identities
+    are resolved again against current Player.team membership on each request;
+    neither client team_id nor a query argument grants permissions.
     """
-    from teams.models import Team as _Team
+    from django.utils import timezone
+    from teams.models import Team as _Team, Player
+    from friendly_games.models import PlayerCodename
+    from pfc_core.session_utils import CodenameSessionManager, TeamPinSessionManager
     from pfc_core.team_session_utils import TeamSessionManager
-    from pfc_core.session_utils import TeamPinSessionManager
 
-    # Prefer the currently authenticated Team session. The tournament-scoped
-    # key is a legacy VS compatibility fallback (not written by normal login).
+    permitted_ids = (
+        {encounter.team1_id, encounter.team2_id} if encounter is not None else None
+    )
+
+    def _eligible(team):
+        return bool(
+            team and not team.is_archived and not team.is_tournament_temp
+            and (permitted_ids is None or team.pk in permitted_ids)
+        )
+
+    if encounter is not None:
+        delegation = request.session.get("vs_lineup_qr_access")
+        if isinstance(delegation, dict):
+            try:
+                valid = (
+                    int(delegation.get("encounter_id")) == encounter.pk
+                    and 0 <= timezone.now().timestamp() - int(delegation.get("issued_at")) <= 21600
+                )
+            except (TypeError, ValueError):
+                valid = False
+            if valid:
+                player = Player.objects.select_related("team").filter(
+                    pk=delegation.get("player_id")
+                ).first()
+                if player and _eligible(player.team):
+                    return player.team
+
+    # Current PFC player authentication, including Google / email OTP. Never
+    # accept a bare client player_id; require the established active codename.
+    codename = CodenameSessionManager.get_logged_in_codename(request)
+    if codename:
+        identity = PlayerCodename.objects.select_related("player__team").filter(
+            codename=codename.upper()
+        ).first()
+        if identity and _eligible(identity.player.team):
+            return identity.player.team
+
     pin = (
         TeamPinSessionManager.get_logged_in_pin(request)
         or TeamSessionManager.get_team_pin(request)
@@ -1208,13 +1247,80 @@ def _get_team_from_pin(request, tournament):
     )
     if not pin:
         return None
+    return _Team.objects.filter(
+        pin=str(pin).upper(), is_archived=False, is_tournament_temp=False,
+        **({"pk__in": permitted_ids} if permitted_ids is not None else {}),
+    ).first()
+
+
+@require_POST
+def vs_lineup_qr_resolve(request, encounter_id):
+    """Scan a canonical signed PFC player card; stage scoped confirmation."""
+    from django.utils import timezone
+    from pfc_core.qr_utils import verify_player_token
+    from teams.models import Player
+    from .models import VSEncounter
+
+    encounter = get_object_or_404(VSEncounter, pk=encounter_id)
+    request.session.pop("vs_lineup_scan_candidate", None)
+    request.session.modified = True
     try:
-        # Enrollment in this VS encounter is separately checked by each view.
-        return _Team.objects.get(
-            pin=pin, is_archived=False, is_tournament_temp=False,
-        )
-    except _Team.DoesNotExist:
-        return None
+        data = json.loads(request.body.decode("utf-8"))
+        token = data.get("token", "") if isinstance(data, dict) else ""
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Μη έγκυρο αίτημα QR."}, status=400)
+    player_id = verify_player_token(token)
+    if not player_id:
+        return JsonResponse({"ok": False, "error": "Μη έγκυρη κάρτα PFC."}, status=403)
+    person = Player.objects.select_related("team").filter(pk=player_id).first()
+    if not person or person.team_id not in (encounter.team1_id, encounter.team2_id):
+        return JsonResponse({
+            "ok": False, "error": "Ο παίκτης δεν ανήκει σε ομάδα της αναμέτρησης."
+        }, status=403)
+    if person.team.is_archived or person.team.is_tournament_temp:
+        return JsonResponse({"ok": False, "error": "Η ομάδα δεν είναι ενεργή."}, status=403)
+    request.session["vs_lineup_scan_candidate"] = {
+        "encounter_id": encounter.pk, "player_id": person.pk,
+        "issued_at": int(timezone.now().timestamp()),
+    }
+    request.session.modified = True
+    return JsonResponse({
+        "ok": True, "player_name": person.name, "team_name": person.team.name,
+    })
+
+
+@require_POST
+def vs_lineup_qr_authorize(request, encounter_id):
+    """After explicit QR identity confirmation, enable this encounter only."""
+    from django.utils import timezone
+    from teams.models import Player
+    from .models import VSEncounter
+
+    candidate = request.session.pop("vs_lineup_scan_candidate", None)
+    request.session.modified = True
+    if not isinstance(candidate, dict) or candidate.get("encounter_id") != encounter_id:
+        return JsonResponse({"ok": False, "error": "Σάρωσε πρώτα την κάρτα QR."}, status=403)
+    try:
+        fresh = 0 <= timezone.now().timestamp() - int(candidate.get("issued_at")) <= 180
+    except (TypeError, ValueError):
+        fresh = False
+    if not fresh:
+        return JsonResponse({"ok": False, "error": "Η σάρωση έληξε."}, status=403)
+    encounter = get_object_or_404(VSEncounter, pk=encounter_id)
+    player = Player.objects.select_related("team").filter(
+        pk=candidate.get("player_id")
+    ).first()
+    if not player or player.team_id not in (encounter.team1_id, encounter.team2_id):
+        return JsonResponse({"ok": False, "error": "Ο παίκτης δεν ανήκει στην αναμέτρηση."}, status=403)
+    if player.team.is_archived or player.team.is_tournament_temp:
+        return JsonResponse({"ok": False, "error": "Η ομάδα δεν είναι ενεργή."}, status=403)
+    request.session["vs_lineup_qr_access"] = {
+        "encounter_id": encounter.pk, "player_id": player.pk,
+        "issued_at": int(timezone.now().timestamp()),
+    }
+    request.session.modified = True
+    return JsonResponse({"ok": True, "team_name": player.team.name})
+
 
 
 def _activate_locked_vs_match(match_id):
@@ -1342,7 +1448,7 @@ def vs_lineup_submit(request, match_id):
     tournament = match.tournament
 
     # Identify the requesting team via session PIN
-    requesting_team = _get_team_from_pin(request, tournament)
+    requesting_team = _get_team_from_pin(request, tournament, encounter)
     if requesting_team is None:
         return JsonResponse({"ok": False, "error": "Team not identified. Please log in with your team PIN."}, status=403)
 
@@ -1503,7 +1609,7 @@ def vs_encounter_detail(request, encounter_id):
 
     encounter = get_object_or_404(VSEncounter, id=encounter_id)
     tournament = encounter.tournament
-    requesting_team = _get_team_from_pin(request, tournament)
+    requesting_team = _get_team_from_pin(request, tournament, encounter)
 
     sub_games = Match.objects.filter(vs_encounter=encounter).order_by("id")
 
@@ -1566,6 +1672,7 @@ def vs_encounter_detail(request, encounter_id):
     return render(request, "tournaments/vs_encounter_detail.html", context)
 
 
+@ensure_csrf_cookie
 def vs_sub_game_detail(request, match_id):
     """
     Display a single VS sub-game detail page.  Lineup visibility is enforced
@@ -1579,7 +1686,7 @@ def vs_sub_game_detail(request, match_id):
 
     encounter: VSEncounter = match.vs_encounter
     tournament = match.tournament
-    requesting_team = _get_team_from_pin(request, tournament)
+    requesting_team = _get_team_from_pin(request, tournament, encounter)
 
     is_team1 = requesting_team and requesting_team.pk == encounter.team1_id
     is_team2 = requesting_team and requesting_team.pk == encounter.team2_id
@@ -1624,6 +1731,7 @@ def vs_sub_game_detail(request, match_id):
         "encounter": encounter,
         "tournament": tournament,
         "requesting_team": requesting_team,
+        "own_roster": list(requesting_team.players.order_by("name", "pk")) if requesting_team else [],
         "is_team1": is_team1,
         "is_team2": is_team2,
         "both_locked": both_locked,

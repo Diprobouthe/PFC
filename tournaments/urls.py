@@ -41,4 +41,6 @@ urlpatterns = [
     path('vs/encounter/<int:encounter_id>/', views.vs_encounter_detail, name='vs_encounter_detail'),
     path('vs/sub-game/<int:match_id>/', views.vs_sub_game_detail, name='vs_sub_game_detail'),
     path('vs/lineup/<int:match_id>/submit/', views.vs_lineup_submit, name='vs_lineup_submit'),
+    path('vs/encounter/<int:encounter_id>/lineup/qr-resolve/', views.vs_lineup_qr_resolve, name='vs_lineup_qr_resolve'),
+    path('vs/encounter/<int:encounter_id>/lineup/qr-authorize/', views.vs_lineup_qr_authorize, name='vs_lineup_qr_authorize'),
 ]
