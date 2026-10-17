@@ -78,6 +78,35 @@ def tournament_detail(request, tournament_id):
     }
     return render(request, 'tournaments/tournament_detail.html', context)
 
+@require_GET
+def tournament_report_pdf(request, tournament_id):
+    """Read-only on-demand report; only VS is supported in this release."""
+    from .pdf_reports import render_vs_tournament_report
+    tournament = get_object_or_404(Tournament, pk=tournament_id)
+    if not (tournament.allowed_match_types or {}).get("vs_mode"):
+        from django.http import Http404
+        raise Http404("Tournament report is not enabled for this format")
+    return render_vs_tournament_report(tournament)
+
+
+@user_passes_test(is_staff)
+@require_POST
+def update_tournament_report_notes(request, tournament_id):
+    """Staff-only text for the printed report; never attests referee identity."""
+    tournament = get_object_or_404(Tournament, pk=tournament_id)
+    if not (tournament.allowed_match_types or {}).get("vs_mode"):
+        from django.http import Http404
+        raise Http404("Report notes unavailable")
+    notes = request.POST.get("report_notes", "")
+    if len(notes) > 2000:
+        from django.http import HttpResponseBadRequest
+        return HttpResponseBadRequest("Maximum 2000 characters")
+    tournament.report_notes = notes
+    tournament.save(update_fields=["report_notes", "updated_at"])
+    messages.success(request, "Report notes saved.")
+    return redirect("tournament_detail", tournament_id=tournament.id)
+
+
 @user_passes_test(is_staff)
 def tournament_create(request):
     """View for creating a new tournament (staff only)"""
