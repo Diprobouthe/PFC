@@ -243,6 +243,9 @@ def render_vs_tournament_report(tournament):
                     f"{title}: {row.player_name} · Επικυρώθηκε μέσω PFC QR · {timestamp}",
                     size=8,
                 ))
+                story.append(text(
+                    f"Παρατήρηση: {row.remarks or 'Όλα καλώς'}", size=8,
+                ))
     story.append(Spacer(1, 2 * mm))
     story.append(text(
         "πετΑ UMP / PFC · Ψηφιακή καταγραφή ανάληψης ευθύνης μέσω καρτών QR. "
