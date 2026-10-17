@@ -52,7 +52,7 @@ def vs_sheet_qr_resolve(request, encounter_id):
     role = qr_role(encounter, player)
     if not role:
         return JsonResponse({"ok": False, "error": "Ο παίκτης δεν ανήκει στις ομάδες VS."}, status=403)
-    if encounter.sheet_attestations.filter(role=role).exists():
+    if role in sheet_status(encounter)["records"]:
         return JsonResponse({"ok": False, "error": "Η πλευρά αυτή έχει ήδη επικυρώσει."}, status=409)
     # Neither a client-supplied identity nor a claimed role can authorize the
     # final POST. The QR identity remains only in this browser's session.
