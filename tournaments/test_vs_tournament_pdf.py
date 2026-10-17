@@ -316,6 +316,69 @@ class VSTournamentReportPDFTests(TestCase):
         first = self.accept(self.player_a)
         self.assertTrue(first.json()["issued"])
 
+    def test_empty_final_qr_comment_defaults_to_all_well(self):
+        self.finish()
+        self.sign_both()
+        self.assertEqual(
+            VSSheetAttestation.objects.get(encounter=self.encounter, role="team1").remarks,
+            "Όλα καλώς",
+        )
+        self.assertEqual(
+            VSSheetAttestation.objects.get(encounter=self.encounter, role="team2").remarks,
+            "Όλα καλώς",
+        )
+        self.assertIn("Παρατήρηση: Όλα καλώς", self.pdf_text())
+
+    def test_custom_qr_comments_appear_with_correct_signer_in_frozen_pdf(self):
+        self.finish()
+        self.assertEqual(self.scan(self.not_playing).status_code, 200)
+        comment = "Υπήρξε διακοπή λόγω βροχής. Συμφωνούμε με το τελικό αποτέλεσμα."
+        response = self.client.post(
+            self.attest_url,
+            data=json.dumps({"remarks": comment}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["issued"])
+        signer = VSSheetAttestation.objects.get(encounter=self.encounter, role="team1")
+        self.assertEqual(signer.remarks, comment)
+        self.assertEqual(signer.player, self.not_playing)
+        self.accept(self.player_b)
+        text = self.pdf_text()
+        self.assertIn(comment, text)
+        self.assertIn("Ανθή βοηθός", text)
+        self.assertIn("Παρατήρηση: Όλα καλώς", text)
+
+    def test_overlong_qr_comments_do_not_consume_scan_or_create_attestation(self):
+        self.finish()
+        self.scan(self.not_playing)
+        rejected = self.client.post(
+            self.attest_url,
+            data=json.dumps({"remarks": "x" * 1001}),
+            content_type="application/json",
+        )
+        self.assertEqual(rejected.status_code, 400)
+        self.assertFalse(VSSheetAttestation.objects.exists())
+        accepted = self.client.post(
+            self.attest_url,
+            data=json.dumps({"remarks": ""}),
+            content_type="application/json",
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(
+            VSSheetAttestation.objects.get(encounter=self.encounter, role="team1").remarks,
+            "Όλα καλώς",
+        )
+
+    def test_vs_sheet_ui_has_immediate_qr_remarks_and_single_confirmation(self):
+        self.finish()
+        rendered = self.client.get(self.page_url)
+        self.assertEqual(rendered.status_code, 200)
+        self.assertContains(rendered, 'window.QR_DIRECT_TO_VS_SHEET_REMARKS = true')
+        self.assertContains(rendered, 'id="vs-sheet-remarks-text"')
+        self.assertContains(rendered, 'ΟΚ · Επικύρωση')
+        self.assertContains(rendered, 'Όλα καλώς')
+
     def test_non_vs_report_is_not_generated(self):
         self.tournament.allowed_match_types = {}
         self.tournament.save(update_fields=["allowed_match_types"])
