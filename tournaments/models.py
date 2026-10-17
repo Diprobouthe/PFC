@@ -2367,6 +2367,11 @@ class VSEncounter(models.Model):
     )
     team1_points = models.IntegerField(default=0, help_text="VS points scored by team1 in this encounter")
     team2_points = models.IntegerField(default=0, help_text="VS points scored by team2 in this encounter")
+    sheet_referee_required = models.BooleanField(default=False)
+    sheet_digest = models.CharField(max_length=64, blank=True, default="")
+    sheet_issued_at = models.DateTimeField(null=True, blank=True)
+    # Immutable frozen PDF bytes live in Postgres; not an ephemeral Render filesystem.
+    sheet_pdf = models.BinaryField(null=True, blank=True, editable=False)
     is_complete = models.BooleanField(
         default=False,
         help_text="True when all sub-games in this encounter have been completed",
