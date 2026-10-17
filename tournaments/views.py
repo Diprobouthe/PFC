@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.template.loader import render_to_string
-from django.db import models
+from django.db import models, transaction
 import json
 from .models import Tournament, TournamentTeam, Round, Bracket
 from .forms import TournamentForm, TeamAssignmentForm
@@ -70,8 +70,11 @@ def tournament_detail(request, tournament_id):
     is_vs_mode = bool((tournament.allowed_match_types or {}).get('vs_mode'))
     vs_encounter = tournament.vs_encounters.first() if is_vs_mode else None
     if is_vs_mode:
-        from .pdf_reports import vs_sheet_ready
-        vs_report_ready = vs_sheet_ready(tournament)
+        from .sheet_attestation import sheet_status
+        vs_encounter_one = tournament.vs_encounters.first()
+        vs_report_ready = bool(
+            vs_encounter_one and sheet_status(vs_encounter_one)["locked"]
+        )
     else:
         vs_report_ready = False
     context = {
@@ -88,19 +91,27 @@ def tournament_detail(request, tournament_id):
 @require_GET
 def tournament_report_pdf(request, tournament_id):
     """Read-only on-demand report; only VS is supported in this release."""
-    from .pdf_reports import render_vs_tournament_report, vs_sheet_ready
+    from django.http import Http404, HttpResponse
+    from .models import VSEncounter
+    from .sheet_attestation import sheet_status
     tournament = get_object_or_404(Tournament, pk=tournament_id)
     if not (tournament.allowed_match_types or {}).get("vs_mode"):
-        from django.http import Http404
         raise Http404("Tournament report is not enabled for this format")
-    if not vs_sheet_ready(tournament):
-        from django.http import HttpResponse
+    encounters = list(VSEncounter.objects.filter(tournament=tournament))
+    if len(encounters) != 1:
+        return HttpResponse("Απαιτείται συγκεκριμένη αναμέτρηση VS.", status=409)
+    encounter = encounters[0]
+    if not sheet_status(encounter)["locked"]:
         return HttpResponse(
-            "Το φύλλο αγώνα είναι διαθέσιμο μετά την επικύρωση όλων των παιχνιδιών VS.",
-            content_type="text/plain; charset=utf-8",
-            status=409,
+            "Το τελικό PDF εκδίδεται αφού επικυρώσουν και οι δύο ομάδες "
+            "και, αν έχει δηλωθεί, ο διαιτητής.",
+            content_type="text/plain; charset=utf-8", status=409,
         )
-    return render_vs_tournament_report(tournament)
+    return HttpResponse(
+        bytes(encounter.sheet_pdf), content_type="application/pdf",
+        headers={"Content-Disposition":
+                 f'attachment; filename="PFC_VS_Tournament_{tournament.pk}.pdf"'},
+    )
 
 
 @user_passes_test(is_staff)
@@ -115,6 +126,9 @@ def update_tournament_report_notes(request, tournament_id):
     if len(notes) > 2000:
         from django.http import HttpResponseBadRequest
         return HttpResponseBadRequest("Maximum 2000 characters")
+    if tournament.vs_encounters.filter(sheet_attestations__isnull=False).exists() or tournament.vs_encounters.filter(sheet_issued_at__isnull=False).exists():
+        from django.http import HttpResponse
+        return HttpResponse("Οι παρατηρήσεις κλειδώνουν μετά την πρώτη επικύρωση.", status=409)
     tournament.report_notes = notes
     tournament.save(update_fields=["report_notes", "updated_at"])
     messages.success(request, "Report notes saved.")
