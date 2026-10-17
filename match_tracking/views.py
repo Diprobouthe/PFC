@@ -159,40 +159,54 @@ POINTING_OUTCOMES = {'perfect', 'good', 'fair', 'far'}
 
 
 def _get_player_shot_stats(player_id, match_type, pk):
-    """Return open-ended shooting and pointing stats owned by this match only."""
-    from .services import tracking_practice_session
+    """Aggregate every recorded tracking period for this exact match and player.
 
-    def _session_stats(practice_type):
-        session = tracking_practice_session(match_type, pk, player_id, practice_type)
-        if not session:
-            return None
-        total = session.total_shots
-        if practice_type == 'shooting':
-            return {
-                'total': total,
-                'carreaux': session.carreaux,
-                'petit_carreaux': session.petit_carreaux,
-                'hits': session.hits,
-                'misses': session.misses,
-                'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-                'session_id': str(session.id),
-                'is_active': session.is_active,
-            }
-        return {
-            'total': total,
-            'perfects': session.perfects,
-            'petit_perfects': session.petit_perfects,
-            'goods': session.goods,
-            'fairs': session.fairs,
-            'fars': session.fars,
-            'accuracy': round(session.hit_percentage, 1) if total > 0 else 0.0,
-            'session_id': str(session.id),
-            'is_active': session.is_active,
-        }
+    The previous lookup took the last session only, silently hiding shots
+    from earlier periods. Group all match-scoped links, never other games'
+    PracticeSession records. The UI and historical PDF share this truth.
+    """
+    from .models import TrackingPracticeSession
 
-    shooting = _session_stats('shooting') or _empty_shooting_stats()
-    pointing = _session_stats('pointing') or _empty_pointing_stats()
-    return {'shooting': shooting, 'pointing': pointing}
+    links = (
+        TrackingPracticeSession.objects
+        .filter(
+            tracking_session__match_type=match_type,
+            tracking_session__match_pk=pk,
+            player_id=player_id,
+        )
+        .select_related("practice_session", "tracking_session")
+        .order_by("created_at", "pk")
+    )
+    shooting_fields = ("carreaux", "petit_carreaux", "hits", "misses")
+    pointing_fields = ("perfects", "petit_perfects", "goods", "fairs", "fars")
+    groups = {
+        "shooting": _empty_shooting_stats(),
+        "pointing": _empty_pointing_stats(),
+    }
+    for link in links:
+        kind = link.practice_type
+        if kind not in groups:
+            continue
+        stats = groups[kind]
+        session = link.practice_session
+        stats["total"] += session.total_shots
+        for field in shooting_fields if kind == "shooting" else pointing_fields:
+            stats[field] += getattr(session, field)
+        stats["session_id"] = str(session.pk)
+        stats["is_active"] = bool(
+            stats["is_active"]
+            or (session.is_active and link.tracking_session.status == "active")
+        )
+    for kind, stats in groups.items():
+        count = stats["total"]
+        successes = (
+            stats["hits"] + stats["petit_carreaux"] + stats["carreaux"]
+            if kind == "shooting" else
+            stats["perfects"] + stats["petit_perfects"] + stats["goods"] + stats["fairs"]
+        )
+        stats["accuracy"] = round(successes / count * 100, 1) if count else 0.0
+        stats["has_recordings"] = count > 0
+    return groups
 
 
 def _empty_shooting_stats():
@@ -693,18 +707,10 @@ def undo_last_shot(request, match_type, pk):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @require_http_methods(["GET"])
+@require_http_methods(["GET"])
 def export_pdf(request, match_type, pk):
-    """
-    GET /track/<match_type>/<pk>/pdf/
-    Returns a PDF containing the current match analysis:
-      - Match information
-      - Score / score progression
-      - Players
-      - Shooting statistics per player
-      - Pointing statistics per player
-    Uses only data already recorded by Match Tracking.
-    """
-    if match_type not in ('match', 'game'):
+    """Render Match Analysis on demand, including historical tracking periods."""
+    if match_type not in ("match", "game"):
         from django.http import Http404
         raise Http404
 
@@ -712,172 +718,121 @@ def export_pdf(request, match_type, pk):
     from django.http import HttpResponse
     from django.utils import timezone
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
     from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.platypus import SimpleDocTemplate, Spacer
 
-    # ── Gather data ─────────────────────────────────────────────────────────────────────────────
-    if match_type == 'match':
+    from pfc_core.pdf_reporting import header, heading, table, text, page_footer
+
+    if match_type == "match":
         from matches.models import Match
         game_obj = get_object_or_404(Match, pk=pk)
-        team1_name = game_obj.team1.name
-        team2_name = game_obj.team2.name
-        game_label = str(game_obj)
+        team1_name, team2_name = game_obj.team1.name, game_obj.team2.name
         game_status = game_obj.status
     else:
         from friendly_games.models import FriendlyGame
         game_obj = get_object_or_404(FriendlyGame, pk=pk)
-        team1_name = 'Black'
-        team2_name = 'White'
-        game_label = str(game_obj)
+        team1_name, team2_name = "Black", "White"
         game_status = game_obj.status
 
     scoreboard = _get_scoreboard_or_none(match_type, pk)
-    team1_score = scoreboard.team1_score if scoreboard else 0
-    team2_score = scoreboard.team2_score if scoreboard else 0
-    score_history = _get_score_history(scoreboard) if scoreboard else []
+    # After confirmation, official scores always win over an old/missing live
+    # scoreboard. An absent live scoreboard must never become a fake 0-0.
+    if match_type == "match" and game_status == "completed":
+        score1, score2 = game_obj.team1_score, game_obj.team2_score
+        score_source = "Επικυρωμένο αποτέλεσμα"
+    elif match_type == "game" and game_status == "COMPLETED":
+        score1, score2 = game_obj.black_team_score, game_obj.white_team_score
+        score_source = "Επικυρωμένο αποτέλεσμα"
+    elif scoreboard is not None:
+        score1, score2 = scoreboard.team1_score, scoreboard.team2_score
+        score_source = "LiveScore (προσωρινό)"
+    else:
+        score1 = score2 = None
+        score_source = "Δεν υπάρχει διαθέσιμο σκορ"
+
+    history = _get_score_history(scoreboard) if scoreboard else []
     players = _build_player_list(match_type, pk)
-
-    # Gather per-player stats
-    player_stats = []
-    for p in players:
-        stats = _get_player_shot_stats(p['player_id'], match_type, pk)
-        player_stats.append({
-            'name': p['player_name'],
-            'team': p['team'],
-            'position': p['position'],
-            'shooting': stats.get('shooting', _empty_shooting_stats()),
-            'pointing': stats.get('pointing', _empty_pointing_stats()),
-        })
-
-    # ── Build PDF ─────────────────────────────────────────────────────────────────────────────
-    buf = BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=15*mm, rightMargin=15*mm,
-        topMargin=15*mm, bottomMargin=15*mm,
-    )
-    styles = getSampleStyleSheet()
-    h1 = ParagraphStyle('h1', parent=styles['Heading1'], fontSize=16, spaceAfter=4, alignment=TA_CENTER)
-    h2 = ParagraphStyle('h2', parent=styles['Heading2'], fontSize=12, spaceAfter=3, spaceBefore=8)
-    h3 = ParagraphStyle('h3', parent=styles['Heading3'], fontSize=10, spaceAfter=2, spaceBefore=5)
-    normal = ParagraphStyle('normal', parent=styles['Normal'], fontSize=9)
-    small  = ParagraphStyle('small',  parent=styles['Normal'], fontSize=8, textColor=colors.grey)
-
-    BLUE   = colors.HexColor('#1a56db')
-    PURPLE = colors.HexColor('#7c3aed')
-    LIGHT  = colors.HexColor('#f8fafc')
-    MID    = colors.HexColor('#e2e8f0')
-
-    story = []
-
-    # Title
-    story.append(Paragraph('Match Analysis', h1))
-    story.append(Paragraph(game_label, ParagraphStyle('sub', parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, textColor=colors.grey)))
-    story.append(Spacer(1, 4*mm))
-
-    # Match info table
-    info_data = [
-        ['Status', game_status],
-        ['Teams', f'{team1_name}  vs  {team2_name}'],
-        ['Score', f'{team1_name}: {team1_score}  —  {team2_name}: {team2_score}'],
-        ['Exported', timezone.localtime().strftime('%Y-%m-%d %H:%M')],
+    player_stats = [
+        {**player, "stats": _get_player_shot_stats(player["player_id"], match_type, pk)}
+        for player in players
     ]
-    info_tbl = Table(info_data, colWidths=[35*mm, None])
-    info_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (0,-1), LIGHT),
-        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
-        ('GRID', (0,0), (-1,-1), 0.3, MID),
-        ('ROWBACKGROUNDS', (0,0), (-1,-1), [LIGHT, colors.white]),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-    ]))
-    story.append(info_tbl)
-    story.append(Spacer(1, 5*mm))
+    has_shots = any(
+        row["stats"][kind]["has_recordings"]
+        for row in player_stats for kind in ("shooting", "pointing")
+    )
+    buff = BytesIO()
+    doc = SimpleDocTemplate(
+        buff, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm,
+        topMargin=13*mm, bottomMargin=18*mm,
+        title=f"PFC Match Analysis {match_type} {pk}", author="PFC",
+    )
+    date_str = timezone.localtime().strftime("%d/%m/%Y %H:%M")
+    story = header(
+        "PFC – Ανάλυση παιχνιδιού",
+        f"{team1_name} vs {team2_name} | #{pk} | {date_str}",
+    )
+    score = f"{score1} – {score2}" if score1 is not None and score2 is not None else "—"
+    story.append(table([
+        ["Πεδίο", "Τιμή"],
+        ["Κατάσταση", game_status],
+        ["Ομάδες", f"{team1_name} – {team2_name}"],
+        ["Σκορ", score],
+        ["Πηγή σκορ", score_source],
+    ], [39*mm, 141*mm]))
+    story.append(Spacer(1, 4*mm))
+    if history:
+        story.append(heading("Εξέλιξη σκορ"))
+        rows = [["Χρόνος", "Σκορ", "Καταγραφή"]]
+        rows.extend([
+            item["ts"], f'{item["team1_score"]} – {item["team2_score"]}',
+            item.get("by", "") or "—",
+        ] for item in history)
+        story.append(table(rows, [40*mm, 34*mm, 106*mm]))
+        story.append(Spacer(1, 3*mm))
 
-    # Score Progression
-    if score_history:
-        story.append(Paragraph('Score Progression', h2))
-        hist_data = [['Time', 'Score', 'By']]
-        for h in score_history:
-            hist_data.append([h['ts'], f"{h['team1_score']}–{h['team2_score']}", h.get('by','')])
-        hist_tbl = Table(hist_data, colWidths=[22*mm, 22*mm, None])
-        hist_tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), BLUE),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,-1), 8),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
-            ('GRID', (0,0), (-1,-1), 0.3, MID),
-            ('TOPPADDING', (0,0), (-1,-1), 2),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-        ]))
-        story.append(hist_tbl)
-        story.append(Spacer(1, 5*mm))
-
-    # Shooting Statistics
-    story.append(Paragraph('Shooting Statistics', h2))
-    shoot_data = [['Player', 'Team', 'Pos', 'N', 'Acc%', 'Carreau', 'Petit C', 'Hit', 'Miss']]
-    for ps in player_stats:
-        s = ps['shooting']
-        shoot_data.append([
-            ps['name'], ps['team'], ps['position'] or '',
-            str(s.get('total', 0)),
-            f"{s.get('accuracy', 0):.1f}%",
-            str(s.get('carreaux', 0)),
-            str(s.get('petit_carreaux', 0)),
-            str(s.get('hits', 0)),
-            str(s.get('misses', 0)),
-        ])
-    shoot_tbl = Table(shoot_data, colWidths=[35*mm, 15*mm, 15*mm, 10*mm, 14*mm, 16*mm, 16*mm, 12*mm, 12*mm])
-    shoot_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), BLUE),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 8),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
-        ('GRID', (0,0), (-1,-1), 0.3, MID),
-        ('TOPPADDING', (0,0), (-1,-1), 2),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-    ]))
-    story.append(shoot_tbl)
-    story.append(Spacer(1, 5*mm))
-
-    # Pointing Statistics
-    story.append(Paragraph('Pointing Statistics', h2))
-    point_data = [['Player', 'Team', 'Pos', 'N', 'Acc%', 'Perfect', 'Good', 'Fair', 'Far']]
-    for ps in player_stats:
-        p = ps['pointing']
-        point_data.append([
-            ps['name'], ps['team'], ps['position'] or '',
-            str(p.get('total', 0)),
-            f"{p.get('accuracy', 0):.1f}%",
-            str(p.get('perfects', 0)),
-            str(p.get('goods', 0)),
-            str(p.get('fairs', 0)),
-            str(p.get('fars', 0)),
-        ])
-    point_tbl = Table(point_data, colWidths=[35*mm, 15*mm, 15*mm, 10*mm, 14*mm, 16*mm, 12*mm, 12*mm, 12*mm])
-    point_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), PURPLE),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 8),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, LIGHT]),
-        ('GRID', (0,0), (-1,-1), 0.3, MID),
-        ('TOPPADDING', (0,0), (-1,-1), 2),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-    ]))
-    story.append(point_tbl)
-
-    doc.build(story)
-    buf.seek(0)
-    filename = f'match_analysis_{match_type}_{pk}.pdf'
-    response = HttpResponse(buf.read(), content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    if not has_shots:
+        story.append(heading("Στατιστικά παικτών"))
+        story.append(text(
+            "Δεν έχουν καταγραφεί βολές στο Match Tracking για αυτό το παιχνίδι. "
+            "Το επίσημο αποτέλεσμα παραμένει διαθέσιμο."
+        ))
+    else:
+        story.append(text(
+            "Στατιστικά: συγκεντρωτικά από ΟΛΕΣ τις αποθηκευμένες περιόδους "
+            "Match Tracking του συγκεκριμένου παιχνιδιού.", size=8,
+        ))
+        for kind, title, keys, captions in [
+            ("shooting", "Σουτ", ("carreaux", "petit_carreaux", "hits", "misses"),
+             ("Carreau", "Petit C.", "Hit", "Miss")),
+            ("pointing", "Προσέγγιση", ("perfects", "petit_perfects", "goods", "fairs", "fars"),
+             ("Perfect", "Petit P.", "Good", "Fair", "Far")),
+        ]:
+            story.append(heading(title))
+            rows = [["Παίκτης", "Πλευρά", "Βολές", "Ευστοχία", *captions]]
+            for row in player_stats:
+                stats = row["stats"][kind]
+                if stats["has_recordings"]:
+                    shots = [
+                        stats["total"], f'{stats["accuracy"]:.1f}%',
+                        *[stats[field] for field in keys],
+                    ]
+                else:
+                    shots = ["—"] * (2 + len(keys))
+                rows.append([row["player_name"], row["team"], *shots])
+            if kind == "shooting":
+                widths = [42, 22, 16, 24, 20, 22, 17, 17]
+            else:
+                widths = [40, 20, 16, 24, 18, 18, 15, 15, 14]
+            story.append(table(rows, [width*mm for width in widths]))
+            story.append(Spacer(1, 3*mm))
+        story.append(text(
+            "Το «—» σημαίνει ότι δεν υπάρχουν καταγεγραμμένες βολές για την "
+            "κατηγορία, όχι μηδενική επίδοση.", size=7,
+        ))
+    doc.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
+    buff.seek(0)
+    response = HttpResponse(buff.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="PFC_Match_Analysis_{match_type}_{pk}.pdf"'
     return response
 
 
