@@ -72,8 +72,6 @@ def resolve_find_next(request, team):
     if len(actionable) == 1:
         # Single match → go directly to activate (player selection)
         match = actionable[0]
-        if match.vs_encounter_id:
-            return redirect('vs_sub_game_detail', match_id=match.id)
         return redirect('match_activate', match_id=match.id, team_id=team_id)
     
     # Multiple actionable matches → user must choose
