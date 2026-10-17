@@ -1,4 +1,6 @@
 """PDF certification/report tests for entire VS tournaments."""
+import os
+from pathlib import Path
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
