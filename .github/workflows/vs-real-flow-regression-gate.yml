@@ -53,7 +53,11 @@ jobs:
           python manage.py test tournaments.test_team_vs_scenarios_regression.VSModeRegressionTests --verbosity 2
       - name: PostgreSQL concurrent VS scoring
         run: |
-          python manage.py test matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_vs_game_completions_preserve_both_awards --verbosity 2
+          python manage.py test \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_vs_game_completions_preserve_both_awards \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_vs_captains_activate_exactly_once \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_concurrent_result_validations_finalize_once \
+            --verbosity 2
       - name: Super Melee P4 isolation
         run: |
           python manage.py test tournaments.test_melee_p4_write_cutover tournaments.test_melee_assignment_writer matches.test_melee_round_assignment_consumers --verbosity 1
