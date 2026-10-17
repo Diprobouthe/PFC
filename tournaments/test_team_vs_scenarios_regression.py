@@ -23,6 +23,7 @@ from teams.models import Player, Team
 from tournaments.models import Tournament, TournamentTeam, VSEncounter
 from tournaments.registration_services import register_team_for_tournament
 from tournaments.vs_utils import update_vs_encounter_points
+from leaderboards.models import Leaderboard
 
 
 class TeamScenarioRegressionTests(TestCase):
@@ -415,6 +416,12 @@ class VSModeRegressionTests(TestCase):
         self.assertEqual(
             (encounter.team1_points, encounter.team2_points), (2, 0)
         )
+        self.assertTrue(Leaderboard.objects.filter(tournament=self.tournament).exists())
+        response = self.client.get(
+            reverse("tournament_leaderboard", args=[self.tournament.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["entries"][0].swiss_points, 2)
 
     def test_current_team_pin_precedes_legacy_scoped_vs_pin(self):
         """A stale VS compatibility key must not override a new Team login."""
@@ -432,6 +439,37 @@ class VSModeRegressionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
         self.assertFalse(response.json()["own_lineup_locked"])
+
+    def test_legacy_vs_leaderboard_is_read_only_without_recreating_tournament(self):
+        encounter = self.register_two()
+        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
+        Match.objects.filter(pk=match.pk).update(
+            status="completed", winner=self.teams[0],
+            match_type="doublet", vs_points_value=3,
+            team1_score=13, team2_score=9,
+        )
+        self.assertFalse(Leaderboard.objects.filter(tournament=self.tournament).exists())
+        response = self.client.get(
+            reverse("tournament_leaderboard", args=[self.tournament.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [(row.team_id, row.swiss_points) for row in response.context["entries"]],
+            [(self.teams[0].pk, 3), (self.teams[1].pk, 0)],
+        )
+        self.assertFalse(Leaderboard.objects.filter(tournament=self.tournament).exists())
+
+    def test_legacy_activation_cannot_bypass_vs_captain_lineups(self):
+        self.register_two()
+        match = Match.objects.filter(tournament=self.tournament).first()
+        response = self.client.post(
+            reverse("match_activate", args=[match.pk, self.teams[0].pk]), {}
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("vs_sub_game_detail", args=[match.pk]), response.url)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "pending")
+        self.assertEqual(match.activations.count(), 0)
 
     def test_recalculating_vs_points_is_idempotent(self):
         encounter = self.register_two()
