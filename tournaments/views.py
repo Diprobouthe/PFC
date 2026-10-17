@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.template.loader import render_to_string
 from django.db import models, transaction
 import json
@@ -1491,6 +1492,7 @@ def vs_lineup_submit(request, match_id):
     })
 
 
+@ensure_csrf_cookie
 def vs_encounter_detail(request, encounter_id):
     """
     Display the VS Encounter overview: all sub-games, current scores, and
