@@ -41,7 +41,7 @@
   <div class="list-group">
     {% for sg in sub_game_data %}
     {% with match=sg.match %}
-    <a href="{% url 'vs_sub_game_detail' match.id %}"
+    <a href="{% url 'match_detail' match.id %}"
        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
 
       <div>
@@ -74,14 +74,8 @@
           <span class="badge bg-primary">{% translate "Match active" %}</span>
         {% elif match.status == 'pending_verification' %}
           <span class="badge bg-warning text-dark">{% translate "Waiting for a court" %}</span>
-        {% elif sg.both_locked %}
-          <span class="badge bg-success">{% translate "Lineups confirmed — starting match" %}</span>
-        {% elif sg.own_locked and not sg.opp_locked %}
-          <span class="badge bg-warning text-dark">{% translate "Waiting for opponent lineup" %}</span>
-        {% elif sg.opp_locked and not sg.own_locked %}
-          <span class="badge bg-info text-dark">{% translate "Opponent submitted — submit yours" %}</span>
         {% else %}
-          <span class="badge bg-secondary">{% translate "Awaiting lineups" %}</span>
+          <span class="badge bg-secondary">{% translate "Waiting for match activation" %}</span>
         {% endif %}
       </div>
 

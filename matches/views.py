@@ -579,9 +579,11 @@ def _match_activate(request, match_id, team_id, *, lock_match):
     if team != match.team1 and team != match.team2:
         messages.error(request, _("This team is not part of this match."))
         return redirect("match_detail", match_id=match.id)
-    if match.vs_encounter_id:
-        # The legacy two-phone activation must not bypass captain VS lineups.
-        return redirect("vs_sub_game_detail", match_id=match.id)
+    # Reuse existing scoped Match side authority for VS. The old form embeds a
+    # hidden PIN; opening that form must not itself disclose it to spectators.
+    if match.vs_encounter_id and not request_has_match_side_access(request, match, team):
+        messages.error(request, _("You are not authorised to activate this match side."))
+        return redirect("match_detail", match_id=match.id)
     # ── Session-bound authority check (match-context aware) ────────────────
     # P3 precedence is MatchPlayer → exact Mêlée round assignment → legacy
     # Player.team. The PIN is retained only as the compatibility fallback.

@@ -288,152 +288,119 @@ class VSModeRegressionTests(TestCase):
             )
         self.assertEqual(TournamentTeam.objects.filter(tournament=self.tournament).count(), 2)
 
-    def test_google_email_codename_player_sees_roster_without_team_pin(self):
-        """Modern player authentication grants own team roster, not opponent's."""
+    def test_vs_logged_in_player_uses_original_activation_form_and_positions(self):
+        """Google/email player session must open the existing full Match UI."""
         from friendly_games.models import PlayerCodename
+        from pfc_core.smart_router import _resolve_tournament_matches
 
         encounter = self.register_two()
+        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
         player = self.players[self.teams[0].pk][0]
         PlayerCodename.objects.create(player=player, codename="VSX001")
         session = self.client.session
         session["player_codename"] = "VSX001"
         session["session_active"] = True
         session.save()
-        self.assertIsNone(self.client.session.get("team_pin"))
-        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
-        page = self.client.get(reverse("vs_sub_game_detail", args=[match.pk]))
-        self.assertEqual(page.status_code, 200)
-        self.assertTrue(page.context["is_team1"])
-        self.assertContains(page, "Your Team")
-        self.assertContains(page, self.players[self.teams[0].pk][1].name)
-        self.assertNotContains(page, "Loading players…")
-        self.assertNotContains(page, self.players[self.teams[1].pk][1].name)
-        self.assertNotContains(page, "/teams/api/players/")
 
-        result = self.client.post(
-            reverse("vs_lineup_submit", args=[match.pk]),
-            data=json.dumps({"player_ids": [player.pk]}),
-            content_type="application/json",
+        old_url = reverse("vs_sub_game_detail", args=[match.pk])
+        details_url = reverse("match_detail", args=[match.pk])
+        activation_url = reverse(
+            "match_activate", args=[match.pk, self.teams[0].pk]
         )
-        self.assertEqual(result.status_code, 200, result.content)
-        self.assertTrue(result.json()["own_lineup_locked"])
-        self.assertFalse(result.json()["both_locked"])
+        self.assertRedirects(self.client.get(old_url), details_url)
+        overview = self.client.get(reverse("vs_encounter_detail", args=[encounter.pk]))
+        self.assertContains(overview, details_url)
+        self.assertNotContains(overview, old_url)
 
-    def test_signed_qr_card_grants_encounter_scoped_lineup_without_login(self):
-        from pfc_core.qr_utils import generate_player_token
+        choices = _resolve_tournament_matches(player)
+        self.assertTrue(any(action["url"] == activation_url for action in choices))
+        self.assertFalse(any("/vs/sub-game/" in action["url"] for action in choices))
+        details = self.client.get(details_url)
+        self.assertEqual(details.context["my_team"], self.teams[0])
+        response = self.client.get(activation_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "matches/match_activate.html")
+        self.assertContains(response, "role_")
+        self.assertContains(response, "Pointer")
+        self.assertContains(response, "Milieu")
+        self.assertContains(response, "Shooter")
+        for teammate in self.players[self.teams[0].pk]:
+            self.assertContains(response, teammate.name)
+
+    def test_canonical_two_team_vs_activation_keeps_roles_court_and_clock(self):
+        """Two existing MatchActivationForm POSTs own all VS activation state."""
+        from django.test import Client
+        from matches.models import MatchActivation, MatchPlayer
+        from tournaments.models import VSLineup
 
         encounter = self.register_two()
         match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
-        page_url = reverse("vs_sub_game_detail", args=[match.pk])
-        submit_url = reverse("vs_lineup_submit", args=[match.pk])
-        scan_url = reverse("vs_lineup_qr_resolve", args=[encounter.pk])
-        auth_url = reverse("vs_lineup_qr_authorize", args=[encounter.pk])
-        selected = self.players[self.teams[1].pk][0]
+        clients = [self.client, Client()]
+        role_choices = ("pointer", "milieu", "tirer")
+        for team, client in zip(self.teams[:2], clients):
+            login = client.post(
+                reverse("team_pin_login"),
+                data=json.dumps({"team_pin": team.pin, "remember_me": False}),
+                content_type="application/json",
+            )
+            self.assertEqual(login.status_code, 200)
+            self.assertTrue(login.json()["success"])
+            player_ids = [p.pk for p in self.players[team.pk]]
+            data = {"pin": team.pin, "players": player_ids}
+            data.update({
+                f"role_{player_id}": role_choices[index]
+                for index, player_id in enumerate(player_ids)
+            })
+            url = reverse("match_activate", args=[match.pk, team.pk])
+            page = client.get(url)
+            self.assertEqual(page.status_code, 200)
+            self.assertTemplateUsed(page, "matches/match_activate.html")
+            with self.captureOnCommitCallbacks(execute=True):
+                submitted = client.post(url, data)
+            self.assertEqual(submitted.status_code, 302, submitted.content)
 
-        page = self.client.get(page_url)
-        self.assertEqual(page.status_code, 200)
-        self.assertIsNone(page.context["requesting_team"])
-        self.assertContains(page, "Σάρωση κάρτας ομάδας")
-        self.assertNotContains(page, self.players[self.teams[1].pk][1].name)
-        self.assertEqual(self.client.post(
-            submit_url, data=json.dumps({"player_ids": [selected.pk]}),
-            content_type="application/json",
-        ).status_code, 403)
-        self.assertEqual(self.client.post(auth_url).status_code, 403)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "active")
+        self.assertIsNotNone(match.court_id)
+        self.assertIsNotNone(match.start_time)
+        self.assertEqual(match.match_type, "triplet")
+        self.assertEqual(match.vs_points_value, 5)
+        self.assertEqual(MatchActivation.objects.filter(match=match).count(), 2)
+        self.assertFalse(VSLineup.objects.filter(match=match).exists())
+        self.assertEqual(MatchPlayer.objects.filter(match=match).count(), 6)
+        for team in self.teams[:2]:
+            actual = list(MatchPlayer.objects.filter(match=match, team=team)
+                          .order_by("player_id").values_list("role", flat=True))
+            self.assertEqual(sorted(actual), sorted(role_choices))
+        self.assertIsNotNone(match.starting_team_id)
 
-        response = self.client.post(scan_url, data=json.dumps({
-            "token": generate_player_token(selected.pk)
-        }), content_type="application/json")
-        self.assertEqual(response.status_code, 200, response.content)
-        self.assertTrue(response.json()["ok"])
-        # The scan merely stages a QR proof. No browser delegation until Confirm.
-        self.assertIsNone(self.client.get(page_url).context["requesting_team"])
-        confirm = self.client.post(auth_url)
-        self.assertEqual(confirm.status_code, 200, confirm.content)
-        self.assertTrue(confirm.json()["ok"])
-        self.assertEqual(self.client.post(auth_url).status_code, 403)
-
-        page = self.client.get(page_url)
-        self.assertEqual(page.context["requesting_team"], self.teams[1])
-        self.assertContains(page, self.players[self.teams[1].pk][1].name)
-        self.assertNotContains(page, self.players[self.teams[0].pk][1].name)
-        other = self.players[self.teams[0].pk][0]
-        attempt = self.client.post(
-            submit_url, data=json.dumps({"player_ids": [other.pk]}),
-            content_type="application/json",
-        )
-        self.assertEqual(attempt.status_code, 400)
-        success = self.client.post(
-            submit_url, data=json.dumps({"player_ids": [selected.pk]}),
-            content_type="application/json",
-        )
-        self.assertEqual(success.status_code, 200, success.content)
-        self.assertTrue(success.json()["own_lineup_locked"])
-
-    def test_qr_lineup_denies_outsider_fake_token_expired_or_changed_team(self):
-        from pfc_core.qr_utils import generate_player_token
+    def test_provisional_vslineup_does_not_override_real_match_roster_in_pdf(self):
+        """A partially locked historical VS draft must not corrupt the final sheet."""
+        from matches.models import MatchPlayer
+        from tournaments.models import VSLineup
+        from tournaments.pdf_reports import _player_names
 
         encounter = self.register_two()
-        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
-        scan_url = reverse("vs_lineup_qr_resolve", args=[encounter.pk])
-        auth_url = reverse("vs_lineup_qr_authorize", args=[encounter.pk])
-        page_url = reverse("vs_sub_game_detail", args=[match.pk])
-        selected = self.players[self.teams[0].pk][0]
-        outside = self.players[self.teams[2].pk][0]
-        invalid = self.client.post(
-            scan_url, data=json.dumps({"token": generate_player_token(selected.pk)+"fake"}),
-            content_type="application/json",
-        )
-        self.assertEqual(invalid.status_code, 403)
-        self.assertEqual(self.client.post(auth_url).status_code, 403)
-        outsider = self.client.post(
-            scan_url, data=json.dumps({"token": generate_player_token(outside.pk)}),
-            content_type="application/json",
-        )
-        self.assertEqual(outsider.status_code, 403)
-        self.assertEqual(self.client.post(auth_url).status_code, 403)
-
-        good = self.client.post(
-            scan_url, data=json.dumps({"token": generate_player_token(selected.pk)}),
-            content_type="application/json",
-        )
-        self.assertEqual(good.status_code, 200)
-        self.assertEqual(self.client.post(auth_url).status_code, 200)
-        self.assertEqual(self.client.get(page_url).context["requesting_team"], self.teams[0])
-        selected.team = self.teams[2]
-        selected.save(update_fields=["team"])
-        self.assertIsNone(self.client.get(page_url).context["requesting_team"])
-        self.assertEqual(self.client.post(
-            reverse("vs_lineup_submit", args=[match.pk]),
-            data=json.dumps({"player_ids": [selected.pk]}),
-            content_type="application/json",
-        ).status_code, 403)
-
-    def test_qr_delegation_expires_and_cannot_leak_between_encounters(self):
-        from django.utils import timezone
-        from pfc_core.qr_utils import generate_player_token
-
-        encounter = self.register_two()
-        player = self.players[self.teams[0].pk][0]
-        qr = self.client.post(reverse("vs_lineup_qr_resolve", args=[encounter.pk]),
-            data=json.dumps({"token": generate_player_token(player.pk)}),
-            content_type="application/json")
-        self.assertEqual(qr.status_code, 200)
-        self.assertEqual(self.client.post(
-            reverse("vs_lineup_qr_authorize", args=[encounter.pk])
-        ).status_code, 200)
         match = Match.objects.filter(vs_encounter=encounter).first()
-        self.assertIsNotNone(self.client.get(
-            reverse("vs_sub_game_detail", args=[match.pk])
-        ).context["requesting_team"])
-        session = self.client.session
-        delegation = session["vs_lineup_qr_access"]
-        delegation["issued_at"] = int(timezone.now().timestamp()) - 21601
-        session["vs_lineup_qr_access"] = delegation
-        session.save()
-        self.assertIsNone(self.client.get(
-            reverse("vs_sub_game_detail", args=[match.pk])
-        ).context["requesting_team"])
+        provisional = VSLineup.objects.create(
+            match=match, team=self.teams[0], is_locked=True,
+        )
+        provisional.players.add(self.players[self.teams[0].pk][0])
+        Match.objects.filter(pk=match.pk).update(
+            vs_lineup_team1_locked=True, status="completed",
+        )
+        actual = self.players[self.teams[0].pk][1]
+        MatchPlayer.objects.create(
+            match=match, player=actual, team=self.teams[0], role="tirer",
+            match_format="tete_a_tete",
+        )
+        match.refresh_from_db()
+        match = Match.objects.prefetch_related(
+            "vs_lineups__players", "match_players__player"
+        ).get(pk=match.pk)
+        roster = _player_names(match, self.teams[0].pk)
+        self.assertEqual(roster, actual.name)
+        self.assertNotIn(self.players[self.teams[0].pk][0].name, roster)
 
     def test_normal_team_login_must_authorize_vs_lineup(self):
         """Known risk: normal login stores 'team_pin', VS reads 'team_pin_<id>'."""
@@ -606,17 +573,31 @@ class VSModeRegressionTests(TestCase):
         )
         self.assertFalse(Leaderboard.objects.filter(tournament=self.tournament).exists())
 
-    def test_legacy_activation_cannot_bypass_vs_captain_lineups(self):
+    def test_vs_match_activate_requires_side_authority_and_uses_old_form(self):
+        """Anonymous viewers and third teams cannot receive the hidden PIN."""
         self.register_two()
         match = Match.objects.filter(tournament=self.tournament).first()
-        response = self.client.post(
-            reverse("match_activate", args=[match.pk, self.teams[0].pk]), {}
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(reverse("vs_sub_game_detail", args=[match.pk]), response.url)
+        url = reverse("match_activate", args=[match.pk, self.teams[0].pk])
+        unauth = self.client.get(url)
+        self.assertEqual(unauth.status_code, 302)
+        self.assertIn(reverse("match_detail", args=[match.pk]), unauth.url)
+        forbidden_post = self.client.post(url, {
+            "pin": self.teams[0].pin, "players": [self.players[self.teams[0].pk][0].pk],
+        })
+        self.assertEqual(forbidden_post.status_code, 302)
         match.refresh_from_db()
-        self.assertEqual(match.status, "pending")
         self.assertEqual(match.activations.count(), 0)
+
+        login = self.client.post(reverse("team_pin_login"),
+            data=json.dumps({"team_pin": self.teams[0].pin, "remember_me": False}),
+            content_type="application/json")
+        self.assertEqual(login.status_code, 200)
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertTemplateUsed(page, "matches/match_activate.html")
+        self.assertNotContains(page, "Lock Lineup")
+        self.assertContains(page, "role_")
+
 
     def test_recalculating_vs_points_is_idempotent(self):
         encounter = self.register_two()
