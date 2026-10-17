@@ -252,6 +252,15 @@
     }
 
     function _showConfirmPanel(data) {
+        // Opt-in handoff for final VS sheet: its own remarks panel is the
+        // explicit approval, so do not ask for two separate confirmations.
+        // All existing match and friendly-game QR flows keep their normal
+        // identity-confirmation panel.
+        if (window.QR_DIRECT_TO_VS_SHEET_REMARKS === true) {
+            closeQrScanner();
+            document.dispatchEvent(new CustomEvent('qrPlayerResolved', { detail: data }));
+            return;
+        }
         // Hide scan panel
         document.getElementById('qrScanPanel').style.display = 'none';
 
