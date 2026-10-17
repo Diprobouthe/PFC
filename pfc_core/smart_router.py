@@ -515,9 +515,12 @@ def _resolve_tournament_matches(player):
             else:
                 candidates.append({
                     'priority': PRIORITY_TOURNAMENT_NEEDS_ACTIVATION,
-                    'url': reverse('match_activate',
-                                   kwargs={'match_id': match.id,
-                                           'team_id': team_id}),
+                    'url': (
+                        reverse('vs_sub_game_detail', kwargs={'match_id': match.id})
+                        if match.vs_encounter_id else
+                        reverse('match_activate',
+                                kwargs={'match_id': match.id, 'team_id': team_id})
+                    ),
                     'label': _("Select Players & Activate Match"),
                     'match_type': 'tournament',
                 })
@@ -525,9 +528,12 @@ def _resolve_tournament_matches(player):
         elif status == 'pending':
             candidates.append({
                 'priority': PRIORITY_TOURNAMENT_PENDING,
-                'url': reverse('match_activate',
-                               kwargs={'match_id': match.id,
-                                       'team_id': team_id}),
+                'url': (
+                    reverse('vs_sub_game_detail', kwargs={'match_id': match.id})
+                    if match.vs_encounter_id else
+                    reverse('match_activate',
+                            kwargs={'match_id': match.id, 'team_id': team_id})
+                ),
                 'label': _("Select Players & Start Match"),
                 'match_type': 'tournament',
             })
