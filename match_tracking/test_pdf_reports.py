@@ -64,7 +64,10 @@ class HistoricalMatchPDFTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
         sample_dir = os.getenv("PFC_PDF_SAMPLE_DIR")
-        if sample_dir:
+        if sample_dir and TrackingPracticeSession.objects.filter(
+            tracking_session__match_type="match",
+            tracking_session__match_pk=self.match.pk,
+        ).exists():
             Path(sample_dir).mkdir(parents=True, exist_ok=True)
             (Path(sample_dir) / "match_analysis_demo.pdf").write_bytes(response.content)
         return "\n".join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
