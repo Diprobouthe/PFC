@@ -1518,6 +1518,8 @@ def vs_encounter_detail(request, encounter_id):
             "opp_lineup": opp_lineup,
         })
 
+    from .sheet_attestation import sheet_status
+    sheet = sheet_status(encounter)
     context = {
         "encounter": encounter,
         "tournament": tournament,
@@ -1525,6 +1527,15 @@ def vs_encounter_detail(request, encounter_id):
         "sub_game_data": sub_game_data,
         "team1": encounter.team1,
         "team2": encounter.team2,
+        "sheet": sheet,
+        "sheet_team1": sheet["records"].get("team1"),
+        "sheet_team2": sheet["records"].get("team2"),
+        "sheet_referee": sheet["records"].get("referee"),
+        "can_set_sheet_referee": bool(
+            request.user.is_authenticated and request.user.is_staff
+            and sheet["ready"] and not sheet["locked"]
+            and not encounter.sheet_attestations.exists()
+        ),
     }
     return render(request, "tournaments/vs_encounter_detail.html", context)
 
