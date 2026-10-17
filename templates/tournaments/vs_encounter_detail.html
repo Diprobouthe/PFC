@@ -121,6 +121,7 @@
           {% if sheet_team1 %}
             <span class="text-success text-end"><i class="fas fa-check-circle"></i>
               {{ sheet_team1.player_name }} · {{ sheet_team1.attested_at|date:"d/m/Y H:i" }}
+              <small class="d-block text-muted">{{ sheet_team1.remarks }}</small>
             </span>
           {% else %}<span class="text-muted">Αναμονή QR</span>{% endif %}
         </div>
@@ -129,6 +130,7 @@
           {% if sheet_team2 %}
             <span class="text-success text-end"><i class="fas fa-check-circle"></i>
               {{ sheet_team2.player_name }} · {{ sheet_team2.attested_at|date:"d/m/Y H:i" }}
+              <small class="d-block text-muted">{{ sheet_team2.remarks }}</small>
             </span>
           {% else %}<span class="text-muted">Αναμονή QR</span>{% endif %}
         </div>
@@ -138,6 +140,7 @@
             {% if sheet_referee %}
               <span class="text-success text-end"><i class="fas fa-check-circle"></i>
                 {{ sheet_referee.player_name }} · {{ sheet_referee.attested_at|date:"d/m/Y H:i" }}
+              <small class="d-block text-muted">{{ sheet_referee.remarks }}</small>
               </span>
             {% else %}<span class="text-muted">Αναμονή QR</span>{% endif %}
           </div>
