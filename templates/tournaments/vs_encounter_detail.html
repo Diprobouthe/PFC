@@ -186,6 +186,7 @@
     <script>
       window.QR_RESOLVE_URL = "{% url 'vs_sheet_qr_resolve' encounter.id %}";
       window.QR_DIRECT_TO_VS_SHEET_REMARKS = true;
+      window.QR_DIRECT_TO_VS_SHEET_REMARKS = true;
     </script>
     {% include "partials/qr_scanner_modal.html" %}
     {# QR proof stays server-side; a scan alone NEVER writes an attestation. #}
@@ -209,13 +210,7 @@
     <script>
     (function() {
       let processing = false;
-      // First QR confirmation establishes the scanned identity, then we ask
-      // for optional remarks. The FINAL consent is the second explicit OK.
-      const confirmButton = document.getElementById('qrConfirmYes');
-      const confirmQuestion = document.querySelector('.qr-confirm-question');
-      if (confirmButton) confirmButton.textContent = 'Συνέχεια στις παρατηρήσεις';
-      if (confirmQuestion) confirmQuestion.textContent =
-        'Επιβεβαίωσε την κάρτα σου για να επικυρώσεις το συνολικό φύλλο αγώνα.';
+      // Verified QR now opens the remarks dialog directly; only OK attests.
       const finishUrl = "{% url 'vs_sheet_attest' encounter.id %}";
       const pdfUrl = "{% url 'tournament_report_pdf' tournament.id %}";
       const dialog = document.getElementById('vs-sheet-remarks-dialog');
