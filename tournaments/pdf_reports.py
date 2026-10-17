@@ -5,6 +5,8 @@ side. Unconfirmed scores are never passed off as final, and lineups are hidden
 until both captains have locked them. GET is read-only.
 """
 from collections import defaultdict
+
+from django.db.models import Q
 from io import BytesIO
 
 from django.http import HttpResponse
@@ -118,8 +120,35 @@ def _sheet_signatures(teams):
     return block
 
 
+def vs_sheet_ready(tournament):
+    """Only an entirely validated VS encounter can have an official match sheet.
+
+    The underlying match status is canonical. In particular, a tournament may
+    still be marked active after every VS game has finished; that flag must
+    not delay the sheet. Empty encounters and missing formats/scores never
+    count as completed games.
+    """
+    from tournaments.models import VSEncounter
+
+    encounters = VSEncounter.objects.filter(tournament=tournament)
+    if not encounters.exists():
+        return False
+
+    games = Match.objects.filter(tournament=tournament, vs_encounter__tournament=tournament)
+    if not games.exists():
+        return False
+    if games.values("vs_encounter_id").distinct().count() != encounters.count():
+        return False
+    incomplete = games.exclude(status="completed") | games.filter(
+        Q(match_type__isnull=True) | Q(team1_score__isnull=True) | Q(team2_score__isnull=True)
+    ) | games.exclude(match_type__in=[key for key, _, _ in FORMATS])
+    return not incomplete.exists()
+
+
 def render_vs_tournament_report(tournament):
-    """One compact page for typical VS encounters, expanding only as needed."""
+    """Build a final, compact match sheet, only after all VS games complete."""
+    if not vs_sheet_ready(tournament):
+        raise ValueError("VS match sheet cannot be generated before all games are validated.")
     matches = list(
         Match.objects.filter(tournament=tournament, vs_encounter__isnull=False)
         .select_related("team1", "team2", "vs_encounter")
@@ -136,8 +165,7 @@ def render_vs_tournament_report(tournament):
     # one encounter; in that case each row labels its own team.
     show_team_names = unique_pair is None
     completed_count = sum(match.status == "completed" for match in matches)
-    final = bool(matches and not tournament.is_active and completed_count == len(matches))
-    label = "ΤΕΛΙΚΟ" if final else "ΠΡΟΣΩΡΙΝΟ"
+    label = "ΤΕΛΙΚΟ"
 
     buff = BytesIO()
     doc = SimpleDocTemplate(
@@ -180,16 +208,8 @@ def render_vs_tournament_report(tournament):
         story.append(table(rows, [12*mm, 55*mm, 24*mm, 55*mm, 15*mm, 19*mm]))
         story.append(Spacer(1, 2 * mm))
 
-    # Do not assign a pending, format-less VS match to a fabricated category.
-    other_games = [match for remainder in groups.values() for match in remainder]
-    if other_games:
-        story.append(heading("ΕΚΚΡΕΜΗ / ΧΩΡΙΣ ΟΡΙΣΜΕΝΗ ΜΟΡΦΗ", size=10))
-        rows = [["#", "Παίκτες Α", "Σκορ", "Παίκτες Β", "VS", "Κατάσταση"]]
-        rows.extend(_match_row(game, show_team_names=show_team_names) for game in other_games)
-        story.append(table(rows, [12*mm, 55*mm, 24*mm, 55*mm, 15*mm, 19*mm]))
-        story.append(Spacer(1, 2 * mm))
-    if not matches:
-        story.append(text("Δεν έχουν δημιουργηθεί ακόμη παιχνίδια."))
+    # The readiness guard excludes all undefined formats and unvalidated games.
+    assert not groups, "Validated VS game has an unexpected format"
 
     # Source of truth: canonical rankings from completed Match rows.
     # This is not a cached leaderboard projection.
