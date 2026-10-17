@@ -83,6 +83,23 @@ class VSTournamentReportPDFTests(TestCase):
             lineup.players.add(*players)
         return game
 
+    def finish_pending(self):
+        self.pending.status = "completed"
+        self.pending.match_type = "doublet"
+        self.pending.vs_points_value = 3
+        self.pending.team1_score = 4
+        self.pending.team2_score = 13
+        self.pending.winner = self.b
+        self.pending.loser = self.a
+        self.pending.vs_lineup_team2_locked = True
+        self.pending.save()
+        team1_lineup = self.pending.vs_lineups.get(team=self.a)
+        team1_lineup.players.add(self.more_a[0])
+        other = VSLineup.objects.create(
+            match=self.pending, team=self.b, is_locked=True,
+        )
+        other.players.add(self.player_b, self.more_b[0])
+
     def pdf_text(self):
         response = self.client.get(self.pdf_url)
         self.assertEqual(response.status_code, 200)
@@ -91,27 +108,37 @@ class VSTournamentReportPDFTests(TestCase):
         sample_dir = os.getenv("PFC_PDF_SAMPLE_DIR")
         if sample_dir:
             Path(sample_dir).mkdir(parents=True, exist_ok=True)
-            kind = "final" if not self.tournament.is_active else "provisional"
-            (Path(sample_dir) / f"vs_tournament_{kind}_demo.pdf").write_bytes(response.content)
+            (Path(sample_dir) / "vs_tournament_final_demo.pdf").write_bytes(response.content)
         return "\n".join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
 
-    def test_tournament_pdf_is_read_only_and_discloses_only_locked_lineups(self):
-        original_updated_at = self.tournament.updated_at
-        original_count = Tournament.objects.count()
-        result = self.pdf_text()
-        self.assertIn("VS ΠΕΤΑ Δοκιμή", result)
-        self.assertIn("ΠΡΟΣΩΡΙΝΟ", result)
-        self.assertIn("13 – 8", result)
-        self.assertIn("Αθηνά", result)  # Finished lineup may be displayed
-        self.assertIn("2", result)      # Awarded VS points
-        self.assertEqual(Tournament.objects.count(), original_count)
-        self.tournament.refresh_from_db()
-        self.assertEqual(self.tournament.updated_at, original_updated_at)
-
-        # The waiting match must not disclose one-sided lineup before second lock.
+    def test_before_all_results_validated_pdf_is_unavailable_even_via_direct_url(self):
         from tournaments.pdf_reports import _match_row
         self.assertEqual(_match_row(self.pending)[1], "Σύνθεση σε αναμονή")
         self.assertEqual(_match_row(self.pending)[3], "Σύνθεση σε αναμονή")
+        response = self.client.get(self.pdf_url)
+        self.assertEqual(response.status_code, 409)
+        self.assertNotEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("επικύρωση", response.content.decode())
+        page = self.client.get(reverse("tournament_detail", args=[self.tournament.pk]))
+        self.assertEqual(page.status_code, 200)
+        self.assertFalse(page.context["vs_report_ready"])
+        self.assertNotContains(page, 'onclick="sharePFCTournamentReport')
+
+    def test_final_pdf_is_read_only_and_renders_real_lineups(self):
+        self.finish_pending()
+        original_updated_at = self.tournament.updated_at
+        result = self.pdf_text()
+        self.assertIn("VS ΠΕΤΑ Δοκιμή", result)
+        self.assertIn("ΤΕΛΙΚΟ", result)
+        self.assertNotIn("ΠΡΟΣΩΡΙΝΟ", result)
+        self.assertIn("13 – 8", result)
+        self.assertIn("Αθηνά", result)
+        self.assertIn("2", result)
+        self.tournament.refresh_from_db()
+        self.assertEqual(self.tournament.updated_at, original_updated_at)
+        page = self.client.get(reverse("tournament_detail", args=[self.tournament.pk]))
+        self.assertTrue(page.context["vs_report_ready"])
+        self.assertContains(page, 'onclick="sharePFCTournamentReport')
 
     def test_staff_notes_are_saved_and_anonymous_may_not_change_them(self):
         url = reverse("update_tournament_report_notes", args=[self.tournament.pk])
@@ -128,33 +155,37 @@ class VSTournamentReportPDFTests(TestCase):
         self.assertEqual(posted.status_code, 302)
         self.tournament.refresh_from_db()
         self.assertEqual(self.tournament.report_notes, "Επίσημες παρατηρήσεις διοργάνωσης")
+        self.finish_pending()
         self.assertIn("Επίσημες παρατηρήσεις διοργάνωσης", self.pdf_text())
         too_long = self.client.post(url, {"report_notes": "X" * 2001})
         self.assertEqual(too_long.status_code, 400)
 
-    def test_final_only_after_tournament_is_closed_and_all_games_validated(self):
-        self.assertIn("ΠΡΟΣΩΡΙΝΟ", self.pdf_text())
-        Match.objects.filter(pk=self.pending.pk).update(
-            status="completed", team1_score=4, team2_score=13,
-            winner=self.b, loser=self.a, match_type="doublet",
-            vs_points_value=3, vs_lineup_team2_locked=True,
-        )
-        VSLineup.objects.create(match=self.pending, team=self.b, is_locked=True).players.add(self.player_b)
-        self.tournament.is_active = False
-        self.tournament.save(update_fields=["is_active"])
+    def test_pdf_opens_at_final_result_without_manually_closing_tournament(self):
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+        self.finish_pending()
+        self.assertTrue(self.tournament.is_active)
         rendered = self.pdf_text()
         self.assertIn("ΤΕΛΙΚΟ", rendered)
         self.assertIn("4 – 13", rendered)
         self.assertIn("13 – 8", rendered)
         self.assertIn("Πεδίο Άρεως", rendered)
 
+    def test_waiting_for_validation_is_not_final(self):
+        Match.objects.filter(pk=self.pending.pk).update(
+            match_type="doublet", status="waiting_validation",
+            team1_score=13, team2_score=10,
+        )
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+
     def test_compact_sheet_groups_formats_and_prints_real_player_lineups(self):
+        self.finish_pending()
         rendered = self.pdf_text()
         singles = rendered.find("ΜΟΝΑ")
         doubles = rendered.find("ΔΙΠΛΑ")
         triples = rendered.find("ΤΡΙΠΛΑ")
-        pending = rendered.find("ΕΚΚΡΕΜΗ")
-        self.assertTrue(0 <= singles < doubles < triples < pending, rendered)
+        self.assertTrue(0 <= singles < doubles < triples, rendered)
+        self.assertNotIn("ΕΚΚΡΕΜΗ", rendered)
+        self.assertNotIn("ΧΩΡΙΣ ΟΡΙΣΜΕΝΗ ΜΟΡΦΗ", rendered)
         for player in ("Αθηνά", "Πέτρος", "Ελένη", "Αλέξης", "Δήμητρα", "Σοφία"):
             self.assertIn(player, rendered)
         self.assertIn("πετΑ UMP", rendered)
@@ -168,6 +199,15 @@ class VSTournamentReportPDFTests(TestCase):
         self.assertEqual(response.status_code, 200)
         pages = PdfReader(BytesIO(response.content)).pages
         self.assertEqual(len(pages), 1)
+
+    def test_no_encounter_or_no_games_cannot_generate_blank_sheet(self):
+        self.pending.delete()
+        self.first.delete()
+        self.doublet.delete()
+        self.triplet.delete()
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
+        self.encounter.delete()
+        self.assertEqual(self.client.get(self.pdf_url).status_code, 409)
 
     def test_non_vs_report_is_not_generated(self):
         self.tournament.allowed_match_types = {}
