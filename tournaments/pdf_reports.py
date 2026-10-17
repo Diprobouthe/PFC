@@ -155,7 +155,7 @@ def render_vs_tournament_report(tournament):
 
     story.append(Spacer(1, 7*mm))
     story.append(KeepTogether([
-        text("Αυτόματη καταγραφή: πεταχύUMP / PFC. "
+        text("Αυτόματη καταγραφή: πέτα UMP / PFC. "
              "Δεν αποτελεί πιστοποιημένη υπογραφή φυσικού διαιτητή.", size=8),
         text("Διαιτητής (όταν υπάρχει): __________________________", size=9),
         Spacer(1, 5*mm),
