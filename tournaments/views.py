@@ -999,16 +999,22 @@ def _get_team_from_pin(request, tournament):
     uses so VS Mode integrates naturally with the existing login mechanism.
     """
     from teams.models import Team as _Team
-    pin = request.session.get(f"team_pin_{tournament.id}")
+    from pfc_core.team_session_utils import TeamSessionManager
+    from pfc_core.session_utils import TeamPinSessionManager
+
+    # Prefer the currently authenticated Team session. The tournament-scoped
+    # key is a legacy VS compatibility fallback (not written by normal login).
+    pin = (
+        TeamPinSessionManager.get_logged_in_pin(request)
+        or TeamSessionManager.get_team_pin(request)
+        or request.session.get(f"team_pin_{tournament.id}")
+    )
     if not pin:
         return None
     try:
-        # Eligibility: not archived, not temp.
-        # Public-page visibility (profile_type) is separate from tournament eligibility.
+        # Enrollment in this VS encounter is separately checked by each view.
         return _Team.objects.get(
-            pin=pin,
-            is_archived=False,
-            is_tournament_temp=False,
+            pin=pin, is_archived=False, is_tournament_temp=False,
         )
     except _Team.DoesNotExist:
         return None
