@@ -223,10 +223,31 @@ def render_vs_tournament_report(tournament):
     else:
         story.append(text("Δεν καταχωρίστηκαν παρατηρήσεις.", size=8))
 
-    story.append(Spacer(1, 3 * mm))
+    story.append(heading("ΨΗΦΙΑΚΗ ΕΠΙΚΥΡΩΣΗ ΦΥΛΛΟΥ", size=10))
+    if unique_pair:
+        encounter = matches[0].vs_encounter
+        attestations = {
+            row.role: row for row in encounter.sheet_attestations.all()
+        }
+        required = [
+            ("team1", f"Ομάδα Α · {encounter.team1.name}"),
+            ("team2", f"Ομάδα Β · {encounter.team2.name}"),
+        ]
+        if encounter.sheet_referee_required:
+            required.append(("referee", "Διαιτητής (δήλωση QR · χωρίς πιστοποίηση)"))
+        for role, title in required:
+            row = attestations.get(role)
+            if row is not None:
+                timestamp = timezone.localtime(row.attested_at).strftime("%d/%m/%Y %H:%M")
+                story.append(text(
+                    f"{title}: {row.player_name} · Επικυρώθηκε μέσω PFC QR · {timestamp}",
+                    size=8,
+                ))
+    story.append(Spacer(1, 2 * mm))
     story.append(text(
-        "πετΑ UMP / PFC · Ψηφιακή σύνοψη των τελικών επικυρωμένων παιχνιδιών. "
-        "Δεν αποτελεί ξεχωριστή επικύρωση του φύλλου αγώνα με QR.", size=7,
+        "πετΑ UMP / PFC · Ψηφιακή καταγραφή ανάληψης ευθύνης μέσω καρτών QR. "
+        "Δεν αποτελεί πιστοποιημένη ηλεκτρονική υπογραφή ή πιστοποίηση διαιτητή.",
+        size=7,
     ))
     doc.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
     buff.seek(0)
