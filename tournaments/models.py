@@ -2417,6 +2417,7 @@ class VSSheetAttestation(models.Model):
     )
     player_name = models.CharField(max_length=100)
     team_name = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True, default="Όλα καλώς")
     sheet_digest = models.CharField(max_length=64)
     attested_at = models.DateTimeField(default=timezone.now)
 
