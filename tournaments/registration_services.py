@@ -84,6 +84,18 @@ def register_team_for_tournament(*, team, tournament, voucher_code=None):
     if existing is not None:
         return existing, False, None
 
+    # All registration entry points, not just Team Sign-in, must enforce the
+    # same VS two-Team invariant while the Tournament row is locked.
+    from tournaments.vs_utils import is_vs_tournament
+    if is_vs_tournament(tournament):
+        registered_count = TournamentTeam.objects.filter(
+            tournament=tournament, is_active=True,
+        ).count()
+        if registered_count >= 2:
+            raise TournamentRegistrationEligibilityError(
+                _("A VS tournament accepts exactly two teams.")
+            )
+
     if tournament.max_teams is not None:
         registered_count = TournamentTeam.objects.filter(tournament=tournament).count()
         if registered_count >= tournament.max_teams:
