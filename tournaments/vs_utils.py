@@ -157,7 +157,10 @@ def update_vs_encounter_points(encounter: "VSEncounter") -> None:
     both live encounters and historical completed VS matches.
     """
     from matches.models import Match
+    from tournaments.models import VSEncounter
 
+    # Serialize completions of different sub-games in this same encounter.
+    encounter = VSEncounter.objects.select_for_update(of=("self",)).get(pk=encounter.pk)
     sub_games = Match.objects.filter(vs_encounter=encounter)
 
     team1_pts = 0
@@ -218,6 +221,71 @@ def _update_tournament_team_vs_points(tournament, team) -> None:
         team.name,
         total,
     )
+
+
+# ---------------------------------------------------------------------------
+# Canonical read-only VS standings, including historical tournaments.
+# ---------------------------------------------------------------------------
+
+def get_vs_rankings(tournament) -> list[dict]:
+    """Build live standings from completed games, not cached projection state.
+
+    This also serves pre-upgrade tournaments without a Leaderboard record.
+    """
+    from tournaments.models import TournamentTeam
+    from matches.models import Match
+
+    registrations = list(
+        TournamentTeam.objects.filter(tournament=tournament)
+        .select_related("team").order_by("team_id")
+    )
+    standings = {
+        registration.team_id: {
+            "team": registration.team, "vs_points": 0,
+            "matches_played": 0, "matches_won": 0, "matches_lost": 0,
+            "points_scored": 0, "points_conceded": 0,
+        }
+        for registration in registrations
+    }
+    completed = (
+        Match.objects.filter(vs_encounter__tournament=tournament, status="completed")
+        .order_by("pk").values(
+            "team1_id", "team2_id", "winner_id", "team1_score",
+            "team2_score", "vs_points_value", "match_type",
+        )
+    )
+    for match in completed:
+        first = standings.get(match["team1_id"])
+        second = standings.get(match["team2_id"])
+        if first is None or second is None:
+            continue
+        for row, scored, conceded in (
+            (first, match["team1_score"], match["team2_score"]),
+            (second, match["team2_score"], match["team1_score"]),
+        ):
+            row["matches_played"] += 1
+            row["points_scored"] += scored or 0
+            row["points_conceded"] += conceded or 0
+        pts = match["vs_points_value"]
+        if pts is None:
+            pts = get_vs_points_for_match_type(match["match_type"]) or 0
+        if match["winner_id"] == match["team1_id"]:
+            first["matches_won"] += 1
+            second["matches_lost"] += 1
+            first["vs_points"] += pts
+        elif match["winner_id"] == match["team2_id"]:
+            second["matches_won"] += 1
+            first["matches_lost"] += 1
+            second["vs_points"] += pts
+
+    # Only the VS points determine ranking; equal totals use stable ID order.
+    ranking = sorted(
+        standings.values(),
+        key=lambda row: (-row["vs_points"], row["team"].pk),
+    )
+    for position, row in enumerate(ranking, 1):
+        row["position"] = position
+    return ranking
 
 
 # ---------------------------------------------------------------------------
