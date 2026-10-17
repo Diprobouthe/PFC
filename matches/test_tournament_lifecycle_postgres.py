@@ -249,5 +249,82 @@ class TournamentLifecyclePostgreSQLTests(TransactionTestCase):
             {self.team1.pk: 2, self.team2.pk: 3},
         )
 
+    def test_concurrent_vs_captains_activate_exactly_once(self):
+        import json
+        from django.test import Client
+        from django.urls import reverse
+        from tournaments.models import VSEncounter
+        from tournaments.models import VSLineup
+
+        self.tournament.format = "independent_games"
+        self.tournament.allowed_match_types = {
+            "vs_mode": True,
+            "allowed_match_types": ["tete_a_tete", "doublet", "triplet"],
+        }
+        self.tournament.save(update_fields=["format", "allowed_match_types"])
+        encounter = VSEncounter.objects.create(
+            tournament=self.tournament, team1=self.team1, team2=self.team2
+        )
+        match = self._match(self.team1, self.team2, status="pending")
+        match.vs_encounter = encounter
+        match.save(update_fields=["vs_encounter"])
+        players = {
+            team_id: MatchPlayer.objects.get(match=match, team_id=team_id).player_id
+            for team_id in (self.team1.pk, self.team2.pk)
+        }
+        clients = []
+        for team in (self.team1, self.team2):
+            client = Client()
+            session = client.session
+            session[f"team_pin_{self.tournament.pk}"] = team.pin
+            session.save()
+            clients.append(client)
+        url = reverse("vs_lineup_submit", args=[match.pk])
+
+        outcomes, errors = self._run_concurrently(
+            lambda: clients[0].post(
+                url, data=json.dumps({"player_ids": [players[self.team1.pk]]}),
+                content_type="application/json",
+            ),
+            lambda: clients[1].post(
+                url, data=json.dumps({"player_ids": [players[self.team2.pk]]}),
+                content_type="application/json",
+            ),
+        )
+        self.assertEqual(errors, [None, None])
+        self.assertEqual([response.status_code for response in outcomes], [200, 200])
+        match.refresh_from_db()
+        self.assertEqual(match.status, "active")
+        self.assertEqual(match.vs_points_value, 2)
+        self.assertEqual(match.activations.count(), 2)
+        self.assertEqual(VSLineup.objects.filter(match=match, is_locked=True).count(), 2)
+        self.assertEqual(
+            set(MatchPlayer.objects.filter(match=match).values_list("team_id", flat=True)),
+            {self.team1.pk, self.team2.pk},
+        )
+
+    def test_concurrent_result_validations_finalize_once(self):
+        match = self._match(self.team1, self.team2, status="active", court=self.court)
+        submit_official_result(
+            match.pk, submitted_by_id=self.team1.pk, team1_score=13, team2_score=8
+        )
+        with patch("matches.lifecycle.process_tournament_transition", return_value=True):
+            outcomes, errors = self._run_concurrently(
+                lambda: validate_official_result(
+                    match.pk, validating_team_id=self.team2.pk, agree=True
+                ),
+                lambda: validate_official_result(
+                    match.pk, validating_team_id=self.team2.pk, agree=True
+                ),
+            )
+        self.assertEqual(errors, [None, None])
+        self.assertEqual(
+            sorted(outcome.state for outcome in outcomes),
+            ["completed", "not_waiting_validation"],
+        )
+        match.refresh_from_db()
+        self.assertEqual(match.status, "completed")
+        self.assertEqual(MatchLifecycleTransition.objects.filter(match=match).count(), 1)
+
     def test_database_vendor_is_postgresql(self):
         self.assertEqual(connection.vendor, "postgresql")
