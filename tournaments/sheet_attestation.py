@@ -100,12 +100,16 @@ def qr_role(encounter, player):
     return None
 
 
-def attest_and_maybe_freeze(encounter, player):
+def attest_and_maybe_freeze(encounter, player, remarks=""):
     """Call while holding a select_for_update lock on the encounter row.
 
     Returns role and whether this operation issued the immutable PDF.
     Duplicate cards, stale approvals and unauthorized teams fail closed.
     """
+    if not isinstance(remarks, str) or len(remarks) > 1000:
+        raise ValueError("Οι παρατηρήσεις πρέπει να είναι κείμενο έως 1000 χαρακτήρες.")
+    remarks = remarks.strip() or "Όλα καλώς"
+
     status = sheet_status(encounter)
     if not status["ready"]:
         raise ValueError("Δεν έχουν ολοκληρωθεί και επικυρωθεί όλα τα παιχνίδια VS.")
@@ -123,6 +127,7 @@ def attest_and_maybe_freeze(encounter, player):
         encounter=encounter, role=role, player=player,
         player_name=player.name,
         team_name=player.team.name if player.team_id else "",
+        remarks=remarks,
         sheet_digest=status["digest"],
         attested_at=timezone.now(),
     )
