@@ -48,7 +48,40 @@ class VSTournamentReportPDFTests(TestCase):
         )
         lineup = VSLineup.objects.create(match=self.pending, team=self.a, is_locked=True)
         lineup.players.add(self.player_a)
+        # Realistic compact-sheet fixtures with distinct published lineups for
+        # all three formats. The pending fourth match is intentionally not
+        # assigned to a format or exposed before the opposing captain locks.
+        self.more_a = [
+            Player.objects.create(name="Ελένη", team=self.a),
+            Player.objects.create(name="Δήμητρα", team=self.a),
+        ]
+        self.more_b = [
+            Player.objects.create(name="Αλέξης", team=self.b),
+            Player.objects.create(name="Σοφία", team=self.b),
+        ]
+        self.doublet = self.finished_game(
+            "doublet", 3, [self.player_a, self.more_a[0]],
+            [self.player_b, self.more_b[0]], 13, 9, self.a,
+        )
+        self.triplet = self.finished_game(
+            "triplet", 5, [self.player_a, *self.more_a],
+            [self.player_b, *self.more_b], 8, 13, self.b,
+        )
         self.pdf_url = reverse("tournament_report_pdf", args=[self.tournament.pk])
+
+    def finished_game(self, fmt, vs_points, players_a, players_b, score_a, score_b, winner):
+        game = Match.objects.create(
+            tournament=self.tournament, vs_encounter=self.encounter,
+            team1=self.a, team2=self.b, status="completed",
+            match_type=fmt, vs_points_value=vs_points,
+            winner=winner, loser=self.b if winner == self.a else self.a,
+            team1_score=score_a, team2_score=score_b,
+            vs_lineup_team1_locked=True, vs_lineup_team2_locked=True,
+        )
+        for team, players in ((self.a, players_a), (self.b, players_b)):
+            lineup = VSLineup.objects.create(match=game, team=team, is_locked=True)
+            lineup.players.add(*players)
+        return game
 
     def pdf_text(self):
         response = self.client.get(self.pdf_url)
@@ -77,7 +110,8 @@ class VSTournamentReportPDFTests(TestCase):
 
         # The waiting match must not disclose one-sided lineup before second lock.
         from tournaments.pdf_reports import _match_row
-        self.assertNotIn("Αθηνά", _match_row(self.pending)[2])
+        self.assertEqual(_match_row(self.pending)[1], "Σύνθεση σε αναμονή")
+        self.assertEqual(_match_row(self.pending)[3], "Σύνθεση σε αναμονή")
 
     def test_staff_notes_are_saved_and_anonymous_may_not_change_them(self):
         url = reverse("update_tournament_report_notes", args=[self.tournament.pk])
@@ -113,6 +147,27 @@ class VSTournamentReportPDFTests(TestCase):
         self.assertIn("4 – 13", rendered)
         self.assertIn("13 – 8", rendered)
         self.assertIn("Πεδίο Άρεως", rendered)
+
+    def test_compact_sheet_groups_formats_and_prints_real_player_lineups(self):
+        rendered = self.pdf_text()
+        singles = rendered.find("ΜΟΝΑ")
+        doubles = rendered.find("ΔΙΠΛΑ")
+        triples = rendered.find("ΤΡΙΠΛΑ")
+        pending = rendered.find("ΕΚΚΡΕΜΗ")
+        self.assertTrue(0 <= singles < doubles < triples < pending, rendered)
+        for player in ("Αθηνά", "Πέτρος", "Ελένη", "Αλέξης", "Δήμητρα", "Σοφία"):
+            self.assertIn(player, rendered)
+        self.assertIn("πετΑ UMP", rendered)
+        self.assertNotIn("πέτα UMP", rendered)
+        # No fabricated player substitution: the database has none.
+        self.assertNotIn("Αντικατάσταση", rendered)
+
+    def test_typical_three_games_fit_on_one_a4_page(self):
+        self.pending.delete()
+        response = self.client.get(self.pdf_url)
+        self.assertEqual(response.status_code, 200)
+        pages = PdfReader(BytesIO(response.content)).pages
+        self.assertEqual(len(pages), 1)
 
     def test_non_vs_report_is_not_generated(self):
         self.tournament.allowed_match_types = {}
