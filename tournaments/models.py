@@ -40,6 +40,10 @@ class Tournament(models.Model):
     
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    report_notes = models.TextField(
+        blank=True, default="",
+        help_text="Organizer observations printed on the tournament PDF report.",
+    )
     format = models.CharField(max_length=20, choices=TOURNAMENT_FORMATS, default="knockout")
     play_format = models.CharField(max_length=20, choices=PLAY_FORMATS)
     has_triplets = models.BooleanField(default=False)
