@@ -2,6 +2,8 @@
 import json
 import os
 from io import BytesIO
+from datetime import datetime, timezone as datetime_timezone
+from unittest.mock import patch
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
@@ -11,6 +13,7 @@ from django.utils import timezone
 from pypdf import PdfReader
 
 from friendly_games.models import PlayerCodename
+from courts.models import Court, CourtComplex
 from matches.models import Match
 from pfc_core.qr_utils import generate_player_token
 from teams.models import Team, Player
@@ -378,6 +381,49 @@ class VSTournamentReportPDFTests(TestCase):
         self.assertContains(rendered, 'id="vs-sheet-remarks-text"')
         self.assertContains(rendered, 'ΟΚ · Επικύρωση')
         self.assertContains(rendered, 'Όλα καλώς')
+
+    def _assert_court_timezone_in_sealed_sheet(self, instant_utc, expected_local_time, zone_name):
+        """The actual QR acceptance must freeze a PDF with venue-local times."""
+        court_complex = CourtComplex.objects.create(
+            name="VS PDF clock test venue", description="Clock test",
+            timezone_name=zone_name,
+        )
+        court = Court.objects.create(number=7001, name="Test VC1")
+        court_complex.courts.add(court)
+        for match in (self.first, self.doublet, self.triplet, self.pending):
+            match.court = court
+            match.save(update_fields=["court"])
+        self.finish()
+
+        # Keep canonical timestamps in UTC; localize only the PDF rendering.
+        with patch("django.utils.timezone.now", return_value=instant_utc):
+            issued = self.sign_both()
+        self.assertTrue(issued.json()["issued"])
+        self.assertEqual(
+            VSSheetAttestation.objects.get(encounter=self.encounter, role="team1").attested_at,
+            instant_utc,
+        )
+        pdf = self.pdf_text()
+        self.assertIn(f"Επικυρώθηκε μέσω PFC QR · {expected_local_time}", pdf)
+        self.assertEqual(self.client.get(self.pdf_url).content, bytes(self.encounter.sheet_pdf))
+
+    def test_vs_sheet_qr_times_use_athens_summer_time(self):
+        self._assert_court_timezone_in_sealed_sheet(
+            datetime(2026, 7, 10, 12, 0, tzinfo=datetime_timezone.utc),
+            "10/07/2026 15:00", "Europe/Athens",
+        )
+
+    def test_vs_sheet_qr_times_use_athens_winter_time(self):
+        self._assert_court_timezone_in_sealed_sheet(
+            datetime(2026, 1, 10, 12, 0, tzinfo=datetime_timezone.utc),
+            "10/01/2026 14:00", "Europe/Athens",
+        )
+
+    def test_vs_sheet_qr_times_use_non_greek_venue_timezone(self):
+        self._assert_court_timezone_in_sealed_sheet(
+            datetime(2026, 7, 10, 12, 0, tzinfo=datetime_timezone.utc),
+            "10/07/2026 08:00", "America/New_York",
+        )
 
     def test_non_vs_report_is_not_generated(self):
         self.tournament.allowed_match_types = {}
