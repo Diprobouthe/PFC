@@ -307,7 +307,11 @@
         <div class="text-center">
             <div class="team-label text-primary">{{ scoreboard.get_team1_name }}</div>
             <div class="score-entry-player-names">
+                {% if scoreboard.tournament_match and scoreboard.tournament_match.vs_encounter_id and scoreboard.tournament_match.activations.count < 2 %}
+                Σύνθεση κρυφή μέχρι να δηλώσουν και οι δύο ομάδες.
+                {% else %}
                 {% for player in score_entry_team1_players %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                {% endif %}
             </div>
             <div class="score-big text-primary" id="team1-score">{{ scoreboard.team1_score }}</div>
         </div>
@@ -315,7 +319,11 @@
         <div class="text-center">
             <div class="team-label {% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %}">{{ scoreboard.get_team2_name }}</div>
             <div class="score-entry-player-names">
+                {% if scoreboard.tournament_match and scoreboard.tournament_match.vs_encounter_id and scoreboard.tournament_match.activations.count < 2 %}
+                Σύνθεση κρυφή μέχρι να δηλώσουν και οι δύο ομάδες.
+                {% else %}
                 {% for player in score_entry_team2_players %}{{ player.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                {% endif %}
             </div>
             <div class="score-big {% if scoreboard.friendly_game %}text-secondary{% else %}text-success{% endif %}" id="team2-score">{{ scoreboard.team2_score }}</div>
         </div>
