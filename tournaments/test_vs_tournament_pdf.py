@@ -405,6 +405,7 @@ class VSTournamentReportPDFTests(TestCase):
         )
         pdf = self.pdf_text()
         self.assertIn(f"Επικυρώθηκε μέσω PFC QR · {expected_local_time}", pdf)
+        self.encounter.refresh_from_db()
         self.assertEqual(self.client.get(self.pdf_url).content, bytes(self.encounter.sheet_pdf))
 
     def test_vs_sheet_qr_times_use_athens_summer_time(self):
