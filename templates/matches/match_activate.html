@@ -263,7 +263,7 @@
     {% endif %}
 
     <!-- If validating: show other team's lineup -->
-    {% if is_validating and first_team_match_players %}
+    {% if is_validating and first_team_match_players and not match.vs_encounter_id %}
     <div class="ma-other-team-strip">
         <strong>{% translate "Other team:" %}</strong>
         {% for p in first_team_match_players %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
