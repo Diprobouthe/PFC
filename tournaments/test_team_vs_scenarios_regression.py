@@ -374,6 +374,102 @@ class VSModeRegressionTests(TestCase):
             self.assertEqual(sorted(actual), sorted(role_choices))
         self.assertIsNotNone(match.starting_team_id)
 
+    def test_vs_canonical_form_hides_opponent_selection_until_both_submit(self):
+        """Normal VS activation must never disclose the first selection early."""
+        from django.test import Client
+
+        encounter = self.register_two()
+        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
+        clients = [Client(), Client()]
+        selected = [self.players[team.pk][0] for team in self.teams[:2]]
+        detail_url = reverse("match_detail", args=[match.pk])
+
+        for team, client in zip(self.teams[:2], clients):
+            login = client.post(
+                reverse("team_pin_login"),
+                data=json.dumps({"team_pin": team.pin, "remember_me": False}),
+                content_type="application/json",
+            )
+            self.assertTrue(login.json()["success"])
+
+        # Even an untouched pending VS page must not reveal the other roster.
+        self.assertNotContains(clients[1].get(detail_url), selected[0].name)
+
+        activate_first = reverse("match_activate", args=[match.pk, self.teams[0].pk])
+        with self.captureOnCommitCallbacks(execute=True):
+            first = clients[0].post(activate_first, {
+                "pin": self.teams[0].pin,
+                "players": [selected[0].pk],
+                f"role_{selected[0].pk}": "pointer",
+            })
+        self.assertEqual(first.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "pending_verification")
+
+        # The second captain's activation form, detail view, and a spectator
+        # must not expose the first captain's irrevocable choice.
+        activate_second = reverse("match_activate", args=[match.pk, self.teams[1].pk])
+        self.assertNotContains(clients[1].get(activate_second), selected[0].name)
+        self.assertNotContains(clients[1].get(detail_url), selected[0].name)
+        self.assertNotContains(Client().get(detail_url), selected[0].name)
+
+        # The already-submitted side retains access to its own selection,
+        # without receiving the as-yet-unsubmitted other roster.
+        first_detail = clients[0].get(detail_url)
+        self.assertContains(first_detail, selected[0].name)
+        self.assertNotContains(first_detail, selected[1].name)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            second = clients[1].post(activate_second, {
+                "pin": self.teams[1].pin,
+                "players": [selected[1].pk],
+                f"role_{selected[1].pk}": "milieu",
+            })
+        self.assertEqual(second.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "active")
+        self.assertIsNotNone(match.court_id)
+        for client in clients:
+            detail = client.get(detail_url)
+            for player in selected:
+                self.assertContains(detail, player.name)
+
+    def test_vs_both_selections_revealed_while_waiting_for_court(self):
+        """Lineup reveal is based on two submissions, not Court allocation."""
+        from django.test import Client
+
+        encounter = self.register_two()
+        match = Match.objects.filter(vs_encounter=encounter).order_by("pk").first()
+        Court.objects.filter(pk__in=self.tournament.courts.values("pk")).update(
+            is_available=False
+        )
+        clients = [Client(), Client()]
+        selected = [self.players[team.pk][0] for team in self.teams[:2]]
+        for team, client, player in zip(self.teams[:2], clients, selected):
+            login = client.post(
+                reverse("team_pin_login"),
+                data=json.dumps({"team_pin": team.pin, "remember_me": False}),
+                content_type="application/json",
+            )
+            self.assertTrue(login.json()["success"])
+            with self.captureOnCommitCallbacks(execute=True):
+                response = client.post(
+                    reverse("match_activate", args=[match.pk, team.pk]), {
+                        "pin": team.pin,
+                        "players": [player.pk],
+                        f"role_{player.pk}": "pointer",
+                    }
+                )
+            self.assertEqual(response.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "pending_verification")
+        self.assertTrue(match.waiting_for_court)
+        self.assertIsNone(match.court_id)
+        for client in clients:
+            detail = client.get(reverse("match_detail", args=[match.pk]))
+            for player in selected:
+                self.assertContains(detail, player.name)
+
     def test_provisional_vslineup_does_not_override_real_match_roster_in_pdf(self):
         """A partially locked historical VS draft must not corrupt the final sheet."""
         from matches.models import MatchPlayer
