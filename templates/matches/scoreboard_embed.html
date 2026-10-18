@@ -254,6 +254,9 @@
                 <div class="score-panel">
                     <div class="team-column">
                         <div class="team-name">{{ scoreboard.get_team1_name }}</div>
+                        {% if scoreboard.tournament_match and scoreboard.tournament_match.vs_encounter_id and scoreboard.tournament_match.activations.count < 2 %}
+                        <div class="players-list"><span class="player-item">Σύνθεση κρυφή μέχρι να δηλώσουν και οι δύο ομάδες.</span></div>
+                        {% else %}
                         {% if scoreboard.get_team1_players %}
                         <div class="players-list">
                             {% for player in scoreboard.get_team1_players %}
@@ -261,17 +264,22 @@
                             {% endfor %}
                         </div>
                         {% endif %}
+                        {% endif %}
                         <div id="team1-score" class="team-score team-one">{{ scoreboard.team1_score }}</div>
                     </div>
                     <div class="score-separator" aria-hidden="true">–</div>
                     <div class="team-column">
                         <div class="team-name">{{ scoreboard.get_team2_name }}</div>
+                        {% if scoreboard.tournament_match and scoreboard.tournament_match.vs_encounter_id and scoreboard.tournament_match.activations.count < 2 %}
+                        <div class="players-list"><span class="player-item">Σύνθεση κρυφή μέχρι να δηλώσουν και οι δύο ομάδες.</span></div>
+                        {% else %}
                         {% if scoreboard.get_team2_players %}
                         <div class="players-list">
                             {% for player in scoreboard.get_team2_players %}
                             <span class="player-item"><span class="player-name">{{ player.player.name }}</span>{% if scoreboard.tournament_match and player.role %}<span class="player-position">{{ player.get_role_display }}</span>{% elif player.position %}<span class="player-position">{{ player.position }}</span>{% endif %}</span>
                             {% endfor %}
                         </div>
+                        {% endif %}
                         {% endif %}
                         <div id="team2-score" class="team-score team-two">{{ scoreboard.team2_score }}</div>
                     </div>

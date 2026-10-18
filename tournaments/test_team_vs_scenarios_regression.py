@@ -470,6 +470,95 @@ class VSModeRegressionTests(TestCase):
             for player in selected:
                 self.assertContains(detail, player.name)
 
+    def test_vs_live_score_views_hide_lineups_until_both_captains_submit(self):
+        """Public embed and score-entry page share the canonical VS reveal rule.
+
+        Exercise both an immediately activated Match and a Court-waiting Match.
+        The scoreboards are present from Match creation, before either lineup.
+        """
+        from django.test import Client
+        from matches.models import MatchActivation
+
+        encounter = self.register_two()
+        matches = list(Match.objects.filter(vs_encounter=encounter).order_by("pk")[:2])
+        clients = [Client(), Client()]
+        chosen = [self.players[team.pk][0] for team in self.teams[:2]]
+        for team, client in zip(self.teams[:2], clients):
+            login = client.post(
+                reverse("team_pin_login"),
+                data=json.dumps({"team_pin": team.pin, "remember_me": False}),
+                content_type="application/json",
+            )
+            self.assertTrue(login.json()["success"])
+
+        public = Client()
+        for index, match in enumerate(matches):
+            if index == 1:
+                # No Court available for the second Match, but lineup disclosure
+                # must depend only on both successful submissions.
+                Court.objects.filter(
+                    pk__in=self.tournament.courts.values("pk")
+                ).update(is_available=False)
+
+            sb = match.live_scoreboard
+            urls = (
+                reverse("scoreboard_embed", args=[sb.pk]),
+                reverse("scoreboard_detail", args=[sb.pk]),
+            )
+            for url in urls:
+                before = public.get(url)
+                self.assertEqual(before.status_code, 200)
+                for player in chosen:
+                    self.assertNotContains(before, player.name)
+
+            first_player = chosen[0]
+            with self.captureOnCommitCallbacks(execute=True):
+                first = clients[0].post(
+                    reverse("match_activate", args=[match.pk, self.teams[0].pk]),
+                    {
+                        "pin": self.teams[0].pin,
+                        "players": [first_player.pk],
+                        f"role_{first_player.pk}": "pointer",
+                    },
+                )
+            self.assertEqual(first.status_code, 302)
+            match.refresh_from_db()
+            self.assertEqual(match.status, "pending_verification")
+            self.assertEqual(MatchActivation.objects.filter(match=match).count(), 1)
+
+            for url in urls:
+                midway = public.get(url)
+                self.assertEqual(midway.status_code, 200)
+                for player in chosen:
+                    self.assertNotContains(midway, player.name)
+
+            second_player = chosen[1]
+            with self.captureOnCommitCallbacks(execute=True):
+                second = clients[1].post(
+                    reverse("match_activate", args=[match.pk, self.teams[1].pk]),
+                    {
+                        "pin": self.teams[1].pin,
+                        "players": [second_player.pk],
+                        f"role_{second_player.pk}": "milieu",
+                    },
+                )
+            self.assertEqual(second.status_code, 302)
+            match.refresh_from_db()
+            self.assertEqual(MatchActivation.objects.filter(match=match).count(), 2)
+            if index == 0:
+                self.assertEqual(match.status, "active")
+                self.assertIsNotNone(match.court_id)
+            else:
+                self.assertEqual(match.status, "pending_verification")
+                self.assertTrue(match.waiting_for_court)
+                self.assertIsNone(match.court_id)
+
+            for url in urls:
+                revealed = public.get(url)
+                self.assertEqual(revealed.status_code, 200)
+                for player in chosen:
+                    self.assertContains(revealed, player.name)
+
     def test_provisional_vslineup_does_not_override_real_match_roster_in_pdf(self):
         """A partially locked historical VS draft must not corrupt the final sheet."""
         from matches.models import MatchPlayer
