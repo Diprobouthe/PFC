@@ -120,13 +120,28 @@ def vs_sheet_ready(tournament):
     return not incomplete.exists()
 
 
+def _vs_sheet_timezone(matches):
+    """Use the assigned court complex's local timezone for VS PDF display only.
+
+    This is shared by physical and virtual courts. When no court complex can be
+    resolved, preserve the existing Django active-timezone behavior (UTC by
+    default). Stored timestamps and the sealed PDF bytes are not modified.
+    """
+    for match in matches:
+        if match.court_id:
+            court_complex = match.court.courtcomplex_set.order_by("pk").first()
+            if court_complex is not None:
+                return court_complex.get_timezone()
+    return timezone.get_current_timezone()
+
+
 def render_vs_tournament_report(tournament):
     """Build a final, compact match sheet, only after all VS games complete."""
     if not vs_sheet_ready(tournament):
         raise ValueError("VS match sheet cannot be generated before all games are validated.")
     matches = list(
         Match.objects.filter(tournament=tournament, vs_encounter__isnull=False)
-        .select_related("team1", "team2", "vs_encounter")
+        .select_related("team1", "team2", "vs_encounter", "court")
         .prefetch_related("vs_lineups__players", "match_players__player")
         .order_by("vs_encounter_id", "pk")
     )
@@ -141,6 +156,7 @@ def render_vs_tournament_report(tournament):
     show_team_names = unique_pair is None
     completed_count = sum(match.status == "completed" for match in matches)
     label = "ΤΕΛΙΚΟ"
+    report_tz = _vs_sheet_timezone(matches)
 
     buff = BytesIO()
     doc = SimpleDocTemplate(
@@ -150,7 +166,7 @@ def render_vs_tournament_report(tournament):
     )
     story = header(
         "Φύλλο αγώνα VS",
-        f"{tournament.name} | {label} | {timezone.localtime().strftime('%d/%m/%Y %H:%M')}",
+        f"{tournament.name} | {label} | {timezone.localtime(timezone.now(), report_tz).strftime('%d/%m/%Y %H:%M')}",
     )
 
     if unique_pair:
@@ -165,7 +181,7 @@ def render_vs_tournament_report(tournament):
 
     story.append(text(
         f"Επικυρωμένα παιχνίδια: {completed_count}/{len(matches)}  |  "
-        f"Ημερομηνία: {timezone.localtime(tournament.start_date).strftime('%d/%m/%Y')}.  "
+        f"Ημερομηνία: {timezone.localtime(tournament.start_date, report_tz).strftime('%d/%m/%Y')}.  "
         "Μόνο τα επικυρωμένα αποτελέσματα μετρούν στη βαθμολογία.", size=8,
     ))
 
@@ -238,7 +254,7 @@ def render_vs_tournament_report(tournament):
         for role, title in required:
             row = attestations.get(role)
             if row is not None:
-                timestamp = timezone.localtime(row.attested_at).strftime("%d/%m/%Y %H:%M")
+                timestamp = timezone.localtime(row.attested_at, report_tz).strftime("%d/%m/%Y %H:%M")
                 story.append(text(
                     f"{title}: {row.player_name} · Επικυρώθηκε μέσω PFC QR · {timestamp}",
                     size=8,
