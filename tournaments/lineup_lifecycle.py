@@ -171,16 +171,26 @@ def save_match_lineup(
     """Save one side's latest valid selection while its Round window is open."""
     requested_ids = {int(player_id) for player_id in player_ids}
     with transaction.atomic():
+        # All lineup writers must use the same lock order as the deadline
+        # finalizer: Round -> Match. Previously this writer locked Match first,
+        # creating a deadlock cycle with finalize_round_lineups().
+        #
+        # This initial read takes NO lock. Recheck the association after both
+        # row locks are acquired, so a concurrently reassigned Match is never
+        # edited against a stale Round deadline.
+        round_id = Match.objects.values_list("round_id", flat=True).get(pk=match_id)
+        if round_id is None:
+            raise LineupLifecycleError("This Match does not use a Round lineup window.")
+        round_obj = Round.objects.select_for_update(of=("self",)).get(pk=round_id)
         match = (
             Match.objects.select_for_update(of=("self",))
             .select_related("tournament", "round", "team1", "team2")
             .get(pk=match_id)
         )
-        if match.round_id is None:
-            raise LineupLifecycleError("This Match does not use a Round lineup window.")
+        if match.round_id != round_obj.pk:
+            raise LineupLifecycleError("Match Round changed while acquiring lineup locks.")
         if acting_team_id not in (match.team1_id, match.team2_id):
             raise LineupLifecycleError("This team is not part of the Match.")
-        round_obj = Round.objects.select_for_update(of=("self",)).get(pk=match.round_id)
         if round_obj.lineups_frozen_at is not None or (
             round_obj.lineup_deadline_at is not None and timezone.now() >= round_obj.lineup_deadline_at
         ):
