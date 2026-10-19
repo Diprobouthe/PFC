@@ -1,0 +1,69 @@
+name: PFC Round-Match lock order (PostgreSQL)
+
+on:
+  push:
+    branches:
+      - fix/round-match-lock-order-20261019
+  pull_request:
+    branches:
+      - main
+    paths:
+      - tournaments/lineup_lifecycle.py
+      - tournaments/test_round_lock_order_postgres.py
+      - tournaments/test_round_lineup_lifecycle.py
+      - .github/workflows/round-match-lock-order-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-lock-order:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_lock_order_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_lock_order_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_lock_order_test
+      SECRET_KEY: github-isolated-lock-order-test-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Django configuration and schema validation
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Round-first locking and existing lineup lifecycle regressions
+        run: |
+          python manage.py test \
+            tournaments.test_round_lock_order_postgres \
+            tournaments.test_round_lineup_lifecycle \
+            --verbosity 2
+      - name: Mêlée P4 and court allocation regressions
+        if: always()
+        run: |
+          python manage.py test \
+            tournaments.test_melee_p4_write_cutover \
+            matches.test_melee_round_assignment_consumers \
+            --verbosity 2
