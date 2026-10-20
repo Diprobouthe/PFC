@@ -96,7 +96,7 @@ jobs:
         if: always()
         run: |
           mkdir -p browser-reports
-          tail -250 /tmp/pfc-browser-daphne.log > browser-reports/daphne-tail.log || true
+          cp /tmp/pfc-browser-daphne.log browser-reports/daphne-full.log || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
