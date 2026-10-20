@@ -1,0 +1,120 @@
+name: PFC Virtual Browser Workload (6 Courts)
+
+on:
+  push:
+    branches:
+      - test/virtual-tournament-lab-*
+    paths:
+      - scripts/virtual_tournament_browser_load.py
+      - scripts/virtual_tournament_lab.py
+      - .github/workflows/virtual-browser-workload.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/virtual_tournament_browser_load.py
+      - scripts/virtual_tournament_lab.py
+      - .github/workflows/virtual-browser-workload.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-load:
+    name: Real Chromium UI, 30 logged-in players, 6 Courts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_vtl_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_vtl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PFC_VTL_ISOLATED: "1"
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_vtl_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      SECRET_KEY: github-isolated-virtual-chromium-workload-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PYTHONPATH: "."
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install PFC and real Chromium browser
+        run: |
+          pip install -r requirements.txt
+          pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Seed 30 authenticated players, six Courts and seven Matches
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput --verbosity 0
+          python scripts/virtual_tournament_lab.py seed --players 30
+          python scripts/virtual_tournament_browser_load.py prepare
+      - name: Start localhost Daphne and verify readiness
+        run: |
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/pfc-browser-daphne.log 2>&1 & echo $! > /tmp/pfc-browser-daphne.pid)
+          for i in $(seq 1 45); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then
+              echo "Daphne ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          tail -100 /tmp/pfc-browser-daphne.log
+          exit 1
+      - name: Click actual UI buttons as 5, 15 and 30 player sessions
+        id: scenario
+        continue-on-error: true
+        run: |
+          mkdir -p browser-reports
+          python scripts/virtual_tournament_browser_load.py run --output browser-reports/ui-load.json
+      - name: Collect disposable browser workload reports
+        if: always()
+        run: |
+          mkdir -p browser-reports
+          tail -250 /tmp/pfc-browser-daphne.log > browser-reports/daphne-tail.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pfc-6-courts-chromium-load
+          path: browser-reports/
+          retention-days: 14
+      - name: Require all interactions to complete
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path("browser-reports/ui-load.json")
+          if not path.exists():
+              raise SystemExit("Browser report missing")
+          result=json.loads(path.read_text())
+          print("Interactions:",result.get("actions"))
+          print("Errors:",result.get("errors"))
+          if not result.get("passed"):
+              raise SystemExit("Browser workload failed; see report")
+          PY
