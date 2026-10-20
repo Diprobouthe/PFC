@@ -86,7 +86,7 @@ def seed(players: int, output: str):
                 index = match_index * 4 + side_index * 2 + slot
                 home_team = Team.objects.create(name=f"VTL home {index}")
                 player = Player.objects.create(name=f"Virtual player {index:02d}", team=home_team)
-                codename = f"VTL{index:05d}"
+                codename = f"VT{index:04d}"
                 PlayerCodename.objects.create(player=player, codename=codename)
                 MeleePlayer.objects.create(
                     tournament=tournament, player=player, original_team=home_team,
@@ -108,7 +108,7 @@ def seed(players: int, output: str):
     for index in range(match_count * 4, players):
         home_team = Team.objects.create(name=f"VTL bye home {index}")
         player = Player.objects.create(name=f"Virtual player {index:02d}", team=home_team)
-        codename = f"VTL{index:05d}"
+        codename = f"VT{index:04d}"
         PlayerCodename.objects.create(player=player, codename=codename)
         MeleePlayer.objects.create(
             tournament=tournament, player=player, original_team=home_team,
