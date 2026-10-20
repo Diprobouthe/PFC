@@ -292,6 +292,9 @@ async def run_browser(args):
     for name,value in expected.items():
         if counters[name]!=value:
             errors.append(f"Expected {value} {name} actions, got {counters[name]}")
+    server_errors=[entry for entry in http_errors if entry["status"] >= 500]
+    if server_errors:
+        errors.append(f"Observed {len(server_errors)} server-side HTTP 5xx responses: {server_errors[:8]}")
     metrics={k:{"n":len(v),"p50_ms":percentile_ms(v,0.5),"p95_ms":percentile_ms(v,0.95),"max_ms":round(max(v),1) if v else None} for k,v in latencies.items()}
     report={
         "phase":"real-Chromium-mobile-viewport-30-browser-contexts",
