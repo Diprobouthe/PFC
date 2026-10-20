@@ -263,7 +263,18 @@ async def run_browser(args):
                 # Track authorized players by using the real logged-in identity;
                 # no fake QR proof or permission bypass is injected.
                 tracking_players=[a for a in actors if a.get("status")=="active" and a["player_id"] in pages]
-                await asyncio.gather(*(track_and_shoot(a) for a in tracking_players[:6]))
+                unique_matches={}
+                for actor in tracking_players:
+                    unique_matches.setdefault(actor["match_id"],actor)
+                await asyncio.gather(*(track_and_shoot(a) for a in unique_matches.values()))
+                counters["distinct_match_trackers"]=len(unique_matches)
+                # Deliberate same-Match contention, which differs from the
+                # six-independent-Match baseline. Store separate markers so a
+                # failure is not misdiagnosed as ordinary single-user latency.
+                contested_id=next(iter(unique_matches))
+                contested=[a for a in tracking_players if a["match_id"]==contested_id]
+                counters["same_match_trackers_targeted"]=len(contested)
+                await asyncio.gather(*(track_and_shoot(a) for a in contested))
                 await asyncio.gather(*(open_invites(a) for a in actors[-4:]))
                 await asyncio.sleep(1)
             finally:
@@ -274,9 +285,9 @@ async def run_browser(args):
 
     expected={
         "home":30,"smart":30,"score_update":18,
-        "track_page":6,"shot_buttons":12,
-        "pointing_button":6,"undo_button":6,
-        "history_button":6,"invite_hub_click":4,"smart_return":4,
+        "track_page":10,"shot_buttons":20,
+        "pointing_button":10,"undo_button":10,
+        "history_button":10,"invite_hub_click":4,"smart_return":4,
     }
     for name,value in expected.items():
         if counters[name]!=value:
