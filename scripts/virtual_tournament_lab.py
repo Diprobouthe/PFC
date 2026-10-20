@@ -98,6 +98,8 @@ def seed(players: int, output: str):
                 MatchPlayer.objects.create(match=match, player=player, team=side)
                 session = SessionStore()
                 session["player_codename"] = codename
+                session["session_active"] = True
+                session["codename_login_time"] = now.isoformat()
                 session.save()
                 actors.append({
                     "player_id": player.id,
@@ -115,6 +117,8 @@ def seed(players: int, output: str):
         )
         session = SessionStore()
         session["player_codename"] = codename
+        session["session_active"] = True
+        session["codename_login_time"] = now.isoformat()
         session.save()
         actors.append({
             "player_id": player.id, "match_id": None,
