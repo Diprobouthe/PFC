@@ -52,6 +52,7 @@ jobs:
       DEBUG: "False"
       TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "."
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
