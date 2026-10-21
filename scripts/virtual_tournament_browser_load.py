@@ -98,6 +98,7 @@ async def run_browser(args):
     latencies=collections.defaultdict(list)
     http_errors=[]
     open_sockets=collections.Counter()
+    request_started={}
     started=time.monotonic()
 
     async def route_handler(route):
@@ -140,6 +141,19 @@ async def run_browser(args):
         page.set_default_timeout(16000)
         page.on("websocket",ws_created)
         page.on("response",log_http)
+        def on_request(request):
+            path=urlsplit(request.url).path
+            if path=="/my-matches/" or "/scoreboard/" in path or path.startswith("/matches/activate/"):
+                request_started[request]=time.monotonic()
+        def on_request_end(request):
+            t0=request_started.pop(request,None)
+            if t0 is None:return
+            path=urlsplit(request.url).path
+            phase=("smart_http" if path=="/my-matches/"
+                   else "target_http")
+            latencies[phase].append((time.monotonic()-t0)*1000)
+        page.on("request",on_request)
+        page.on("requestfinished",on_request_end)
         start=time.monotonic()
         await page.goto(origin+"/",wait_until="domcontentloaded",timeout=30000)
         latencies["home"].append((time.monotonic()-start)*1000)
