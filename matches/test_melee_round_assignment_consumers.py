@@ -1,7 +1,9 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -375,6 +377,55 @@ class MeleeRoundAssignmentConsumerTests(TestCase):
         response = self.client.get(reverse('my_active_matches'))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['total_count'], 2)
+
+    def test_smart_queries_do_not_scale_with_unrelated_matches_in_same_round(self):
+        """One player's Smart cost must not grow with every other Court/Match."""
+        from pfc_core.smart_router import _resolve_tournament_matches
+
+        with CaptureQueriesContext(connection) as baseline_capture:
+            baseline = _resolve_tournament_matches(self.player_a)
+        urls_before = [item['url'] for item in baseline]
+
+        # These Matches share an exact Mêlée Round, but neither side is the
+        # player's assigned team. The old broad Round join fetched all ten.
+        for index in range(10):
+            extra_a = Team.objects.create(
+                name=f'Smart unrelated side A {index}', is_tournament_temp=True,
+            )
+            extra_b = Team.objects.create(
+                name=f'Smart unrelated side B {index}', is_tournament_temp=True,
+            )
+            self._match(self.round_one, extra_a, extra_b)
+
+        with CaptureQueriesContext(connection) as loaded_capture:
+            candidates = _resolve_tournament_matches(self.player_a)
+
+        self.assertEqual([item['url'] for item in candidates], urls_before)
+        self.assertLessEqual(
+            len(loaded_capture), len(baseline_capture) + 2,
+            'Unrelated Matches in one Mêlée Round must not cause linear SQL growth',
+        )
+
+    def test_smart_does_not_route_explicit_bye_to_other_round_matches(self):
+        """An explicit bye is not permission to access someone else's game."""
+        self.pending_round_two.status = 'completed'
+        self.pending_round_two.save(update_fields=['status'])
+        MeleeRoundAssignment.objects.filter(
+            round=self.round_one, player=self.player_a,
+        ).update(state=MeleeRoundAssignment.BYE, team=None)
+
+        self.assertEqual(_resolve_tournament_matches(self.player_a), [])
+
+    def test_smart_rejects_invalid_snapshot_over_valid_round_assignment(self):
+        """Snapshot precedence must remain fail-closed after SQL optimization."""
+        self.pending_round_two.status = 'completed'
+        self.pending_round_two.save(update_fields=['status'])
+        MatchPlayer.objects.create(
+            match=self.pending_round_one,
+            player=self.player_a,
+            team=self.home_teams[0],
+        )
+        self.assertEqual(_resolve_tournament_matches(self.player_a), [])
 
     def test_qr_pending_opponent_uses_round_assignment_not_player_team(self):
         """QR activation accepts an assigned opponent whose Player.team conflicts."""
