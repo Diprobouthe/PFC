@@ -6,6 +6,7 @@ on:
       - test/virtual-tournament-lab-*
     paths:
       - scripts/virtual_tournament_browser_load.py
+      - scripts/virtual_tournament_smart_profile.py
       - scripts/virtual_tournament_lab.py
       - .github/workflows/virtual-browser-workload.yml
   pull_request:
@@ -13,6 +14,7 @@ on:
       - main
     paths:
       - scripts/virtual_tournament_browser_load.py
+      - scripts/virtual_tournament_smart_profile.py
       - scripts/virtual_tournament_lab.py
       - .github/workflows/virtual-browser-workload.yml
   workflow_dispatch:
@@ -74,6 +76,10 @@ jobs:
           python manage.py collectstatic --noinput --verbosity 0
           python scripts/virtual_tournament_lab.py seed --players 30
           python scripts/virtual_tournament_browser_load.py prepare
+      - name: Profile actual Smart SQL and destination render (isolated)
+        run: |
+          mkdir -p browser-reports
+          python scripts/virtual_tournament_smart_profile.py
       - name: Start localhost Daphne and verify readiness
         run: |
           (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/pfc-browser-daphne.log 2>&1 & echo $! > /tmp/pfc-browser-daphne.pid)
