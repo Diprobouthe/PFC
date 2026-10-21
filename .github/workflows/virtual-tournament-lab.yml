@@ -1,0 +1,128 @@
+name: PFC Virtual Tournament Laboratory
+
+on:
+  push:
+    branches:
+      - test/virtual-tournament-lab-*
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/virtual_tournament_lab.py
+      - .github/workflows/virtual-tournament-lab.yml
+      - docs/VIRTUAL_TOURNAMENT_LAB.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-virtual-clients:
+    name: Isolated Daphne + PostgreSQL + Redis / 5 and 30 players
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_vtl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_vtl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PFC_VTL_ISOLATED: "1"
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_vtl_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      SECRET_KEY: github-isolated-virtual-tournament-lab-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install PFC and WebSocket test client
+        run: |
+          pip install -r requirements.txt
+          pip install websockets==12.0
+      - name: Prepare isolated schema and 30 player sessions
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate --noinput
+          python scripts/virtual_tournament_lab.py seed --players 30 --output /tmp/pfc_vtl_sessions.json
+      - name: Start real Daphne server (loopback only)
+        run: |
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/pfc_vtl_daphne.log 2>&1 & echo $! > /tmp/pfc_vtl_daphne.pid)
+          for i in $(seq 1 45); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then
+              echo "Daphne ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          tail -150 /tmp/pfc_vtl_daphne.log
+          exit 1
+      - name: 5 simultaneous sessions, Invites and Match notifications
+        id: smoke5
+        continue-on-error: true
+        run: |
+          mkdir -p vtl-reports
+          python scripts/virtual_tournament_lab.py run --players 5 --reconnects 1 --output vtl-reports/phase1-5.json
+      - name: 30 simultaneous sessions, Invites enabled
+        id: full30
+        continue-on-error: true
+        run: |
+          mkdir -p vtl-reports
+          python scripts/virtual_tournament_lab.py run --players 30 --reconnects 2 --output vtl-reports/phase1-30-invites.json
+      - name: 30 simultaneous sessions, Invites disabled (transport A/B)
+        id: baseline30
+        continue-on-error: true
+        run: |
+          mkdir -p vtl-reports
+          python scripts/virtual_tournament_lab.py run --players 30 --reconnects 2 --without-invites --output vtl-reports/phase1-30-no-invites.json
+      - name: Include server log without disclosing sessions
+        if: always()
+        run: |
+          mkdir -p vtl-reports
+          tail -300 /tmp/pfc_vtl_daphne.log > vtl-reports/daphne-tail.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pfc-virtual-lab-phase1
+          path: vtl-reports/
+          retention-days: 14
+      - name: Fail CI if any transport scenario failed
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          paths = ["phase1-5.json", "phase1-30-invites.json", "phase1-30-no-invites.json"]
+          results = []
+          for item in paths:
+              p = Path("vtl-reports") / item
+              ok = p.exists() and json.loads(p.read_text())["passed"]
+              results.append(ok)
+              print(f"{item}: {'PASS' if ok else 'FAIL or missing'}")
+          if not all(results):
+              raise SystemExit(1)
+          PY
