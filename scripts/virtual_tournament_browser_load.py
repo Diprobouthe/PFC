@@ -141,9 +141,10 @@ async def run_browser(args):
         page.set_default_timeout(16000)
         page.on("websocket",ws_created)
         page.on("response",log_http)
+        smart_navigation={"active":False}
         def on_request(request):
             path=urlsplit(request.url).path
-            if path=="/my-matches/" or "/scoreboard/" in path or path.startswith("/matches/activate/"):
+            if smart_navigation["active"] and (path=="/my-matches/" or "/scoreboard/" in path or path.startswith("/matches/activate/")):
                 request_started[request]=time.monotonic()
         def on_request_end(request):
             t0=request_started.pop(request,None)
@@ -159,8 +160,12 @@ async def run_browser(args):
         latencies["home"].append((time.monotonic()-start)*1000)
         counters["home"]+=1
         start=time.monotonic()
-        await page.locator("a.pfc-cta-btn").click(timeout=18000)
-        await page.wait_for_load_state("domcontentloaded",timeout=30000)
+        smart_navigation["active"]=True
+        try:
+            await page.locator("a.pfc-cta-btn").click(timeout=18000)
+            await page.wait_for_load_state("domcontentloaded",timeout=30000)
+        finally:
+            smart_navigation["active"]=False
         latencies["smart"].append((time.monotonic()-start)*1000)
         counters["smart"]+=1
         path=urlsplit(page.url).path
