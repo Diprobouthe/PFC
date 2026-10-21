@@ -1,0 +1,59 @@
+name: Smart Router Query Regression (PostgreSQL)
+on:
+  push:
+    branches:
+      - fix/smart-router-query-efficiency
+  pull_request:
+    branches:
+      - main
+    paths:
+      - pfc_core/smart_router.py
+      - matches/test_melee_round_assignment_consumers.py
+      - .github/workflows/smart-router-query-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smart-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smart_regressions
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/smart_regressions
+      SECRET_KEY: isolated-smart-regression-only
+      DEBUG: "False"
+      PYTHONPATH: "."
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+      - name: Validate Django and schema
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Real PostgreSQL Smart/Mêlée regression suites
+        run: |
+          python manage.py test \
+            matches.test_melee_round_assignment_consumers \
+            tournaments.test_team_vs_scenarios_regression \
+            --verbosity 2
