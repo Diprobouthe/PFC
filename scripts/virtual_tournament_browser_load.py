@@ -98,6 +98,9 @@ async def run_browser(args):
     latencies=collections.defaultdict(list)
     http_errors=[]
     open_sockets=collections.Counter()
+    shot_started={}
+    shot_last_start={}
+    shot_overlaps=collections.Counter()
     request_started={}
     started=time.monotonic()
 
@@ -141,6 +144,26 @@ async def run_browser(args):
         page.set_default_timeout(16000)
         page.on("websocket",ws_created)
         page.on("response",log_http)
+        def on_shot_request(request):
+            if request.method != "POST" or not urlsplit(request.url).path.endswith("/shot/"):
+                return
+            now=time.monotonic()
+            actor_id=actor["player_id"]
+            open_count=sum(1 for other in shot_started.values() if other[0]==actor_id)
+            if open_count:
+                shot_overlaps["same_player_inflight"]+=1
+            previous=shot_last_start.get(actor_id)
+            if previous is not None:
+                latencies["shot_press_gap_ms"].append((now-previous)*1000)
+            shot_last_start[actor_id]=now
+            shot_started[request]=(actor_id,now)
+        def on_shot_finish(request):
+            info=shot_started.pop(request,None)
+            if info is not None:
+                latencies["shot_http_ms"].append((time.monotonic()-info[1])*1000)
+        page.on("request",on_shot_request)
+        page.on("requestfinished",on_shot_finish)
+        page.on("requestfailed",on_shot_finish)
         smart_navigation={"active":False}
         def on_request(request):
             path=urlsplit(request.url).path
@@ -319,6 +342,8 @@ async def run_browser(args):
         "phase":"real-Chromium-mobile-viewport-30-browser-contexts",
         "courts":6,"players":30,"matches":7,
         "phases":phases,"actions":dict(counters),"timings":metrics,
+        "same_player_shot_requests_sent_while_previous_inflight":shot_overlaps["same_player_inflight"],
+        "shot_inflight_at_end":len(shot_started),
         "websocket_max_channels_observed":len(open_sockets),
         "http_status_ge400":dict(collections.Counter(str(v["status"]) for v in http_errors)),
         "http_error_examples":http_errors[:12],
