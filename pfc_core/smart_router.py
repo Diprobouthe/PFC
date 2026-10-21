@@ -36,7 +36,7 @@ so the info page is the correct destination.
 
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.db.models import F, Q
+from django.db.models import Exists, OuterRef, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
@@ -360,27 +360,40 @@ def _resolve_tournament_matches(player):
     resolved per Match below; candidate discovery cannot determine a side.
     """
     from matches.melee_roster_resolution import resolve_player_match_side
+    from matches.models import MatchPlayer
+    from tournaments.models import MeleeRoundAssignment
 
     candidates = []
 
+    # MatchPlayer is exact-Match membership. Mêlée assignments identify a
+    # Round, but do NOT imply that the player belongs to every Match in it.
+    # Restrict the assignment to one of the Match's two sides to avoid fetching
+    # the entire Round for each Smart click. EXISTS also avoids the row
+    # multiplication caused by joining two multi-valued relations.
+    player_snapshot = MatchPlayer.objects.filter(
+        match_id=OuterRef('pk'), player_id=player.pk,
+    )
+    player_side_assignment = MeleeRoundAssignment.objects.filter(
+        tournament_id=OuterRef('tournament_id'),
+        round_id=OuterRef('round_id'),
+        player_id=player.pk,
+        state=MeleeRoundAssignment.ASSIGNED,
+    ).filter(
+        Q(team_id=OuterRef('team1_id')) | Q(team_id=OuterRef('team2_id'))
+    )
+
     matches = Match.objects.filter(
-        Q(team1_id=player.team_id) | Q(team2_id=player.team_id)
-        | Q(match_players__player_id=player.id)
-        | Q(
-            round__melee_assignments__player_id=player.id,
-            round__melee_assignments__tournament_id=F('tournament_id'),
-        )
+        Q(team1_id=player.team_id)
+        | Q(team2_id=player.team_id)
+        | Exists(player_snapshot)
+        | (Q(tournament__is_melee=True) & Exists(player_side_assignment))
     ).exclude(
         status__iexact='completed'
     ).exclude(
         status__iexact='cancelled'
-    ).distinct().select_related(
-        # ``match_players`` and ``round__melee_assignments`` are independent
-        # multi-valued joins. One real Match can otherwise appear once for
-        # every joined snapshot/assignment combination, creating duplicate
-        # Smart Button choices. SQL-level Match identity is the correct
-        # de-duplication boundary; side resolution remains below.
-        'team1', 'team2', 'tournament', 'court'
+    ).select_related(
+        'team1', 'team2', 'tournament', 'round', 'court',
+        'result', 'live_scoreboard',
     ).prefetch_related('activations')
 
     for match in matches:
@@ -503,7 +516,7 @@ def _resolve_tournament_matches(player):
 
         elif status in ('pending_verification', 'pending verification'):
             # Check if OUR team already activated
-            our_activation = match.activations.filter(team_id=team_id).exists()
+            our_activation = any(a.team_id == team_id for a in match.activations.all())
             if our_activation:
                 candidates.append({
                     'priority': PRIORITY_TOURNAMENT_WAITING_OPPONENT,

@@ -1,0 +1,158 @@
+name: Smart Router A/B (30 Chromium, six Courts)
+
+on:
+  push:
+    branches:
+      - fix/smart-router-query-efficiency
+    paths:
+      - pfc_core/smart_router.py
+      - scripts/smart_router_ab_benchmark.py
+      - .github/workflows/smart-router-ab-benchmark.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - pfc_core/smart_router.py
+      - scripts/smart_router_ab_benchmark.py
+      - .github/workflows/smart-router-ab-benchmark.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Same DB fixture, original and optimized Smart / six Courts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_vtl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_vtl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_vtl_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      PFC_VTL_ISOLATED: "1"
+      SECRET_KEY: isolated-smart-ab-not-for-production
+      DEBUG: "False"
+      PYTHONPATH: ".:scripts"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out isolated 30-player, six-Court laboratory
+        uses: actions/checkout@v4
+        with:
+          ref: test/virtual-tournament-lab-20261020
+          fetch-depth: 1
+      - name: Retrieve baseline, proposed router and benchmark script
+        run: |
+          git fetch --no-tags --depth=1 origin \
+            main:refs/remotes/origin/main \
+            fix/smart-router-query-efficiency:refs/remotes/origin/fix/smart-router-query-efficiency
+          git show origin/main:pfc_core/smart_router.py > /tmp/smart-router-baseline.py
+          git show origin/fix/smart-router-query-efficiency:pfc_core/smart_router.py > /tmp/smart-router-optimized.py
+          git show origin/fix/smart-router-query-efficiency:scripts/smart_router_ab_benchmark.py > scripts/smart_router_ab_benchmark.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install production libraries and Chromium
+        run: |
+          pip install -r requirements.txt
+          pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Prepare identical isolated six-Court, 30-player dataset
+        run: |
+          python manage.py check
+          python manage.py migrate --noinput
+          python scripts/virtual_tournament_lab.py seed --players 30
+          python scripts/virtual_tournament_browser_load.py prepare
+      - name: Measure original Smart with 30 real Chromium sessions
+        id: baseline
+        continue-on-error: true
+        run: |
+          mkdir -p ab-results
+          cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-daphne-baseline.log 2>&1 & echo $! > /tmp/daphne.pid)
+          for i in $(seq 1 35); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
+            sleep 1
+          done
+          python scripts/smart_router_ab_benchmark.py --version baseline --output ab-results/baseline.json
+          kill $(cat /tmp/daphne.pid) || true
+          sleep 2
+      - name: Ensure old Daphne is stopped
+        if: always()
+        run: |
+          if test -f /tmp/daphne.pid; then kill $(cat /tmp/daphne.pid) || true; fi
+          sleep 2
+      - name: Measure optimized Smart with same fixture
+        id: optimized
+        continue-on-error: true
+        run: |
+          cp /tmp/smart-router-optimized.py pfc_core/smart_router.py
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-daphne-optimized.log 2>&1 & echo $! > /tmp/daphne.pid)
+          for i in $(seq 1 35); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
+            sleep 1
+          done
+          python scripts/smart_router_ab_benchmark.py --version optimized --output ab-results/optimized.json
+          kill $(cat /tmp/daphne.pid) || true
+          sleep 2
+      - name: Compare routing invariants and SQL counts
+        id: compare
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          b=json.loads(Path('ab-results/baseline.json').read_text())
+          o=json.loads(Path('ab-results/optimized.json').read_text())
+          assert b['sql']['decisions']==o['sql']['decisions'], 'Smart decisions differ!'
+          before=b['sql']['by_role']['active']['sql_count']['mean']
+          after=o['sql']['by_role']['active']['sql_count']['mean']
+          print(f"Active player SQL queries: {before:.2f} -> {after:.2f}")
+          print(f"Baseline browser p95: {b['browser']['click_to_target_ms']['p95']} ms")
+          print(f"Optimized browser p95: {o['browser']['click_to_target_ms']['p95']} ms")
+          assert after < before, 'No reduction in active-player SQL count'
+          assert not o['browser']['errors']
+          PY
+      - name: Keep complete benchmark reports and Daphne logs
+        if: always()
+        run: |
+          mkdir -p ab-results
+          for version in baseline optimized; do
+            cp /tmp/smart-daphne-$version.log ab-results/daphne-$version.log 2>/dev/null || true
+          done
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-router-original-vs-optimized
+          path: ab-results/
+          retention-days: 14
+      - name: Enforce scenario completion
+        if: always()
+        run: |
+          test "${{ steps.baseline.outcome }}" = success
+          test "${{ steps.optimized.outcome }}" = success
+          test "${{ steps.compare.outcome }}" = success
