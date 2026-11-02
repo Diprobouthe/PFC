@@ -330,7 +330,7 @@ class TournamentLifecyclePostgreSQLTests(TransactionTestCase):
         self.assertEqual(connection.vendor, "postgresql")
 
 
-class MatchDeadlockDetectionTests:
+class MatchDeadlockDetectionTests(__import__('django.test', fromlist=['SimpleTestCase']).SimpleTestCase):
     """Pure checks: only PostgreSQL deadlock code 40P01 is retryable."""
 
     def test_postgres_deadlock_is_detected_through_django_wrapper(self):
