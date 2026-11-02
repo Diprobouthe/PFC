@@ -837,7 +837,18 @@ def complete_match_from_legacy_api(match_id: int, *, team1_score: int, team2_sco
     return validate_official_result(match_id, validating_team_id=match.team2_id, agree=True)
 
 
-def process_tournament_transition(match_id: int) -> bool:
+def _is_postgres_deadlock(exc: Exception) -> bool:
+    """Detect PostgreSQL's 40P01 through Django's exception chaining."""
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        if getattr(exc, "pgcode", None) == "40P01" or getattr(exc, "sqlstate", None) == "40P01":
+            return True
+        exc = getattr(exc, "__cause__", None) or getattr(exc, "__context__", None)
+    return False
+
+
+def process_tournament_transition(match_id: int, *, _deadlock_retry: int = 0) -> bool:
     """Run only Match-scoped post-completion projections.
 
     Round-wide standings, Super Mêlée preparation, successor creation, and
@@ -898,6 +909,15 @@ def process_tournament_transition(match_id: int) -> bool:
         return True
     except Exception as exc:
         logger.exception("Match lifecycle projection failed for Match %s", match_id)
+        # A PostgreSQL deadlock aborts the entire atomic projection. Once the
+        # transaction is rolled back, retry this Match's idempotent transition.
+        # Do not retry arbitrary errors; preserve the existing admin recovery.
+        if _is_postgres_deadlock(exc) and _deadlock_retry < 2:
+            logger.warning(
+                "Retrying Match %s after PostgreSQL deadlock (attempt %s/2)",
+                match_id, _deadlock_retry + 1,
+            )
+            return process_tournament_transition(match_id, _deadlock_retry=_deadlock_retry + 1)
         MatchLifecycleTransition.objects.filter(match_id=match_id).update(
             status=MatchLifecycleTransition.FAILED,
             last_error=str(exc)[:4000],
