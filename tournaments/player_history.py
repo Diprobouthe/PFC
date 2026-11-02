@@ -382,7 +382,21 @@ def _freeze_melee_final_podium(tournament):
 
     for stats in stats_list:
         entry = histories[stats.player_id]
-        actual_count = len(actual[stats.player_id]["match_ids"])
+        player_match_ids = actual[stats.player_id]["match_ids"]
+        actual_count = len(player_match_ids)
+        try:
+            recorded_match_ids = [
+                rating_entry.get("match_id")
+                for rating_entry in (stats.player.profile.rating_history or [])
+                if rating_entry.get("match_id") in player_match_ids
+                and "change" in rating_entry
+            ]
+        except (AttributeError, ValueError, TypeError):
+            return 0, False
+        if len(recorded_match_ids) != actual_count or set(recorded_match_ids) != player_match_ids:
+            # A Match can be completed while one per-player rating-history
+            # update is missing. Never freeze a partial score as the podium.
+            return 0, False
         if (
             entry.rating_change is None
             or not actual_count
