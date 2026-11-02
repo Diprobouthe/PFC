@@ -397,6 +397,17 @@ def _freeze_melee_final_podium(tournament):
             # A Match can be completed while one per-player rating-history
             # update is missing. Never freeze a partial score as the podium.
             return 0, False
+        authoritative_delta = _recorded_tournament_rating_change(
+            stats.player, player_match_ids
+        )
+        if (
+            entry.rating_change is None
+            or authoritative_delta is None
+            or abs(entry.rating_change - authoritative_delta) > Decimal("0.01")
+        ):
+            # Historic records created before a Match retry may have stale
+            # rating deltas. They need explicit reconciliation, not a freeze.
+            return 0, False
         if (
             entry.rating_change is None
             or not actual_count
