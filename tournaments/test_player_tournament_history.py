@@ -151,7 +151,7 @@ class PlayerTournamentHistoryTests(TestCase):
         self.assertEqual(len(own_response.context["tournament_history"]), 1)
         self.assertContains(own_response, self.tournament.name)
 
-    def test_alternate_complete_match_path_projects_final_history(self):
+    def test_legacy_completed_match_supports_explicit_final_history_projection(self):
         now = timezone.now()
         tournament = Tournament.objects.create(
             name="Alternate Completion History",
@@ -178,6 +178,9 @@ class PlayerTournamentHistoryTests(TestCase):
         Match.objects.filter(pk=match.pk).update(status="active")
         match.refresh_from_db()
         match.complete_match(13, 9)
+        # No Round is attached to this legacy test Match, so the modern
+        # Round-finished event cannot automatically publish player history.
+        self.assertTrue(record_finalized_tournament_history(tournament)["recorded"])
 
         self.assertTrue(
             PlayerTournamentHistory.objects.filter(
