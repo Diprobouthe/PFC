@@ -1,0 +1,54 @@
+name: Mêlée Fire Badge Regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tournaments/melee_leaderboard_view.py
+      - tournaments/test_player_tournament_history.py
+      - .github/workflows/melee-fire-badge-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fire-badges:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_fire_badge_tests
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_fire_badge_tests"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_fire_badge_tests
+      SECRET_KEY: ci-fire-badges-only-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Django checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Mêlée streak badges and historic awards
+        run: |
+          python manage.py test \
+            tournaments.test_player_tournament_history.MeleeFireAwardTests \
+            tournaments.test_player_tournament_history.MeleeTournamentAchievementTests \
+            --verbosity 2
