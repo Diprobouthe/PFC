@@ -66,6 +66,20 @@ def _is_finalized_for_history(tournament):
         return False
 
     if tournament.is_melee:
+        # A Match may be visually completed while rating/stats projection is
+        # FAILED or PENDING. Never persist an irreversible partial history.
+        from matches.models import MatchLifecycleTransition
+        transition_rows = MatchLifecycleTransition.objects.filter(
+            match__tournament=tournament
+        )
+        if transition_rows.exists() and (
+            transition_rows.count() != matches.count()
+            or transition_rows.exclude(
+                status=MatchLifecycleTransition.COMPLETED
+            ).exists()
+        ):
+            return False
+
         # The current Mêlée engine finalizes after the configured final Stage
         # completes. This rule deliberately requires the exact configured round
         # count rather than treating a temporary no-pending-Match gap as final.
