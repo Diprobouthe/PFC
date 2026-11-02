@@ -25,8 +25,9 @@ def calculate_melee_badges(stats_list, rating_changes=None):
     rating_changes = rating_changes or {}
 
     def event_change(stats):
-        if stats.player_id in rating_changes:
-            return rating_changes[stats.player_id]
+        player_id = getattr(stats, 'player_id', None) or stats.player.id
+        if player_id in rating_changes:
+            return rating_changes[player_id]
         return stats.current_rating - stats.starting_rating
 
     # Find tournament winner (biggest rating improvement)
