@@ -141,7 +141,7 @@ class PlayerTournamentHistoryTests(TestCase):
         self.assertEqual(list(public_response.context["tournament_history"]), [])
         self.assertNotContains(public_response, self.tournament.name)
 
-        codename = PlayerCodename.objects.create(player=player, codename="HISTORY001")
+        codename = PlayerCodename.objects.create(player=player, codename="HIS001")
         session = self.client.session
         session["player_codename"] = codename.codename
         session["session_active"] = True
@@ -175,6 +175,8 @@ class PlayerTournamentHistoryTests(TestCase):
         MatchPlayer.objects.create(match=match, player=player_one, team=team_one)
         MatchPlayer.objects.create(match=match, player=player_two, team=team_two)
 
+        Match.objects.filter(pk=match.pk).update(status="active")
+        match.refresh_from_db()
         match.complete_match(13, 9)
 
         self.assertTrue(
