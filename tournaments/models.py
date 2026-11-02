@@ -1367,6 +1367,15 @@ class PlayerTournamentHistory(models.Model):
         blank=True,
         help_text='Recorded PFC rating changes linked to this tournament only.',
     )
+    # Immutable finishing placement for individual Mêlée (never live rating).
+    melee_final_rank = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Official frozen individual Mêlée place at finalization.',
+    )
+    melee_final_rating = models.DecimalField(
+        max_digits=9, decimal_places=2, null=True, blank=True,
+        help_text='Tournament-only finish rating, frozen with placement.',
+    )
     finalized_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
