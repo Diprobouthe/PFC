@@ -12,7 +12,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.db import IntegrityError, connection, connections, transaction
-from django.test import TransactionTestCase, skipUnlessDBFeature
+from django.test import SimpleTestCase, TransactionTestCase, skipUnlessDBFeature
 from django.utils import timezone
 
 from courts.models import Court
@@ -330,7 +330,7 @@ class TournamentLifecyclePostgreSQLTests(TransactionTestCase):
         self.assertEqual(connection.vendor, "postgresql")
 
 
-class MatchDeadlockDetectionTests(__import__('django.test', fromlist=['SimpleTestCase']).SimpleTestCase):
+class MatchDeadlockDetectionTests(SimpleTestCase):
     """Pure checks: only PostgreSQL deadlock code 40P01 is retryable."""
 
     def test_postgres_deadlock_is_detected_through_django_wrapper(self):
