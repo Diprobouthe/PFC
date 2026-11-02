@@ -196,7 +196,7 @@ class PlayerTournamentHistoryTests(TestCase):
 
 
 class MeleeTournamentAchievementTests(TestCase):
-    def test_melee_awards_use_existing_calculator_and_never_create_team_medals(self):
+    def test_incomplete_melee_stats_never_freeze_podium_or_awards(self):
         now = timezone.now()
         tournament = Tournament.objects.create(
             name="Final Mêlée Awards",
@@ -273,20 +273,11 @@ class MeleeTournamentAchievementTests(TestCase):
         self.assertTrue(result["recorded"])
         self.assertEqual(result["history_rows_created"], 2)
         self.assertEqual(result["medals_created"], 0)
-        self.assertEqual(result["melee_awards_created"], 4)
-        self.assertEqual(
-            set(
-                PlayerTournamentAchievement.objects.filter(
-                    tournament=tournament,
-                    player=player_one,
-                ).values_list("award_type", flat=True)
-            ),
-            {
-                PlayerTournamentAchievement.MOST_IMPROVED,
-                PlayerTournamentAchievement.WIN_STREAK,
-                PlayerTournamentAchievement.TOP_SCORER,
-                PlayerTournamentAchievement.BEST_WIN_RATE,
-            },
+        self.assertEqual(result["melee_awards_created"], 0)
+        self.assertFalse(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=tournament, player=player_one
+            ).exists()
         )
         self.assertFalse(
             PlayerTournamentAchievement.objects.filter(
@@ -367,3 +358,138 @@ class MeleeFireAwardTests(TestCase):
         )
         badges = calculate_melee_badges([stats])
         self.assertFalse(any(badge["type"] == "streak" for badge in badges[1]))
+
+
+class FrozenMeleePodiumTests(TestCase):
+    """Archived standings and player podium medals survive unrelated ratings."""
+
+    def setUp(self):
+        now = timezone.now()
+        self.tournament = Tournament.objects.create(
+            name="Frozen Mêlée",
+            format="multi_stage",
+            play_format="doublets",
+            is_melee=True,
+            melee_format="doublets",
+            start_date=now,
+            end_date=now + timedelta(hours=2),
+        )
+        self.stage = Stage.objects.create(
+            tournament=self.tournament,
+            stage_number=1,
+            format="swiss",
+            num_qualifiers=1,
+            num_rounds_in_stage=1,
+        )
+        self.round = Round.objects.create(
+            tournament=self.tournament,
+            stage=self.stage,
+            number=1,
+            number_in_stage=1,
+            is_complete=True,
+        )
+        teams = [
+            Team.objects.create(name=f"Frozen Team {number}", is_tournament_temp=True)
+            for number in (1, 2)
+        ]
+        self.match = Match.objects.create(
+            tournament=self.tournament,
+            stage=self.stage,
+            round=self.round,
+            team1=teams[0],
+            team2=teams[1],
+            status="pending",
+        )
+        Match.objects.filter(pk=self.match.pk).update(
+            status="completed",
+            team1_score=13,
+            team2_score=4,
+            winner=teams[0],
+            loser=teams[1],
+        )
+        self.players = []
+        for idx, delta in enumerate((5, 4, -3, -4)):
+            team = teams[0] if idx < 2 else teams[1]
+            player = Player.objects.create(name=f"Frozen Player {idx}", team=team)
+            PlayerProfile.objects.create(
+                player=player,
+                value=100 + delta,
+                rating_history=[{"match_id": self.match.pk, "change": delta}],
+            )
+            MatchPlayer.objects.create(match=self.match, team=team, player=player)
+            MeleePlayerStats.objects.create(
+                tournament=self.tournament,
+                player=player,
+                starting_rating=100,
+                wins=int(idx < 2),
+                losses=int(idx >= 2),
+                matches_played=1,
+                points_scored=13 if idx < 2 else 4,
+                points_against=4 if idx < 2 else 13,
+                best_performance=int(idx < 2),
+            )
+            self.players.append(player)
+
+    def test_freeze_podium_and_profile_medals_ignore_later_friendly_ratings(self):
+        result = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertTrue(result["recorded"])
+        self.assertEqual(result["medals_created"], 3)
+        self.assertEqual(
+            list(
+                PlayerTournamentHistory.objects.filter(
+                    tournament=self.tournament
+                ).order_by("melee_final_rank").values_list(
+                    "melee_final_rank", flat=True
+                )
+            ), [1, 2, 3, 4]
+        )
+        medal_types = [
+            PlayerTournamentAchievement.MEDAL_GOLD,
+            PlayerTournamentAchievement.MEDAL_SILVER,
+            PlayerTournamentAchievement.MEDAL_BRONZE,
+        ]
+        for player, award_type in zip(self.players, medal_types):
+            self.assertTrue(
+                PlayerTournamentAchievement.objects.filter(
+                    player=player,
+                    tournament=self.tournament,
+                    award_type=award_type,
+                ).exists()
+            )
+
+        # An unrelated future Friendly Game may change global rating arbitrarily.
+        profile = self.players[3].profile
+        profile.value = 999
+        profile.rating_history = list(profile.rating_history) + [
+            {"match_id": 999999, "change": 903}
+        ]
+        profile.save(update_fields=["value", "rating_history"])
+
+        leaderboard = self.client.get(
+            reverse("melee_leaderboard", args=[self.tournament.pk])
+        )
+        self.assertEqual(leaderboard.status_code, 200)
+        self.assertTrue(leaderboard.context["is_frozen"])
+        rows = leaderboard.context["leaderboard_data"]
+        self.assertEqual([row["player"].pk for row in rows], [p.pk for p in self.players])
+        self.assertEqual([row["rating_change"] for row in rows], [5, 4, -3, -4])
+        self.assertEqual([row["current_rating"] for row in rows], [105, 104, 97, 96])
+
+        profile_page = self.client.get(
+            reverse("player_profile", kwargs={"player_id": self.players[0].pk})
+        )
+        self.assertEqual(profile_page.status_code, 200)
+        self.assertContains(profile_page, "🥇")
+        self.assertContains(profile_page, "Gold medal")
+
+        repeat = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertEqual(repeat["medals_created"], 0)
+        self.assertEqual(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=self.tournament, award_type__startswith="medal_"
+            ).count(), 3,
+        )
