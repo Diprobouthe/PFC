@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from friendly_games.models import PlayerCodename
-from matches.models import Match, MatchPlayer
+from matches.models import Match, MatchLifecycleTransition, MatchPlayer
 from teams.models import Player, PlayerProfile, Team
 from tournaments.models import (
     PlayerTournamentAchievement,
@@ -495,3 +495,31 @@ class FrozenMeleePodiumTests(TestCase):
                 tournament=self.tournament, award_type__startswith="medal_"
             ).count(), 3,
         )
+
+    def test_pending_match_projection_cannot_archive_or_award_medals(self):
+        transition = MatchLifecycleTransition.objects.create(
+            tournament=self.tournament,
+            match=self.match,
+            status=MatchLifecycleTransition.PENDING,
+        )
+        early = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertFalse(early["recorded"])
+        self.assertFalse(
+            PlayerTournamentHistory.objects.filter(
+                tournament=self.tournament
+            ).exists()
+        )
+        self.assertFalse(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=self.tournament
+            ).exists()
+        )
+        transition.status = MatchLifecycleTransition.COMPLETED
+        transition.save(update_fields=["status"])
+        ready = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertTrue(ready["recorded"])
+        self.assertEqual(ready["medals_created"], 3)
