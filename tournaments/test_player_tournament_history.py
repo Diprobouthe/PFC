@@ -526,3 +526,30 @@ class FrozenMeleePodiumTests(TestCase):
         )
         self.assertTrue(ready["recorded"])
         self.assertEqual(ready["medals_created"], 3)
+
+    def test_existing_stale_rating_history_is_not_frozen(self):
+        from tournaments.models import PlayerTournamentHistory
+
+        self.assertTrue(
+            record_finalized_tournament_history(
+                self.tournament, include_melee_awards=True
+            )["recorded"]
+        )
+        PlayerTournamentHistory.objects.filter(
+            tournament=self.tournament, player=self.players[0]
+        ).update(rating_change=Decimal("-99.00"), melee_final_rank=None)
+
+        # Explicitly unfreeze other rows for this synthetic corrupt archive.
+        PlayerTournamentHistory.objects.filter(
+            tournament=self.tournament
+        ).update(melee_final_rank=None, melee_final_rating=None)
+
+        from tournaments.player_history import _freeze_melee_final_podium
+        medal_count, frozen = _freeze_melee_final_podium(self.tournament)
+        self.assertFalse(frozen)
+        self.assertEqual(medal_count, 0)
+        self.assertEqual(
+            PlayerTournamentHistory.objects.filter(
+                tournament=self.tournament, melee_final_rank__isnull=False
+            ).count(), 0,
+        )
