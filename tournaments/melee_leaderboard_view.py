@@ -8,7 +8,7 @@ from .partnership_models import MeleePlayerStats
 from teams.models import PlayerProfile
 
 
-def calculate_melee_badges(stats_list):
+def calculate_melee_badges(stats_list, rating_changes=None):
     """
     Calculate which players earn which badges based on tournament-wide comparison.
     
@@ -22,9 +22,15 @@ def calculate_melee_badges(stats_list):
         return {}
     
     badges_map = {}
-    
+    rating_changes = rating_changes or {}
+
+    def event_change(stats):
+        if stats.player_id in rating_changes:
+            return rating_changes[stats.player_id]
+        return stats.current_rating - stats.starting_rating
+
     # Find tournament winner (biggest rating improvement)
-    max_change = max(s.current_rating - s.starting_rating for s in stats_list)
+    max_change = max(event_change(s) for s in stats_list)
     
     # Find longest win streak
     max_streak = max(s.best_performance for s in stats_list) if stats_list else 0
@@ -40,7 +46,7 @@ def calculate_melee_badges(stats_list):
         player_badges = []
         
         # 🏆 Tournament Leader (biggest rating improvement)
-        player_change = stats.current_rating - stats.starting_rating
+        player_change = event_change(stats)
         if player_change == max_change and stats.matches_played > 0 and max_change > 0:
             player_badges.append({
                 'emoji': '🏆',
@@ -102,15 +108,60 @@ def melee_player_leaderboard(request, tournament_id):
         .select_related('player')
     )
     
-    # Sort by rating change (biggest improvement = first place), then by wins as tiebreaker
-    stats_list.sort(key=lambda s: (-(s.current_rating - s.starting_rating), -s.wins))
-    
-    # Calculate badges
-    badges_map = calculate_melee_badges(stats_list)
+    # Fully frozen individual standings come from permanent tournament history;
+    # never read subsequent Friendly/Game rating changes to rank past events.
+    from .models import PlayerTournamentAchievement, PlayerTournamentHistory
+
+    frozen = {
+        entry.player_id: entry
+        for entry in PlayerTournamentHistory.objects.filter(
+            tournament=tournament, melee_final_rank__isnull=False
+        )
+    }
+    is_frozen = bool(stats_list) and len(frozen) == len(stats_list) and all(
+        stats.player_id in frozen for stats in stats_list
+    )
+    if is_frozen:
+        stats_list.sort(key=lambda stats: frozen[stats.player_id].melee_final_rank)
+        badges_map = {stats.player_id: [] for stats in stats_list}
+        badge_types = {
+            "most_improved": "winner",
+            "win_streak": "streak",
+            "top_scorer": "points",
+            "best_win_rate": "winrate",
+        }
+        for award in PlayerTournamentAchievement.objects.filter(
+            tournament=tournament, player_id__in=frozen,
+        ):
+            badge_type = badge_types.get(award.award_type)
+            if badge_type:
+                badges_map[award.player_id].append({
+                    "emoji": award.display_symbol,
+                    "title": award.display_title,
+                    "type": badge_type,
+                })
+    else:
+        stats_list.sort(
+            key=lambda stats: (
+                -(stats.current_rating - stats.starting_rating),
+                -stats.wins,
+                stats.player_id,
+            )
+        )
+        badges_map = calculate_melee_badges(stats_list)
     
     # Prepare leaderboard data
     leaderboard_data = []
     for rank, stats in enumerate(stats_list, start=1):
+        snapshot = frozen[stats.player_id] if is_frozen else None
+        event_change = (
+            float(snapshot.rating_change)
+            if snapshot else stats.current_rating - stats.starting_rating
+        )
+        event_rating = (
+            float(snapshot.melee_final_rating)
+            if snapshot else stats.current_rating
+        )
         # Get player profile for additional info
         profile = None
         if hasattr(stats.player, 'profile'):
@@ -121,35 +172,37 @@ def melee_player_leaderboard(request, tournament_id):
             'player': stats.player,
             'profile': profile,
             'starting_rating': round(stats.starting_rating, 1),
-            'current_rating': round(stats.current_rating, 1),
-            'rating_change': round(stats.current_rating - stats.starting_rating, 1),
-            'wins': stats.wins,
-            'losses': stats.losses,
-            'matches_played': stats.matches_played,
+            'current_rating': round(event_rating, 1),
+            'rating_change': round(event_change, 1),
+            'wins': snapshot.wins if snapshot else stats.wins,
+            'losses': snapshot.losses if snapshot else stats.losses,
+            'matches_played': snapshot.matches_played if snapshot else stats.matches_played,
             'win_rate': round((stats.wins / stats.matches_played * 100), 1) if stats.matches_played > 0 else 0,
-            'points_scored': stats.points_scored,
-            'points_against': stats.points_against,
-            'point_differential': stats.points_scored - stats.points_against,
+            'points_scored': snapshot.points_scored if snapshot else stats.points_scored,
+            'points_against': snapshot.points_against if snapshot else stats.points_against,
+            'point_differential': (
+                snapshot.points_scored - snapshot.points_against
+                if snapshot and snapshot.points_scored is not None and snapshot.points_against is not None
+                else stats.points_scored - stats.points_against
+            ),
             'current_streak': stats.current_streak,
             'badges': badges_map.get(stats.player.id, []),
         })
     
-    # Calculate summary statistics
-    total_players = len(stats_list)
-    gainers = sum(1 for s in stats_list if (s.current_rating - s.starting_rating) > 0)
-    losers = sum(1 for s in stats_list if (s.current_rating - s.starting_rating) < 0)
-    avg_rating = sum(s.current_rating for s in stats_list) / total_players if total_players > 0 else 0
-    
-    # Find top gainer
+    # Summary is computed from the same frozen or provisional rows as rankings.
+    total_players = len(leaderboard_data)
+    gainers = sum(row["rating_change"] > 0 for row in leaderboard_data)
+    losers = sum(row["rating_change"] < 0 for row in leaderboard_data)
+    avg_rating = (
+        sum(row["current_rating"] for row in leaderboard_data) / total_players
+        if total_players else 0
+    )
     top_gainer = None
-    if stats_list:
-        top_gainer_stats = max(stats_list, key=lambda s: s.current_rating - s.starting_rating)
-        rating_change = top_gainer_stats.current_rating - top_gainer_stats.starting_rating
-        if rating_change > 0:
-            top_gainer = {
-                'player': top_gainer_stats.player,
-                'change': round(rating_change, 1)
-            }
+    if leaderboard_data and leaderboard_data[0]["rating_change"] > 0:
+        top_gainer = {
+            "player": leaderboard_data[0]["player"],
+            "change": leaderboard_data[0]["rating_change"],
+        }
     
     context = {
         'tournament': tournament,
@@ -159,6 +212,7 @@ def melee_player_leaderboard(request, tournament_id):
         'losers': losers,
         'avg_rating': round(avg_rating, 2),
         'top_gainer': top_gainer,
+        'is_frozen': is_frozen,
     }
     
     return render(request, 'tournaments/melee_leaderboard.html', context)
