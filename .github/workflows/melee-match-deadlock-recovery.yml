@@ -1,0 +1,58 @@
+name: Mêlée Match deadlock recovery (PostgreSQL)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - matches/lifecycle.py
+      - matches/test_tournament_lifecycle_postgres.py
+      - .github/workflows/melee-match-deadlock-recovery.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-deadlock-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_deadlock_recovery_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_deadlock_recovery_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_deadlock_recovery_test
+      SECRET_KEY: isolated-deadlock-test-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - name: Check out PR
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Django requirements
+        run: pip install -r requirements.txt
+      - name: Validate project and migrations
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: PostgreSQL deadlock retry, rollback and idempotence
+        run: |
+          python manage.py test \
+            matches.test_tournament_lifecycle_postgres.MatchDeadlockDetectionTests \
+            matches.test_tournament_lifecycle_postgres.MatchDeadlockRecoveryTests \
+            matches.test_tournament_lifecycle_postgres.TournamentLifecyclePostgreSQLTests.test_only_one_match_transition_claims_match_projection \
+            --verbosity 2
