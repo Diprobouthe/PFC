@@ -254,6 +254,7 @@ class MeleeTournamentAchievementTests(TestCase):
             points_scored=30,
             points_against=10,
             current_streak=3,
+            best_performance=3,
         )
         MeleePlayerStats.objects.create(
             tournament=tournament,
@@ -293,3 +294,76 @@ class MeleeTournamentAchievementTests(TestCase):
                 award_type__startswith="medal_",
             ).exists()
         )
+
+
+class MeleeFireAwardTests(TestCase):
+    """The fire badge honours the best streak reached, not the final streak."""
+
+    def test_last_round_loss_does_not_erase_earned_fire(self):
+        from types import SimpleNamespace
+        from tournaments.melee_leaderboard_view import calculate_melee_badges
+
+        def stats(pid, best, current, wins=3, games=4):
+            return SimpleNamespace(
+                player=SimpleNamespace(id=pid),
+                starting_rating=100,
+                current_rating=100,
+                best_performance=best,
+                current_streak=current,
+                wins=wins,
+                matches_played=games,
+                points_scored=15,
+            )
+
+        first = stats(1, best=3, current=-1)
+        second = stats(2, best=2, current=2, wins=2)
+        badges = calculate_melee_badges([first, second])
+
+        self.assertEqual(
+            [badge["type"] for badge in badges[1] if badge["type"] == "streak"],
+            ["streak"],
+        )
+        self.assertEqual(
+            [badge["title"] for badge in badges[1] if badge["type"] == "streak"],
+            ["Win Streak: 3"],
+        )
+        self.assertFalse(any(badge["type"] == "streak" for badge in badges[2]))
+
+    def test_shared_best_streak_awards_both_players(self):
+        from types import SimpleNamespace
+        from tournaments.melee_leaderboard_view import calculate_melee_badges
+
+        def stats(pid, current):
+            return SimpleNamespace(
+                player=SimpleNamespace(id=pid),
+                starting_rating=100,
+                current_rating=100,
+                best_performance=4,
+                current_streak=current,
+                wins=4,
+                matches_played=5,
+                points_scored=18,
+            )
+
+        badges = calculate_melee_badges([stats(1, -1), stats(2, 4)])
+        self.assertTrue(all(
+            any(badge["type"] == "streak" for badge in badges[pid])
+            for pid in (1, 2)
+        ))
+
+    def test_no_fire_under_three_consecutive_wins(self):
+        from types import SimpleNamespace
+        from tournaments.melee_leaderboard_view import calculate_melee_badges
+
+        stats = SimpleNamespace(
+            player=SimpleNamespace(id=1),
+            starting_rating=100,
+            current_rating=100,
+            best_performance=2,
+            current_streak=2,
+            wins=2,
+            matches_played=3,
+            points_scored=10,
+        )
+        badges = calculate_melee_badges([stats])
+        self.assertFalse(any(badge["type"] == "streak" for badge in badges[1]))
