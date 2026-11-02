@@ -27,7 +27,7 @@ def calculate_melee_badges(stats_list):
     max_change = max(s.current_rating - s.starting_rating for s in stats_list)
     
     # Find longest win streak
-    max_streak = max(s.current_streak for s in stats_list) if stats_list else 0
+    max_streak = max(s.best_performance for s in stats_list) if stats_list else 0
     
     # Find most points scored
     max_points = max(s.points_scored for s in stats_list) if stats_list else 0
@@ -49,10 +49,10 @@ def calculate_melee_badges(stats_list):
             })
         
         # 🔥 Longest Win Streak (tied for longest, minimum 3)
-        if stats.current_streak >= 3 and stats.current_streak == max_streak:
+        if stats.best_performance >= 3 and stats.best_performance == max_streak:
             player_badges.append({
                 'emoji': '🔥',
-                'title': f'Win Streak: {stats.current_streak}',
+                'title': f'Win Streak: {stats.best_performance}',
                 'type': 'streak'
             })
         
