@@ -41,7 +41,29 @@ def update_tournament_match_ratings(match):
             # Get team players with profiles (only those who actually participated)
             winner_players = get_players_with_profiles(match.winner, match)
             loser_players = get_players_with_profiles(match.loser, match)
-            
+
+            # A player can appear in overlapping Match projections. A stale
+            # PlayerProfile instance would otherwise overwrite a more recent
+            # rating and its JSON history on save. Acquire all affected profile
+            # locks in one deterministic PK order, and use fresh locked rows
+            # for every subsequent rating calculation/update.
+            profile_ids = {
+                profile.pk for profile in winner_players + loser_players
+            }
+            if profile_ids:
+                locked_profiles = {
+                    profile.pk: profile
+                    for profile in PlayerProfile.objects.select_for_update()
+                    .filter(pk__in=profile_ids)
+                    .order_by("pk")
+                }
+                winner_players = [
+                    locked_profiles[profile.pk] for profile in winner_players
+                ]
+                loser_players = [
+                    locked_profiles[profile.pk] for profile in loser_players
+                ]
+
             if not winner_players and not loser_players:
                 logger.info(f"Match {match.id}: No players have profiles, skipping rating updates")
                 return {"success": True, "reason": "No players with profiles"}
