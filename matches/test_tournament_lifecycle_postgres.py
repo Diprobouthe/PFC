@@ -11,7 +11,7 @@ import threading
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.db import IntegrityError, connection, connections, transaction
+from django.db import IntegrityError, OperationalError, connection, connections, transaction
 from django.test import SimpleTestCase, TransactionTestCase, skipUnlessDBFeature
 from django.utils import timezone
 
@@ -24,8 +24,10 @@ from matches.lifecycle import (
     validate_official_result,
 )
 from matches.models import Match, MatchLifecycleTransition, MatchPlayer
-from teams.models import Player, Team
+from teams.models import Player, PlayerProfile, Team
 from tournaments.models import Round, RoundLifecycleTransition, Tournament
+from tournaments.partnership_models import MeleePlayerStats
+from matches.models_participant import TeamMatchParticipant
 
 
 @skipUnlessDBFeature("has_select_for_update")
@@ -341,11 +343,153 @@ class MatchDeadlockDetectionTests(SimpleTestCase):
         wrapper = RuntimeError("django database operation failed")
         wrapper.__cause__ = db_error
 
-        assert _is_postgres_deadlock(wrapper) is True
+        self.assertTrue(_is_postgres_deadlock(wrapper))
 
     def test_other_operational_errors_are_not_retried(self):
         from matches.lifecycle import _is_postgres_deadlock
 
         db_error = RuntimeError("lock timeout")
         db_error.pgcode = "55P03"
-        assert _is_postgres_deadlock(db_error) is False
+        self.assertFalse(_is_postgres_deadlock(db_error))
+
+
+class MatchDeadlockRecoveryTests(TransactionTestCase):
+    """Exercise actual DB rollback before a bounded deadlock retry.
+
+    A synthetic PostgreSQL SQLSTATE is injected *after* the ordinary rating
+    update, so a failure would expose duplicate ratings or match participants.
+    These tests must run against the PostgreSQL CI service.
+    """
+
+    def setUp(self):
+        now = timezone.now()
+        self.tournament = Tournament.objects.create(
+            name="Deadlock Recovery Mêlée",
+            format="swiss",
+            play_format="doublets",
+            is_melee=True,
+            melee_format="doublets",
+            start_date=now,
+            end_date=now + timedelta(hours=2),
+        )
+        one = Team.objects.create(name="Deadlock Team One", is_tournament_temp=True)
+        two = Team.objects.create(name="Deadlock Team Two", is_tournament_temp=True)
+        self.players = []
+        self.match = Match.objects.create(
+            tournament=self.tournament,
+            team1=one,
+            team2=two,
+            status="pending",
+        )
+        for team in (one, two):
+            for number in range(2):
+                player = Player.objects.create(
+                    name=f"{team.name} Player {number}", team=team,
+                )
+                PlayerProfile.objects.create(
+                    player=player, value=100.0, is_active=True, rating_history=[],
+                )
+                MeleePlayerStats.objects.create(
+                    tournament=self.tournament, player=player, starting_rating=100.0,
+                )
+                MatchPlayer.objects.create(match=self.match, team=team, player=player)
+                self.players.append(player)
+        Match.objects.filter(pk=self.match.pk).update(
+            status="completed",
+            team1_score=13,
+            team2_score=4,
+            winner=one,
+            loser=two,
+        )
+        self.match.refresh_from_db()
+        MatchLifecycleTransition.objects.create(
+            match=self.match, tournament=self.tournament,
+        )
+
+    @staticmethod
+    def _database_error(code="40P01"):
+        original = RuntimeError("PostgreSQL transaction failed")
+        original.pgcode = code
+        wrapped = OperationalError("deadlock detected" if code == "40P01" else "lock error")
+        wrapped.__cause__ = original
+        return wrapped
+
+    def test_one_deadlock_rolls_back_ratings_then_retries_exactly_once(self):
+        from tournaments.melee_stats_updater import (
+            update_melee_player_stats_from_match as actual_update,
+        )
+
+        calls = []
+
+        def fail_once_then_update(match):
+            calls.append(match.id)
+            if len(calls) == 1:
+                raise self._database_error()
+            return actual_update(match)
+
+        with patch(
+            "tournaments.melee_stats_updater.update_melee_player_stats_from_match",
+            side_effect=fail_once_then_update,
+        ):
+            self.assertTrue(process_tournament_transition(self.match.id))
+
+        self.assertEqual(calls, [self.match.id, self.match.id])
+        transition = MatchLifecycleTransition.objects.get(match=self.match)
+        self.assertEqual(transition.status, MatchLifecycleTransition.COMPLETED)
+        self.assertEqual(TeamMatchParticipant.objects.filter(match=self.match).count(), 4)
+        stats = MeleePlayerStats.objects.filter(tournament=self.tournament)
+        self.assertEqual(stats.count(), 4)
+        self.assertTrue(all(value == 1 for value in stats.values_list("matches_played", flat=True)))
+        for player in self.players:
+            profile = PlayerProfile.objects.get(player=player)
+            match_history = [
+                item for item in profile.rating_history or []
+                if item.get("match_id") == self.match.id
+            ]
+            self.assertEqual(len(match_history), 1, player.name)
+
+        # A repeated request after success remains idempotent.
+        self.assertTrue(process_tournament_transition(self.match.id))
+        self.assertEqual(TeamMatchParticipant.objects.filter(match=self.match).count(), 4)
+        self.assertEqual(
+            sum(MeleePlayerStats.objects.filter(
+                tournament=self.tournament
+            ).values_list("matches_played", flat=True)), 4,
+        )
+        for player in self.players:
+            profile = PlayerProfile.objects.get(player=player)
+            self.assertEqual(
+                sum(item.get("match_id") == self.match.id for item in profile.rating_history or []),
+                1,
+            )
+
+    def test_three_deadlocks_leave_failed_state_and_no_partial_writes(self):
+        with patch(
+            "tournaments.melee_stats_updater.update_melee_player_stats_from_match",
+            side_effect=self._database_error(),
+        ) as update:
+            self.assertFalse(process_tournament_transition(self.match.id))
+        self.assertEqual(update.call_count, 3)  # initial + two retries
+        transition = MatchLifecycleTransition.objects.get(match=self.match)
+        self.assertEqual(transition.status, MatchLifecycleTransition.FAILED)
+        self.assertIn("deadlock", transition.last_error.lower())
+        self.assertEqual(TeamMatchParticipant.objects.filter(match=self.match).count(), 0)
+        self.assertEqual(
+            sum(MeleePlayerStats.objects.filter(
+                tournament=self.tournament
+            ).values_list("matches_played", flat=True)), 0,
+        )
+        for player in self.players:
+            self.assertEqual(PlayerProfile.objects.get(player=player).rating_history, [])
+
+    def test_non_deadlock_does_not_retry(self):
+        with patch(
+            "tournaments.melee_stats_updater.update_melee_player_stats_from_match",
+            side_effect=self._database_error("55P03"),
+        ) as update:
+            self.assertFalse(process_tournament_transition(self.match.id))
+        self.assertEqual(update.call_count, 1)
+        self.assertEqual(
+            MatchLifecycleTransition.objects.get(match=self.match).status,
+            MatchLifecycleTransition.FAILED,
+        )
