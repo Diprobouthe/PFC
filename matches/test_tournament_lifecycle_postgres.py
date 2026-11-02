@@ -328,3 +328,24 @@ class TournamentLifecyclePostgreSQLTests(TransactionTestCase):
 
     def test_database_vendor_is_postgresql(self):
         self.assertEqual(connection.vendor, "postgresql")
+
+
+class MatchDeadlockDetectionTests:
+    """Pure checks: only PostgreSQL deadlock code 40P01 is retryable."""
+
+    def test_postgres_deadlock_is_detected_through_django_wrapper(self):
+        from matches.lifecycle import _is_postgres_deadlock
+
+        db_error = RuntimeError("deadlock detected")
+        db_error.pgcode = "40P01"
+        wrapper = RuntimeError("django database operation failed")
+        wrapper.__cause__ = db_error
+
+        assert _is_postgres_deadlock(wrapper) is True
+
+    def test_other_operational_errors_are_not_retried(self):
+        from matches.lifecycle import _is_postgres_deadlock
+
+        db_error = RuntimeError("lock timeout")
+        db_error.pgcode = "55P03"
+        assert _is_postgres_deadlock(db_error) is False
