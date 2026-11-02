@@ -178,7 +178,10 @@ def melee_player_leaderboard(request, tournament_id):
             'wins': snapshot.wins if snapshot else stats.wins,
             'losses': snapshot.losses if snapshot else stats.losses,
             'matches_played': snapshot.matches_played if snapshot else stats.matches_played,
-            'win_rate': round((stats.wins / stats.matches_played * 100), 1) if stats.matches_played > 0 else 0,
+            'win_rate': round(
+                100 * (snapshot.wins if snapshot else stats.wins)
+                / (snapshot.matches_played if snapshot else stats.matches_played), 1
+            ) if (snapshot.matches_played if snapshot else stats.matches_played) else 0,
             'points_scored': snapshot.points_scored if snapshot else stats.points_scored,
             'points_against': snapshot.points_against if snapshot else stats.points_against,
             'point_differential': (
