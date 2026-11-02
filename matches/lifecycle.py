@@ -906,6 +906,26 @@ def process_tournament_transition(match_id: int, *, _deadlock_retry: int = 0) ->
             # rather than holding their locks while acquiring a Tournament lock.
             from leaderboards.views import publish_tournament_leaderboard
             publish_tournament_leaderboard(match.tournament)
+
+        # A failed Match projection can be retried after its final Round was
+        # already published. Finalize immutable Mêlée history on that recovery,
+        # rather than requiring another Round transition that is now COMPLETED.
+        # This is best-effort: no failure here may undo a committed Match rating.
+        if match.tournament.is_melee:
+            from tournaments.models import Tournament
+            from tournaments.player_history import record_finalized_tournament_history
+
+            latest_tournament = Tournament.objects.get(pk=match.tournament_id)
+            if latest_tournament.automation_status == "completed":
+                try:
+                    record_finalized_tournament_history(
+                        latest_tournament, include_melee_awards=True
+                    )
+                except Exception:
+                    logger.exception(
+                        "Mêlée history projection failed after Match %s recovery",
+                        match_id,
+                    )
         return True
     except Exception as exc:
         logger.exception("Match lifecycle projection failed for Match %s", match_id)
