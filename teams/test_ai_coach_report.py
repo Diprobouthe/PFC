@@ -16,6 +16,7 @@ from teams.views_ai_report import (
     _aggregate_friendly_teammates,
     _compute_match_flow,
     _rating_delta_for_tournament_match,
+    _rating_entry_type,
     _verified_score_updates,
     _section_friendly_teammates,
     _styles,
@@ -55,6 +56,19 @@ class CoachReportScoreFlowTests(SimpleTestCase):
 
 
 class CoachReportRatingAttributionTests(SimpleTestCase):
+    def test_legacy_friendly_id_overrides_mislabeled_tournament_type(self):
+        bad_legacy_entry = {
+            'match_id': 'friendly_1882', 'match_type': 'tournament',
+            'change': 1.5,
+        }
+        self.assertEqual(_rating_entry_type(bad_legacy_entry), 'friendly')
+        self.assertEqual(_rating_entry_type({
+            'match_id': 977, 'match_type': 'tournament'
+        }), 'tournament')
+        self.assertIsNone(_rating_delta_for_tournament_match(
+            [bad_legacy_entry], 1882
+        ))
+
     def test_exact_match_id_prevents_time_based_misattribution(self):
         history = [
             {'match_id': 'friendly_90', 'match_type': 'tournament', 'change': 4.5},
