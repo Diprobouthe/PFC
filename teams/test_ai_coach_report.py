@@ -90,7 +90,7 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
         self.assertEqual(stats[0]['name'], 'Teammate')
         self.assertEqual(stats[0]['games'], 3)
         self.assertEqual(stats[0]['wins'], 2)
-        self.assertEqual(stats[0]['score_diff_total'], 1)  # +6 +4 -5
+        self.assertEqual(stats[0]['score_diff_total'], 5)  # +6 +4 -5
         self.assertEqual(stats[0]['roles']['POINTEUR / TIRER'], 2)
         self.assertEqual(stats[0]['roles']['MILIEU / TIRER'], 1)
 
