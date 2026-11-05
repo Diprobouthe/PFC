@@ -600,7 +600,7 @@ def _section_identity(player, profile, tournament_matches, ST, elements):
         ('Player ID',            str(player.id)),
         ('Current Rating',       f'{profile.value:.2f}'),
         ('Global Ranking',       rank_str),
-        ('Profile Skill*',
+        ('Skill*',
          f'{level_str} (default/unverified)' if profile.skill_level == 1
          else f'{level_str} (unverified profile field)'),
         ('Preferred Position',   (profile.preferred_position or '—').capitalize()),
