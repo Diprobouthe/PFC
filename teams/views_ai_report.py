@@ -27,6 +27,7 @@ Section map
 import io
 import math
 from collections import defaultdict
+from html import escape
 from datetime import datetime, timezone as dt_timezone
 
 import matplotlib
@@ -1126,7 +1127,7 @@ def _section_friendly_teammates(player, friendly_matches, ST, elements):
             )
         )
         rows.append([
-            stat['name'][:24], str(games), str(wins), str(games - wins),
+            escape(stat['name'][:24]), str(games), str(wins), str(games - wins),
             f'{win_pct:.1f}%', f'{avg_diff:+.1f}', pairs[:42]
         ])
         if games >= 3:
@@ -1139,7 +1140,7 @@ def _section_friendly_teammates(player, friendly_matches, ST, elements):
     if candidates:
         win_pct, games, avg_diff, name = max(candidates)
         elements.append(Paragraph(
-            f'Best Observed Friendly Teammate (min 3 games): {name} — '
+            f'Best Observed Friendly Teammate (min 3 games): {escape(name)} — '
             f'{win_pct:.1f}% wins in {games} games; average score differential '
             f'{avg_diff:+.1f}.',
             ST['body_bold'],
