@@ -4,13 +4,15 @@ These tests use only in-memory records: no production data and no DB writes.
 """
 from types import SimpleNamespace
 from io import BytesIO
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate
 from pypdf import PdfReader
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, RequestFactory
 
 from teams.views_ai_report import (
     _aggregate_friendly_teammates,
@@ -24,6 +26,7 @@ from teams.views_ai_report import (
     _section_friendly_teammates,
     _styles,
     MARGIN,
+    ai_coach_report,
 )
 
 
@@ -320,3 +323,70 @@ class CoachReportFriendlyTeammateDatabaseTests(TestCase):
             {r['game_id'] for r in by_mate[newer.id]},
             {game.id for game in games[55:]},
         )
+
+
+class CoachReportWholePdfTests(TestCase):
+    """Full, synthetic report preview. No production database connection."""
+
+    def test_complete_ai_coach_report_pdf_with_pairwise_curves(self):
+        from teams.models import Team, Player, PlayerProfile
+        from friendly_games.models import FriendlyGame, FriendlyGamePlayer
+
+        home = Team.objects.create(name='PREVIEW Team', pin='PV1234')
+        subject = Player.objects.create(name='Preview Player', team=home)
+        alpha = Player.objects.create(name='Partner Alpha', team=home)
+        beta = Player.objects.create(name='Partner Beta', team=home)
+        rival = Player.objects.create(name='Opposing Player', team=home)
+        PlayerProfile.objects.get_or_create(
+            player=subject, defaults={'value': 128.5}
+        )
+
+        games = FriendlyGame.objects.bulk_create([
+            FriendlyGame(
+                name=f'Synthetic Collaboration {n + 1}',
+                match_number=f'7{n:03d}',
+                status='COMPLETED',
+                black_team_score=13 if n % 4 else 6,
+                white_team_score=5 if n % 4 else 13,
+            )
+            for n in range(27)
+        ])
+        participants = []
+        for n, game in enumerate(games):
+            participants.extend([
+                FriendlyGamePlayer(
+                    game=game, player=subject, team='BLACK',
+                    position='POINTEUR', codename_verified=True,
+                    games_won=1 if n % 4 else 0,
+                ),
+                FriendlyGamePlayer(
+                    game=game, player=alpha if n < 15 else beta,
+                    team='BLACK', position='TIRER', codename_verified=True,
+                ),
+                FriendlyGamePlayer(
+                    game=game, player=rival, team='WHITE',
+                    position='MILIEU', codename_verified=True,
+                ),
+            ])
+        FriendlyGamePlayer.objects.bulk_create(participants)
+
+        request = RequestFactory().get('/internal/ai-coach-preview/')
+        request.user = SimpleNamespace(is_authenticated=True, is_staff=True)
+        request.session = {}
+        response = ai_coach_report(request, subject.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        content = response.content
+        self.assertTrue(content.startswith(b'%PDF-'))
+        pages = PdfReader(BytesIO(content)).pages
+        self.assertGreaterEqual(len(pages), 8)
+        text = '\n'.join(page.extract_text() or '' for page in pages)
+        self.assertIn('FRIENDLY PARTNERSHIP TRAJECTORIES', text)
+        self.assertIn('Partner Alpha', text)
+        self.assertIn('Partner Beta', text)
+        # A synthetic preview must never be populated using live player data.
+        outdir = os.environ.get('PFC_AI_COACH_PREVIEW_DIR')
+        if outdir:
+            target = Path(outdir)
+            target.mkdir(parents=True, exist_ok=True)
+            (target / 'ai-coach-synthetic-full-report.pdf').write_bytes(content)
