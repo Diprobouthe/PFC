@@ -47,5 +47,15 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-      - name: AI Coach report regression tests
+      - name: AI Coach report regression tests and synthetic PDF preview
+        env:
+          PFC_AI_COACH_PREVIEW_DIR: pfc-ai-coach-preview
         run: python manage.py test teams.test_ai_coach_report --verbosity 2
+      - name: Upload synthetic PDF preview
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-coach-synthetic-full-report
+          path: pfc-ai-coach-preview/*.pdf
+          if-no-files-found: error
+          retention-days: 7
