@@ -600,7 +600,7 @@ def _section_identity(player, profile, tournament_matches, ST, elements):
         ('Player ID',            str(player.id)),
         ('Current Rating',       f'{profile.value:.2f}'),
         ('Global Ranking',       rank_str),
-        ('Profile Skill (not rating-derived)',
+        ('Profile Skill*',
          f'{level_str} (default/unverified)' if profile.skill_level == 1
          else f'{level_str} (unverified profile field)'),
         ('Preferred Position',   (profile.preferred_position or '—').capitalize()),
@@ -613,6 +613,12 @@ def _section_identity(player, profile, tournament_matches, ST, elements):
         ('Trend (last 20)',       f"{trend_20['trend'].upper()} ({_sign(trend_20['change'])})"),
     ]
     elements.append(_kv_table(pairs, ST, cols=3))
+    elements.append(Paragraph(
+        '* Profile skill is not derived from the rating. The database defaults '
+        'to Beginner, and the report cannot tell whether the player selected '
+        'that label. Do not use this field as an assessment of ability.',
+        ST['caption'],
+    ))
     elements.append(Spacer(1, 6))
 
 
