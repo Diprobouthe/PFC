@@ -48,6 +48,9 @@ from reportlab.platypus import (
     HRFlowable, Image, KeepTogether, PageBreak
 )
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from pathlib import Path
 
 from .models import Player, PlayerProfile
 
@@ -72,44 +75,70 @@ MARGIN = 18 * mm
 # ─────────────────────────────────────────────────────────────────────────────
 # Style helpers
 # ─────────────────────────────────────────────────────────────────────────────
+def _register_report_fonts():
+    """Use bundled Matplotlib DejaVu fonts so Greek player names render.
+
+    These files ship with Matplotlib in all PFC environments; no OS font
+    installation or application configuration is required.
+    """
+    font_dir = Path(matplotlib.get_data_path()) / 'fonts' / 'ttf'
+    font_files = {
+        'PFC-DejaVu': 'DejaVuSans.ttf',
+        'PFC-DejaVu-Bold': 'DejaVuSans-Bold.ttf',
+        'PFC-DejaVu-Oblique': 'DejaVuSans-Oblique.ttf',
+        'PFC-DejaVu-Mono': 'DejaVuSansMono.ttf',
+    }
+    for family, filename in font_files.items():
+        if family not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(family, str(font_dir / filename)))
+    pdfmetrics.registerFontFamily(
+        'PFC-DejaVu',
+        normal='PFC-DejaVu',
+        bold='PFC-DejaVu-Bold',
+        italic='PFC-DejaVu-Oblique',
+        boldItalic='PFC-DejaVu-Bold',
+    )
+
+
 def _styles():
+    _register_report_fonts()
     base = getSampleStyleSheet()
     def s(name, **kw):
         return ParagraphStyle(name, parent=base['Normal'], **kw)
     return {
         'cover_title': s('cover_title', fontSize=22, textColor=C_TEXT_LIGHT,
-                         fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4),
+                         fontName='PFC-DejaVu-Bold', alignment=TA_CENTER, spaceAfter=4),
         'cover_sub':   s('cover_sub', fontSize=11, textColor=colors.HexColor('#94a3b8'),
-                         fontName='Helvetica', alignment=TA_CENTER, spaceAfter=2),
+                         fontName='PFC-DejaVu', alignment=TA_CENTER, spaceAfter=2),
         'cover_disc':  s('cover_disc', fontSize=8, textColor=colors.HexColor('#64748b'),
-                         fontName='Helvetica-Oblique', alignment=TA_CENTER, spaceAfter=0),
+                         fontName='PFC-DejaVu-Oblique', alignment=TA_CENTER, spaceAfter=0),
         'section_hdr': s('section_hdr', fontSize=11, textColor=C_TEXT_LIGHT,
-                         fontName='Helvetica-Bold', alignment=TA_LEFT,
+                         fontName='PFC-DejaVu-Bold', alignment=TA_LEFT,
                          leftIndent=4, spaceAfter=0),
         'label':       s('label', fontSize=8, textColor=colors.HexColor('#64748b'),
-                         fontName='Helvetica-Bold', spaceAfter=1),
+                         fontName='PFC-DejaVu-Bold', spaceAfter=1),
         'value':       s('value', fontSize=9, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=2),
+                         fontName='PFC-DejaVu', spaceAfter=2),
         'mono':        s('mono', fontSize=8, textColor=C_TEXT_DARK,
-                         fontName='Courier', spaceAfter=1),
+                         fontName='PFC-DejaVu-Mono', spaceAfter=1),
         'body':        s('body', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=3, leading=12),
+                         fontName='PFC-DejaVu', spaceAfter=3, leading=12),
         'body_bold':   s('body_bold', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica-Bold', spaceAfter=3, leading=12),
+                         fontName='PFC-DejaVu-Bold', spaceAfter=3, leading=12),
         'caption':     s('caption', fontSize=7.5, textColor=colors.HexColor('#64748b'),
-                         fontName='Helvetica-Oblique', alignment=TA_CENTER, spaceAfter=2),
+                         fontName='PFC-DejaVu-Oblique', alignment=TA_CENTER, spaceAfter=2),
         'th':          s('th', fontSize=8, textColor=C_TEXT_LIGHT,
-                         fontName='Helvetica-Bold', alignment=TA_CENTER),
+                         fontName='PFC-DejaVu-Bold', alignment=TA_CENTER),
         'td':          s('td', fontSize=8, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', alignment=TA_CENTER),
+                         fontName='PFC-DejaVu', alignment=TA_CENTER),
         'td_left':     s('td_left', fontSize=8, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', alignment=TA_LEFT),
+                         fontName='PFC-DejaVu', alignment=TA_LEFT),
         'instr_head':  s('instr_head', fontSize=10, textColor=C_TEXT_DARK,
-                         fontName='Helvetica-Bold', spaceAfter=4, spaceBefore=6),
+                         fontName='PFC-DejaVu-Bold', spaceAfter=4, spaceBefore=6),
         'instr_body':  s('instr_body', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=3, leading=13),
+                         fontName='PFC-DejaVu', spaceAfter=3, leading=13),
         'instr_item':  s('instr_item', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=2, leading=13, leftIndent=12),
+                         fontName='PFC-DejaVu', spaceAfter=2, leading=13, leftIndent=12),
     }
 
 
@@ -168,7 +197,7 @@ def _data_table(headers, rows, ST, col_widths=None):
     style_cmds = [
         ('BACKGROUND',    (0, 0), (-1, 0),  C_BG_MID),
         ('TEXTCOLOR',     (0, 0), (-1, 0),  C_TEXT_LIGHT),
-        ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
+        ('FONTNAME',      (0, 0), (-1, 0),  'PFC-DejaVu-Bold'),
         ('FONTSIZE',      (0, 0), (-1, 0),  8),
         ('TOPPADDING',    (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
