@@ -10,7 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate
 from pypdf import PdfReader
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from teams.views_ai_report import (
     _aggregate_friendly_teammates,
@@ -133,3 +133,54 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
         self.assertTrue(pdf.startswith(b'%PDF-'))
         self.assertIn('10a. FRIENDLY GAME TEAMMATE COMPATIBILITY',
                       PdfReader(BytesIO(pdf)).pages[0].extract_text())
+
+
+class CoachReportFriendlyTeammateDatabaseTests(TestCase):
+    """Real ORM join and PDF smoke against Django's temporary test database."""
+
+    def test_friendly_roster_queries_and_pdf_generation(self):
+        from teams.models import Team, Player
+        from friendly_games.models import FriendlyGame, FriendlyGamePlayer
+
+        home = Team.objects.create(name='AI Coach test team', pin='AC1234')
+        subject = Player.objects.create(name='Reporter', team=home)
+        partner = Player.objects.create(name='Verified partner', team=home)
+        unknown = Player.objects.create(name='Unverified player', team=home)
+        game_rows = []
+        for index, (black, white) in enumerate([(13, 7), (13, 8), (3, 13)], 1):
+            game = FriendlyGame.objects.create(
+                name=f'AI Coach fixture {index}',
+                match_number=f'9{index:03d}',
+                status='COMPLETED',
+                black_team_score=black,
+                white_team_score=white,
+            )
+            FriendlyGamePlayer.objects.create(
+                game=game, player=subject, team='BLACK',
+                position='POINTEUR', codename_verified=True,
+            )
+            FriendlyGamePlayer.objects.create(
+                game=game, player=partner, team='BLACK',
+                position='TIRER', codename_verified=True,
+            )
+            FriendlyGamePlayer.objects.create(
+                game=game, player=unknown, team='WHITE',
+                position='MILIEU', codename_verified=False,
+            )
+            game_rows.append({
+                'game_id': game.id, 'team': 'BLACK',
+                'position': 'POINTEUR',
+                'black_score': black, 'white_score': white,
+            })
+
+        elements = []
+        _section_friendly_teammates(subject, game_rows, _styles(), elements)
+        buffer = BytesIO()
+        SimpleDocTemplate(
+            buffer, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
+            topMargin=MARGIN, bottomMargin=MARGIN
+        ).build(elements)
+        extracted = PdfReader(BytesIO(buffer.getvalue())).pages[0].extract_text()
+        self.assertIn('Verified partner', extracted)
+        self.assertIn('66.7%', extracted)
+        self.assertNotIn('Unverified player', extracted)
