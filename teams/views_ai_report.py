@@ -1210,7 +1210,7 @@ def _build_pairwise_trend_chart(stats):
     ax_m.set_ylabel('Rolling 5-game avg margin', color='#e2e8f0', fontsize=8)
     ax_m.set_xlabel('Joint game number (oldest to newest)',
                     color='#e2e8f0', fontsize=8)
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.10, right=0.97, top=0.97, bottom=0.13, hspace=0.28)
     return fig
 
 
