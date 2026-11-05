@@ -19,7 +19,7 @@ Section map
   7  Opponent Statistics  (per-opponent W/L, win%, score diff)
   8  Role & Format Breakdown  (from MatchPlayer + PlayerProfile helpers)
   9  Tournament Breakdown  (per-tournament W/L, win%, avg score)
- 10  Friendly Game Breakdown  (total, W/L, per-game table)
+ 10  Friendly Game Breakdown  (total, W/L, teammate compatibility, score flow)
  11  Practice & In-Game Evidence  (separate training and ING match performance data)
  12  Data Quality Notes  (discrepancy flags for the AI reader)
 """
@@ -27,6 +27,7 @@ Section map
 import io
 import math
 from collections import defaultdict
+from html import escape
 from datetime import datetime, timezone as dt_timezone
 
 import matplotlib
@@ -47,6 +48,9 @@ from reportlab.platypus import (
     HRFlowable, Image, KeepTogether, PageBreak
 )
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from pathlib import Path
 
 from .models import Player, PlayerProfile
 
@@ -71,44 +75,70 @@ MARGIN = 18 * mm
 # ─────────────────────────────────────────────────────────────────────────────
 # Style helpers
 # ─────────────────────────────────────────────────────────────────────────────
+def _register_report_fonts():
+    """Use bundled Matplotlib DejaVu fonts so Greek player names render.
+
+    These files ship with Matplotlib in all PFC environments; no OS font
+    installation or application configuration is required.
+    """
+    font_dir = Path(matplotlib.get_data_path()) / 'fonts' / 'ttf'
+    font_files = {
+        'PFC-DejaVu': 'DejaVuSans.ttf',
+        'PFC-DejaVu-Bold': 'DejaVuSans-Bold.ttf',
+        'PFC-DejaVu-Oblique': 'DejaVuSans-Oblique.ttf',
+        'PFC-DejaVu-Mono': 'DejaVuSansMono.ttf',
+    }
+    for family, filename in font_files.items():
+        if family not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(family, str(font_dir / filename)))
+    pdfmetrics.registerFontFamily(
+        'PFC-DejaVu',
+        normal='PFC-DejaVu',
+        bold='PFC-DejaVu-Bold',
+        italic='PFC-DejaVu-Oblique',
+        boldItalic='PFC-DejaVu-Bold',
+    )
+
+
 def _styles():
+    _register_report_fonts()
     base = getSampleStyleSheet()
     def s(name, **kw):
         return ParagraphStyle(name, parent=base['Normal'], **kw)
     return {
         'cover_title': s('cover_title', fontSize=22, textColor=C_TEXT_LIGHT,
-                         fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4),
+                         fontName='PFC-DejaVu-Bold', alignment=TA_CENTER, spaceAfter=4),
         'cover_sub':   s('cover_sub', fontSize=11, textColor=colors.HexColor('#94a3b8'),
-                         fontName='Helvetica', alignment=TA_CENTER, spaceAfter=2),
+                         fontName='PFC-DejaVu', alignment=TA_CENTER, spaceAfter=2),
         'cover_disc':  s('cover_disc', fontSize=8, textColor=colors.HexColor('#64748b'),
-                         fontName='Helvetica-Oblique', alignment=TA_CENTER, spaceAfter=0),
+                         fontName='PFC-DejaVu-Oblique', alignment=TA_CENTER, spaceAfter=0),
         'section_hdr': s('section_hdr', fontSize=11, textColor=C_TEXT_LIGHT,
-                         fontName='Helvetica-Bold', alignment=TA_LEFT,
+                         fontName='PFC-DejaVu-Bold', alignment=TA_LEFT,
                          leftIndent=4, spaceAfter=0),
         'label':       s('label', fontSize=8, textColor=colors.HexColor('#64748b'),
-                         fontName='Helvetica-Bold', spaceAfter=1),
+                         fontName='PFC-DejaVu-Bold', spaceAfter=1),
         'value':       s('value', fontSize=9, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=2),
+                         fontName='PFC-DejaVu', spaceAfter=2),
         'mono':        s('mono', fontSize=8, textColor=C_TEXT_DARK,
-                         fontName='Courier', spaceAfter=1),
+                         fontName='PFC-DejaVu-Mono', spaceAfter=1),
         'body':        s('body', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=3, leading=12),
+                         fontName='PFC-DejaVu', spaceAfter=3, leading=12),
         'body_bold':   s('body_bold', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica-Bold', spaceAfter=3, leading=12),
+                         fontName='PFC-DejaVu-Bold', spaceAfter=3, leading=12),
         'caption':     s('caption', fontSize=7.5, textColor=colors.HexColor('#64748b'),
-                         fontName='Helvetica-Oblique', alignment=TA_CENTER, spaceAfter=2),
+                         fontName='PFC-DejaVu-Oblique', alignment=TA_CENTER, spaceAfter=2),
         'th':          s('th', fontSize=8, textColor=C_TEXT_LIGHT,
-                         fontName='Helvetica-Bold', alignment=TA_CENTER),
+                         fontName='PFC-DejaVu-Bold', alignment=TA_CENTER),
         'td':          s('td', fontSize=8, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', alignment=TA_CENTER),
+                         fontName='PFC-DejaVu', alignment=TA_CENTER),
         'td_left':     s('td_left', fontSize=8, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', alignment=TA_LEFT),
+                         fontName='PFC-DejaVu', alignment=TA_LEFT),
         'instr_head':  s('instr_head', fontSize=10, textColor=C_TEXT_DARK,
-                         fontName='Helvetica-Bold', spaceAfter=4, spaceBefore=6),
+                         fontName='PFC-DejaVu-Bold', spaceAfter=4, spaceBefore=6),
         'instr_body':  s('instr_body', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=3, leading=13),
+                         fontName='PFC-DejaVu', spaceAfter=3, leading=13),
         'instr_item':  s('instr_item', fontSize=8.5, textColor=C_TEXT_DARK,
-                         fontName='Helvetica', spaceAfter=2, leading=13, leftIndent=12),
+                         fontName='PFC-DejaVu', spaceAfter=2, leading=13, leftIndent=12),
     }
 
 
@@ -167,7 +197,7 @@ def _data_table(headers, rows, ST, col_widths=None):
     style_cmds = [
         ('BACKGROUND',    (0, 0), (-1, 0),  C_BG_MID),
         ('TEXTCOLOR',     (0, 0), (-1, 0),  C_TEXT_LIGHT),
-        ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
+        ('FONTNAME',      (0, 0), (-1, 0),  'PFC-DejaVu-Bold'),
         ('FONTSIZE',      (0, 0), (-1, 0),  8),
         ('TOPPADDING',    (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
@@ -184,12 +214,20 @@ def _data_table(headers, rows, ST, col_widths=None):
 
 
 def _matplotlib_to_image(fig, width_mm=170):
+    # ReportLab does not derive height when only width is passed. Preserve the
+    # original PNG aspect ratio or plots become stretched to page height.
+    from PIL import Image as PILImage
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
                 facecolor=fig.get_facecolor())
     buf.seek(0)
+    with PILImage.open(buf) as source:
+        pixel_width, pixel_height = source.size
+    buf.seek(0)
     plt.close(fig)
-    img = Image(buf, width=width_mm * mm)
+    width = width_mm * mm
+    img = Image(buf, width=width,
+                height=width * pixel_height / pixel_width)
     img.hAlign = 'CENTER'
     return img
 
@@ -310,6 +348,45 @@ def _fmt_ts(ts_str):
 
 def _sign(v):
     return f'+{v:.2f}' if v >= 0 else f'{v:.2f}'
+
+
+def _verified_score_updates(updates, final_team1, final_team2):
+    """Keep only the live score sequence up to the LAST verified official result.
+
+    ScoreUpdate is an audit trail, and a post-match reset/correction can occur
+    after the actual final result. Never infer a win or comeback from that reset.
+    If the official final score is absent, do not manufacture a match-flow result.
+    """
+    if final_team1 is None or final_team2 is None:
+        return []
+    for index in range(len(updates) - 1, -1, -1):
+        update = updates[index]
+        if (update['team1_score'] == final_team1
+                and update['team2_score'] == final_team2):
+            return updates[:index + 1]
+    return []
+
+
+def _rating_entry_type(entry):
+    """Correct legacy friendly history entries mislabeled as tournament.
+
+    Older friendly rating writes used the update_rating default
+    match_type='tournament' while passing match_id='friendly_<id>'.
+    This is a REPORT-ONLY interpretation. It does not mutate rating_history.
+    """
+    raw_id = str(entry.get('match_id') or '')
+    if raw_id.startswith('friendly_'):
+        return 'friendly'
+    return entry.get('match_type') or 'unknown'
+
+
+def _rating_delta_for_tournament_match(history, match_id):
+    """Use a real match ID, not a nearby timestamp which can belong to a friendly."""
+    for entry in reversed(history):
+        if (_rating_entry_type(entry) == 'tournament'
+                and str(entry.get('match_id', '')) == str(match_id)):
+            return entry.get('change')
+    return None
 
 
 def _score_pattern(updates):
@@ -438,11 +515,18 @@ def _section_ai_instructions(ST, elements):
          'key-value grids. Charts are embedded as images. All numerical values use consistent units '
          'and formats described in each section header.'),
 
-        ('Rating system',
-         'The PFC uses an Elo-style rating system with a baseline of 100.0. A positive change means '
-         'the player won a match against a higher-rated opponent or performed above expectation. '
-         'A negative change means the player lost or underperformed relative to opponent rating. '
-         'The "Change" column in the rating history table shows the per-match delta.'),
+        ('Rating system and evidence limits',
+         'PFC starts every player at rating 100. This is an INITIAL VALUE, not '
+         'evidence that the player is a beginner or has an established skill level. '
+         'Rating updates depend on match score difference and opponent rating. '
+         'Rating deltas must not be interpreted as verified match results; use '
+         'the recorded match scores for wins and losses. A historical opponent '
+         'team rating may combine new and experienced players, while the number '
+         'of previous rated matches for each opponent was not stored with that '
+         'aggregate. Do not classify opponents as easy or difficult solely '
+         'from a rating near 100, and do not claim opponent-adjusted synergy '
+         'without reliable opponent experience at match time. The profile skill '
+         'field defaults to Beginner and is not derived from rating.'),
 
         ('Match history and lineup data',
          'Section 3 shows tournament match history with full lineup information: player names, '
@@ -459,7 +543,8 @@ def _section_ai_instructions(ST, elements):
          'Section 6 shows per-teammate statistics: games played together, W/L record, win rate, '
          'average score differential, total and average rating change, and role combinations. '
          'The "Best Observed Teammate" is the teammate with the highest win rate (minimum 3 games). '
-         'Section 7 shows the same analysis for opponents.'),
+         'Section 7 shows the same analysis for opponents. '
+         'Section 10a analyzes up to 50 verified joint games per teammate, independent of the 40-game overview.'),
 
         ('Practice versus In-Game (ING) performance evidence',
          'Section 11 deliberately separates ordinary Practice Shooting/Pointing sessions from In-Game (ING) sessions. '
@@ -488,7 +573,7 @@ def _section_ai_instructions(ST, elements):
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 1 — Player Identity & Overview
 # ─────────────────────────────────────────────────────────────────────────────
-def _section_identity(player, profile, ST, elements):
+def _section_identity(player, profile, tournament_matches, ST, elements):
     elements += _section_header('1. PLAYER IDENTITY & OVERVIEW', ST)
 
     rank, total = _get_player_ranking(profile)
@@ -504,30 +589,70 @@ def _section_identity(player, profile, ST, elements):
     level_map = {1: 'Beginner', 2: 'Intermediate', 3: 'Advanced', 4: 'Expert', 5: 'Professional'}
     level_str = level_map.get(profile.skill_level, 'Unknown')
 
-    wr = round(profile.matches_won / profile.matches_played * 100, 1) if profile.matches_played else 0
+    # Profile counters can be stale. These figures use the verified report sample.
+    # Explicitly label the 50-match cap; do not present a sample as lifetime data.
+    recent_played = len(tournament_matches)
+    recent_won = sum(1 for match in tournament_matches if match.player_won)
+    wr = round(recent_won / recent_played * 100, 1) if recent_played else 0
 
     pairs = [
         ('Player Name',          player.name),
         ('Player ID',            str(player.id)),
         ('Current Rating',       f'{profile.value:.2f}'),
         ('Global Ranking',       rank_str),
-        ('Skill Level',          level_str),
+        ('Skill*',
+         f'{level_str} (default/unverified)' if profile.skill_level == 1
+         else f'{level_str} (unverified profile field)'),
         ('Preferred Position',   (profile.preferred_position or '—').capitalize()),
-        ('Matches Played',       str(profile.matches_played)),
-        ('Matches Won',          str(profile.matches_won)),
-        ('Win Rate',             f'{wr}%'),
+        ('Tournament Matches (latest 50)', str(recent_played)),
+        ('Tournament Wins (latest 50)',    str(recent_won)),
+        ('Tournament Win Rate',           f'{wr}%'),
         ('Rating vs Baseline',   _sign(profile.value - 100.0)),
         ('Trend (last 5)',        f"{trend_5['trend'].upper()} ({_sign(trend_5['change'])})"),
         ('Trend (last 10)',       f"{trend_data['trend'].upper()} ({_sign(trend_data['change'])})"),
         ('Trend (last 20)',       f"{trend_20['trend'].upper()} ({_sign(trend_20['change'])})"),
     ]
     elements.append(_kv_table(pairs, ST, cols=3))
+    elements.append(Paragraph(
+        '* Profile skill is not derived from the rating. The database defaults '
+        'to Beginner, and the report cannot tell whether the player selected '
+        'that label. Do not use this field as an assessment of ability.',
+        ST['caption'],
+    ))
     elements.append(Spacer(1, 6))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 2 — Rating Evolution & Trend Analysis
 # ─────────────────────────────────────────────────────────────────────────────
+def _best_verified_win_streak_from_rating_history(history):
+    """Longest run of verified match wins among retained rating events.
+
+    A positive rating change alone is not a result. Draws, missing scores
+    and invalid values terminate a streak rather than inventing wins.
+    This describes ONLY the retained (maximum 50) rating events.
+    """
+    longest = current = 0
+    verified_results = 0
+    for entry in history:
+        try:
+            own = float(entry['own_score'])
+            opponent = float(entry['opponent_score'])
+        except (KeyError, ValueError, TypeError, OverflowError):
+            current = 0
+            continue
+        if not math.isfinite(own) or not math.isfinite(opponent) or min(own, opponent) < 0:
+            current = 0
+            continue
+        if own == opponent:
+            current = 0
+            continue
+        verified_results += 1
+        current = current + 1 if own > opponent else 0
+        longest = max(longest, current)
+    return longest if verified_results else None
+
+
 def _section_rating(profile, ST, elements):
     elements += _section_header('2. RATING EVOLUTION & TREND ANALYSIS', ST)
 
@@ -548,11 +673,7 @@ def _section_rating(profile, ST, elements):
     variance = float(np.var(changes)) if changes else 0.0
     std_dev  = float(np.std(changes)) if changes else 0.0
 
-    outcomes = ['W' if e.get('change', 0) > 0 else 'L' for e in history]
-    best_win_streak = cur = 0
-    for o in outcomes:
-        cur = cur + 1 if o == 'W' else 0
-        best_win_streak = max(best_win_streak, cur)
+    best_win_streak = _best_verified_win_streak_from_rating_history(history)
 
     pairs = [
         ('Total History Entries', str(len(history))),
@@ -561,7 +682,7 @@ def _section_rating(profile, ST, elements):
         ('Current vs Peak',       _sign(profile.value - max_val)),
         ('Change Variance',       f'{variance:.3f}'),
         ('Change Std Dev',        f'{std_dev:.3f}'),
-        ('Best Win Streak',       str(best_win_streak)),
+        ('Verified Win Streak (retained)', str(best_win_streak) if best_win_streak is not None else 'N/A'),
         ('Avg Change / Match',    f'{sum(changes)/len(changes):.3f}' if changes else '—'),
         ('Largest Single Gain',   f'+{max(changes):.2f}' if changes else '—'),
         ('Largest Single Loss',   f'{min(changes):.2f}' if changes else '—'),
@@ -581,7 +702,7 @@ def _section_rating(profile, ST, elements):
             _sign(e.get('change', 0)),
             f"{e.get('opponent_value', 0):.2f}",
             f"{e.get('own_score', '?')}-{e.get('opponent_score', '?')}",
-            e.get('match_type', '—'),
+            _rating_entry_type(e),
         ])
     cw = [14*mm, 30*mm, 22*mm, 22*mm, 22*mm, 26*mm, 20*mm, 20*mm]
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
@@ -663,10 +784,13 @@ def _section_score_progression(player, tournament_matches, ST, elements):
         # Use the correct field name: tournament_match (not the generic 'match')
         sb = LiveScoreboard.objects.filter(tournament_match=m).first()
         if sb:
-            updates = list(
+            audit_updates = list(
                 ScoreUpdate.objects.filter(scoreboard=sb)
-                .order_by('timestamp')
+                .order_by('timestamp', 'pk')
                 .values('team1_score', 'team2_score', 'update_type', 'timestamp')
+            )
+            updates = _verified_score_updates(
+                audit_updates, m.team1_score, m.team2_score
             )
             if updates:
                 scored_matches.append((m, updates))
@@ -743,10 +867,13 @@ def _section_match_flow_aggregate(player, tournament_matches, ST, elements):
         sb = LiveScoreboard.objects.filter(tournament_match=m).first()
         if not sb:
             continue
-        updates = list(
+        audit_updates = list(
             ScoreUpdate.objects.filter(scoreboard=sb)
-            .order_by('timestamp')
+            .order_by('timestamp', 'pk')
             .values('team1_score', 'team2_score', 'update_type', 'timestamp')
+        )
+        updates = _verified_score_updates(
+            audit_updates, m.team1_score, m.team2_score
         )
         if not updates:
             continue
@@ -805,6 +932,7 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
         'games': 0, 'wins': 0,
         'score_diff_total': 0,
         'rating_change_total': 0.0,
+        'rated_games': 0,
         'roles': defaultdict(int),
         'player_obj': None,
     })
@@ -823,14 +951,8 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
         o_score = getattr(m, 'opponent_score', 0) or 0
         diff = p_score - o_score
 
-        # Find rating change for this match from history
-        rating_change = 0.0
-        if m.end_time:
-            for entry in history_list:
-                ts = _parse_ts(entry.get('timestamp', ''))
-                if ts and abs((ts - m.end_time.replace(tzinfo=dt_timezone.utc)).total_seconds()) < 3600:
-                    rating_change = entry.get('change', 0.0)
-                    break
+        # Avoid associating a friendly rating entry merely because it was nearby.
+        rating_change = _rating_delta_for_tournament_match(history_list, m.id)
 
         for mp in teammates:
             name = mp.player.name if mp.player else f'Player#{mp.player_id}'
@@ -838,7 +960,9 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
             if won:
                 tm_stats[name]['wins'] += 1
             tm_stats[name]['score_diff_total'] += diff
-            tm_stats[name]['rating_change_total'] += rating_change
+            if rating_change is not None:
+                tm_stats[name]['rating_change_total'] += float(rating_change)
+                tm_stats[name]['rated_games'] += 1
             role = mp.role or 'flex'
             tm_stats[name]['roles'][role] += 1
             if mp.player:
@@ -858,10 +982,13 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
         wr = round(w / g * 100, 1) if g else 0
         avg_diff = round(s['score_diff_total'] / g, 1) if g else 0
         total_rc = round(s['rating_change_total'], 2)
-        avg_rc   = round(s['rating_change_total'] / g, 3) if g else 0
+        avg_rc = round(s['rating_change_total'] / s['rated_games'], 3) if s['rated_games'] else None
         roles_str = ', '.join(f'{r}×{c}' for r, c in sorted(s['roles'].items(), key=lambda x: -x[1]))
         rows.append([name[:22], str(g), str(w), str(g-w), f'{wr}%',
-                     str(avg_diff), _sign(total_rc), _sign(avg_rc), roles_str[:20]])
+                     str(avg_diff),
+                     _sign(total_rc) if s['rated_games'] else '—',
+                     _sign(avg_rc) if avg_rc is not None else '—',
+                     roles_str[:20]])
         if g >= 3 and wr > best_wr:
             best_wr, best_name = wr, name
 
@@ -1010,7 +1137,240 @@ def _section_tournament_breakdown(player, tournament_matches, ST, elements):
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 10 — Friendly Game Breakdown
 # ─────────────────────────────────────────────────────────────────────────────
-def _section_friendly_games(player, friendly_matches, ST, elements):
+def _aggregate_friendly_teammates(player_id, friendly_matches, participants):
+    """Aggregate VERIFIED same-side teammates from the last 40 friendly games.
+
+    A teammate is counted once per completed game, not once per score update.
+    Use stable player IDs for grouping; ambiguous/unverified players are excluded.
+    """
+    roster_by_game = defaultdict(list)
+    for participant in participants:
+        if participant.codename_verified and participant.player_id != player_id:
+            roster_by_game[participant.game_id].append(participant)
+
+    stats = {}
+    for game in friendly_matches:
+        team = str(game.get('team', '')).upper()
+        black, white = game.get('black_score'), game.get('white_score')
+        if team not in ('BLACK', 'WHITE') or black is None or white is None:
+            continue
+        if black == white:
+            continue  # No winner can be inferred from a tied final score.
+        own_score, opp_score = (black, white) if team == 'BLACK' else (white, black)
+        for teammate in roster_by_game.get(game.get('game_id'), []):
+            if str(teammate.team).upper() != team:
+                continue
+            stat = stats.setdefault(teammate.player_id, {
+                'name': teammate.player.name if teammate.player else f'Player#{teammate.player_id}',
+                'games': 0, 'wins': 0, 'score_diff_total': 0,
+                'roles': defaultdict(int),
+            })
+            stat['games'] += 1
+            stat['wins'] += int(own_score > opp_score)
+            stat['score_diff_total'] += own_score - opp_score
+            role_pair = (str(game.get('position') or '—').upper()
+                         + ' / ' + str(teammate.position or '—').upper())
+            stat['roles'][role_pair] += 1
+    return sorted(stats.values(), key=lambda s: (-s['games'], s['name'].casefold()))
+
+
+def _load_pairwise_friendly_history(player_id, limit=50):
+    """Get the last N shared completed verified games PER teammate.
+
+    A database window function limits each pair independently; this does not
+    depend on the latest 40 matches used by the general friendly overview.
+    """
+    from django.db.models import Exists, F, OuterRef, Subquery, Window
+    from django.db.models.functions import RowNumber
+    from friendly_games.models import FriendlyGamePlayer
+
+    me = FriendlyGamePlayer.objects.filter(
+        game_id=OuterRef('game_id'), team=OuterRef('team'),
+        player_id=player_id, codename_verified=True,
+    )
+    qs = (
+        FriendlyGamePlayer.objects.filter(
+            codename_verified=True, game__status='COMPLETED',
+        ).exclude(player_id=player_id)
+        .alias(shared_side=Exists(me)).filter(shared_side=True)
+        .annotate(
+            subject_position=Subquery(me.values('position')[:1]),
+            pair_rank=Window(
+                expression=RowNumber(), partition_by=[F('player_id')],
+                order_by=[F('game__created_at').desc(), F('game_id').desc()],
+            ),
+        ).filter(pair_rank__lte=limit)
+        .select_related('game', 'player')
+        .order_by('player_id', 'game__created_at', 'game_id')
+    )
+    return [{
+        'game_id': p.game_id, 'date': p.game.created_at,
+        'teammate_id': p.player_id, 'name': p.player.name,
+        'team': p.team, 'position': p.subject_position,
+        'teammate_position': p.position,
+        'black_score': p.game.black_team_score,
+        'white_score': p.game.white_team_score,
+    } for p in qs]
+
+
+def _summarize_pairwise_friendly_history(rows, rating_by_game=None):
+    """Aggregate per-pair records; no personal-rating trend is inferred."""
+    rating_by_game = rating_by_game or {}
+    stats = {}
+    for row in rows:
+        side = str(row.get('team') or '').upper()
+        black, white = row.get('black_score'), row.get('white_score')
+        if side not in ('BLACK', 'WHITE') or black is None or white is None or black == white:
+            continue
+        own, opp = (black, white) if side == 'BLACK' else (white, black)
+        record = stats.setdefault(row['teammate_id'], {
+            'teammate_id': row['teammate_id'], 'name': row['name'],
+            'games': 0, 'wins': 0, 'score_diff_total': 0,
+            'roles': defaultdict(int), 'history': [],
+            'opponent_rating_total': 0.0, 'opponent_rating_count': 0,
+        })
+        won, margin = int(own > opp), own - opp
+        record['games'] += 1
+        record['wins'] += won
+        record['score_diff_total'] += margin
+        pair = str(row.get('position') or '—').upper() + ' / ' + str(row.get('teammate_position') or '—').upper()
+        record['roles'][pair] += 1
+        record['history'].append({
+            'date': row.get('date'), 'game_id': row['game_id'],
+            'win': won, 'margin': margin,
+        })
+        if row['game_id'] in rating_by_game:
+            record['opponent_rating_total'] += float(rating_by_game[row['game_id']])
+            record['opponent_rating_count'] += 1
+    for record in stats.values():
+        record['history'].sort(key=lambda g: (str(g['date'] or ''), g['game_id']))
+    return sorted(stats.values(), key=lambda v: (-v['games'], v['name'].casefold()))
+
+
+def _rolling_pair_series(history, window=5):
+    """Win rate and point margin in the last five JOINT games."""
+    return [
+        (end, 100 * sum(g['win'] for g in history[end-window:end]) / window,
+         sum(g['margin'] for g in history[end-window:end]) / window)
+        for end in range(window, len(history)+1)
+    ]
+
+
+def _build_pairwise_trend_chart(stats):
+    # Compare frequent pairings, not the pair with the luckiest first 3 games.
+    frequent = [p for p in stats if p['games'] >= 10][:4]
+    if not frequent:
+        return None
+    fig, (ax_w, ax_m) = plt.subplots(
+        2, 1, figsize=(9.5, 4.8), sharex=True,
+        facecolor='#0f172a', gridspec_kw={'hspace': 0.3},
+    )
+    colors_by_pair = ['#38bdf8', '#34d399', '#fbbf24', '#c084fc']
+    for ax in (ax_w, ax_m):
+        ax.set_facecolor('#1e293b')
+        ax.tick_params(colors='#cbd5e1', labelsize=8)
+        ax.grid(alpha=0.15)
+        for edge in ax.spines.values():
+            edge.set_color('#475569')
+    for record, shade in zip(frequent, colors_by_pair):
+        curve = _rolling_pair_series(record['history'])
+        x = [v[0] for v in curve]
+        ax_w.plot(x, [v[1] for v in curve], color=shade, linewidth=1.7,
+                  label=f"{record['name'][:15]} (n={record['games']})")
+        ax_m.plot(x, [v[2] for v in curve], color=shade, linewidth=1.7)
+    ax_w.set_ylim(-4, 104)
+    ax_w.set_ylabel('Rolling 5-game win %', color='#e2e8f0', fontsize=8)
+    ax_w.legend(loc='upper left', fontsize=7, ncol=2, facecolor='#1e293b',
+                edgecolor='#475569', labelcolor='#e2e8f0')
+    ax_m.axhline(0, color='#94a3b8', alpha=0.6, linestyle=':')
+    ax_m.set_ylabel('Rolling 5-game avg margin', color='#e2e8f0', fontsize=8)
+    ax_m.set_xlabel('Joint game number (oldest to newest)',
+                    color='#e2e8f0', fontsize=8)
+    fig.subplots_adjust(left=0.10, right=0.97, top=0.97, bottom=0.13, hspace=0.28)
+    return fig
+
+
+def _section_friendly_teammates(player, friendly_matches, ST, elements,
+                                rating_history=None, pair_rows=None):
+    elements += _section_header('10a. FRIENDLY PARTNERSHIP TRAJECTORIES', ST)
+    rows = (_load_pairwise_friendly_history(player.id, limit=50)
+            if pair_rows is None else pair_rows)
+    historic_opponent_rating = {}
+    for e in rating_history or []:
+        key = str(e.get('match_id') or '')
+        if key.startswith('friendly_'):
+            try:
+                historic_opponent_rating[int(key[len('friendly_'):])] = float(e['opponent_value'])
+            except (KeyError, TypeError, ValueError):
+                continue
+    stats = _summarize_pairwise_friendly_history(rows, historic_opponent_rating)
+    elements.append(Paragraph(
+        'Analysis window: last 50 shared completed games PER teammate, '
+        'not last 50 games by either individual. Verified same-side partners only. '
+        'A rolling five-joint-game window displays collaboration outcomes '
+        'and score margin. Curves require at least 10 joint games. Opponent '
+        'ratings are shown only where a historical snapshot exists; '
+        'no current rating is substituted. Opponent rating near 100 can mean '
+        'a new, uncalibrated player; historical opponent experience is not '
+        'available from the rating snapshot, so rating is CONTEXT ONLY, '
+        'not an opponent-adjusted measure of collaboration. '
+        'No absolute best partner is declared.',
+        ST['body'],
+    ))
+    if not stats:
+        elements.append(Paragraph('No verified pairwise game evidence.', ST['body']))
+        return
+    table_rows = []
+    for st in stats[:20]:
+        n = st['games']
+        count = st['opponent_rating_count']
+        rated = (f"{st['opponent_rating_total']/count:.1f} ({count})"
+                 if count else '— (0)')
+        pairings = ', '.join(
+            f'{role}×{number}' for role, number in sorted(
+                st['roles'].items(), key=lambda x: -x[1]
+            )
+        )
+        table_rows.append([
+            escape(st['name'][:23]), str(n), str(st['wins']),
+            f"{100*st['wins']/n:.1f}%", f"{st['score_diff_total']/n:+.1f}",
+            rated, escape(pairings[:35]),
+        ])
+    elements.append(_data_table(
+        ['Teammate', 'Joint', 'W', 'Win%', 'Avg diff', 'Opp rtg* (n)', 'Roles'],
+        table_rows, ST,
+        col_widths=[37*mm, 13*mm, 10*mm, 16*mm, 22*mm, 27*mm, 40*mm],
+    ))
+    elements.append(Paragraph(
+        '* Opponent rating is historical team-average context, NOT calibrated '
+        'strength: opposing players may have been near the initial 100 rating '
+        'with too few prior games to evaluate reliably. (n) counts rating '
+        'snapshots, not opponents\' rated-game experience.',
+        ST['caption'],
+    ))
+    if len(stats) > 20:
+        elements.append(Paragraph(
+            f'Showing 20 of {len(stats)} partners by number of joint games.',
+            ST['caption'],
+        ))
+    chart = _build_pairwise_trend_chart(stats)
+    if chart:
+        elements.append(Spacer(1, 6))
+        elements.append(_matplotlib_to_image(chart, width_mm=156))
+        elements.append(Paragraph(
+            'Every trend point represents the previous five JOINT games. '
+            'Changing opposition and limited samples can influence the curves.',
+            ST['caption'],
+        ))
+    else:
+        elements.append(Paragraph(
+            'No trend curves: fewer than ten verified joint games with each teammate.',
+            ST['body'],
+        ))
+    elements.append(Spacer(1, 6))
+
+
+def _section_friendly_games(player, friendly_matches, ST, elements, rating_history=None):
     elements += _section_header('10. FRIENDLY GAME BREAKDOWN', ST)
 
     if not friendly_matches:
@@ -1048,6 +1408,10 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
     elements.append(Spacer(1, 4))
 
+    # Keep the partnership table and chart together on their own readable page.
+    elements.append(PageBreak())
+    _section_friendly_teammates(player, friendly_matches, ST, elements, rating_history=rating_history)
+
     # ── Friendly game score progression (reuses existing ScoreUpdate log) ──
     from matches.models import LiveScoreboard, ScoreUpdate
     elements += _section_header('10b. FRIENDLY GAME SCORE PROGRESSION', ST)
@@ -1060,10 +1424,13 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
         # Use the correct field name: friendly_game
         sb = LiveScoreboard.objects.filter(friendly_game_id=game_id).first()
         if sb:
-            updates = list(
+            audit_updates = list(
                 ScoreUpdate.objects.filter(scoreboard=sb)
-                .order_by('timestamp')
+                .order_by('timestamp', 'pk')
                 .values('team1_score', 'team2_score', 'update_type', 'timestamp')
+            )
+            updates = _verified_score_updates(
+                audit_updates, m.get('black_score'), m.get('white_score')
             )
             if updates:
                 scored_friendly.append((m, updates))
@@ -1337,38 +1704,44 @@ def _section_data_quality(player, profile, tournament_matches, lineup_map, ST, e
 
     notes = []
 
-    # Profile counter vs dataset discrepancy
-    dataset_played = len(tournament_matches)
-    if profile.matches_played != dataset_played:
+    # The report query is capped at 50 tournaments, whereas a profile
+    # counter may cover a different or longer time span. Never compare the
+    # two as if both were lifetime counts or imply missing records.
+
+    # Old friendly rating updates may have been labeled tournament by the writer.
+    mislabeled_friendly = sum(
+        1 for e in (profile.rating_history or [])
+        if str(e.get('match_id') or '').startswith('friendly_')
+        and e.get('match_type') != 'friendly'
+    )
+    if mislabeled_friendly:
         notes.append(
-            f'Profile counter: matches_played={profile.matches_played}, '
-            f'but dataset contains {dataset_played} completed tournament matches. '
-            f'Difference: {abs(profile.matches_played - dataset_played)}. '
-            f'This may be due to matches played before profile tracking began, '
-            f'or matches not yet reflected in the counter.'
+            f'{mislabeled_friendly} retained rating history entries refer to '
+            f'friendly games but were labeled tournament at write time. '
+            f'This report corrects their display type without modifying history.'
         )
 
-    # Rating history truncation
-    history = profile.rating_history or []
-    if len(history) < profile.matches_played:
-        notes.append(
-            f'Rating history has {len(history)} entries but profile shows '
-            f'{profile.matches_played} matches played. '
-            f'{profile.matches_played - len(history)} match(es) may be missing from history.'
-        )
-
+    # The rating writer intentionally retains at most 50 events.
+    # Do not report this normal cap, or non-rated matches, as lost history.
     # Missing score progressions
     from matches.models import LiveScoreboard
     matches_with_sb = 0
     for m in tournament_matches[:20]:
         # Use the correct field name: tournament_match (not the generic 'match')
-        if LiveScoreboard.objects.filter(tournament_match=m).exists():
-            matches_with_sb += 1
+        scoreboard = LiveScoreboard.objects.filter(tournament_match=m).first()
+        if scoreboard:
+            from matches.models import ScoreUpdate
+            scores = list(ScoreUpdate.objects.filter(scoreboard=scoreboard)
+                          .order_by('timestamp', 'pk')
+                          .values('team1_score', 'team2_score'))
+            if _verified_score_updates(scores, m.team1_score, m.team2_score):
+                matches_with_sb += 1
     if tournament_matches and matches_with_sb < len(tournament_matches[:20]):
         notes.append(
-            f'Score progression data available for {matches_with_sb} of '
+            f'Verifiable score progression data available for {matches_with_sb} of '
             f'{min(20, len(tournament_matches))} recent matches. '
-            f'{min(20, len(tournament_matches)) - matches_with_sb} match(es) have no ScoreUpdate log.'
+            f'{min(20, len(tournament_matches)) - matches_with_sb} match(es) lack '
+            f'a log that reaches the official final score.'
         )
 
     # Missing lineup entries
@@ -1542,7 +1915,7 @@ def ai_coach_report(request, player_id):
     _section_ai_instructions(ST, elements)
     elements.append(PageBreak())
 
-    _section_identity(player, profile, ST, elements)
+    _section_identity(player, profile, tournament_matches, ST, elements)
     _section_rating(profile, ST, elements)
     elements.append(PageBreak())
 
@@ -1561,7 +1934,7 @@ def ai_coach_report(request, player_id):
     _section_tournament_breakdown(player, tournament_matches, ST, elements)
     elements.append(PageBreak())
 
-    _section_friendly_games(player, friendly_matches, ST, elements)
+    _section_friendly_games(player, friendly_matches, ST, elements, rating_history=profile.rating_history)
     elements.append(PageBreak())
 
     _section_practice(player, ST, elements)
