@@ -19,6 +19,7 @@ from teams.views_ai_report import (
     _verified_score_updates,
     _section_friendly_teammates,
     _styles,
+    MARGIN,
 )
 
 
@@ -127,7 +128,7 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
                 SimpleNamespace(id=11), friendlies, _styles(), elements
             )
         buf = BytesIO()
-        SimpleDocTemplate(buf, pagesize=A4).build(elements)
+        SimpleDocTemplate(buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN).build(elements)
         pdf = buf.getvalue()
         self.assertTrue(pdf.startswith(b'%PDF-'))
         self.assertIn('10a. FRIENDLY GAME TEAMMATE COMPATIBILITY',
