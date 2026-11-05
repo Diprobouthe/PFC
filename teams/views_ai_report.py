@@ -185,12 +185,20 @@ def _data_table(headers, rows, ST, col_widths=None):
 
 
 def _matplotlib_to_image(fig, width_mm=170):
+    # ReportLab does not derive height when only width is passed. Preserve the
+    # original PNG aspect ratio or plots become stretched to page height.
+    from PIL import Image as PILImage
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
                 facecolor=fig.get_facecolor())
     buf.seek(0)
+    with PILImage.open(buf) as source:
+        pixel_width, pixel_height = source.size
+    buf.seek(0)
     plt.close(fig)
-    img = Image(buf, width=width_mm * mm)
+    width = width_mm * mm
+    img = Image(buf, width=width,
+                height=width * pixel_height / pixel_width)
     img.hAlign = 'CENTER'
     return img
 
@@ -1321,6 +1329,8 @@ def _section_friendly_games(player, friendly_matches, ST, elements, rating_histo
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
     elements.append(Spacer(1, 4))
 
+    # Keep the partnership table and chart together on their own readable page.
+    elements.append(PageBreak())
     _section_friendly_teammates(player, friendly_matches, ST, elements, rating_history=rating_history)
 
     # ── Friendly game score progression (reuses existing ScoreUpdate log) ──
