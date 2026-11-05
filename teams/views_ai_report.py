@@ -19,7 +19,7 @@ Section map
   7  Opponent Statistics  (per-opponent W/L, win%, score diff)
   8  Role & Format Breakdown  (from MatchPlayer + PlayerProfile helpers)
   9  Tournament Breakdown  (per-tournament W/L, win%, avg score)
- 10  Friendly Game Breakdown  (total, W/L, per-game table)
+ 10  Friendly Game Breakdown  (total, W/L, teammate compatibility, score flow)
  11  Practice & In-Game Evidence  (separate training and ING match performance data)
  12  Data Quality Notes  (discrepancy flags for the AI reader)
 """
@@ -312,6 +312,32 @@ def _sign(v):
     return f'+{v:.2f}' if v >= 0 else f'{v:.2f}'
 
 
+def _verified_score_updates(updates, final_team1, final_team2):
+    """Keep only the live score sequence up to the LAST verified official result.
+
+    ScoreUpdate is an audit trail, and a post-match reset/correction can occur
+    after the actual final result. Never infer a win or comeback from that reset.
+    If the official final score is absent, do not manufacture a match-flow result.
+    """
+    if final_team1 is None or final_team2 is None:
+        return []
+    for index in range(len(updates) - 1, -1, -1):
+        update = updates[index]
+        if (update['team1_score'] == final_team1
+                and update['team2_score'] == final_team2):
+            return updates[:index + 1]
+    return []
+
+
+def _rating_delta_for_tournament_match(history, match_id):
+    """Use a real match ID, not a nearby timestamp which can belong to a friendly."""
+    for entry in reversed(history):
+        if (entry.get('match_type') == 'tournament'
+                and str(entry.get('match_id', '')) == str(match_id)):
+            return entry.get('change')
+    return None
+
+
 def _score_pattern(updates):
     """Classify: dominant / comeback / collapse / close / normal."""
     if not updates or len(updates) < 3:
@@ -459,7 +485,8 @@ def _section_ai_instructions(ST, elements):
          'Section 6 shows per-teammate statistics: games played together, W/L record, win rate, '
          'average score differential, total and average rating change, and role combinations. '
          'The "Best Observed Teammate" is the teammate with the highest win rate (minimum 3 games). '
-         'Section 7 shows the same analysis for opponents.'),
+         'Section 7 shows the same analysis for opponents. '
+         'Section 10a separately reports best-observed teammates from the last 40 verified friendly games.'),
 
         ('Practice versus In-Game (ING) performance evidence',
          'Section 11 deliberately separates ordinary Practice Shooting/Pointing sessions from In-Game (ING) sessions. '
@@ -488,7 +515,7 @@ def _section_ai_instructions(ST, elements):
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 1 — Player Identity & Overview
 # ─────────────────────────────────────────────────────────────────────────────
-def _section_identity(player, profile, ST, elements):
+def _section_identity(player, profile, tournament_matches, ST, elements):
     elements += _section_header('1. PLAYER IDENTITY & OVERVIEW', ST)
 
     rank, total = _get_player_ranking(profile)
@@ -504,7 +531,11 @@ def _section_identity(player, profile, ST, elements):
     level_map = {1: 'Beginner', 2: 'Intermediate', 3: 'Advanced', 4: 'Expert', 5: 'Professional'}
     level_str = level_map.get(profile.skill_level, 'Unknown')
 
-    wr = round(profile.matches_won / profile.matches_played * 100, 1) if profile.matches_played else 0
+    # Profile counters can be stale. These figures use the verified report sample.
+    # Explicitly label the 50-match cap; do not present a sample as lifetime data.
+    recent_played = len(tournament_matches)
+    recent_won = sum(1 for match in tournament_matches if match.player_won)
+    wr = round(recent_won / recent_played * 100, 1) if recent_played else 0
 
     pairs = [
         ('Player Name',          player.name),
@@ -513,9 +544,9 @@ def _section_identity(player, profile, ST, elements):
         ('Global Ranking',       rank_str),
         ('Skill Level',          level_str),
         ('Preferred Position',   (profile.preferred_position or '—').capitalize()),
-        ('Matches Played',       str(profile.matches_played)),
-        ('Matches Won',          str(profile.matches_won)),
-        ('Win Rate',             f'{wr}%'),
+        ('Tournament Matches (latest 50)', str(recent_played)),
+        ('Tournament Wins (latest 50)',    str(recent_won)),
+        ('Tournament Win Rate',           f'{wr}%'),
         ('Rating vs Baseline',   _sign(profile.value - 100.0)),
         ('Trend (last 5)',        f"{trend_5['trend'].upper()} ({_sign(trend_5['change'])})"),
         ('Trend (last 10)',       f"{trend_data['trend'].upper()} ({_sign(trend_data['change'])})"),
@@ -663,10 +694,13 @@ def _section_score_progression(player, tournament_matches, ST, elements):
         # Use the correct field name: tournament_match (not the generic 'match')
         sb = LiveScoreboard.objects.filter(tournament_match=m).first()
         if sb:
-            updates = list(
+            audit_updates = list(
                 ScoreUpdate.objects.filter(scoreboard=sb)
-                .order_by('timestamp')
+                .order_by('timestamp', 'pk')
                 .values('team1_score', 'team2_score', 'update_type', 'timestamp')
+            )
+            updates = _verified_score_updates(
+                audit_updates, m.team1_score, m.team2_score
             )
             if updates:
                 scored_matches.append((m, updates))
@@ -743,10 +777,13 @@ def _section_match_flow_aggregate(player, tournament_matches, ST, elements):
         sb = LiveScoreboard.objects.filter(tournament_match=m).first()
         if not sb:
             continue
-        updates = list(
+        audit_updates = list(
             ScoreUpdate.objects.filter(scoreboard=sb)
-            .order_by('timestamp')
+            .order_by('timestamp', 'pk')
             .values('team1_score', 'team2_score', 'update_type', 'timestamp')
+        )
+        updates = _verified_score_updates(
+            audit_updates, m.team1_score, m.team2_score
         )
         if not updates:
             continue
@@ -805,6 +842,7 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
         'games': 0, 'wins': 0,
         'score_diff_total': 0,
         'rating_change_total': 0.0,
+        'rated_games': 0,
         'roles': defaultdict(int),
         'player_obj': None,
     })
@@ -823,14 +861,8 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
         o_score = getattr(m, 'opponent_score', 0) or 0
         diff = p_score - o_score
 
-        # Find rating change for this match from history
-        rating_change = 0.0
-        if m.end_time:
-            for entry in history_list:
-                ts = _parse_ts(entry.get('timestamp', ''))
-                if ts and abs((ts - m.end_time.replace(tzinfo=dt_timezone.utc)).total_seconds()) < 3600:
-                    rating_change = entry.get('change', 0.0)
-                    break
+        # Avoid associating a friendly rating entry merely because it was nearby.
+        rating_change = _rating_delta_for_tournament_match(history_list, m.id)
 
         for mp in teammates:
             name = mp.player.name if mp.player else f'Player#{mp.player_id}'
@@ -838,7 +870,9 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
             if won:
                 tm_stats[name]['wins'] += 1
             tm_stats[name]['score_diff_total'] += diff
-            tm_stats[name]['rating_change_total'] += rating_change
+            if rating_change is not None:
+                tm_stats[name]['rating_change_total'] += float(rating_change)
+                tm_stats[name]['rated_games'] += 1
             role = mp.role or 'flex'
             tm_stats[name]['roles'][role] += 1
             if mp.player:
@@ -858,10 +892,13 @@ def _section_teammate_stats(player, tournament_matches, lineup_map, ST, elements
         wr = round(w / g * 100, 1) if g else 0
         avg_diff = round(s['score_diff_total'] / g, 1) if g else 0
         total_rc = round(s['rating_change_total'], 2)
-        avg_rc   = round(s['rating_change_total'] / g, 3) if g else 0
+        avg_rc = round(s['rating_change_total'] / s['rated_games'], 3) if s['rated_games'] else None
         roles_str = ', '.join(f'{r}×{c}' for r, c in sorted(s['roles'].items(), key=lambda x: -x[1]))
         rows.append([name[:22], str(g), str(w), str(g-w), f'{wr}%',
-                     str(avg_diff), _sign(total_rc), _sign(avg_rc), roles_str[:20]])
+                     str(avg_diff),
+                     _sign(total_rc) if s['rated_games'] else '—',
+                     _sign(avg_rc) if avg_rc is not None else '—',
+                     roles_str[:20]])
         if g >= 3 and wr > best_wr:
             best_wr, best_name = wr, name
 
@@ -1010,6 +1047,112 @@ def _section_tournament_breakdown(player, tournament_matches, ST, elements):
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 10 — Friendly Game Breakdown
 # ─────────────────────────────────────────────────────────────────────────────
+def _aggregate_friendly_teammates(player_id, friendly_matches, participants):
+    """Aggregate VERIFIED same-side teammates from the last 40 friendly games.
+
+    A teammate is counted once per completed game, not once per score update.
+    Use stable player IDs for grouping; ambiguous/unverified players are excluded.
+    """
+    roster_by_game = defaultdict(list)
+    for participant in participants:
+        if participant.codename_verified and participant.player_id != player_id:
+            roster_by_game[participant.game_id].append(participant)
+
+    stats = {}
+    for game in friendly_matches:
+        team = str(game.get('team', '')).upper()
+        black, white = game.get('black_score'), game.get('white_score')
+        if team not in ('BLACK', 'WHITE') or black is None or white is None:
+            continue
+        if black == white:
+            continue  # No winner can be inferred from a tied final score.
+        own_score, opp_score = (black, white) if team == 'BLACK' else (white, black)
+        for teammate in roster_by_game.get(game.get('game_id'), []):
+            if str(teammate.team).upper() != team:
+                continue
+            stat = stats.setdefault(teammate.player_id, {
+                'name': teammate.player.name if teammate.player else f'Player#{teammate.player_id}',
+                'games': 0, 'wins': 0, 'score_diff_total': 0,
+                'roles': defaultdict(int),
+            })
+            stat['games'] += 1
+            stat['wins'] += int(own_score > opp_score)
+            stat['score_diff_total'] += own_score - opp_score
+            role_pair = (str(game.get('position') or '—').upper()
+                         + ' / ' + str(teammate.position or '—').upper())
+            stat['roles'][role_pair] += 1
+    return sorted(stats.values(), key=lambda s: (-s['games'], s['name'].casefold()))
+
+
+def _section_friendly_teammates(player, friendly_matches, ST, elements):
+    elements += _section_header('10a. FRIENDLY GAME TEAMMATE COMPATIBILITY', ST)
+
+    if not friendly_matches:
+        elements.append(Paragraph('No friendly game history available.', ST['body']))
+        return
+
+    from friendly_games.models import FriendlyGamePlayer
+    roster = list(FriendlyGamePlayer.objects.filter(
+        game_id__in=[game['game_id'] for game in friendly_matches],
+        codename_verified=True,
+    ).select_related('player'))
+    stats = _aggregate_friendly_teammates(player.id, friendly_matches, roster)
+
+    elements.append(Paragraph(
+        'Evidence: latest 40 completed friendly games (or fewer if unavailable); '
+        'only codename-verified teammates. A minimum of 3 joint games is required '
+        'for the best-observed label. This is descriptive, not causal synergy.',
+        ST['body']
+    ))
+    if not stats:
+        elements.append(Paragraph(
+            'No identifiable, verified same-side teammates in this sample.',
+            ST['body']
+        ))
+        elements.append(Spacer(1, 6))
+        return
+
+    headers = ['Teammate', 'Games', 'W', 'L', 'Win%', 'Avg Diff', 'Position Pairings']
+    rows = []
+    candidates = []
+    for stat in stats:
+        games = stat['games']
+        wins = stat['wins']
+        win_pct = 100.0 * wins / games
+        avg_diff = stat['score_diff_total'] / games
+        pairs = ', '.join(
+            f'{role}×{count}' for role, count in sorted(
+                stat['roles'].items(), key=lambda x: -x[1]
+            )
+        )
+        rows.append([
+            stat['name'][:24], str(games), str(wins), str(games - wins),
+            f'{win_pct:.1f}%', f'{avg_diff:+.1f}', pairs[:42]
+        ])
+        if games >= 3:
+            candidates.append((win_pct, games, avg_diff, stat['name']))
+
+    elements.append(_data_table(
+        headers, rows, ST,
+        col_widths=[40*mm, 14*mm, 10*mm, 10*mm, 15*mm, 18*mm, 58*mm],
+    ))
+    if candidates:
+        win_pct, games, avg_diff, name = max(candidates)
+        elements.append(Paragraph(
+            f'Best Observed Friendly Teammate (min 3 games): {name} — '
+            f'{win_pct:.1f}% wins in {games} games; average score differential '
+            f'{avg_diff:+.1f}.',
+            ST['body_bold'],
+        ))
+    else:
+        elements.append(Paragraph(
+            'No best-observed friendly teammate yet: fewer than 3 verified '
+            'joint games per player.',
+            ST['body'],
+        ))
+    elements.append(Spacer(1, 6))
+
+
 def _section_friendly_games(player, friendly_matches, ST, elements):
     elements += _section_header('10. FRIENDLY GAME BREAKDOWN', ST)
 
@@ -1048,6 +1191,8 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
     elements.append(Spacer(1, 4))
 
+    _section_friendly_teammates(player, friendly_matches, ST, elements)
+
     # ── Friendly game score progression (reuses existing ScoreUpdate log) ──
     from matches.models import LiveScoreboard, ScoreUpdate
     elements += _section_header('10b. FRIENDLY GAME SCORE PROGRESSION', ST)
@@ -1060,10 +1205,13 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
         # Use the correct field name: friendly_game
         sb = LiveScoreboard.objects.filter(friendly_game_id=game_id).first()
         if sb:
-            updates = list(
+            audit_updates = list(
                 ScoreUpdate.objects.filter(scoreboard=sb)
-                .order_by('timestamp')
+                .order_by('timestamp', 'pk')
                 .values('team1_score', 'team2_score', 'update_type', 'timestamp')
+            )
+            updates = _verified_score_updates(
+                audit_updates, m.get('black_score'), m.get('white_score')
             )
             if updates:
                 scored_friendly.append((m, updates))
@@ -1362,13 +1510,20 @@ def _section_data_quality(player, profile, tournament_matches, lineup_map, ST, e
     matches_with_sb = 0
     for m in tournament_matches[:20]:
         # Use the correct field name: tournament_match (not the generic 'match')
-        if LiveScoreboard.objects.filter(tournament_match=m).exists():
-            matches_with_sb += 1
+        scoreboard = LiveScoreboard.objects.filter(tournament_match=m).first()
+        if scoreboard:
+            from matches.models import ScoreUpdate
+            scores = list(ScoreUpdate.objects.filter(scoreboard=scoreboard)
+                          .order_by('timestamp', 'pk')
+                          .values('team1_score', 'team2_score'))
+            if _verified_score_updates(scores, m.team1_score, m.team2_score):
+                matches_with_sb += 1
     if tournament_matches and matches_with_sb < len(tournament_matches[:20]):
         notes.append(
-            f'Score progression data available for {matches_with_sb} of '
+            f'Verifiable score progression data available for {matches_with_sb} of '
             f'{min(20, len(tournament_matches))} recent matches. '
-            f'{min(20, len(tournament_matches)) - matches_with_sb} match(es) have no ScoreUpdate log.'
+            f'{min(20, len(tournament_matches)) - matches_with_sb} match(es) lack '
+            f'a log that reaches the official final score.'
         )
 
     # Missing lineup entries
@@ -1542,7 +1697,7 @@ def ai_coach_report(request, player_id):
     _section_ai_instructions(ST, elements)
     elements.append(PageBreak())
 
-    _section_identity(player, profile, ST, elements)
+    _section_identity(player, profile, tournament_matches, ST, elements)
     _section_rating(profile, ST, elements)
     elements.append(PageBreak())
 
