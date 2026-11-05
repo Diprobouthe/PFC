@@ -210,7 +210,10 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
             SimpleNamespace(id=11), [], _styles(), elements,
             pair_rows=partner_rows,
         )
-        self.assertTrue(any(e.__class__.__name__ == 'Image' for e in elements))
+        images = [e for e in elements if e.__class__.__name__ == 'Image']
+        self.assertTrue(images)
+        # A 2:1 landscape chart must not get stretched into a portrait image.
+        self.assertLess(images[0].drawHeight, images[0].drawWidth)
         buf = BytesIO()
         SimpleDocTemplate(
             buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
@@ -384,6 +387,14 @@ class CoachReportWholePdfTests(TestCase):
         self.assertIn('FRIENDLY PARTNERSHIP TRAJECTORIES', text)
         self.assertIn('Partner Alpha', text)
         self.assertIn('Partner Beta', text)
+        # Partner table and trajectory chart belong on one page together.
+        partnership_pages = [
+            page for page in pages
+            if '10a. FRIENDLY PARTNERSHIP TRAJECTORIES'
+            in (page.extract_text() or '')
+        ]
+        self.assertEqual(len(partnership_pages), 1)
+        self.assertGreaterEqual(len(partnership_pages[0].images), 1)
         # A synthetic preview must never be populated using live player data.
         outdir = os.environ.get('PFC_AI_COACH_PREVIEW_DIR')
         if outdir:
