@@ -23,6 +23,8 @@ from teams.views_ai_report import (
     _rating_delta_for_tournament_match,
     _rating_entry_type,
     _verified_score_updates,
+    _best_verified_win_streak_from_rating_history,
+    _section_data_quality,
     _section_friendly_teammates,
     _styles,
     MARGIN,
@@ -83,6 +85,54 @@ class CoachReportRatingAttributionTests(SimpleTestCase):
         ]
         self.assertEqual(_rating_delta_for_tournament_match(history, 42), -1.25)
         self.assertIsNone(_rating_delta_for_tournament_match(history, 90))
+
+
+    
+class CoachReportEvidenceSemanticsTests(SimpleTestCase):
+    def test_win_streak_uses_scores_not_rating_change_sign(self):
+        events = [
+            {'own_score': 13, 'opponent_score': 7, 'change': -2},
+            {'own_score': 13, 'opponent_score': 5, 'change': -3},
+            {'own_score': 2, 'opponent_score': 13, 'change': 8},
+            {'own_score': 13, 'opponent_score': 4, 'change': -1},
+        ]
+        self.assertEqual(_best_verified_win_streak_from_rating_history(events), 2)
+
+    def test_unverifiable_scores_break_streak_not_invent_results(self):
+        events = [
+            {'own_score': 13, 'opponent_score': 7},
+            {'own_score': 13, 'opponent_score': 7},
+            {'change': 5.0},  # Missing score cannot extend a win streak.
+            {'own_score': 13, 'opponent_score': 5},
+            {'own_score': 13, 'opponent_score': 13},
+            {'own_score': 13, 'opponent_score': 3},
+        ]
+        self.assertEqual(_best_verified_win_streak_from_rating_history(events), 2)
+        self.assertIsNone(
+            _best_verified_win_streak_from_rating_history([
+                {'change': 8.0}, {'own_score': 'unknown', 'opponent_score': 13}
+            ])
+        )
+
+    def test_intentional_rating_history_cap_is_not_data_loss(self):
+        # A player may have 200 games but only 50 retained rating changes.
+        player = SimpleNamespace(id=432)
+        profile = SimpleNamespace(
+            matches_played=200,
+            rating_history=[{'match_id': i, 'match_type': 'tournament'}
+                            for i in range(50)],
+        )
+        elements = []
+        _section_data_quality(player, profile, [], {}, _styles(), elements)
+        buf = BytesIO()
+        SimpleDocTemplate(
+            buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
+            topMargin=MARGIN, bottomMargin=MARGIN,
+        ).build(elements)
+        extracted = PdfReader(BytesIO(buf.getvalue())).pages[0].extract_text()
+        self.assertIn('No data quality issues detected.', extracted)
+        self.assertNotIn('may be missing', extracted)
+        self.assertNotIn('Difference:', extracted)
 
 
 class CoachReportFriendlyTeammateTests(SimpleTestCase):
@@ -389,6 +439,10 @@ class CoachReportWholePdfTests(TestCase):
         self.assertIn('FRIENDLY PARTNERSHIP TRAJECTORIES', text)
         self.assertIn('Partner Alpha', text)
         self.assertIn('Περικλής Δοκιμή', text)
+        self.assertIn('Profile Skill (not rating-derived)', text)
+        self.assertIn('default/unverified', text)
+        self.assertIn('initial 100 rating', text)
+        self.assertIn('Verified Win Streak (retained)', text)
         # Partner table and trajectory chart belong on one page together.
         partnership_pages = [
             page for page in pages
