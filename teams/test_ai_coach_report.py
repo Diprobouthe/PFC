@@ -191,6 +191,32 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
         self.assertEqual(data[1]['wins'], 1)
 
 
+    def test_partnership_chart_embeds_into_pdf_with_ten_joint_games(self):
+        partner_rows = [
+            {
+                'game_id': idx, 'date': None, 'teammate_id': 23,
+                'name': 'Partner 23', 'team': 'BLACK',
+                'position': 'POINTEUR', 'teammate_position': 'MILIEU',
+                'black_score': 13 if idx % 3 else 4,
+                'white_score': 7 if idx % 3 else 13,
+            }
+            for idx in range(1, 13)
+        ]
+        elements = []
+        _section_friendly_teammates(
+            SimpleNamespace(id=11), [], _styles(), elements,
+            pair_rows=partner_rows,
+        )
+        self.assertTrue(any(e.__class__.__name__ == 'Image' for e in elements))
+        buf = BytesIO()
+        SimpleDocTemplate(
+            buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
+            topMargin=MARGIN, bottomMargin=MARGIN,
+        ).build(elements)
+        doc = PdfReader(BytesIO(buf.getvalue()))
+        self.assertGreaterEqual(len(doc.pages), 1)
+
+
 class CoachReportFriendlyTeammateDatabaseTests(TestCase):
     """Real ORM join and PDF smoke against Django's temporary test database."""
 
