@@ -1283,7 +1283,7 @@ def _section_friendly_teammates(player, friendly_matches, ST, elements,
     elements.append(Spacer(1, 6))
 
 
-def _section_friendly_games(player, friendly_matches, ST, elements):
+def _section_friendly_games(player, friendly_matches, ST, elements, rating_history=None):
     elements += _section_header('10. FRIENDLY GAME BREAKDOWN', ST)
 
     if not friendly_matches:
@@ -1321,7 +1321,7 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
     elements.append(Spacer(1, 4))
 
-    _section_friendly_teammates(player, friendly_matches, ST, elements, rating_history=player.profile.rating_history)
+    _section_friendly_teammates(player, friendly_matches, ST, elements, rating_history=rating_history)
 
     # ── Friendly game score progression (reuses existing ScoreUpdate log) ──
     from matches.models import LiveScoreboard, ScoreUpdate
@@ -1859,7 +1859,7 @@ def ai_coach_report(request, player_id):
     _section_tournament_breakdown(player, tournament_matches, ST, elements)
     elements.append(PageBreak())
 
-    _section_friendly_games(player, friendly_matches, ST, elements)
+    _section_friendly_games(player, friendly_matches, ST, elements, rating_history=profile.rating_history)
     elements.append(PageBreak())
 
     _section_practice(player, ST, elements)
