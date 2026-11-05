@@ -156,8 +156,10 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
         SimpleDocTemplate(buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN).build(elements)
         pdf = buf.getvalue()
         self.assertTrue(pdf.startswith(b'%PDF-'))
-        self.assertIn('10a. FRIENDLY PARTNERSHIP TRAJECTORIES',
-                      PdfReader(BytesIO(pdf)).pages[0].extract_text())
+        extracted = PdfReader(BytesIO(pdf)).pages[0].extract_text()
+        self.assertIn('10a. FRIENDLY PARTNERSHIP TRAJECTORIES', extracted)
+        self.assertIn('Μαρία', extracted)
+        self.assertIn('Γιάννης', extracted)
 
     
     def test_rolling_pair_window_tracks_joint_results(self):
@@ -338,7 +340,7 @@ class CoachReportWholePdfTests(TestCase):
         home = Team.objects.create(name='PREVIEW Team', pin='PV1234')
         subject = Player.objects.create(name='Preview Player', team=home)
         alpha = Player.objects.create(name='Partner Alpha', team=home)
-        beta = Player.objects.create(name='Partner Beta', team=home)
+        beta = Player.objects.create(name='Περικλής Δοκιμή', team=home)
         rival = Player.objects.create(name='Opposing Player', team=home)
         PlayerProfile.objects.get_or_create(
             player=subject, defaults={'value': 128.5}
@@ -386,7 +388,7 @@ class CoachReportWholePdfTests(TestCase):
         text = '\n'.join(page.extract_text() or '' for page in pages)
         self.assertIn('FRIENDLY PARTNERSHIP TRAJECTORIES', text)
         self.assertIn('Partner Alpha', text)
-        self.assertIn('Partner Beta', text)
+        self.assertIn('Περικλής Δοκιμή', text)
         # Partner table and trajectory chart belong on one page together.
         partnership_pages = [
             page for page in pages
