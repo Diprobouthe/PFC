@@ -515,11 +515,18 @@ def _section_ai_instructions(ST, elements):
          'key-value grids. Charts are embedded as images. All numerical values use consistent units '
          'and formats described in each section header.'),
 
-        ('Rating system',
-         'The PFC uses an Elo-style rating system with a baseline of 100.0. A positive change means '
-         'the player won a match against a higher-rated opponent or performed above expectation. '
-         'A negative change means the player lost or underperformed relative to opponent rating. '
-         'The "Change" column in the rating history table shows the per-match delta.'),
+        ('Rating system and evidence limits',
+         'PFC starts every player at rating 100. This is an INITIAL VALUE, not '
+         'evidence that the player is a beginner or has an established skill level. '
+         'Rating updates depend on match score difference and opponent rating. '
+         'Rating deltas must not be interpreted as verified match results; use '
+         'the recorded match scores for wins and losses. A historical opponent '
+         'team rating may combine new and experienced players, while the number '
+         'of previous rated matches for each opponent was not stored with that '
+         'aggregate. Do not classify opponents as easy or difficult solely '
+         'from a rating near 100, and do not claim opponent-adjusted synergy '
+         'without reliable opponent experience at match time. The profile skill '
+         'field defaults to Beginner and is not derived from rating.'),
 
         ('Match history and lineup data',
          'Section 3 shows tournament match history with full lineup information: player names, '
@@ -593,7 +600,9 @@ def _section_identity(player, profile, tournament_matches, ST, elements):
         ('Player ID',            str(player.id)),
         ('Current Rating',       f'{profile.value:.2f}'),
         ('Global Ranking',       rank_str),
-        ('Skill Level',          level_str),
+        ('Profile Skill (not rating-derived)',
+         f'{level_str} (default/unverified)' if profile.skill_level == 1
+         else f'{level_str} (unverified profile field)'),
         ('Preferred Position',   (profile.preferred_position or '—').capitalize()),
         ('Tournament Matches (latest 50)', str(recent_played)),
         ('Tournament Wins (latest 50)',    str(recent_won)),
@@ -610,6 +619,34 @@ def _section_identity(player, profile, tournament_matches, ST, elements):
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 2 — Rating Evolution & Trend Analysis
 # ─────────────────────────────────────────────────────────────────────────────
+def _best_verified_win_streak_from_rating_history(history):
+    """Longest run of verified match wins among retained rating events.
+
+    A positive rating change alone is not a result. Draws, missing scores
+    and invalid values terminate a streak rather than inventing wins.
+    This describes ONLY the retained (maximum 50) rating events.
+    """
+    longest = current = 0
+    verified_results = 0
+    for entry in history:
+        try:
+            own = float(entry['own_score'])
+            opponent = float(entry['opponent_score'])
+        except (KeyError, ValueError, TypeError, OverflowError):
+            current = 0
+            continue
+        if not math.isfinite(own) or not math.isfinite(opponent) or min(own, opponent) < 0:
+            current = 0
+            continue
+        if own == opponent:
+            current = 0
+            continue
+        verified_results += 1
+        current = current + 1 if own > opponent else 0
+        longest = max(longest, current)
+    return longest if verified_results else None
+
+
 def _section_rating(profile, ST, elements):
     elements += _section_header('2. RATING EVOLUTION & TREND ANALYSIS', ST)
 
@@ -630,11 +667,7 @@ def _section_rating(profile, ST, elements):
     variance = float(np.var(changes)) if changes else 0.0
     std_dev  = float(np.std(changes)) if changes else 0.0
 
-    outcomes = ['W' if e.get('change', 0) > 0 else 'L' for e in history]
-    best_win_streak = cur = 0
-    for o in outcomes:
-        cur = cur + 1 if o == 'W' else 0
-        best_win_streak = max(best_win_streak, cur)
+    best_win_streak = _best_verified_win_streak_from_rating_history(history)
 
     pairs = [
         ('Total History Entries', str(len(history))),
@@ -643,7 +676,7 @@ def _section_rating(profile, ST, elements):
         ('Current vs Peak',       _sign(profile.value - max_val)),
         ('Change Variance',       f'{variance:.3f}'),
         ('Change Std Dev',        f'{std_dev:.3f}'),
-        ('Best Win Streak',       str(best_win_streak)),
+        ('Verified Win Streak (retained)', str(best_win_streak) if best_win_streak is not None else 'N/A'),
         ('Avg Change / Match',    f'{sum(changes)/len(changes):.3f}' if changes else '—'),
         ('Largest Single Gain',   f'+{max(changes):.2f}' if changes else '—'),
         ('Largest Single Loss',   f'{min(changes):.2f}' if changes else '—'),
@@ -1271,7 +1304,11 @@ def _section_friendly_teammates(player, friendly_matches, ST, elements,
         'A rolling five-joint-game window displays collaboration outcomes '
         'and score margin. Curves require at least 10 joint games. Opponent '
         'ratings are shown only where a historical snapshot exists; '
-        'no current rating is substituted. No absolute best partner is declared.',
+        'no current rating is substituted. Opponent rating near 100 can mean '
+        'a new, uncalibrated player; historical opponent experience is not '
+        'available from the rating snapshot, so rating is CONTEXT ONLY, '
+        'not an opponent-adjusted measure of collaboration. '
+        'No absolute best partner is declared.',
         ST['body'],
     ))
     if not stats:
@@ -1294,9 +1331,16 @@ def _section_friendly_teammates(player, friendly_matches, ST, elements,
             rated, escape(pairings[:35]),
         ])
     elements.append(_data_table(
-        ['Teammate', 'Joint', 'W', 'Win%', 'Avg diff', 'Opp rating (n)', 'Roles'],
+        ['Teammate', 'Joint', 'W', 'Win%', 'Avg diff', 'Opp rtg* (n)', 'Roles'],
         table_rows, ST,
         col_widths=[37*mm, 13*mm, 10*mm, 16*mm, 22*mm, 27*mm, 40*mm],
+    ))
+    elements.append(Paragraph(
+        '* Opponent rating is historical team-average context, NOT calibrated '
+        'strength: opposing players may have been near the initial 100 rating '
+        'with too few prior games to evaluate reliably. (n) counts rating '
+        'snapshots, not opponents\' rated-game experience.',
+        ST['caption'],
     ))
     if len(stats) > 20:
         elements.append(Paragraph(
@@ -1654,16 +1698,9 @@ def _section_data_quality(player, profile, tournament_matches, lineup_map, ST, e
 
     notes = []
 
-    # Profile counter vs dataset discrepancy
-    dataset_played = len(tournament_matches)
-    if profile.matches_played != dataset_played:
-        notes.append(
-            f'Profile counter: matches_played={profile.matches_played}, '
-            f'but dataset contains {dataset_played} completed tournament matches. '
-            f'Difference: {abs(profile.matches_played - dataset_played)}. '
-            f'This may be due to matches played before profile tracking began, '
-            f'or matches not yet reflected in the counter.'
-        )
+    # The report query is capped at 50 tournaments, whereas a profile
+    # counter may cover a different or longer time span. Never compare the
+    # two as if both were lifetime counts or imply missing records.
 
     # Old friendly rating updates may have been labeled tournament by the writer.
     mislabeled_friendly = sum(
@@ -1678,15 +1715,8 @@ def _section_data_quality(player, profile, tournament_matches, lineup_map, ST, e
             f'This report corrects their display type without modifying history.'
         )
 
-    # Rating history truncation
-    history = profile.rating_history or []
-    if len(history) < profile.matches_played:
-        notes.append(
-            f'Rating history has {len(history)} entries but profile shows '
-            f'{profile.matches_played} matches played. '
-            f'{profile.matches_played - len(history)} match(es) may be missing from history.'
-        )
-
+    # The rating writer intentionally retains at most 50 events.
+    # Do not report this normal cap, or non-rated matches, as lost history.
     # Missing score progressions
     from matches.models import LiveScoreboard
     matches_with_sb = 0
