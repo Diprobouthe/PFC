@@ -3,6 +3,12 @@
 These tests use only in-memory records: no production data and no DB writes.
 """
 from types import SimpleNamespace
+from io import BytesIO
+from unittest.mock import patch
+
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate
+from pypdf import PdfReader
 
 from django.test import SimpleTestCase
 
@@ -11,6 +17,8 @@ from teams.views_ai_report import (
     _compute_match_flow,
     _rating_delta_for_tournament_match,
     _verified_score_updates,
+    _section_friendly_teammates,
+    _styles,
 )
 
 
@@ -102,3 +110,25 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
             self.mate(1, 22, 'Alex', team='WHITE'),
         ]
         self.assertEqual(len(_aggregate_friendly_teammates(11, friendly, roster)), 2)
+
+    def test_pdf_smoke_renders_friendly_teammate_table_and_summary(self):
+        # Include markup characters and Greek characters found in real names.
+        sample_name = 'Μαρία & Γιάννης <Coach>'
+        friendlies = [
+            {'game_id': i, 'team': 'BLACK', 'black_score': 13,
+             'white_score': 5, 'position': 'POINTEUR'}
+            for i in (1, 2, 3)
+        ]
+        roster = [self.mate(i, 23, sample_name) for i in (1, 2, 3)]
+        with patch('friendly_games.models.FriendlyGamePlayer.objects.filter') as query:
+            query.return_value.select_related.return_value = roster
+            elements = []
+            _section_friendly_teammates(
+                SimpleNamespace(id=11), friendlies, _styles(), elements
+            )
+        buf = BytesIO()
+        SimpleDocTemplate(buf, pagesize=A4).build(elements)
+        pdf = buf.getvalue()
+        self.assertTrue(pdf.startswith(b'%PDF-'))
+        self.assertIn('10a. FRIENDLY GAME TEAMMATE COMPATIBILITY',
+                      PdfReader(BytesIO(pdf)).pages[0].extract_text())
