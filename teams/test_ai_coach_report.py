@@ -14,6 +14,9 @@ from django.test import SimpleTestCase, TestCase
 
 from teams.views_ai_report import (
     _aggregate_friendly_teammates,
+    _load_pairwise_friendly_history,
+    _summarize_pairwise_friendly_history,
+    _rolling_pair_series,
     _compute_match_flow,
     _rating_delta_for_tournament_match,
     _rating_entry_type,
@@ -135,18 +138,57 @@ class CoachReportFriendlyTeammateTests(SimpleTestCase):
             for i in (1, 2, 3)
         ]
         roster = [self.mate(i, 23, sample_name) for i in (1, 2, 3)]
-        with patch('friendly_games.models.FriendlyGamePlayer.objects.filter') as query:
-            query.return_value.select_related.return_value = roster
-            elements = []
-            _section_friendly_teammates(
-                SimpleNamespace(id=11), friendlies, _styles(), elements
-            )
+        pair_rows = [{
+            'game_id': i, 'date': None, 'teammate_id': 23,
+            'name': sample_name, 'team': 'BLACK', 'position': 'POINTEUR',
+            'teammate_position': 'TIRER',
+            'black_score': 13, 'white_score': 5,
+        } for i in (1, 2, 3)]
+        elements = []
+        _section_friendly_teammates(
+            SimpleNamespace(id=11), friendlies, _styles(), elements,
+            pair_rows=pair_rows,
+        )
         buf = BytesIO()
         SimpleDocTemplate(buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN).build(elements)
         pdf = buf.getvalue()
         self.assertTrue(pdf.startswith(b'%PDF-'))
-        self.assertIn('10a. FRIENDLY GAME TEAMMATE COMPATIBILITY',
+        self.assertIn('10a. FRIENDLY PARTNERSHIP TRAJECTORIES',
                       PdfReader(BytesIO(pdf)).pages[0].extract_text())
+
+    
+    def test_rolling_pair_window_tracks_joint_results(self):
+        history = [
+            {'win': w, 'margin': d}
+            for w, d in [(1, 7), (1, 4), (0, -6), (1, 2), (0, -5), (0, -8), (1, 3)]
+        ]
+        curve = _rolling_pair_series(history)
+        self.assertEqual(len(curve), 3)
+        self.assertEqual(curve[0][0], 5)
+        self.assertEqual(curve[0][1], 60.0)
+        self.assertEqual(curve[-1][1], 40.0)
+        self.assertAlmostEqual(curve[-1][2], -2.8)
+
+    def test_pair_rating_coverage_does_not_fill_missing_history(self):
+        rows = [
+            {'game_id': 1, 'date': None, 'teammate_id': 22, 'name': 'Alex',
+             'team': 'BLACK', 'position': 'POINTEUR', 'teammate_position': 'TIRER',
+             'black_score': 13, 'white_score': 7},
+            {'game_id': 2, 'date': None, 'teammate_id': 22, 'name': 'Alex',
+             'team': 'BLACK', 'position': 'POINTEUR', 'teammate_position': 'TIRER',
+             'black_score': 3, 'white_score': 13},
+            {'game_id': 3, 'date': None, 'teammate_id': 23, 'name': 'Alex',
+             'team': 'WHITE', 'position': 'MILIEU', 'teammate_position': 'TIRER',
+             'black_score': 6, 'white_score': 13},
+        ]
+        data = _summarize_pairwise_friendly_history(rows, {1: 144.0})
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['teammate_id'], 22)
+        self.assertEqual(data[0]['games'], 2)
+        self.assertEqual(data[0]['wins'], 1)
+        self.assertEqual(data[0]['opponent_rating_count'], 1)
+        self.assertEqual(data[1]['games'], 1)
+        self.assertEqual(data[1]['wins'], 1)
 
 
 class CoachReportFriendlyTeammateDatabaseTests(TestCase):
@@ -186,6 +228,12 @@ class CoachReportFriendlyTeammateDatabaseTests(TestCase):
                 'position': 'POINTEUR',
                 'black_score': black, 'white_score': white,
             })
+
+        pair_rows = _load_pairwise_friendly_history(subject.id)
+        self.assertEqual(len(pair_rows), 3)
+        self.assertEqual({r['teammate_id'] for r in pair_rows}, {partner.id})
+        stats = _summarize_pairwise_friendly_history(pair_rows)
+        self.assertEqual(stats[0]['wins'], 2)
 
         elements = []
         _section_friendly_teammates(subject, game_rows, _styles(), elements)
