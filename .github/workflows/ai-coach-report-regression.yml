@@ -1,0 +1,51 @@
+name: AI Coach Report regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - teams/views_ai_report.py
+      - teams/test_ai_coach_report.py
+      - .github/workflows/ai-coach-report-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ai-coach-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_ai_coach_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_ai_coach_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_ai_coach_test
+      SECRET_KEY: isolated-ai-coach-tests-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Django system checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: AI Coach report regression tests
+        run: python manage.py test teams.test_ai_coach_report --verbosity 2
