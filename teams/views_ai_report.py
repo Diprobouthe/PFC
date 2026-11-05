@@ -500,7 +500,7 @@ def _section_ai_instructions(ST, elements):
          'average score differential, total and average rating change, and role combinations. '
          'The "Best Observed Teammate" is the teammate with the highest win rate (minimum 3 games). '
          'Section 7 shows the same analysis for opponents. '
-         'Section 10a separately reports best-observed teammates from the last 40 verified friendly games.'),
+         'Section 10a analyzes up to 50 verified joint games per teammate, independent of the 40-game overview.'),
 
         ('Practice versus In-Game (ING) performance evidence',
          'Section 11 deliberately separates ordinary Practice Shooting/Pointing sessions from In-Game (ING) sessions. '
@@ -1098,70 +1098,186 @@ def _aggregate_friendly_teammates(player_id, friendly_matches, participants):
     return sorted(stats.values(), key=lambda s: (-s['games'], s['name'].casefold()))
 
 
-def _section_friendly_teammates(player, friendly_matches, ST, elements):
-    elements += _section_header('10a. FRIENDLY GAME TEAMMATE COMPATIBILITY', ST)
+def _load_pairwise_friendly_history(player_id, limit=50):
+    """Get the last N shared completed verified games PER teammate.
 
-    if not friendly_matches:
-        elements.append(Paragraph('No friendly game history available.', ST['body']))
-        return
-
+    A database window function limits each pair independently; this does not
+    depend on the latest 40 matches used by the general friendly overview.
+    """
+    from django.db.models import Exists, F, OuterRef, Subquery, Window
+    from django.db.models.functions import RowNumber
     from friendly_games.models import FriendlyGamePlayer
-    roster = list(FriendlyGamePlayer.objects.filter(
-        game_id__in=[game['game_id'] for game in friendly_matches],
-        codename_verified=True,
-    ).select_related('player'))
-    stats = _aggregate_friendly_teammates(player.id, friendly_matches, roster)
 
+    me = FriendlyGamePlayer.objects.filter(
+        game_id=OuterRef('game_id'), team=OuterRef('team'),
+        player_id=player_id, codename_verified=True,
+    )
+    qs = (
+        FriendlyGamePlayer.objects.filter(
+            codename_verified=True, game__status='COMPLETED',
+        ).exclude(player_id=player_id)
+        .alias(shared_side=Exists(me)).filter(shared_side=True)
+        .annotate(
+            subject_position=Subquery(me.values('position')[:1]),
+            pair_rank=Window(
+                expression=RowNumber(), partition_by=[F('player_id')],
+                order_by=[F('game__created_at').desc(), F('game_id').desc()],
+            ),
+        ).filter(pair_rank__lte=limit)
+        .select_related('game', 'player')
+        .order_by('player_id', 'game__created_at', 'game_id')
+    )
+    return [{
+        'game_id': p.game_id, 'date': p.game.created_at,
+        'teammate_id': p.player_id, 'name': p.player.name,
+        'team': p.team, 'position': p.subject_position,
+        'teammate_position': p.position,
+        'black_score': p.game.black_team_score,
+        'white_score': p.game.white_team_score,
+    } for p in qs]
+
+
+def _summarize_pairwise_friendly_history(rows, rating_by_game=None):
+    """Aggregate per-pair records; no personal-rating trend is inferred."""
+    rating_by_game = rating_by_game or {}
+    stats = {}
+    for row in rows:
+        side = str(row.get('team') or '').upper()
+        black, white = row.get('black_score'), row.get('white_score')
+        if side not in ('BLACK', 'WHITE') or black is None or white is None or black == white:
+            continue
+        own, opp = (black, white) if side == 'BLACK' else (white, black)
+        record = stats.setdefault(row['teammate_id'], {
+            'teammate_id': row['teammate_id'], 'name': row['name'],
+            'games': 0, 'wins': 0, 'score_diff_total': 0,
+            'roles': defaultdict(int), 'history': [],
+            'opponent_rating_total': 0.0, 'opponent_rating_count': 0,
+        })
+        won, margin = int(own > opp), own - opp
+        record['games'] += 1
+        record['wins'] += won
+        record['score_diff_total'] += margin
+        pair = str(row.get('position') or '—').upper() + ' / ' + str(row.get('teammate_position') or '—').upper()
+        record['roles'][pair] += 1
+        record['history'].append({
+            'date': row.get('date'), 'game_id': row['game_id'],
+            'win': won, 'margin': margin,
+        })
+        if row['game_id'] in rating_by_game:
+            record['opponent_rating_total'] += float(rating_by_game[row['game_id']])
+            record['opponent_rating_count'] += 1
+    for record in stats.values():
+        record['history'].sort(key=lambda g: (str(g['date'] or ''), g['game_id']))
+    return sorted(stats.values(), key=lambda v: (-v['games'], v['name'].casefold()))
+
+
+def _rolling_pair_series(history, window=5):
+    """Win rate and point margin in the last five JOINT games."""
+    return [
+        (end, 100 * sum(g['win'] for g in history[end-window:end]) / window,
+         sum(g['margin'] for g in history[end-window:end]) / window)
+        for end in range(window, len(history)+1)
+    ]
+
+
+def _build_pairwise_trend_chart(stats):
+    # Compare frequent pairings, not the pair with the luckiest first 3 games.
+    frequent = [p for p in stats if p['games'] >= 10][:4]
+    if not frequent:
+        return None
+    fig, (ax_w, ax_m) = plt.subplots(
+        2, 1, figsize=(9.5, 4.8), sharex=True,
+        facecolor='#0f172a', gridspec_kw={'hspace': 0.3},
+    )
+    colors_by_pair = ['#38bdf8', '#34d399', '#fbbf24', '#c084fc']
+    for ax in (ax_w, ax_m):
+        ax.set_facecolor('#1e293b')
+        ax.tick_params(colors='#cbd5e1', labelsize=8)
+        ax.grid(alpha=0.15)
+        for edge in ax.spines.values():
+            edge.set_color('#475569')
+    for record, shade in zip(frequent, colors_by_pair):
+        curve = _rolling_pair_series(record['history'])
+        x = [v[0] for v in curve]
+        ax_w.plot(x, [v[1] for v in curve], color=shade, linewidth=1.7,
+                  label=f"{record['name'][:15]} (n={record['games']})")
+        ax_m.plot(x, [v[2] for v in curve], color=shade, linewidth=1.7)
+    ax_w.set_ylim(-4, 104)
+    ax_w.set_ylabel('Rolling 5-game win %', color='#e2e8f0', fontsize=8)
+    ax_w.legend(loc='upper left', fontsize=7, ncol=2, facecolor='#1e293b',
+                edgecolor='#475569', labelcolor='#e2e8f0')
+    ax_m.axhline(0, color='#94a3b8', alpha=0.6, linestyle=':')
+    ax_m.set_ylabel('Rolling 5-game avg margin', color='#e2e8f0', fontsize=8)
+    ax_m.set_xlabel('Joint game number (oldest to newest)',
+                    color='#e2e8f0', fontsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def _section_friendly_teammates(player, friendly_matches, ST, elements,
+                                rating_history=None, pair_rows=None):
+    elements += _section_header('10a. FRIENDLY PARTNERSHIP TRAJECTORIES', ST)
+    rows = (_load_pairwise_friendly_history(player.id, limit=50)
+            if pair_rows is None else pair_rows)
+    historic_opponent_rating = {}
+    for e in rating_history or []:
+        key = str(e.get('match_id') or '')
+        if key.startswith('friendly_'):
+            try:
+                historic_opponent_rating[int(key[len('friendly_'):])] = float(e['opponent_value'])
+            except (KeyError, TypeError, ValueError):
+                continue
+    stats = _summarize_pairwise_friendly_history(rows, historic_opponent_rating)
     elements.append(Paragraph(
-        'Evidence: latest 40 completed friendly games (or fewer if unavailable); '
-        'only codename-verified teammates. A minimum of 3 joint games is required '
-        'for the best-observed label. This is descriptive, not causal synergy.',
-        ST['body']
+        'Analysis window: last 50 shared completed games PER teammate, '
+        'not last 50 games by either individual. Verified same-side partners only. '
+        'A rolling five-joint-game window displays collaboration outcomes '
+        'and score margin. Curves require at least 10 joint games. Opponent '
+        'ratings are shown only where a historical snapshot exists; '
+        'no current rating is substituted. No absolute best partner is declared.',
+        ST['body'],
     ))
     if not stats:
-        elements.append(Paragraph(
-            'No identifiable, verified same-side teammates in this sample.',
-            ST['body']
-        ))
-        elements.append(Spacer(1, 6))
+        elements.append(Paragraph('No verified pairwise game evidence.', ST['body']))
         return
-
-    headers = ['Teammate', 'Games', 'W', 'L', 'Win%', 'Avg Diff', 'Position Pairings']
-    rows = []
-    candidates = []
-    for stat in stats:
-        games = stat['games']
-        wins = stat['wins']
-        win_pct = 100.0 * wins / games
-        avg_diff = stat['score_diff_total'] / games
-        pairs = ', '.join(
-            f'{role}×{count}' for role, count in sorted(
-                stat['roles'].items(), key=lambda x: -x[1]
+    table_rows = []
+    for st in stats[:20]:
+        n = st['games']
+        count = st['opponent_rating_count']
+        rated = (f"{st['opponent_rating_total']/count:.1f} ({count})"
+                 if count else '— (0)')
+        pairings = ', '.join(
+            f'{role}×{number}' for role, number in sorted(
+                st['roles'].items(), key=lambda x: -x[1]
             )
         )
-        rows.append([
-            escape(stat['name'][:24]), str(games), str(wins), str(games - wins),
-            f'{win_pct:.1f}%', f'{avg_diff:+.1f}', pairs[:42]
+        table_rows.append([
+            escape(st['name'][:23]), str(n), str(st['wins']),
+            f"{100*st['wins']/n:.1f}%", f"{st['score_diff_total']/n:+.1f}",
+            rated, escape(pairings[:35]),
         ])
-        if games >= 3:
-            candidates.append((win_pct, games, avg_diff, stat['name']))
-
     elements.append(_data_table(
-        headers, rows, ST,
-        col_widths=[40*mm, 14*mm, 10*mm, 10*mm, 15*mm, 18*mm, 58*mm],
+        ['Teammate', 'Joint', 'W', 'Win%', 'Avg diff', 'Opp rating (n)', 'Roles'],
+        table_rows, ST,
+        col_widths=[37*mm, 13*mm, 10*mm, 16*mm, 22*mm, 27*mm, 40*mm],
     ))
-    if candidates:
-        win_pct, games, avg_diff, name = max(candidates)
+    if len(stats) > 20:
         elements.append(Paragraph(
-            f'Best Observed Friendly Teammate (min 3 games): {escape(name)} — '
-            f'{win_pct:.1f}% wins in {games} games; average score differential '
-            f'{avg_diff:+.1f}.',
-            ST['body_bold'],
+            f'Showing 20 of {len(stats)} partners by number of joint games.',
+            ST['caption'],
+        ))
+    chart = _build_pairwise_trend_chart(stats)
+    if chart:
+        elements.append(Spacer(1, 6))
+        elements.append(_matplotlib_to_image(chart, width_mm=156))
+        elements.append(Paragraph(
+            'Every trend point represents the previous five JOINT games. '
+            'Changing opposition and limited samples can influence the curves.',
+            ST['caption'],
         ))
     else:
         elements.append(Paragraph(
-            'No best-observed friendly teammate yet: fewer than 3 verified '
-            'joint games per player.',
+            'No trend curves: fewer than ten verified joint games with each teammate.',
             ST['body'],
         ))
     elements.append(Spacer(1, 6))
@@ -1205,7 +1321,7 @@ def _section_friendly_games(player, friendly_matches, ST, elements):
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
     elements.append(Spacer(1, 4))
 
-    _section_friendly_teammates(player, friendly_matches, ST, elements)
+    _section_friendly_teammates(player, friendly_matches, ST, elements, rating_history=player.profile.rating_history)
 
     # ── Friendly game score progression (reuses existing ScoreUpdate log) ──
     from matches.models import LiveScoreboard, ScoreUpdate
