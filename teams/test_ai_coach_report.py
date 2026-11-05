@@ -439,10 +439,10 @@ class CoachReportWholePdfTests(TestCase):
         self.assertIn('FRIENDLY PARTNERSHIP TRAJECTORIES', text)
         self.assertIn('Partner Alpha', text)
         self.assertIn('Περικλής Δοκιμή', text)
-        self.assertIn('Profile Skill (not rating-derived)', text)
+        self.assertIn('Profile Skill*', text)
         self.assertIn('default/unverified', text)
-        self.assertIn('initial 100 rating', text)
-        self.assertIn('Verified Win Streak (retained)', text)
+        self.assertIn('PFC starts every player at rating 100', text)
+        self.assertIn('No rating history available.', text)
         # Partner table and trajectory chart belong on one page together.
         partnership_pages = [
             page for page in pages
