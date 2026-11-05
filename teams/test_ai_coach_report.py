@@ -246,3 +246,51 @@ class CoachReportFriendlyTeammateDatabaseTests(TestCase):
         self.assertIn('Verified partner', extracted)
         self.assertIn('66.7%', extracted)
         self.assertNotIn('Unverified player', extracted)
+
+    def test_last_50_are_scoped_to_each_pair_not_last_50_personal_games(self):
+        from teams.models import Team, Player
+        from friendly_games.models import FriendlyGame, FriendlyGamePlayer
+
+        team = Team.objects.create(name='Bounded partnership test', pin='BP1234')
+        subject = Player.objects.create(name='Subject', team=team)
+        frequent = Player.objects.create(name='Frequent partner', team=team)
+        newer = Player.objects.create(name='Newer partner', team=team)
+
+        # 55 old joint games with A, then 10 newer games with B.
+        # An incorrect "latest 50 personal games" implementation would
+        # discard 15 relevant A games, despite their pair-history being valid.
+        games = FriendlyGame.objects.bulk_create([
+            FriendlyGame(
+                name=f'Pairwise {n}', match_number=f'8{n:03d}',
+                status='COMPLETED', black_team_score=13,
+                white_team_score=(2 if n < 5 else 8),
+            )
+            for n in range(65)
+        ])
+        memberships = []
+        for n, game in enumerate(games):
+            memberships.append(FriendlyGamePlayer(
+                game=game, player=subject, team='BLACK',
+                position='POINTEUR', codename_verified=True,
+            ))
+            memberships.append(FriendlyGamePlayer(
+                game=game, player=frequent if n < 55 else newer,
+                team='BLACK', position='TIRER', codename_verified=True,
+            ))
+        FriendlyGamePlayer.objects.bulk_create(memberships)
+
+        rows = _load_pairwise_friendly_history(subject.id, limit=50)
+        by_mate = {
+            player.id: [r for r in rows if r['teammate_id'] == player.id]
+            for player in (frequent, newer)
+        }
+        self.assertEqual(len(by_mate[frequent.id]), 50)
+        self.assertEqual(len(by_mate[newer.id]), 10)
+        self.assertEqual(
+            {r['game_id'] for r in by_mate[frequent.id]},
+            {game.id for game in games[5:55]},
+        )
+        self.assertEqual(
+            {r['game_id'] for r in by_mate[newer.id]},
+            {game.id for game in games[55:]},
+        )
