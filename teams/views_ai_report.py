@@ -330,10 +330,23 @@ def _verified_score_updates(updates, final_team1, final_team2):
     return []
 
 
+def _rating_entry_type(entry):
+    """Correct legacy friendly history entries mislabeled as tournament.
+
+    Older friendly rating writes used the update_rating default
+    match_type='tournament' while passing match_id='friendly_<id>'.
+    This is a REPORT-ONLY interpretation. It does not mutate rating_history.
+    """
+    raw_id = str(entry.get('match_id') or '')
+    if raw_id.startswith('friendly_'):
+        return 'friendly'
+    return entry.get('match_type') or 'unknown'
+
+
 def _rating_delta_for_tournament_match(history, match_id):
     """Use a real match ID, not a nearby timestamp which can belong to a friendly."""
     for entry in reversed(history):
-        if (entry.get('match_type') == 'tournament'
+        if (_rating_entry_type(entry) == 'tournament'
                 and str(entry.get('match_id', '')) == str(match_id)):
             return entry.get('change')
     return None
@@ -613,7 +626,7 @@ def _section_rating(profile, ST, elements):
             _sign(e.get('change', 0)),
             f"{e.get('opponent_value', 0):.2f}",
             f"{e.get('own_score', '?')}-{e.get('opponent_score', '?')}",
-            e.get('match_type', '—'),
+            _rating_entry_type(e),
         ])
     cw = [14*mm, 30*mm, 22*mm, 22*mm, 22*mm, 26*mm, 20*mm, 20*mm]
     elements.append(_data_table(headers, rows, ST, col_widths=cw))
@@ -1495,6 +1508,19 @@ def _section_data_quality(player, profile, tournament_matches, lineup_map, ST, e
             f'Difference: {abs(profile.matches_played - dataset_played)}. '
             f'This may be due to matches played before profile tracking began, '
             f'or matches not yet reflected in the counter.'
+        )
+
+    # Old friendly rating updates may have been labeled tournament by the writer.
+    mislabeled_friendly = sum(
+        1 for e in (profile.rating_history or [])
+        if str(e.get('match_id') or '').startswith('friendly_')
+        and e.get('match_type') != 'friendly'
+    )
+    if mislabeled_friendly:
+        notes.append(
+            f'{mislabeled_friendly} retained rating history entries refer to '
+            f'friendly games but were labeled tournament at write time. '
+            f'This report corrects their display type without modifying history.'
         )
 
     # Rating history truncation
