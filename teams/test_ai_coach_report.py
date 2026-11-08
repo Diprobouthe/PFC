@@ -7,6 +7,7 @@ from io import BytesIO
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
+from matplotlib import pyplot as plt
 from unittest.mock import patch
 
 from reportlab.lib.pagesizes import A4
@@ -27,6 +28,7 @@ from teams.views_ai_report import (
     _best_verified_win_streak_from_rating_history,
     _section_data_quality,
     _practice_quality_flags,
+    _build_rating_chart,
     _cover_page,
     _section_friendly_teammates,
     _styles,
@@ -127,6 +129,21 @@ class CoachReportEvidenceSemanticsTests(SimpleTestCase):
                 {'change': 8.0}, {'own_score': 'unknown', 'opponent_score': 13}
             ])
         )
+
+    def test_rating_chart_starts_from_retained_window_not_baseline(self):
+        # Older events were intentionally dropped after 50 updates. The
+        # first plotted observed rating must be from the oldest retained
+        # event, not the player's initial 100 rating.
+        history = [
+            {'old_value': 145, 'new_value': 143, 'change': -2},
+            {'old_value': 143, 'new_value': 148, 'change': 5},
+        ]
+        fig = _build_rating_chart(history)
+        try:
+            first_segment = list(fig.axes[0].lines[0].get_ydata())
+            self.assertEqual(first_segment, [145, 143])
+        finally:
+            plt.close(fig)
 
     def test_intentional_rating_history_cap_is_not_data_loss(self):
         # A player may have 200 games but only 50 retained rating changes.
