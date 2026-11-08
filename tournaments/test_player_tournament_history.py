@@ -204,6 +204,7 @@ class MeleeTournamentAchievementTests(TestCase):
     def test_incomplete_melee_stats_never_freeze_podium_or_awards(self):
         now = timezone.now()
         tournament = Tournament.objects.create(
+            id=197,
             name="Final Mêlée Awards",
             format="multi_stage",
             play_format="doublets",
@@ -273,6 +274,10 @@ class MeleeTournamentAchievementTests(TestCase):
             current_streak=0,
         )
 
+        MatchLifecycleTransition.objects.create(
+            tournament=tournament, match=match,
+            status=MatchLifecycleTransition.COMPLETED,
+        )
         result = record_finalized_tournament_history(tournament, include_melee_awards=True)
 
         self.assertTrue(result["recorded"])
@@ -371,6 +376,7 @@ class FrozenMeleePodiumTests(TestCase):
     def setUp(self):
         now = timezone.now()
         self.tournament = Tournament.objects.create(
+            id=197,
             name="Frozen Mêlée",
             format="multi_stage",
             play_format="doublets",
@@ -434,6 +440,28 @@ class FrozenMeleePodiumTests(TestCase):
                 best_performance=int(idx < 2),
             )
             self.players.append(player)
+        self.transition = MatchLifecycleTransition.objects.create(
+            tournament=self.tournament, match=self.match,
+            status=MatchLifecycleTransition.COMPLETED,
+        )
+
+    def test_pre_activation_melee_is_not_rewritten_or_backfilled(self):
+        from unittest.mock import patch
+        # Models a tournament existing before the feature became available.
+        with patch(
+            "tournaments.player_history.MELEE_SNAPSHOT_FIRST_TOURNAMENT_ID",
+            self.tournament.pk + 1,
+        ):
+            result = record_finalized_tournament_history(
+                self.tournament, include_melee_awards=True
+            )
+        self.assertFalse(result["recorded"])
+        self.assertFalse(
+            PlayerTournamentHistory.objects.filter(tournament=self.tournament).exists()
+        )
+        self.assertFalse(
+            PlayerTournamentAchievement.objects.filter(tournament=self.tournament).exists()
+        )
 
     def test_freeze_podium_and_profile_medals_ignore_later_friendly_ratings(self):
         result = record_finalized_tournament_history(
@@ -500,11 +528,9 @@ class FrozenMeleePodiumTests(TestCase):
         )
 
     def test_pending_match_projection_cannot_archive_or_award_medals(self):
-        transition = MatchLifecycleTransition.objects.create(
-            tournament=self.tournament,
-            match=self.match,
-            status=MatchLifecycleTransition.PENDING,
-        )
+        transition = self.transition
+        transition.status = MatchLifecycleTransition.PENDING
+        transition.save(update_fields=["status"])
         early = record_finalized_tournament_history(
             self.tournament, include_melee_awards=True
         )
