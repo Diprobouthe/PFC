@@ -16,6 +16,10 @@ MEDAL_METADATA = {
     "silver": ("medal_silver", "🥈", "Silver medal"),
     "bronze": ("medal_bronze", "🥉", "Bronze medal"),
 }
+# Forward-only rollout. The most recent existing Mêlée was tournament #196.
+# Nothing at or before it is migrated, frozen, or backfilled.
+MELEE_SNAPSHOT_FIRST_TOURNAMENT_ID = 197
+
 MELEE_AWARD_TYPES = {
     "winner": "most_improved",
     "streak": "win_streak",
@@ -31,6 +35,13 @@ def record_finalized_tournament_history(tournament, *, include_melee_awards=Fals
     completion callbacks therefore only fill rows missing after an interrupted
     projection; existing snapshots are never rewritten from later mutable data.
     """
+    if (tournament.is_melee
+            and tournament.pk < MELEE_SNAPSHOT_FIRST_TOURNAMENT_ID):
+        return {
+            "recorded": False,
+            "reason": "Pre-activation Mêlée: no retrospective history or awards.",
+        }
+
     if not _is_finalized_for_history(tournament):
         return {"recorded": False, "reason": "Tournament is not authoritatively final."}
 
@@ -72,7 +83,7 @@ def _is_finalized_for_history(tournament):
         transition_rows = MatchLifecycleTransition.objects.filter(
             match__tournament=tournament
         )
-        if transition_rows.exists() and (
+        if (
             transition_rows.count() != matches.count()
             or transition_rows.exclude(
                 status=MatchLifecycleTransition.COMPLETED
@@ -372,12 +383,11 @@ def _freeze_melee_final_podium(tournament):
     processed = MatchLifecycleTransition.objects.filter(
         match_id__in=match_ids, status=MatchLifecycleTransition.COMPLETED
     ).count()
-    # Current PFC creates one lifecycle row per Match. Legacy tournaments with
-    # none at all are validated via exact match counts below.
+    # Forward-only: every new Mêlée Match must have a completed projection.
     total_transitions = MatchLifecycleTransition.objects.filter(
         match_id__in=match_ids
     ).count()
-    if total_transitions and (processed != len(match_ids) or total_transitions != len(match_ids)):
+    if processed != len(match_ids) or total_transitions != len(match_ids):
         return 0, False
 
     for stats in stats_list:
