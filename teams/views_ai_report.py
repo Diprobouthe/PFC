@@ -106,11 +106,11 @@ def _styles():
     def s(name, **kw):
         return ParagraphStyle(name, parent=base['Normal'], **kw)
     return {
-        'cover_title': s('cover_title', fontSize=22, textColor=C_TEXT_LIGHT,
+        'cover_title': s('cover_title', fontSize=22, leading=30, textColor=C_TEXT_LIGHT,
                          fontName='PFC-DejaVu-Bold', alignment=TA_CENTER, spaceAfter=4),
-        'cover_sub':   s('cover_sub', fontSize=11, textColor=colors.HexColor('#94a3b8'),
+        'cover_sub':   s('cover_sub', fontSize=11, leading=16, textColor=colors.HexColor('#94a3b8'),
                          fontName='PFC-DejaVu', alignment=TA_CENTER, spaceAfter=2),
-        'cover_disc':  s('cover_disc', fontSize=8, textColor=colors.HexColor('#64748b'),
+        'cover_disc':  s('cover_disc', fontSize=8, leading=12, textColor=colors.HexColor('#94a3b8'),
                          fontName='PFC-DejaVu-Oblique', alignment=TA_CENTER, spaceAfter=0),
         'section_hdr': s('section_hdr', fontSize=11, textColor=C_TEXT_LIGHT,
                          fontName='PFC-DejaVu-Bold', alignment=TA_LEFT,
@@ -481,11 +481,15 @@ def _cover_page(player, profile, ST, elements):
     # pushing the title and metadata outside the PDF's physical page.
     cover_content = [
         Paragraph('PFC — AI COACH REPORT v2', ST['cover_title']),
+        Spacer(1, 12),
         Paragraph('Performance Dossier for petA UMP AI Coach Analysis', ST['cover_sub']),
+        Spacer(1, 12),
         Paragraph(f'Player: {escape(player.name)}', ParagraphStyle(
-            'cover_player', parent=ST['cover_title'], fontSize=16, spaceAfter=2)),
+            'cover_player', parent=ST['cover_title'], fontSize=16,
+            leading=22, spaceAfter=2)),
+        Spacer(1, 10),
         Paragraph(f'Rating: {profile.value:.2f}  |  Generated: {generated_at}', ST['cover_sub']),
-        Spacer(1, 6),
+        Spacer(1, 14),
         Paragraph(
             'This report contains personal playing and training data. '
             'Share it only if you want AI or coaching analysis.',
