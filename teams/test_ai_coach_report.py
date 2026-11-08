@@ -4,8 +4,10 @@ These tests use only in-memory records: no production data and no DB writes.
 """
 from types import SimpleNamespace
 from io import BytesIO
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
+from matplotlib import pyplot as plt
 from unittest.mock import patch
 
 from reportlab.lib.pagesizes import A4
@@ -25,6 +27,9 @@ from teams.views_ai_report import (
     _verified_score_updates,
     _best_verified_win_streak_from_rating_history,
     _section_data_quality,
+    _practice_quality_flags,
+    _build_rating_chart,
+    _cover_page,
     _section_friendly_teammates,
     _styles,
     MARGIN,
@@ -61,6 +66,17 @@ class CoachReportScoreFlowTests(SimpleTestCase):
             {'team1_score': 0, 'team2_score': 0},
         ]
         self.assertEqual(len(_verified_score_updates(updates, 9, 5)), 3)
+
+    def test_lead_and_deficit_are_zero_when_not_observed(self):
+        never_led = [
+            {'team1_score': 0, 'team2_score': 3},
+            {'team1_score': 1, 'team2_score': 11},
+        ]
+        self.assertEqual(_compute_match_flow(never_led, 'team1')['largest_lead'], 0)
+        self.assertEqual(_compute_match_flow(never_led, 'team1')['largest_deficit'], -10)
+        never_trailed = _compute_match_flow(never_led, 'team2')
+        self.assertEqual(never_trailed['largest_lead'], 10)
+        self.assertEqual(never_trailed['largest_deficit'], 0)
 
 
 class CoachReportRatingAttributionTests(SimpleTestCase):
@@ -114,6 +130,21 @@ class CoachReportEvidenceSemanticsTests(SimpleTestCase):
             ])
         )
 
+    def test_rating_chart_starts_from_retained_window_not_baseline(self):
+        # Older events were intentionally dropped after 50 updates. The
+        # first plotted observed rating must be from the oldest retained
+        # event, not the player's initial 100 rating.
+        history = [
+            {'old_value': 145, 'new_value': 143, 'change': -2},
+            {'old_value': 143, 'new_value': 148, 'change': 5},
+        ]
+        fig = _build_rating_chart(history)
+        try:
+            first_segment = list(fig.axes[0].lines[0].get_ydata())
+            self.assertEqual(first_segment, [145, 143])
+        finally:
+            plt.close(fig)
+
     def test_intentional_rating_history_cap_is_not_data_loss(self):
         # A player may have 200 games but only 50 retained rating changes.
         player = SimpleNamespace(id=432)
@@ -133,6 +164,45 @@ class CoachReportEvidenceSemanticsTests(SimpleTestCase):
         self.assertIn('No data quality issues detected.', extracted)
         self.assertNotIn('may be missing', extracted)
         self.assertNotIn('Difference:', extracted)
+
+
+    def test_long_open_practice_sessions_are_excluded_not_reinterpreted(self):
+        start = datetime(2026, 11, 8, 12, 0, tzinfo=timezone.utc)
+        def sample(minutes, shots=12, ended=True):
+            return SimpleNamespace(
+                started_at=start,
+                ended_at=start + timedelta(minutes=minutes) if ended else None,
+                total_shots=shots,
+            )
+        self.assertEqual(_practice_quality_flags(sample(20)), [])
+        self.assertEqual(_practice_quality_flags(sample(240)), [])
+        self.assertIn('>4h', ' '.join(_practice_quality_flags(sample(10481))))
+        self.assertIn('>4h', ' '.join(_practice_quality_flags(sample(446))))
+        self.assertIn('duration only', ' '.join(_practice_quality_flags(sample(1))))
+        self.assertIn('no end time', _practice_quality_flags(sample(20, ended=False)))
+        self.assertIn('zero shots', _practice_quality_flags(sample(20, shots=0)))
+        self.assertIn('end time before start time',
+                      _practice_quality_flags(sample(-1)))
+
+    def test_cover_uses_single_stacked_cell_and_visible_pdf_text(self):
+        elements = []
+        _cover_page(
+            SimpleNamespace(name='Μαρία & Γιάννης <Coach>'),
+            SimpleNamespace(value=100),
+            _styles(), elements,
+        )
+        self.assertEqual(elements[0]._ncols, 1)
+        buf = BytesIO()
+        SimpleDocTemplate(
+            buf, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
+            topMargin=MARGIN, bottomMargin=MARGIN,
+        ).build(elements)
+        text = PdfReader(BytesIO(buf.getvalue())).pages[0].extract_text()
+        self.assertIn('PFC', text)
+        self.assertIn('AI COACH REPORT v2', text)
+        self.assertIn('Μαρία & Γιάννης <Coach>', text)
+        self.assertIn('Rating: 100.00', text)
+        self.assertIn('This report contains personal', text)
 
 
 class CoachReportFriendlyTeammateTests(SimpleTestCase):
@@ -436,6 +506,12 @@ class CoachReportWholePdfTests(TestCase):
         pages = PdfReader(BytesIO(content)).pages
         self.assertGreaterEqual(len(pages), 8)
         text = '\n'.join(page.extract_text() or '' for page in pages)
+        cover_text = pages[0].extract_text() or ''
+        self.assertIn('PFC', cover_text)
+        self.assertIn('AI COACH REPORT v2', cover_text)
+        self.assertIn('Performance Dossier', cover_text)
+        self.assertIn('Player: Preview Player', cover_text)
+        self.assertIn('This report contains personal', cover_text)
         self.assertIn('FRIENDLY PARTNERSHIP TRAJECTORIES', text)
         self.assertIn('Partner Alpha', text)
         self.assertIn('Περικλής Δοκιμή', text)
