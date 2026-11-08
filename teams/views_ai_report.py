@@ -240,12 +240,18 @@ def _build_rating_chart(history):
     fig, ax = plt.subplots(figsize=(10, 2.8), facecolor='#0f172a')
     ax.set_facecolor('#1e293b')
 
-    values = [100.0] + [e.get('new_value', 100.0) for e in history]
-    labels = ['Start'] + [
+    # Rating history only retains the latest 50 events. Do NOT prepend
+    # a fictional "Start=100" point to a truncated history: the player
+    # may have entered this 50-event window with a very different rating.
+    values = [e.get('new_value', 100.0) for e in history]
+    labels = [
         _parse_ts(e.get('timestamp', '')).strftime('%b %d')
         if _parse_ts(e.get('timestamp', '')) else f'M{i+1}'
         for i, e in enumerate(history)
     ]
+    if history and history[0].get('old_value') is not None:
+        values.insert(0, history[0]['old_value'])
+        labels.insert(0, 'Window start')
     x = list(range(len(values)))
 
     # Per-segment colour
