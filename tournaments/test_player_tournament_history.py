@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from friendly_games.models import PlayerCodename
-from matches.models import Match, MatchPlayer
+from matches.models import Match, MatchLifecycleTransition, MatchPlayer
 from teams.models import Player, PlayerProfile, Team
 from tournaments.models import (
     PlayerTournamentAchievement,
@@ -141,7 +141,7 @@ class PlayerTournamentHistoryTests(TestCase):
         self.assertEqual(list(public_response.context["tournament_history"]), [])
         self.assertNotContains(public_response, self.tournament.name)
 
-        codename = PlayerCodename.objects.create(player=player, codename="HISTORY001")
+        codename = PlayerCodename.objects.create(player=player, codename="HIS001")
         session = self.client.session
         session["player_codename"] = codename.codename
         session["session_active"] = True
@@ -151,7 +151,7 @@ class PlayerTournamentHistoryTests(TestCase):
         self.assertEqual(len(own_response.context["tournament_history"]), 1)
         self.assertContains(own_response, self.tournament.name)
 
-    def test_alternate_complete_match_path_projects_final_history(self):
+    def test_legacy_completed_match_supports_explicit_final_history_projection(self):
         now = timezone.now()
         tournament = Tournament.objects.create(
             name="Alternate Completion History",
@@ -175,7 +175,12 @@ class PlayerTournamentHistoryTests(TestCase):
         MatchPlayer.objects.create(match=match, player=player_one, team=team_one)
         MatchPlayer.objects.create(match=match, player=player_two, team=team_two)
 
+        Match.objects.filter(pk=match.pk).update(status="active")
+        match.refresh_from_db()
         match.complete_match(13, 9)
+        # No Round is attached to this legacy test Match, so the modern
+        # Round-finished event cannot automatically publish player history.
+        self.assertTrue(record_finalized_tournament_history(tournament)["recorded"])
 
         self.assertTrue(
             PlayerTournamentHistory.objects.filter(
@@ -196,9 +201,10 @@ class PlayerTournamentHistoryTests(TestCase):
 
 
 class MeleeTournamentAchievementTests(TestCase):
-    def test_melee_awards_use_existing_calculator_and_never_create_team_medals(self):
+    def test_incomplete_melee_stats_never_freeze_podium_or_awards(self):
         now = timezone.now()
         tournament = Tournament.objects.create(
+            id=197,
             name="Final Mêlée Awards",
             format="multi_stage",
             play_format="doublets",
@@ -268,25 +274,20 @@ class MeleeTournamentAchievementTests(TestCase):
             current_streak=0,
         )
 
+        MatchLifecycleTransition.objects.create(
+            tournament=tournament, match=match,
+            status=MatchLifecycleTransition.COMPLETED,
+        )
         result = record_finalized_tournament_history(tournament, include_melee_awards=True)
 
         self.assertTrue(result["recorded"])
         self.assertEqual(result["history_rows_created"], 2)
         self.assertEqual(result["medals_created"], 0)
-        self.assertEqual(result["melee_awards_created"], 4)
-        self.assertEqual(
-            set(
-                PlayerTournamentAchievement.objects.filter(
-                    tournament=tournament,
-                    player=player_one,
-                ).values_list("award_type", flat=True)
-            ),
-            {
-                PlayerTournamentAchievement.MOST_IMPROVED,
-                PlayerTournamentAchievement.WIN_STREAK,
-                PlayerTournamentAchievement.TOP_SCORER,
-                PlayerTournamentAchievement.BEST_WIN_RATE,
-            },
+        self.assertEqual(result["melee_awards_created"], 0)
+        self.assertFalse(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=tournament, player=player_one
+            ).exists()
         )
         self.assertFalse(
             PlayerTournamentAchievement.objects.filter(
@@ -367,3 +368,214 @@ class MeleeFireAwardTests(TestCase):
         )
         badges = calculate_melee_badges([stats])
         self.assertFalse(any(badge["type"] == "streak" for badge in badges[1]))
+
+
+class FrozenMeleePodiumTests(TestCase):
+    """Archived standings and player podium medals survive unrelated ratings."""
+
+    def setUp(self):
+        now = timezone.now()
+        self.tournament = Tournament.objects.create(
+            id=197,
+            name="Frozen Mêlée",
+            format="multi_stage",
+            play_format="doublets",
+            is_melee=True,
+            melee_format="doublets",
+            start_date=now,
+            end_date=now + timedelta(hours=2),
+        )
+        self.stage = Stage.objects.create(
+            tournament=self.tournament,
+            stage_number=1,
+            format="swiss",
+            num_qualifiers=1,
+            num_rounds_in_stage=1,
+        )
+        self.round = Round.objects.create(
+            tournament=self.tournament,
+            stage=self.stage,
+            number=1,
+            number_in_stage=1,
+            is_complete=True,
+        )
+        teams = [
+            Team.objects.create(name=f"Frozen Team {number}", is_tournament_temp=True)
+            for number in (1, 2)
+        ]
+        self.match = Match.objects.create(
+            tournament=self.tournament,
+            stage=self.stage,
+            round=self.round,
+            team1=teams[0],
+            team2=teams[1],
+            status="pending",
+        )
+        Match.objects.filter(pk=self.match.pk).update(
+            status="completed",
+            team1_score=13,
+            team2_score=4,
+            winner=teams[0],
+            loser=teams[1],
+        )
+        self.players = []
+        for idx, delta in enumerate((5, 4, -3, -4)):
+            team = teams[0] if idx < 2 else teams[1]
+            player = Player.objects.create(name=f"Frozen Player {idx}", team=team)
+            PlayerProfile.objects.create(
+                player=player,
+                value=100 + delta,
+                rating_history=[{"match_id": self.match.pk, "change": delta}],
+            )
+            MatchPlayer.objects.create(match=self.match, team=team, player=player)
+            MeleePlayerStats.objects.create(
+                tournament=self.tournament,
+                player=player,
+                starting_rating=100,
+                wins=int(idx < 2),
+                losses=int(idx >= 2),
+                matches_played=1,
+                points_scored=13 if idx < 2 else 4,
+                points_against=4 if idx < 2 else 13,
+                best_performance=int(idx < 2),
+            )
+            self.players.append(player)
+        self.transition = MatchLifecycleTransition.objects.create(
+            tournament=self.tournament, match=self.match,
+            status=MatchLifecycleTransition.COMPLETED,
+        )
+
+    def test_pre_activation_melee_is_not_rewritten_or_backfilled(self):
+        from unittest.mock import patch
+        # Models a tournament existing before the feature became available.
+        with patch(
+            "tournaments.player_history.MELEE_SNAPSHOT_FIRST_TOURNAMENT_ID",
+            self.tournament.pk + 1,
+        ):
+            result = record_finalized_tournament_history(
+                self.tournament, include_melee_awards=True
+            )
+        self.assertFalse(result["recorded"])
+        self.assertFalse(
+            PlayerTournamentHistory.objects.filter(tournament=self.tournament).exists()
+        )
+        self.assertFalse(
+            PlayerTournamentAchievement.objects.filter(tournament=self.tournament).exists()
+        )
+
+    def test_freeze_podium_and_profile_medals_ignore_later_friendly_ratings(self):
+        result = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertTrue(result["recorded"])
+        self.assertEqual(result["medals_created"], 3)
+        self.assertEqual(
+            list(
+                PlayerTournamentHistory.objects.filter(
+                    tournament=self.tournament
+                ).order_by("melee_final_rank").values_list(
+                    "melee_final_rank", flat=True
+                )
+            ), [1, 2, 3, 4]
+        )
+        medal_types = [
+            PlayerTournamentAchievement.MEDAL_GOLD,
+            PlayerTournamentAchievement.MEDAL_SILVER,
+            PlayerTournamentAchievement.MEDAL_BRONZE,
+        ]
+        for player, award_type in zip(self.players, medal_types):
+            self.assertTrue(
+                PlayerTournamentAchievement.objects.filter(
+                    player=player,
+                    tournament=self.tournament,
+                    award_type=award_type,
+                ).exists()
+            )
+
+        # An unrelated future Friendly Game may change global rating arbitrarily.
+        profile = self.players[3].profile
+        profile.value = 999
+        profile.rating_history = list(profile.rating_history) + [
+            {"match_id": 999999, "change": 903}
+        ]
+        profile.save(update_fields=["value", "rating_history"])
+
+        leaderboard = self.client.get(
+            reverse("melee_leaderboard", args=[self.tournament.pk])
+        )
+        self.assertEqual(leaderboard.status_code, 200)
+        self.assertTrue(leaderboard.context["is_frozen"])
+        rows = leaderboard.context["leaderboard_data"]
+        self.assertEqual([row["player"].pk for row in rows], [p.pk for p in self.players])
+        self.assertEqual([row["rating_change"] for row in rows], [5, 4, -3, -4])
+        self.assertEqual([row["current_rating"] for row in rows], [105, 104, 97, 96])
+
+        profile_page = self.client.get(
+            reverse("player_profile", kwargs={"player_id": self.players[0].pk})
+        )
+        self.assertEqual(profile_page.status_code, 200)
+        self.assertContains(profile_page, "🥇")
+        self.assertContains(profile_page, "Gold medal")
+
+        repeat = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertEqual(repeat["medals_created"], 0)
+        self.assertEqual(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=self.tournament, award_type__startswith="medal_"
+            ).count(), 3,
+        )
+
+    def test_pending_match_projection_cannot_archive_or_award_medals(self):
+        transition = self.transition
+        transition.status = MatchLifecycleTransition.PENDING
+        transition.save(update_fields=["status"])
+        early = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertFalse(early["recorded"])
+        self.assertFalse(
+            PlayerTournamentHistory.objects.filter(
+                tournament=self.tournament
+            ).exists()
+        )
+        self.assertFalse(
+            PlayerTournamentAchievement.objects.filter(
+                tournament=self.tournament
+            ).exists()
+        )
+        transition.status = MatchLifecycleTransition.COMPLETED
+        transition.save(update_fields=["status"])
+        ready = record_finalized_tournament_history(
+            self.tournament, include_melee_awards=True
+        )
+        self.assertTrue(ready["recorded"])
+        self.assertEqual(ready["medals_created"], 3)
+
+    def test_existing_stale_rating_history_is_not_frozen(self):
+        from tournaments.models import PlayerTournamentHistory
+
+        self.assertTrue(
+            record_finalized_tournament_history(
+                self.tournament, include_melee_awards=True
+            )["recorded"]
+        )
+        PlayerTournamentHistory.objects.filter(
+            tournament=self.tournament, player=self.players[0]
+        ).update(rating_change=Decimal("-99.00"), melee_final_rank=None)
+
+        # Explicitly unfreeze other rows for this synthetic corrupt archive.
+        PlayerTournamentHistory.objects.filter(
+            tournament=self.tournament
+        ).update(melee_final_rank=None, melee_final_rating=None)
+
+        from tournaments.player_history import _freeze_melee_final_podium
+        medal_count, frozen = _freeze_melee_final_podium(self.tournament)
+        self.assertFalse(frozen)
+        self.assertEqual(medal_count, 0)
+        self.assertEqual(
+            PlayerTournamentHistory.objects.filter(
+                tournament=self.tournament, melee_final_rank__isnull=False
+            ).count(), 0,
+        )

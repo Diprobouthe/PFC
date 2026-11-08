@@ -1,0 +1,56 @@
+name: Mêlée Frozen Podium and Player Profile
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tournaments/melee_leaderboard_view.py
+      - tournaments/player_history.py
+      - tournaments/models.py
+      - tournaments/migrations/0038_melee_frozen_podium.py
+      - tournaments/test_player_tournament_history.py
+      - .github/workflows/melee-frozen-podium-regression.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-melee-podium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_melee_podium_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_melee_podium_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_melee_podium_test
+      SECRET_KEY: isolated-frozen-podium-test-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Django schema and config
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Permanent history, frozen Mêlée podium, and badges
+        run: |
+          python manage.py test \
+            tournaments.test_player_tournament_history \
+            --verbosity 2

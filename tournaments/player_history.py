@@ -16,6 +16,10 @@ MEDAL_METADATA = {
     "silver": ("medal_silver", "🥈", "Silver medal"),
     "bronze": ("medal_bronze", "🥉", "Bronze medal"),
 }
+# Forward-only rollout. The most recent existing Mêlée was tournament #196.
+# Nothing at or before it is migrated, frozen, or backfilled.
+MELEE_SNAPSHOT_FIRST_TOURNAMENT_ID = 197
+
 MELEE_AWARD_TYPES = {
     "winner": "most_improved",
     "streak": "win_streak",
@@ -31,6 +35,13 @@ def record_finalized_tournament_history(tournament, *, include_melee_awards=Fals
     completion callbacks therefore only fill rows missing after an interrupted
     projection; existing snapshots are never rewritten from later mutable data.
     """
+    if (tournament.is_melee
+            and tournament.pk < MELEE_SNAPSHOT_FIRST_TOURNAMENT_ID):
+        return {
+            "recorded": False,
+            "reason": "Pre-activation Mêlée: no retrospective history or awards.",
+        }
+
     if not _is_finalized_for_history(tournament):
         return {"recorded": False, "reason": "Tournament is not authoritatively final."}
 
@@ -40,9 +51,13 @@ def record_finalized_tournament_history(tournament, *, include_melee_awards=Fals
         locked_tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
         rows_created = _record_history_rows(locked_tournament)
         medals_created = _record_team_medals(locked_tournament)
+        melee_frozen = False
+        if locked_tournament.is_melee:
+            individual_medals, melee_frozen = _freeze_melee_final_podium(locked_tournament)
+            medals_created += individual_medals
         awards_created = (
             _record_melee_awards(locked_tournament)
-            if include_melee_awards and locked_tournament.is_melee
+            if include_melee_awards and locked_tournament.is_melee and melee_frozen
             else 0
         )
     return {
@@ -62,6 +77,20 @@ def _is_finalized_for_history(tournament):
         return False
 
     if tournament.is_melee:
+        # A Match may be visually completed while rating/stats projection is
+        # FAILED or PENDING. Never persist an irreversible partial history.
+        from matches.models import MatchLifecycleTransition
+        transition_rows = MatchLifecycleTransition.objects.filter(
+            match__tournament=tournament
+        )
+        if (
+            transition_rows.count() != matches.count()
+            or transition_rows.exclude(
+                status=MatchLifecycleTransition.COMPLETED
+            ).exists()
+        ):
+            return False
+
         # The current Mêlée engine finalizes after the configured final Stage
         # completes. This rule deliberately requires the exact configured round
         # count rather than treating a temporary no-pending-Match gap as final.
@@ -322,6 +351,121 @@ def _actual_tournament_players_for_team(tournament, team):
     return [player_by_id[player_id] for player_id in sorted(player_by_id)]
 
 
+def _freeze_melee_final_podium(tournament):
+    """Freeze individual order from this tournament's historical Match ratings.
+
+    Do not publish an irreversible placement until every expected participant
+    and Match projection is accounted for. In particular, an older completed
+    Match awaiting retry must never produce an incorrect podium.
+    """
+    from matches.models import Match, MatchLifecycleTransition
+    from tournaments.models import PlayerTournamentAchievement, PlayerTournamentHistory
+    from tournaments.partnership_models import MeleePlayerStats
+
+    stats_list = list(
+        MeleePlayerStats.objects.filter(tournament=tournament).select_related("player")
+    )
+    if not stats_list:
+        return 0, False
+
+    histories = {
+        entry.player_id: entry
+        for entry in PlayerTournamentHistory.objects.select_for_update().filter(
+            tournament=tournament
+        )
+    }
+    actual = _completed_participation_by_player(tournament)
+    expected_ids = {stats.player_id for stats in stats_list}
+    if set(histories) != expected_ids or set(actual) != expected_ids:
+        return 0, False
+
+    match_ids = set(Match.objects.filter(tournament=tournament).values_list("id", flat=True))
+    processed = MatchLifecycleTransition.objects.filter(
+        match_id__in=match_ids, status=MatchLifecycleTransition.COMPLETED
+    ).count()
+    # Forward-only: every new Mêlée Match must have a completed projection.
+    total_transitions = MatchLifecycleTransition.objects.filter(
+        match_id__in=match_ids
+    ).count()
+    if processed != len(match_ids) or total_transitions != len(match_ids):
+        return 0, False
+
+    for stats in stats_list:
+        entry = histories[stats.player_id]
+        player_match_ids = actual[stats.player_id]["match_ids"]
+        actual_count = len(player_match_ids)
+        try:
+            recorded_match_ids = [
+                rating_entry.get("match_id")
+                for rating_entry in (stats.player.profile.rating_history or [])
+                if rating_entry.get("match_id") in player_match_ids
+                and "change" in rating_entry
+            ]
+        except (AttributeError, ValueError, TypeError):
+            return 0, False
+        if len(recorded_match_ids) != actual_count or set(recorded_match_ids) != player_match_ids:
+            # A Match can be completed while one per-player rating-history
+            # update is missing. Never freeze a partial score as the podium.
+            return 0, False
+        authoritative_delta = _recorded_tournament_rating_change(
+            stats.player, player_match_ids
+        )
+        if (
+            entry.rating_change is None
+            or authoritative_delta is None
+            or abs(entry.rating_change - authoritative_delta) > Decimal("0.01")
+        ):
+            # Historic records created before a Match retry may have stale
+            # rating deltas. They need explicit reconciliation, not a freeze.
+            return 0, False
+        if (
+            entry.rating_change is None
+            or not actual_count
+            or stats.matches_played != actual_count
+            or entry.matches_played != actual_count
+            or stats.wins != entry.wins
+            or stats.losses != entry.losses
+        ):
+            return 0, False
+
+    already_ranked = [entry for entry in histories.values() if entry.melee_final_rank is not None]
+    if already_ranked:
+        # A complete archive never changes from future ratings or Match retries.
+        return 0, len(already_ranked) == len(stats_list)
+
+    stats_list.sort(
+        key=lambda stats: (
+            -histories[stats.player_id].rating_change,
+            -histories[stats.player_id].wins,
+            stats.player_id,
+        )
+    )
+    created = 0
+    for rank, stats in enumerate(stats_list, 1):
+        entry = histories[stats.player_id]
+        entry.melee_final_rank = rank
+        entry.melee_final_rating = (
+            Decimal(str(stats.starting_rating)) + entry.rating_change
+        )
+        entry.save(update_fields=["melee_final_rank", "melee_final_rating"])
+
+        if rank <= 3:
+            placement = ("gold", "silver", "bronze")[rank - 1]
+            award_type, symbol, title = MEDAL_METADATA[placement]
+            _award, was_created = PlayerTournamentAchievement.objects.get_or_create(
+                player_id=stats.player_id,
+                tournament=tournament,
+                award_type=award_type,
+                defaults={
+                    "display_symbol": symbol,
+                    "display_title": title,
+                    "details": {"placement": placement, "rank": rank},
+                },
+            )
+            created += int(was_created)
+    return created, True
+
+
 def _record_melee_awards(tournament):
     from tournaments.melee_leaderboard_view import calculate_melee_badges
     from tournaments.models import PlayerTournamentAchievement
@@ -330,7 +474,21 @@ def _record_melee_awards(tournament):
     stats_list = list(
         MeleePlayerStats.objects.filter(tournament=tournament).select_related("player")
     )
-    badge_map = calculate_melee_badges(stats_list)
+    from tournaments.models import PlayerTournamentHistory
+    histories = {
+        entry.player_id: entry
+        for entry in PlayerTournamentHistory.objects.filter(
+            tournament=tournament, melee_final_rank__isnull=False
+        )
+    }
+    badge_map = calculate_melee_badges(
+        stats_list,
+        rating_changes={
+            player_id: float(entry.rating_change)
+            for player_id, entry in histories.items()
+            if entry.rating_change is not None
+        },
+    )
     stats_by_player_id = {stats.player_id: stats for stats in stats_list}
     created = 0
     for player_id, badges in badge_map.items():
@@ -351,8 +509,8 @@ def _record_melee_awards(tournament):
                         "points_scored": stats.points_scored,
                         "points_against": stats.points_against,
                         "starting_rating": float(stats.starting_rating),
-                        "current_rating": float(stats.current_rating),
-                        "rating_change": float(stats.current_rating - stats.starting_rating),
+                        "current_rating": float(histories[player_id].melee_final_rating),
+                        "rating_change": float(histories[player_id].rating_change),
                     },
                 },
             )
