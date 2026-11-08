@@ -433,8 +433,11 @@ def _compute_match_flow(updates, player_side):
         player_won = final_t2 > final_t1
 
     diffs = [m - o for m, o in zip(my_scores, opp_scores)]
-    largest_lead    = max(diffs) if diffs else 0
-    largest_deficit = min(diffs) if diffs else 0
+    # A lead and a deficit cannot both have the same sign. A player who
+    # never led had a largest lead of 0, not a negative "lead"; likewise
+    # a player who never trailed had a largest deficit of 0.
+    largest_lead    = max(0, max(diffs)) if diffs else 0
+    largest_deficit = min(0, min(diffs)) if diffs else 0
     final_margin    = abs(final_t1 - final_t2)
     close_finish    = final_margin <= 2
 
@@ -473,10 +476,13 @@ def _get_player_ranking(player_profile):
 # ─────────────────────────────────────────────────────────────────────────────
 def _cover_page(player, profile, ST, elements):
     generated_at = timezone.now().strftime('%Y-%m-%d %H:%M UTC')
-    cover_data = [[
+    # A cover needs ONE table cell containing stacked flowables. Placing
+    # each paragraph directly in the row makes six side-by-side columns,
+    # pushing the title and metadata outside the PDF's physical page.
+    cover_content = [
         Paragraph('PFC — AI COACH REPORT v2', ST['cover_title']),
         Paragraph('Performance Dossier for petA UMP AI Coach Analysis', ST['cover_sub']),
-        Paragraph(f'Player: {player.name}', ParagraphStyle(
+        Paragraph(f'Player: {escape(player.name)}', ParagraphStyle(
             'cover_player', parent=ST['cover_title'], fontSize=16, spaceAfter=2)),
         Paragraph(f'Rating: {profile.value:.2f}  |  Generated: {generated_at}', ST['cover_sub']),
         Spacer(1, 6),
@@ -485,8 +491,8 @@ def _cover_page(player, profile, ST, elements):
             'Share it only if you want AI or coaching analysis.',
             ST['cover_disc']
         ),
-    ]]
-    tbl = Table(cover_data, colWidths=[PAGE_W - 2 * MARGIN])
+    ]
+    tbl = Table([[cover_content]], colWidths=[PAGE_W - 2 * MARGIN])
     tbl.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, -1), C_BG_DARK),
         ('TOPPADDING',    (0, 0), (-1, -1), 20),
@@ -1487,6 +1493,32 @@ def _section_friendly_games(player, friendly_matches, ST, elements, rating_histo
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 11 — Practice Data
 # ─────────────────────────────────────────────────────────────────────────────
+# This is a *report-quality filter*, not a change to stored practice sessions.
+# A session lasting days usually indicates that the UI was left open. Exclude
+# sessions lasting more than four hours from descriptive training statistics.
+PRACTICE_MAX_DURATION_SECONDS = 4 * 60 * 60
+
+
+def _practice_quality_flags(session):
+    """Why this stored practice session should be excluded from report averages."""
+    flags = []
+    if session.total_shots == 0:
+        flags.append('zero shots')
+    if not session.ended_at:
+        flags.append('no end time')
+    elif not session.started_at:
+        flags.append('no start time')
+    else:
+        dur_s = (session.ended_at - session.started_at).total_seconds()
+        if dur_s < 0:
+            flags.append('end time before start time')
+        elif dur_s < 120:
+            flags.append(f'duration only {int(dur_s)}s')
+        elif dur_s > PRACTICE_MAX_DURATION_SECONDS:
+            flags.append(f'unusually long duration {int(dur_s // 60)}m (>4h)')
+    return flags
+
+
 def _section_practice(player, ST, elements):
     elements += _section_header('11. PRACTICE & IN-GAME (ING) PERFORMANCE EVIDENCE', ST)
 
@@ -1527,20 +1559,18 @@ def _section_practice(player, ST, elements):
     valid_sessions  = []
     flagged_sessions = []
     for s in all_sessions:
-        flags = []
-        if s.total_shots == 0:
-            flags.append('zero shots')
-        if not s.ended_at:
-            flags.append('no end time')
-        elif s.ended_at and s.started_at:
-            dur_s = (s.ended_at - s.started_at).total_seconds()
-            if dur_s < 120:
-                flags.append(f'duration only {int(dur_s)}s')
+        flags = _practice_quality_flags(s)
         if flags:
             flagged_sessions.append((s, flags))
         else:
             valid_sessions.append(s)
 
+    elements.append(Paragraph(
+        'Practice quality rule: sessions under 2 minutes, over 4 hours, '
+        'missing time boundaries or with zero shots are flagged and excluded '
+        'from Practice averages. The underlying records are unchanged.',
+        ST['caption'],
+    ))
     shooting_sessions = [s for s in valid_sessions if s.practice_type == 'shooting']
     pointing_sessions = [s for s in valid_sessions if s.practice_type == 'pointing']
 
