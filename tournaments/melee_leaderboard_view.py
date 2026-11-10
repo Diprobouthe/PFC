@@ -2,6 +2,8 @@
 Mêlée Tournament Player Leaderboard
 Shows individual player rankings for mêlée tournaments where teams shuffle.
 """
+from fractions import Fraction
+
 from django.shortcuts import render, get_object_or_404
 from .models import Tournament
 from .partnership_models import MeleePlayerStats
@@ -41,7 +43,11 @@ def calculate_melee_badges(stats_list, rating_changes=None):
     
     # Find best win rate (with minimum 3 games played)
     qualified_stats = [s for s in stats_list if s.matches_played >= 3]
-    max_win_rate = max(((s.wins / s.matches_played * 100) for s in qualified_stats), default=0) if qualified_stats else 0
+    # Compare exact win ratios: rounding is for display only, not awarding badges.
+    max_win_ratio = max(
+        (Fraction(s.wins, s.matches_played) for s in qualified_stats),
+        default=Fraction(0, 1),
+    )
     
     for stats in stats_list:
         player_badges = []
@@ -75,7 +81,7 @@ def calculate_melee_badges(stats_list, rating_changes=None):
         if stats.matches_played >= 3:
             # Calculate win rate
             win_rate = round((stats.wins / stats.matches_played) * 100, 1) if stats.matches_played > 0 else 0
-            if win_rate == max_win_rate and max_win_rate >= 80:
+            if Fraction(stats.wins, stats.matches_played) == max_win_ratio and max_win_ratio >= Fraction(4, 5):
                 player_badges.append({
                     'emoji': '🎯',
                     'title': f'Best Win Rate: {win_rate}%',
