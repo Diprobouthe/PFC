@@ -6,6 +6,7 @@ on:
     paths:
       - tournaments/melee_leaderboard_view.py
       - tournaments/test_player_tournament_history.py
+      - tournaments/test_melee_winrate_badges.py
       - .github/workflows/melee-fire-badge-regression.yml
   workflow_dispatch:
 
@@ -51,4 +52,5 @@ jobs:
           python manage.py test \
             tournaments.test_player_tournament_history.MeleeFireAwardTests \
             tournaments.test_player_tournament_history.MeleeTournamentAchievementTests \
+            tournaments.test_melee_winrate_badges \
             --verbosity 2
