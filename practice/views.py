@@ -9,7 +9,7 @@ Adds:
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
@@ -580,6 +580,27 @@ def session_summary(request, session_id):
     }
 
     return render(request, 'practice/session_summary.html', context)
+
+
+@require_http_methods(['GET'])
+def session_summary_pdf(request, session_id):
+    """Download the actual practice report as PDF for native file sharing."""
+    if not CodenameSessionManager.is_logged_in(request):
+        return HttpResponseForbidden('Player login is required to export practice data.')
+
+    session = get_object_or_404(PracticeSession, id=session_id)
+    codename = CodenameSessionManager.get_logged_in_codename(request)
+    if not codename or session.player_codename != codename:
+        return HttpResponseForbidden('You can only export your own practice session.')
+
+    from .pdf_reports import render_practice_summary_pdf
+    pdf_bytes = render_practice_summary_pdf(session)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    filename = f'PFC_Practice_{session.practice_type}_{session.started_at:%Y%m%d}_{str(session.id)[:8]}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 def session_history(request):
