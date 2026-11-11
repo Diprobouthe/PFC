@@ -315,6 +315,13 @@
     .summary-page .stat-label { font-size: .67rem; }
     .summary-page .session-actions { grid-template-columns: 1fr; }
 }
+
+/* One-tap file sharing (not a screenshot or a link). */
+.summary-share-panel { margin-top: 10px; padding: 13px; border: 1px solid #dbe7f4; border-radius: 14px; background: #f4f9ff; }
+.summary-share-panel .share-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.summary-share-panel .share-actions > * { flex: 1 1 170px; min-height: 43px; font-weight: 750; }
+.summary-share-panel .share-status { margin: 8px 0 0; font-size: .78rem; color: #4c6078; }
+.summary-share-panel .share-status:empty { display: none; }
 </style>
 <div class="container mt-2 mb-4">
     <div class="summary-container summary-page">
@@ -651,6 +658,75 @@
             </button>
         </div>
 
+
+        <!-- Share the real PDF, without opening a PDF reader or Adobe. -->
+        <section class="summary-share-panel" aria-label="PDF sharing">
+            <div class="share-actions">
+                <button type="button" class="btn btn-primary" id="sharePracticePdf" disabled>
+                    <i class="fas fa-share-alt me-2"></i>Κοινοποίηση PDF
+                </button>
+                <a class="btn btn-outline-primary" id="downloadPracticePdf"
+                   href="{% url 'practice:session_summary_pdf' session.id %}">
+                    <i class="fas fa-file-pdf me-2"></i>Λήψη PDF
+                </a>
+            </div>
+            <p class="share-status" id="practicePdfStatus" role="status" aria-live="polite">
+                Προετοιμασία PDF για κοινοποίηση…
+            </p>
+        </section>
+
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    const shareButton = document.getElementById('sharePracticePdf');
+    const downloadLink = document.getElementById('downloadPracticePdf');
+    const status = document.getElementById('practicePdfStatus');
+    if (!shareButton || !downloadLink || !status) return;
+
+    let pdfFile = null;
+    const fileName = 'PFC_Practice_{{ session.practice_type }}_{{ session.started_at|date:"Ymd" }}_{{ session.id|slice:":8" }}.pdf';
+
+    // Prefetch first; navigator.share must run immediately within a user tap.
+    async function preparePdf() {
+        try {
+            if (!window.fetch || !window.File) throw new Error('Not supported');
+            const response = await fetch(downloadLink.href, { credentials: 'same-origin', cache: 'no-store' });
+            if (!response.ok || !(response.headers.get('content-type') || '').includes('application/pdf')) {
+                throw new Error('Invalid PDF response');
+            }
+            pdfFile = new File([await response.blob()], fileName, { type: 'application/pdf' });
+            shareButton.disabled = false;
+            const nativeFiles = !!navigator.share && !!navigator.canShare && navigator.canShare({ files: [pdfFile] });
+            status.textContent = nativeFiles
+                ? 'Αποστολή μέσω Viber ή άλλης διαθέσιμης εφαρμογής από το μενού κοινοποίησης.'
+                : 'Η άμεση αποστολή PDF δεν υποστηρίζεται εδώ. Χρησιμοποίησε τη Λήψη PDF.';
+        } catch (error) {
+            status.textContent = 'Αδύνατη η προετοιμασία κοινοποίησης. Χρησιμοποίησε τη Λήψη PDF.';
+        }
+    }
+
+    shareButton.addEventListener('click', function () {
+        if (!pdfFile) return;
+        if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [pdfFile] })) {
+            downloadLink.click();
+            return;
+        }
+        try {
+            navigator.share({ files: [pdfFile], title: 'PFC Practice Summary' }).catch(function (error) {
+                if (error && error.name === 'AbortError') return;
+                status.textContent = 'Η κοινοποίηση δεν ολοκληρώθηκε. Επίλεξε Λήψη PDF.';
+            });
+        } catch (error) {
+            status.textContent = 'Η κοινοποίηση δεν υποστηρίζεται εδώ. Επίλεξε Λήψη PDF.';
+        }
+    });
+
+    preparePdf();
+})();
+</script>
 {% endblock %}
