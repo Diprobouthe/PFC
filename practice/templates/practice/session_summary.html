@@ -546,13 +546,13 @@
 
             <div class="stat-card">
                 <div class="stat-value text-success">{{ summary.hit_percentage }}%</div>
-                <div class="stat-label">Hit Rate</div>
-                <div class="stat-description">Successful shots</div>
+                <div class="stat-label">{% if session.practice_type == 'pointing' %}Success Rate{% else %}Hit Rate{% endif %}</div>
+                <div class="stat-description">{% if session.practice_type == 'pointing' %}Perfect + Good (Fair/Far unsuccessful){% else %}Successful shots{% endif %}</div>
             </div>
 
             <div class="stat-card">
                 <div class="stat-value text-warning">{{ summary.carreau_percentage }}%</div>
-                <div class="stat-label">Carreau Rate</div>
+                <div class="stat-label">{% if session.practice_type == 'pointing' %}Perfect Rate{% else %}Carreau Rate{% endif %}</div>
                 <div class="stat-description">Perfect shots</div>
             </div>
 
@@ -576,7 +576,7 @@
                     {% else %}
                         <div class="summary-breakdown-item"><span class="badge bg-warning text-dark">{{ session.perfects }}</span><div class="summary-breakdown-item-text"><strong>🤩 Perfect</strong>{{ session.perfects|percentage_of:summary.total_shots }}%</div></div>
                         <div class="summary-breakdown-item"><span class="badge bg-info">{{ session.goods }}</span><div class="summary-breakdown-item-text"><strong>💪 Good</strong>{{ session.goods|percentage_of:summary.total_shots }}%</div></div>
-                        <div class="summary-breakdown-item"><span class="badge bg-success">{{ session.fairs }}</span><div class="summary-breakdown-item-text"><strong>👍 Fair</strong>{{ session.fairs|percentage_of:summary.total_shots }}%</div></div>
+                        <div class="summary-breakdown-item"><span class="badge bg-danger">{{ session.fairs }}</span><div class="summary-breakdown-item-text"><strong>👎 Fair (unsuccessful)</strong>{{ session.fairs|percentage_of:summary.total_shots }}%</div></div>
                         <div class="summary-breakdown-item"><span class="badge bg-danger">{{ session.fars }}</span><div class="summary-breakdown-item-text"><strong>😳 Far</strong>{{ session.fars|percentage_of:summary.total_shots }}%</div></div>
                     {% endif %}
                 </div>
@@ -605,7 +605,7 @@
                         {% for shot in shots %}
                             <span class="shot-badge {% if session.practice_type == 'pointing' %}pointing-sequence-badge pointing-sequence-{{ shot.outcome }}{% else %}shot-badge-{{ shot.outcome }}{% endif %}"
                                   title="Shot #{{ shot.sequence_number }}: {{ shot.get_outcome_display }} at {{ shot.timestamp|time:'H:i:s' }}">
-                                {% if shot.outcome == 'carreau' or shot.outcome == 'perfect' %}🤩{% elif shot.outcome == 'petit_carreau' or shot.outcome == 'petit_perfect' %}💪{% elif shot.outcome == 'hit' %}👍{% elif shot.outcome == 'good' %}💪{% elif shot.outcome == 'fair' %}👍{% elif shot.outcome == 'far' or shot.outcome == 'very_far' %}😳{% else %}😳{% endif %}
+                                {% if shot.outcome == 'carreau' or shot.outcome == 'perfect' %}🤩{% elif shot.outcome == 'petit_carreau' or shot.outcome == 'petit_perfect' %}💪{% elif shot.outcome == 'hit' %}👍{% elif shot.outcome == 'good' %}💪{% elif shot.outcome == 'fair' %}👎{% elif shot.outcome == 'far' or shot.outcome == 'very_far' %}😳{% else %}😳{% endif %}
                             </span>
                             {% if forloop.counter|divisibleby:20 and not forloop.last %}
                                 <br><br>

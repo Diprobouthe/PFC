@@ -202,7 +202,7 @@ def _get_player_shot_stats(player_id, match_type, pk):
         successes = (
             stats["hits"] + stats["petit_carreaux"] + stats["carreaux"]
             if kind == "shooting" else
-            stats["perfects"] + stats["petit_perfects"] + stats["goods"] + stats["fairs"]
+            stats["perfects"] + stats["petit_perfects"] + stats["goods"]
         )
         stats["accuracy"] = round(successes / count * 100, 1) if count else 0.0
         stats["has_recordings"] = count > 0

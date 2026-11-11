@@ -8,7 +8,9 @@ generating insights, and analyzing shooting patterns.
 from datetime import timedelta
 from django.utils import timezone
 from typing import Dict, List, Optional, Tuple
-from .models import PracticeSession, Shot
+from .models import (
+    PracticeSession, Shot, SHOOTING_SUCCESS_OUTCOMES, POINTING_SUCCESS_OUTCOMES,
+)
 
 
 def calculate_session_summary(session: PracticeSession) -> Dict:
@@ -50,17 +52,19 @@ def calculate_session_summary(session: PracticeSession) -> Dict:
         perfects = shots.filter(outcome='perfect').count()
         petit_perfects = shots.filter(outcome='petit_perfect').count()
         goods = shots.filter(outcome='good').count()
-        fairs = shots.filter(outcome='fair').count()
-        fars = shots.filter(outcome='far').count()
-        # For pointing, calculate success rate (perfect + petit_perfect + good + fair)
-        hit_percentage = ((perfects + petit_perfects + goods + fairs) / total_shots * 100) if total_shots > 0 else 0
+        # Fair and Far are both unsuccessful. Older Petit Perfect remains successful.
+        hit_percentage = ((perfects + petit_perfects + goods) / total_shots * 100) if total_shots > 0 else 0
         carreau_percentage = (perfects / total_shots * 100) if total_shots > 0 else 0
     
-    # Calculate streaks and patterns
-    longest_streak = calculate_longest_hit_streak(shots)
+    # Calculate streaks and patterns using the same success definition as accuracy.
+    success_outcomes = (
+        POINTING_SUCCESS_OUTCOMES if session.practice_type == 'pointing'
+        else SHOOTING_SUCCESS_OUTCOMES
+    )
+    longest_streak = calculate_longest_hit_streak(shots, success_outcomes)
     first_miss_position = find_first_miss_position(shots)
-    shot_pattern = analyze_shot_pattern(shots)
-    consistency_score = calculate_consistency_score(shots)
+    shot_pattern = analyze_shot_pattern(shots, success_outcomes)
+    consistency_score = calculate_consistency_score(shots, success_outcomes)
     
     # Generate performance insights
     performance_note = generate_performance_note(
@@ -80,11 +84,12 @@ def calculate_session_summary(session: PracticeSession) -> Dict:
     }
 
 
-def calculate_longest_hit_streak(shots) -> int:
-    """Calculate the longest consecutive successful shot streak in a session."""
+def calculate_longest_hit_streak(shots, success_outcomes=None) -> int:
+    """Calculate consecutive successful shots using the session's success rule."""
     longest_streak = 0
     current_streak = 0
-    success_outcomes = ['hit', 'petit_carreau', 'carreau', 'perfect', 'petit_perfect', 'good', 'fair']
+    if success_outcomes is None:
+        success_outcomes = SHOOTING_SUCCESS_OUTCOMES | POINTING_SUCCESS_OUTCOMES
     
     for shot in shots:
         if shot.outcome in success_outcomes:
@@ -98,15 +103,17 @@ def calculate_longest_hit_streak(shots) -> int:
 
 def find_first_miss_position(shots) -> Optional[int]:
     """Find the position of the first unsuccessful shot in the session."""
-    unsuccessful_outcomes = ['miss', 'far']
+    unsuccessful_outcomes = ['miss', 'fair', 'far', 'very_far']
     for shot in shots:
         if shot.outcome in unsuccessful_outcomes:
             return shot.sequence_number
     return None
 
 
-def analyze_shot_pattern(shots) -> List[str]:
+def analyze_shot_pattern(shots, success_outcomes=None) -> List[str]:
     """Analyze the pattern of shots to identify trends."""
+    if success_outcomes is None:
+        success_outcomes = SHOOTING_SUCCESS_OUTCOMES | POINTING_SUCCESS_OUTCOMES
     if shots.count() < 5:
         return []
     
@@ -114,23 +121,23 @@ def analyze_shot_pattern(shots) -> List[str]:
     shot_outcomes = [shot.outcome for shot in shots]
     
     # Check for strong start
-    if all(outcome in ['hit', 'carreau'] for outcome in shot_outcomes[:3]):
+    if all(outcome in success_outcomes for outcome in shot_outcomes[:3]):
         patterns.append('strong_start')
     
     # Check for strong finish
-    if all(outcome in ['hit', 'carreau'] for outcome in shot_outcomes[-3:]):
+    if all(outcome in success_outcomes for outcome in shot_outcomes[-3:]):
         patterns.append('strong_finish')
     
     # Check for consistency (low variance in performance)
-    hit_positions = [i for i, outcome in enumerate(shot_outcomes) if outcome in ['hit', 'carreau']]
+    hit_positions = [i for i, outcome in enumerate(shot_outcomes) if outcome in success_outcomes]
     if len(hit_positions) > 3:
         gaps = [hit_positions[i+1] - hit_positions[i] for i in range(len(hit_positions)-1)]
         if max(gaps) - min(gaps) <= 2:  # Consistent spacing
             patterns.append('consistent')
     
     # Check for improvement trend
-    first_half_hits = sum(1 for outcome in shot_outcomes[:len(shot_outcomes)//2] if outcome in ['hit', 'carreau'])
-    second_half_hits = sum(1 for outcome in shot_outcomes[len(shot_outcomes)//2:] if outcome in ['hit', 'carreau'])
+    first_half_hits = sum(1 for outcome in shot_outcomes[:len(shot_outcomes)//2] if outcome in success_outcomes)
+    second_half_hits = sum(1 for outcome in shot_outcomes[len(shot_outcomes)//2:] if outcome in success_outcomes)
     
     first_half_rate = first_half_hits / (len(shot_outcomes)//2) if len(shot_outcomes) > 2 else 0
     second_half_rate = second_half_hits / (len(shot_outcomes) - len(shot_outcomes)//2) if len(shot_outcomes) > 2 else 0
@@ -143,8 +150,10 @@ def analyze_shot_pattern(shots) -> List[str]:
     return patterns
 
 
-def calculate_consistency_score(shots) -> float:
+def calculate_consistency_score(shots, success_outcomes=None) -> float:
     """Calculate a consistency score based on shot distribution."""
+    if success_outcomes is None:
+        success_outcomes = SHOOTING_SUCCESS_OUTCOMES | POINTING_SUCCESS_OUTCOMES
     if shots.count() < 5:
         return 0.0
     
@@ -158,7 +167,7 @@ def calculate_consistency_score(shots) -> float:
     for i in range(0, len(shot_outcomes), chunk_size):
         chunk = shot_outcomes[i:i + chunk_size]
         if len(chunk) >= 2:  # Only consider chunks with at least 2 shots
-            hit_rate = sum(1 for outcome in chunk if outcome in ['hit', 'carreau']) / len(chunk)
+            hit_rate = sum(1 for outcome in chunk if outcome in success_outcomes) / len(chunk)
             chunks.append(hit_rate)
     
     if len(chunks) < 2:

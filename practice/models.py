@@ -14,6 +14,12 @@ from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
+# Pointing has two successful outcomes and two unsuccessful outcomes:
+# Perfect/Good = success; Fair/Far = failure. Retain historical petit_perfect
+# as a success so older practice records keep their original meaning.
+SHOOTING_SUCCESS_OUTCOMES = frozenset({'hit', 'petit_carreau', 'carreau'})
+POINTING_SUCCESS_OUTCOMES = frozenset({'perfect', 'petit_perfect', 'good'})
+
 
 class PracticeSession(models.Model):
     """
@@ -151,14 +157,17 @@ class PracticeSession(models.Model):
         return timezone.now() - self.started_at
 
     @property
+    def successful_shots(self):
+        """Count positive outcomes without treating Fair as a successful point."""
+        if self.practice_type == 'shooting':
+            return self.hits + self.petit_carreaux + self.carreaux
+        return self.perfects + self.petit_perfects + self.goods
+
+    @property
     def hit_percentage(self):
         if self.total_shots == 0:
             return 0.0
-        if self.practice_type == 'shooting':
-            successful_shots = self.hits + self.petit_carreaux + self.carreaux
-        else:
-            successful_shots = self.perfects + self.petit_perfects + self.goods + self.fairs
-        return (successful_shots / self.total_shots) * 100
+        return (self.successful_shots / self.total_shots) * 100
 
     @property
     def carreau_percentage(self):
