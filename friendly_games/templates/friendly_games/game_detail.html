@@ -497,12 +497,17 @@
                     {% if game.white_team_score > game.black_team_score %}<div class="fg-score-winner">{% translate "Winner" %}</div>{% endif %}
                 </div>
             </div>
+            {% if is_joined %}
+            <a href="{% url 'match_tracking:export_pdf' 'game' game.id %}" class="fg-btn-primary" style="background:#dc3545;color:#fff;font-size:1rem;padding:12px 24px;">
+                <i class="fas fa-file-pdf"></i> {% translate "Export PDF" %}
+            </a>
             <form method="POST" action="{% url 'friendly_games:rematch' game.id %}" style="width:100%;">
                 {% csrf_token %}
                 <button type="submit" class="fg-btn-primary fg-btn-rematch">
                     <i class="fas fa-redo"></i> {% translate "Rematch" %}
                 </button>
             </form>
+            {% endif %}
         {% endif %}
 
     </div>
