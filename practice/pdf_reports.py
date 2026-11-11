@@ -17,6 +17,11 @@ from practice.utils import calculate_session_summary
 GUIDED_DRILLS = {'tir_de_precision', 'tactical', 'sequence', 'hidden_target'}
 
 
+def _shot_label(shot):
+    # Historical Fair has no declared display choice in some PFC versions.
+    return 'Fair' if shot.outcome == 'fair' else shot.get_outcome_display()
+
+
 def render_practice_summary_pdf(session):
     """Return complete PDF bytes for this practice session (including shot order)."""
     shots = list(session.shots.order_by('sequence_number'))
@@ -111,7 +116,7 @@ def render_practice_summary_pdf(session):
         for shot in shots:
             rows.append([
                 str(shot.sequence_number),
-                shot.get_outcome_display(),
+                _shot_label(shot),
                 str(shot.atelier) if shot.atelier is not None else '—',
                 shot.shot_distance or '—',
                 str(shot.tdp_points),
@@ -124,7 +129,7 @@ def render_practice_summary_pdf(session):
         for start in range(0, len(shots), 6):
             group = shots[start:start + 6]
             labels = '  |  '.join(
-                f"#{shot.sequence_number} {shot.get_outcome_display()}"
+                f"#{shot.sequence_number} {_shot_label(shot)}"
                 for shot in group
             )
             rows.append([f'{group[0].sequence_number}-{group[-1].sequence_number}', labels])
