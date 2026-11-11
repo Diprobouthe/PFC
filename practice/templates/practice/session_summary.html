@@ -322,6 +322,10 @@
 .summary-share-panel .share-actions > * { flex: 1 1 170px; min-height: 43px; font-weight: 750; }
 .summary-share-panel .share-status { margin: 8px 0 0; font-size: .78rem; color: #4c6078; }
 .summary-share-panel .share-status:empty { display: none; }
+@media print {
+    .summary-share-panel, .summary-page .session-actions, .summary-back { display: none !important; }
+    .shot-badge, .pointing-sequence-badge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
 </style>
 <div class="container mt-2 mb-4">
     <div class="summary-container summary-page">
