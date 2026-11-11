@@ -1,12 +1,46 @@
 from pathlib import Path
 
 from django.template.loader import get_template
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+
+from practice.models import PracticeSession, Shot
+from practice.utils import calculate_session_summary
 
 from practice.templatetags.practice_display import percentage_of
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class PointingFairSemanticsTests(TestCase):
+    def test_fair_and_far_are_unsuccessful_across_recorded_history_and_streaks(self):
+        session = PracticeSession.objects.create(player_codename='POINTING_FAIR_TEST', practice_type='pointing')
+        for outcome in ('perfect', 'good', 'fair', 'far', 'good'):
+            Shot.objects.create(session=session, outcome=outcome)
+        session.refresh_from_db()
+        self.assertEqual(session.total_shots, 5)
+        self.assertEqual(session.successful_shots, 3)
+        self.assertEqual(session.hit_percentage, 60.0)
+        summary = calculate_session_summary(session)
+        self.assertEqual(summary['hit_percentage'], 60.0)
+        self.assertEqual(summary['longest_streak'], 2)  # Fair breaks the positive streak.
+        self.assertEqual(summary['first_miss_position'], 3)
+
+    def test_historical_petit_perfect_is_still_successful(self):
+        session = PracticeSession.objects.create(player_codename='LEGACY_POINTING', practice_type='pointing')
+        for outcome in ('petit_perfect', 'fair', 'far'):
+            Shot.objects.create(session=session, outcome=outcome)
+        session.refresh_from_db()
+        self.assertEqual(session.hit_percentage, 100 / 3)
+        self.assertEqual(calculate_session_summary(session)['hit_percentage'], 33.3)
+
+    def test_shooting_accuracy_unchanged(self):
+        session = PracticeSession.objects.create(player_codename='SHOOTING_FAIR_TEST', practice_type='shooting')
+        for outcome in ('hit', 'petit_carreau', 'carreau', 'miss'):
+            Shot.objects.create(session=session, outcome=outcome)
+        session.refresh_from_db()
+        self.assertEqual(session.hit_percentage, 75.0)
+        self.assertEqual(calculate_session_summary(session)['longest_streak'], 3)
 
 
 class PracticeTemplatePresentationTests(SimpleTestCase):
@@ -84,6 +118,7 @@ class PracticeTemplatePresentationTests(SimpleTestCase):
         self.assertIn("pointing-sequence-good", source)
         self.assertIn("pointing-sequence-fair", source)
         self.assertIn("pointing-sequence-far", source)
+        self.assertIn('Fair (unsuccessful)', source)
 
     def test_read_only_percentage_formatter_returns_real_category_percentages(self):
         self.assertEqual(percentage_of(1, 13), "7.7")
