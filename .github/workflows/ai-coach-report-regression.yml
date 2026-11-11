@@ -6,6 +6,14 @@ on:
     paths:
       - teams/views_ai_report.py
       - teams/test_ai_coach_report.py
+      - practice/models.py
+      - practice/views.py
+      - practice/utils.py
+      - practice/tests.py
+      - practice/templates/practice/pointing_practice.html
+      - practice/templates/practice/session_summary.html
+      - match_tracking/views.py
+      - match_tracking/test_pdf_reports.py
       - .github/workflows/ai-coach-report-regression.yml
   workflow_dispatch:
 
@@ -50,7 +58,7 @@ jobs:
       - name: AI Coach report regression tests and synthetic PDF preview
         env:
           PFC_AI_COACH_PREVIEW_DIR: pfc-ai-coach-preview
-        run: python manage.py test teams.test_ai_coach_report --verbosity 2
+        run: python manage.py test teams.test_ai_coach_report practice.tests match_tracking.test_pdf_reports --verbosity 2
       - name: Upload synthetic PDF preview
         if: success()
         uses: actions/upload-artifact@v4
