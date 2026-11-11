@@ -68,7 +68,7 @@
                     <h5 class="text-info mb-3"><i class="bi bi-link-45deg"></i> Registration Link</h5>
                     <div class="input-group">
                         <input type="text" class="form-control" 
-                               value="{{ request.build_absolute_uri }}{{ tournament_info.registration_link }}" 
+                               value="{{ registration_url }}" 
                                id="registration-link" readonly>
                         <button class="btn btn-outline-secondary" type="button" onclick="copyLink()">
                             <i class="bi bi-clipboard"></i> Copy

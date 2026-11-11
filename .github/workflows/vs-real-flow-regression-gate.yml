@@ -48,6 +48,8 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
+      - name: Simple Creator registration link regression
+        run: python manage.py test pfc_core.tests.test_simple_management_persistence --verbosity 2
       - name: VS actual Team login, lineup, Court, result and leaderboard
         run: |
           python manage.py test tournaments.test_team_vs_scenarios_regression.VSModeRegressionTests --verbosity 2
