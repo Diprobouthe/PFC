@@ -820,7 +820,7 @@ class PointingPractice {
             const stats = data.session_stats;
             document.getElementById('totalShots').textContent = stats.total_shots;
             // record_shot returns success_percentage; the established undo response returns hit_percentage.
-            // Both are the existing server-calculated Pointing success rate, so preserve it for display.
+            // Both use Perfect/Good as success; Fair/Far are unsuccessful.
             const successPercentage = stats.success_percentage ?? stats.hit_percentage ?? 0;
             document.getElementById('successPercentage').textContent = successPercentage + '%';
             document.getElementById('currentStreak').textContent = stats.current_streak;
@@ -860,7 +860,7 @@ class PointingPractice {
                     break;
                 case 'fair':
                     displayText = 'Fr';
-                    emoji = '👍';
+                    emoji = '👎';
                     break;
                 case 'good':
                     displayText = 'G';
