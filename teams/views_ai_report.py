@@ -1564,12 +1564,9 @@ def _section_practice(player, ST, elements):
         attempts = sum(s.total_shots for s in sessions)
         if not attempts:
             return attempts, 0.0
-        successes = sum(
-            (s.hits + s.petit_carreaux + s.carreaux)
-            if s.practice_type == 'shooting'
-            else (s.perfects + s.petit_perfects + s.goods)
-            for s in sessions
-        )
+        # Reuse canonical session semantics so the AI Report cannot count Fair
+        # differently from live Practice or Match Tracking.
+        successes = sum(s.successful_shots for s in sessions)
         return attempts, round(successes / attempts * 100, 1)
 
     ing_shooting_attempts, ing_shooting_rate = _ing_summary(ing_shooting)
