@@ -17,7 +17,10 @@ from django.db import transaction
 import json
 
 from pfc_core.session_utils import CodenameSessionManager, SessionManager
-from .models import PracticeSession, Shot, PracticeStatistics
+from .models import (
+    PracticeSession, Shot, PracticeStatistics,
+    SHOOTING_SUCCESS_OUTCOMES, POINTING_SUCCESS_OUTCOMES,
+)
 from .utils import calculate_session_summary, get_player_progress_summary
 
 
@@ -332,7 +335,7 @@ def record_shot(request):
             ))
 
             current_streak = 0
-            success_outcomes = ['hit', 'petit_carreau', 'carreau', 'perfect', 'petit_perfect', 'good', 'fair']
+            success_outcomes = SHOOTING_SUCCESS_OUTCOMES | POINTING_SUCCESS_OUTCOMES
             for shot_data in session.shots.order_by('-sequence_number'):
                 if shot_data.outcome in success_outcomes:
                     current_streak += 1
@@ -377,7 +380,7 @@ def record_shot(request):
                 'perfect_percentage': round((session.perfects / total * 100) if total > 0 else 0, 1),
                 'good_percentage': round((session.goods / total * 100) if total > 0 else 0, 1),
                 'success_percentage': round(
-                    ((session.perfects + session.petit_perfects + session.goods + session.fairs) / total * 100)
+                    (session.successful_shots / total * 100)
                     if total > 0 else 0, 1
                 ),
             })
@@ -423,7 +426,11 @@ def undo_last_shot(request):
 
             current_streak = 0
             for shot_data in session.shots.order_by('-sequence_number'):
-                if shot_data.outcome in ['hit', 'carreau']:
+                success_outcomes = (
+                    POINTING_SUCCESS_OUTCOMES if session.practice_type == 'pointing'
+                    else SHOOTING_SUCCESS_OUTCOMES
+                )
+                if shot_data.outcome in success_outcomes:
                     current_streak += 1
                 else:
                     break
