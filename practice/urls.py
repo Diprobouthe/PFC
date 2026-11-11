@@ -24,6 +24,7 @@ urlpatterns = [
 
     # Session summary
     path('session/<uuid:session_id>/', views.session_summary, name='session_summary'),
+    path('session/<uuid:session_id>/pdf/', views.session_summary_pdf, name='session_summary_pdf'),
 
     # Session history
     path('history/', views.session_history, name='session_history'),
