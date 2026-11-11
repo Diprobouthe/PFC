@@ -412,7 +412,7 @@ class CoachReportPointingSemanticsTests(TestCase):
         output = BytesIO()
         SimpleDocTemplate(output, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
                           topMargin=MARGIN, bottomMargin=MARGIN).build(elements)
-        text = ' '.join((' '.join(page.extract_text().split()) for page in PdfReader(BytesIO(output.getvalue())).pages))
+        text = ' '.join(' '.join((page.extract_text() or '').split()) for page in PdfReader(BytesIO(output.getvalue())).pages)
         self.assertIn('ING Pointing Success%', text)
         self.assertIn('50.0%', text)
         self.assertNotIn('75.0%', text)
