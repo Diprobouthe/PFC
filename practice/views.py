@@ -425,11 +425,11 @@ def undo_last_shot(request):
             ))
 
             current_streak = 0
+            success_outcomes = (
+                POINTING_SUCCESS_OUTCOMES if session.practice_type == 'pointing'
+                else SHOOTING_SUCCESS_OUTCOMES
+            )
             for shot_data in session.shots.order_by('-sequence_number'):
-                success_outcomes = (
-                    POINTING_SUCCESS_OUTCOMES if session.practice_type == 'pointing'
-                    else SHOOTING_SUCCESS_OUTCOMES
-                )
                 if shot_data.outcome in success_outcomes:
                     current_streak += 1
                 else:
@@ -449,6 +449,16 @@ def undo_last_shot(request):
             },
             'recent_shots': recent_shots,
         }
+        if session.practice_type == 'pointing':
+            # Pointing UI needs all four counts after Undo, not shooting-only fields.
+            response['session_stats'].update({
+                'perfects': session.perfects,
+                'petit_perfects': session.petit_perfects,
+                'goods': session.goods,
+                'fairs': session.fairs,
+                'fars': session.fars,
+                'success_percentage': round(session.hit_percentage, 1),
+            })
         if session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
             response['session_stats']['tdp_score'] = session.tdp_score
 
