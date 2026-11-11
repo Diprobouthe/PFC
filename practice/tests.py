@@ -1,7 +1,9 @@
 from pathlib import Path
+import json
+from unittest.mock import patch
 
 from django.template.loader import get_template
-from django.test import SimpleTestCase, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 
 from practice.models import PracticeSession, Shot
 from practice.utils import calculate_session_summary
@@ -33,6 +35,25 @@ class PointingFairSemanticsTests(TestCase):
         session.refresh_from_db()
         self.assertEqual(session.hit_percentage, 100 / 3)
         self.assertEqual(calculate_session_summary(session)['hit_percentage'], 33.3)
+
+    def test_pointing_undo_returns_all_category_counts_and_fair_as_failure(self):
+        from practice.views import undo_last_shot
+        session = PracticeSession.objects.create(player_codename='UNDO_POINTING', practice_type='pointing')
+        for outcome in ('perfect', 'good', 'fair', 'far'):
+            Shot.objects.create(session=session, outcome=outcome)
+        request = RequestFactory().post('/practice/api/undo-shot/')
+        with patch('practice.views.CodenameSessionManager.is_logged_in', return_value=True), \
+             patch('practice.views.CodenameSessionManager.get_logged_in_codename', return_value='UNDO_POINTING'):
+            response = undo_last_shot(request)
+        self.assertEqual(response.status_code, 200)
+        stats = json.loads(response.content)['session_stats']
+        self.assertEqual(stats['total_shots'], 3)
+        self.assertEqual(stats['perfects'], 1)
+        self.assertEqual(stats['goods'], 1)
+        self.assertEqual(stats['fairs'], 1)
+        self.assertEqual(stats['fars'], 0)
+        self.assertEqual(stats['success_percentage'], 66.7)
+        self.assertEqual(stats['current_streak'], 0)
 
     def test_shooting_accuracy_unchanged(self):
         session = PracticeSession.objects.create(player_codename='SHOOTING_FAIR_TEST', practice_type='shooting')
