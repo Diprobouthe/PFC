@@ -1,5 +1,8 @@
 from pathlib import Path
+from io import BytesIO
 import json
+
+from pypdf import PdfReader
 from unittest.mock import patch
 
 from django.template.loader import get_template
@@ -62,6 +65,76 @@ class PointingFairSemanticsTests(TestCase):
         session.refresh_from_db()
         self.assertEqual(session.hit_percentage, 75.0)
         self.assertEqual(calculate_session_summary(session)['longest_streak'], 3)
+
+
+class PracticePdfShareTests(TestCase):
+    def setUp(self):
+        from django.urls import reverse
+        self.session = PracticeSession.objects.create(
+            player_codename='SHAREPDF', practice_type='pointing',
+            distance='7m', sequence_tracking=True, is_active=False,
+        )
+        for outcome in ('perfect', 'good', 'fair', 'far'):
+            Shot.objects.create(session=self.session, outcome=outcome)
+        self.url = reverse('practice:session_summary_pdf', args=[self.session.id])
+
+    def get_as_owner(self):
+        with patch('practice.views.CodenameSessionManager.is_logged_in', return_value=True), \
+             patch('practice.views.CodenameSessionManager.get_logged_in_codename', return_value='SHAREPDF'):
+            return self.client.get(self.url)
+
+    def test_download_is_a_real_pdf_with_all_shots_in_recorded_order(self):
+        response = self.get_as_owner()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('attachment;', response['Content-Disposition'])
+        self.assertEqual(response['Cache-Control'], 'private, no-store')
+        self.assertTrue(response.content.startswith(b'%PDF'))
+        extracted = ' '.join(
+            ' '.join((page.extract_text() or '').split())
+            for page in PdfReader(BytesIO(response.content)).pages
+        )
+        self.assertIn('PFC - Practice Summary', extracted)
+        self.assertIn('50.0%', extracted)  # Fair and Far are unsuccessful.
+        self.assertIn('Recorded shot sequence', extracted)
+        for label in ('#1 Perfect', '#2 Good', '#3 Fair', '#4 Far'):
+            self.assertIn(label, extracted)
+        self.assertLess(extracted.index('#1 Perfect'), extracted.index('#2 Good'))
+        self.assertLess(extracted.index('#2 Good'), extracted.index('#3 Fair'))
+        self.assertLess(extracted.index('#3 Fair'), extracted.index('#4 Far'))
+        self.assertNotIn('SHAREPDF', extracted)  # Never disclose the login codename in a shared PDF.
+
+    def test_cannot_export_someone_elses_training(self):
+        with patch('practice.views.CodenameSessionManager.is_logged_in', return_value=True), \
+             patch('practice.views.CodenameSessionManager.get_logged_in_codename', return_value='SOMEONE'):
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_export_is_rejected(self):
+        with patch('practice.views.CodenameSessionManager.is_logged_in', return_value=False):
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_print_and_mobile_pdf_sharing_controls_exist(self):
+        from django.template.loader import get_template
+        get_template('practice/session_summary.html')
+        source = (PROJECT_ROOT / 'practice/templates/practice/session_summary.html').read_text()
+        self.assertIn('practice:session_summary_pdf', source)
+        self.assertIn('id="sharePracticePdf"', source)
+        self.assertIn('id="downloadPracticePdf"', source)
+        self.assertIn('navigator.share({ files: [pdfFile]', source)
+        self.assertIn('navigator.canShare({ files: [pdfFile] })', source)
+        self.assertIn('downloadLink.click()', source)
+        self.assertIn('window.print()', source)  # Existing print action is untouched.
+
+    def test_sequence_off_is_disclosed_in_pdf(self):
+        self.session.sequence_tracking = False
+        self.session.save(update_fields=['sequence_tracking'])
+        extracted = ' '.join(
+            ' '.join((page.extract_text() or '').split())
+            for page in PdfReader(BytesIO(self.get_as_owner().content)).pages
+        )
+        self.assertIn('Sequence tracking was OFF', extracted)
 
 
 class PracticeTemplatePresentationTests(SimpleTestCase):
