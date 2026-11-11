@@ -25,6 +25,8 @@ from teams.views_ai_report import (
     _verified_score_updates,
     _best_verified_win_streak_from_rating_history,
     _section_data_quality,
+    _section_practice,
+    _section_ai_instructions,
     _section_friendly_teammates,
     _styles,
     MARGIN,
@@ -378,6 +380,44 @@ class CoachReportFriendlyTeammateDatabaseTests(TestCase):
             {r['game_id'] for r in by_mate[newer.id]},
             {game.id for game in games[55:]},
         )
+
+
+class CoachReportPointingSemanticsTests(TestCase):
+    def test_ai_coach_pdf_uses_positive_perfect_good_negative_fair_far(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from teams.models import Team, Player
+        from friendly_games.models import PlayerCodename
+        from practice.models import PracticeSession
+
+        team = Team.objects.create(name='Pointing AI semantics fixture', pin='PFA100')
+        player = Player.objects.create(name='Pointing Coach Fixture', team=team)
+        PlayerCodename.objects.create(player=player, codename='POINTING_ING_TEST')
+        now = timezone.now()
+        training = PracticeSession.objects.create(
+            player_codename='POINTING_ING_TEST', practice_type='pointing',
+            distance='7m', total_shots=4, perfects=1, goods=1, fairs=1, fars=1,
+            ended_at=now, is_active=False,
+        )
+        PracticeSession.objects.filter(pk=training.pk).update(started_at=now - timedelta(minutes=5))
+        PracticeSession.objects.create(
+            player_codename='POINTING_ING_TEST', practice_type='pointing',
+            distance='ing', total_shots=4, perfects=1, goods=1, fairs=1, fars=1,
+            ended_at=now, is_active=False,
+        )
+        elements = []
+        styles = _styles()
+        _section_ai_instructions(styles, elements)
+        _section_practice(player, styles, elements)
+        output = BytesIO()
+        SimpleDocTemplate(output, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN,
+                          topMargin=MARGIN, bottomMargin=MARGIN).build(elements)
+        text = '\n'.join(page.extract_text() or '' for page in PdfReader(BytesIO(output.getvalue())).pages)
+        self.assertIn('ING Pointing Success%', text)
+        self.assertIn('50.0%', text)
+        self.assertNotIn('75.0%', text)
+        self.assertIn('Fair and Far are both unsuccessful', text)
+        self.assertIn('Never interpret Fair as a positive result', text)
 
 
 class CoachReportWholePdfTests(TestCase):
