@@ -3,6 +3,7 @@ Simple MELE Tournament Creator
 Creates tournaments using existing admin infrastructure without model changes
 """
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -486,13 +487,29 @@ def create_simple_tournament(request):
 
 
 def simple_creator_success(request):
-    """Tournament creation success page"""
+    """Tournament creation success page with a real, absolute registration URL."""
     tournament_info = request.session.get('simple_tournament_info')
     if not tournament_info:
         return redirect('simple_creator_home')
-    
+
+    tournament_id = tournament_info['tournament_id']
+    is_melee = tournament_info.get('scenario_mode') in ('melee', 'super_melee')
+    # The same destination must appear in the field and in the copied link.
+    # Other tournament types retain their existing tournament detail route.
+    registration_path = reverse(
+        'tournament_register_melee' if is_melee else 'tournament_detail',
+        kwargs={'tournament_id': tournament_id},
+    )
+    host = request.get_host().split(':')[0].lower()
+    if host in ('pfc.events', 'www.pfc.events'):
+        # Avoid http on production when the request was proxied from HTTPS.
+        registration_url = 'https://www.pfc.events' + registration_path
+    else:
+        registration_url = request.build_absolute_uri(registration_path)
+
     return render(request, 'simple_creator_success.html', {
-        'tournament_info': tournament_info
+        'tournament_info': tournament_info,
+        'registration_url': registration_url,
     })
 
 
