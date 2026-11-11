@@ -8,6 +8,8 @@ on:
       - teams/test_ai_coach_report.py
       - practice/models.py
       - practice/views.py
+      - practice/urls.py
+      - practice/pdf_reports.py
       - practice/utils.py
       - practice/tests.py
       - practice/templates/practice/pointing_practice.html
