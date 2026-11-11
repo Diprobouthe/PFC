@@ -392,16 +392,16 @@ class CoachReportPointingSemanticsTests(TestCase):
 
         team = Team.objects.create(name='Pointing AI semantics fixture', pin='PFA100')
         player = Player.objects.create(name='Pointing Coach Fixture', team=team)
-        PlayerCodename.objects.create(player=player, codename='POINTING_ING_TEST')
+        PlayerCodename.objects.create(player=player, codename='PNT001')
         now = timezone.now()
         training = PracticeSession.objects.create(
-            player_codename='POINTING_ING_TEST', practice_type='pointing',
+            player_codename='PNT001', practice_type='pointing',
             distance='7m', total_shots=4, perfects=1, goods=1, fairs=1, fars=1,
             ended_at=now, is_active=False,
         )
         PracticeSession.objects.filter(pk=training.pk).update(started_at=now - timedelta(minutes=5))
         PracticeSession.objects.create(
-            player_codename='POINTING_ING_TEST', practice_type='pointing',
+            player_codename='PNT001', practice_type='pointing',
             distance='ing', total_shots=4, perfects=1, goods=1, fairs=1, fars=1,
             ended_at=now, is_active=False,
         )
