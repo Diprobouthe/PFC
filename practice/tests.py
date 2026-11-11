@@ -33,7 +33,7 @@ class PointingFairSemanticsTests(TestCase):
         for outcome in ('petit_perfect', 'fair', 'far'):
             Shot.objects.create(session=session, outcome=outcome)
         session.refresh_from_db()
-        self.assertEqual(session.hit_percentage, 100 / 3)
+        self.assertAlmostEqual(session.hit_percentage, 100 / 3)
         self.assertEqual(calculate_session_summary(session)['hit_percentage'], 33.3)
 
     def test_pointing_undo_returns_all_category_counts_and_fair_as_failure(self):
