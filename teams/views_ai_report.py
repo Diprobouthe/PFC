@@ -551,7 +551,9 @@ def _section_ai_instructions(ST, elements):
          'ING means In Game: these statistics were recorded during an actual tournament match or friendly game through PFC Match Tracking, '
          'not during training. Treat ING as direct competitive match-performance evidence and never merge it into practice averages. '
          'When both evidence types exist, compare training performance with ING performance to assess transfer to real games, '
-         'state sample size, and avoid strong conclusions from small samples. Practice remains useful for technical baseline and repetition analysis.'),
+         'state sample size, and avoid strong conclusions from small samples. Practice remains useful for technical baseline and repetition analysis. '
+         'For Pointing, only Perfect and Good count as successful (older Petit Perfect counts as successful too). '
+         'Fair and Far are BOTH unsuccessful attempts. Never interpret Fair as a positive result or include it in the success numerator.'),
 
         ('Data quality',
          'Section 12 lists any discrepancies between profile counters and dataset counts, '
@@ -1565,7 +1567,7 @@ def _section_practice(player, ST, elements):
         successes = sum(
             (s.hits + s.petit_carreaux + s.carreaux)
             if s.practice_type == 'shooting'
-            else (s.perfects + s.petit_perfects + s.goods + s.fairs)
+            else (s.perfects + s.petit_perfects + s.goods)
             for s in sessions
         )
         return attempts, round(successes / attempts * 100, 1)
@@ -1584,6 +1586,13 @@ def _section_practice(player, ST, elements):
         ('ING Pointing Success%',   f'{ing_pointing_rate}%' if ing_pointing_attempts else '—'),
     ]
     elements.append(_kv_table(pairs, ST, cols=3))
+    elements.append(Paragraph(
+        'Pointing success = Perfect + Good (legacy Petit Perfect included). '
+        'Fair and Far are both unsuccessful. The success rate includes ALL recorded '
+        'pointing attempts in its denominator, including Fair and Far. '
+        'This interpretation also applies to historical sessions.',
+        ST['body']
+    ))
     elements.append(Spacer(1, 4))
 
     if shooting_sessions:
@@ -1657,7 +1666,8 @@ def _section_practice(player, ST, elements):
         }
         elements.append(Paragraph(
             'ING means In Game. These are statistics captured through PFC Match Tracking during actual tournament matches or friendly games. '
-            'Use them as competitive evidence and compare them with the separate Practice data above; do not merge the two datasets.',
+            'Use them as competitive evidence and compare them with the separate Practice data above; do not merge the two datasets. '
+            'In Pointing, Fair and Far are unsuccessful, not positive results.',
             ST['body_bold']
         ))
         ing_rows = []
