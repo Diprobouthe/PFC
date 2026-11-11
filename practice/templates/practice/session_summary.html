@@ -693,7 +693,7 @@
     if (!shareButton || !downloadLink || !status) return;
 
     let pdfFile = null;
-    const fileName = 'PFC_Practice_{{ session.practice_type }}_{{ session.started_at|date:"Ymd" }}_{{ session.id|slice:":8" }}.pdf';
+    const fileName = 'PFC_Practice_{{ session.practice_type }}_{{ session.started_at|date:"Ymd" }}_' + '{{ session.id }}'.slice(0, 8) + '.pdf';
 
     // Prefetch first; navigator.share must run immediately within a user tap.
     async function preparePdf() {
