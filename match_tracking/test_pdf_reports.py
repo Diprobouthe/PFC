@@ -93,6 +93,22 @@ class HistoricalMatchPDFTests(TestCase):
         self.assertIn("Επικυρωμένο αποτέλεσμα", text)
         self.assertIn("13 – 7", text)
 
+    def test_pointing_fair_counts_in_denominator_but_not_positive_accuracy(self):
+        self.add_recording(self.bob, 4, 1, kind='pointing')
+        session = PracticeSession.objects.get(player_codename='PDF002', practice_type='pointing')
+        session.perfects = 1
+        session.goods = 1
+        session.fairs = 1
+        session.fars = 1
+        session.save(update_fields=['perfects', 'goods', 'fairs', 'fars'])
+        stats = _get_player_shot_stats(self.bob.pk, 'match', self.match.pk)['pointing']
+        self.assertEqual(stats['total'], 4)
+        self.assertEqual(stats['fairs'], 1)
+        self.assertEqual(stats['accuracy'], 50.0)
+        pdf_text = self.read_pdf()
+        self.assertIn('50.0%', pdf_text)
+        self.assertNotIn('75.0%', pdf_text)
+
     def test_no_recordings_never_fabricate_zeros_as_shots(self):
         text = self.read_pdf()
         self.assertIn("Δεν έχουν καταγραφεί βολές", text)
