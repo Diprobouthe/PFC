@@ -523,6 +523,11 @@ class Tournament(models.Model):
             logger.error(f"Not enough players ({len(melee_players)}) for team size {team_size}")
             return 0
         
+        # One frozen PETA rating snapshot per entrant, before the first draft.
+        if self.certifying_entity_id and self.certifying_entity.rating_system == "peta_algorithm":
+            from cert_ratings.peta_service import freeze_peta_entries
+            freeze_peta_entries(self, melee_players)
+
         # P4 must be persisted before any temporary competition Team is created
         # so a rollback-safe cleanup never mistakes this new flow for a legacy
         # transfer lifecycle. The outer atomic generation transaction reverts
@@ -696,6 +701,11 @@ class Tournament(models.Model):
     
     def _generate_snake_draft_teams(self, melee_players, team_size):
         """Generate teams using snake draft algorithm"""
+        # Certified PETA first round uses protected PETA entry values.
+        peta_values = {}
+        if self.certifying_entity_id and self.certifying_entity.rating_system == "peta_algorithm":
+            from cert_ratings.peta_service import peta_entry_ratings
+            peta_values = peta_entry_ratings(self)
         # Get player ratings
         player_data = []
         for mp in melee_players:
@@ -703,7 +713,8 @@ class Tournament(models.Model):
                 rating = mp.player.profile.value
             except:
                 rating = 100.0
-            
+            rating = peta_values.get(mp.player_id, rating)
+
             player_data.append({
                 'melee_player': mp,
                 'rating': rating
