@@ -1,0 +1,50 @@
+name: PETA Certified Entity Core (isolated)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - cert_ratings/peta_core.py
+      - cert_ratings/test_peta_core.py
+      - .github/workflows/peta-core-tests.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  peta-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_peta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_peta_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_peta_test
+      SECRET_KEY: isolated-peta-ci-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Existing Django consistency checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: PETA policy-neutral core
+        run: python manage.py test cert_ratings.test_peta_core --verbosity 2
