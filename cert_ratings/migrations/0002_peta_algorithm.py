@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PetaSeries",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("name", models.CharField(max_length=120)),
                 ("rules_commitment", models.CharField(max_length=64, blank=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
@@ -35,7 +35,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PetaEvent",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("ordinal", models.PositiveSmallIntegerField(
                     validators=[MinValueValidator(1), MaxValueValidator(8)])),
                 ("include_podium", models.BooleanField(default=False)),
@@ -54,7 +54,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PetaCompetitor",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("travel_points", models.DecimalField(
                     max_digits=18, decimal_places=4, default=Decimal("0.0000"))),
                 ("last_end_rating", models.FloatField(null=True, blank=True)),
@@ -71,7 +71,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PetaEventEntry",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("entry_rating", models.FloatField()),
                 ("end_rating", models.FloatField(null=True, blank=True)),
                 ("use_exception", models.BooleanField(default=False)),
