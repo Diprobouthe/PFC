@@ -6,6 +6,15 @@ on:
     paths:
       - cert_ratings/peta_core.py
       - cert_ratings/peta_series.py
+      - cert_ratings/peta_policy.py
+      - cert_ratings/peta_service.py
+      - cert_ratings/peta_models.py
+      - cert_ratings/models.py
+      - cert_ratings/processor.py
+      - cert_ratings/migrations/0002_peta_algorithm.py
+      - tournaments/models.py
+      - matches/lifecycle.py
+      - cert_ratings/test_peta_django.py
       - cert_ratings/test_peta_core.py
       - cert_ratings/test_peta_two_events.py
       - .github/workflows/peta-core-tests.yml
@@ -48,9 +57,10 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-      - name: PETA core and exactly two synthetic events
+      - name: PETA core, two synthetic events and two PostgreSQL events
         run: |
           python manage.py test \
             cert_ratings.test_peta_core \
             cert_ratings.test_peta_two_events \
+            cert_ratings.test_peta_django \
             --verbosity 2
