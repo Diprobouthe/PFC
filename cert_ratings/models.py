@@ -163,4 +163,7 @@ class CertRatingHistory(models.Model):
             f"{self.rating_before:.0f} → {self.rating_after:.0f} "
             f"({sign}{self.rating_change:.1f})"
         )
-\n\n# PETA series models share the cert_ratings app label and migration chain.\nfrom .peta_models import PetaSeries, PetaEvent, PetaCompetitor, PetaEventEntry  # noqa: E402,F401\n
+
+
+# PETA series models share the cert_ratings app label and migration chain.
+from .peta_models import PetaSeries, PetaEvent, PetaCompetitor, PetaEventEntry  # noqa: E402,F401
