@@ -114,7 +114,7 @@ class PetaTwoEventDatabaseTests(TestCase):
 
         # A genuine Live Score update credits the authenticated player.
         code3, _ = PlayerCodename.objects.get_or_create(player=self.players[2])
-        scoreboard = LiveScoreboard.objects.get(tournament_match=match1)
+        scoreboard, _ = LiveScoreboard.objects.get_or_create(tournament_match=match1)
         ScoreUpdate.objects.create(
             scoreboard=scoreboard, team1_score=1, team2_score=0,
             scorekeeper_codename=code3.codename, update_type="increment")
