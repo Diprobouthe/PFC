@@ -15,6 +15,7 @@ on:
       - tournaments/models.py
       - matches/lifecycle.py
       - cert_ratings/test_peta_django.py
+      - cert_ratings/test_peta_full_snake.py
       - cert_ratings/test_peta_core.py
       - cert_ratings/test_peta_two_events.py
       - .github/workflows/peta-core-tests.yml
@@ -63,4 +64,5 @@ jobs:
             cert_ratings.test_peta_core \
             cert_ratings.test_peta_two_events \
             cert_ratings.test_peta_django \
+            cert_ratings.test_peta_full_snake \
             --verbosity 2
