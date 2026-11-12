@@ -1,4 +1,4 @@
-name: PETA Certified Entity Core (isolated)
+name: PETA Certified Entity + PostgreSQL two-event integration
 
 on:
   pull_request:
@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 jobs:
-  peta-core:
+  peta-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
