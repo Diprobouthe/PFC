@@ -150,7 +150,7 @@ class PetaFullSnakeDraftTwoEventTests(TestCase):
                 # Credited scorekeeper actually belongs to this concrete match.
                 # Only the first round needs to qualify everyone for dividend.
                 if round_number == 1:
-                    scoreboard = match.livescoreboard
+                    scoreboard = match.live_scoreboard
                     for player_id in roster:
                         code = PlayerCodename.objects.get(player_id=player_id)
                         ScoreUpdate.objects.create(
