@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - cert_ratings/peta_core.py
+      - cert_ratings/peta_series.py
       - cert_ratings/test_peta_core.py
+      - cert_ratings/test_peta_two_events.py
       - .github/workflows/peta-core-tests.yml
   workflow_dispatch:
 
@@ -46,5 +48,9 @@ jobs:
         run: |
           python manage.py check
           python manage.py makemigrations --check --dry-run
-      - name: PETA policy-neutral core
-        run: python manage.py test cert_ratings.test_peta_core --verbosity 2
+      - name: PETA core and exactly two synthetic events
+        run: |
+          python manage.py test \
+            cert_ratings.test_peta_core \
+            cert_ratings.test_peta_two_events \
+            --verbosity 2
