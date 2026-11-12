@@ -885,9 +885,19 @@ def process_tournament_transition(match_id: int, *, _deadlock_retry: int = 0) ->
 
             try:
                 from cert_ratings.processor import process_match_cert_ratings
-                process_match_cert_ratings(match)
+                certified_result = process_match_cert_ratings(match)
+                if (match.tournament.certifying_entity_id
+                        and match.tournament.certifying_entity.rating_system == "peta_algorithm"
+                        and not certified_result.get("success")):
+                    raise MatchLifecycleError(
+                        "PETA rating projection failed; retry is required")
             except Exception:
                 logger.exception("Certifying-entity rating projection failed for Match %s", match_id)
+                # Ordinary certified Elo stays best-effort. PETA cannot
+                # silently omit a completed match from the series score.
+                if (match.tournament.certifying_entity_id
+                        and match.tournament.certifying_entity.rating_system == "peta_algorithm"):
+                    raise
 
             if match.tournament.is_melee:
                 from tournaments.melee_stats_updater import update_melee_player_stats_from_match
@@ -1030,6 +1040,12 @@ def process_round_transition(round_id: int) -> bool:
                     tournament,
                     include_melee_awards=tournament.is_melee,
                 )
+                # PETA dividend is settled ONCE at authoritative finalization,
+                # never inside a Match update or a public leaderboard GET.
+                if (tournament.certifying_entity_id
+                        and tournament.certifying_entity.rating_system == "peta_algorithm"):
+                    from cert_ratings.peta_service import settle_peta_tournament
+                    settle_peta_tournament(tournament)
 
             transition.status = RoundLifecycleTransition.COMPLETED
             transition.processed_at = timezone.now()
