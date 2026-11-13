@@ -29,6 +29,7 @@ from tournaments.lineup_lifecycle import (
 )
 from tournaments.models import (
     MeleePlayer,
+    TournamentTeam,
     MeleeRoundAssignment,
     Round,
     Stage,
@@ -130,8 +131,17 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             matches = list(Match.objects.filter(
                 tournament=tournament, round=current,
             ).order_by("pk"))
+            active_team_ids = list(TournamentTeam.objects.filter(
+                tournament=tournament, current_stage_number=stage.stage_number,
+                is_active=True).values_list("team_id", flat=True))
+            assignments = list(MeleeRoundAssignment.objects.filter(
+                tournament=tournament, round=current).values_list(
+                "player_id", "team_id", "state"))
             self.assertEqual(
-                len(matches), self.PLAYERS // 4, f"Round {round_number} must have five real matches"
+                len(matches), self.PLAYERS // 4,
+                f"Round {round_number} must have five real matches; "
+                f"active_teams={len(active_team_ids)} IDs={active_team_ids}; "
+                f"assignments={assignments}; match_ids={[m.pk for m in matches]}"
             )
             open_round_lineup_window(current.pk)
             frozen = finalize_round_lineups(current.pk)
