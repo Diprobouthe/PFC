@@ -148,16 +148,15 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                 participants_this_round.update(roster)
 
                 # Credited scorekeeper actually belongs to this concrete match.
-                # Only the first round needs to qualify everyone for dividend.
-                if round_number == 1:
-                    scoreboard = match.live_scoreboard
-                    for player_id in roster:
-                        code = PlayerCodename.objects.get(player_id=player_id)
-                        ScoreUpdate.objects.create(
-                            scoreboard=scoreboard, team1_score=1,
-                            team2_score=0, update_type="increment",
-                            scorekeeper_codename=code.codename,
-                        )
+                # Every played match needs a real contribution for dividend.
+                scoreboard = match.live_scoreboard
+                for player_id in roster:
+                    code = PlayerCodename.objects.get(player_id=player_id)
+                    ScoreUpdate.objects.create(
+                        scoreboard=scoreboard, team1_score=1,
+                        team2_score=0, update_type="increment",
+                        scorekeeper_codename=code.codename,
+                    )
 
                 scored_first = 13 if (match.pk + round_number) % 2 else 7
                 scored_second = 7 if scored_first == 13 else 13
