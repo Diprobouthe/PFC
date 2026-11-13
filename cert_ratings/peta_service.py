@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from .models import CertRatingHistory, PlayerCertRating
 from .peta_models import PetaCompetitor, PetaEvent, PetaEventEntry
-from .peta_core import pfc_match_delta, protected_entry_rating
+from .peta_core import peta_team_match_delta, protected_entry_rating
 from .peta_policy import (
     MULTIPLIERS, TOP_FRACTION, BASE_FRACTION, MIDDLE_SHARE,
     MIN_WIN_RATE_MATCHES, MIN_WIN_RATE, awards_for_player,
@@ -87,7 +87,7 @@ def peta_entry_ratings(tournament):
 def process_peta_match(match, entity):
     """Persist one certified-rating projection per completed Match.
 
-    All team strength averages are calculated from PRE-match PETA ratings.
+    Both teammates receive the same delta from PRE-match team averages.
     A retry cannot update a player twice because immutable history is unique.
     """
     if match.status != "completed" or not match.winner_id or not match.loser_id:
@@ -121,21 +121,21 @@ def process_peta_match(match, entity):
                 if prior_ids != set(ids):
                     raise ValueError("Partial PETA match history; retry requires repair")
                 return {"success": True, "reason": "Already processed", "updates": []}
-            winner_avg = sum(ratings[i].current_rating for i in winner_ids) / len(winner_ids)
-            loser_avg = sum(ratings[i].current_rating for i in loser_ids) / len(loser_ids)
             winners_score = match.team1_score if match.winner_id == match.team1_id else match.team2_score
             losers_score = match.team2_score if match.winner_id == match.team1_id else match.team1_score
+            winner_ratings = [ratings[i].current_rating for i in winner_ids]
+            loser_ratings = [ratings[i].current_rating for i in loser_ids]
+            winner_delta = peta_team_match_delta(
+                own_team_ratings=winner_ratings, opponent_team_ratings=loser_ratings,
+                own_score=winners_score, opponent_score=losers_score)
+            loser_delta = peta_team_match_delta(
+                own_team_ratings=loser_ratings, opponent_team_ratings=winner_ratings,
+                own_score=losers_score, opponent_score=winners_score)
             updates = []
-            for side, opposite_avg, own, against in (
-                (winner_ids, loser_avg, winners_score, losers_score),
-                (loser_ids, winner_avg, losers_score, winners_score),
-            ):
+            for side, delta in ((winner_ids, winner_delta), (loser_ids, loser_delta)):
                 for player_id in side:
                     cert = ratings[player_id]
                     old = cert.current_rating
-                    delta = pfc_match_delta(
-                        own_rating=old, opponent_average_rating=opposite_avg,
-                        own_score=own, opponent_score=against)
                     new = max(0.0, old + delta)
                     CertRatingHistory.objects.create(
                         entity=entity, match=match, player_id=player_id,
