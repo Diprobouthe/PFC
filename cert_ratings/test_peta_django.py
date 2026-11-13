@@ -192,3 +192,49 @@ class PetaTwoEventDatabaseTests(TestCase):
             CertRatingHistory.objects.filter(entity=self.entity).count(), 8)
         self.assertEqual(
             PetaCompetitor.objects.filter(series=self.series).count(), 4)
+
+
+class PetaConcurrentProjectionTests(__import__("django.test", fromlist=["TransactionTestCase"]).TransactionTestCase):
+    """Two real PostgreSQL connections racing to project the same completed match."""
+
+    def test_concurrent_projection_writes_each_player_once(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        from django.db import close_old_connections
+        from cert_ratings.peta_service import process_peta_match
+
+        # Reuse the established four-player fixture, but TransactionTestCase
+        # commits setup rows so independent connections can actually see them.
+        PetaTwoEventDatabaseTests.setUp(self)
+        tournament, _, _ = PetaTwoEventDatabaseTests._event(self, 1)
+        match = PetaTwoEventDatabaseTests._completed_match(self, tournament)
+        barrier = Barrier(2)
+
+        def project(_):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return process_peta_match(
+                    Match.objects.get(pk=match.pk),
+                    CertifyingEntity.objects.get(pk=self.entity.pk),
+                )
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(project, range(2)))
+        self.assertTrue(all(result["success"] for result in results), results)
+        self.assertEqual(
+            sorted(len(result["updates"]) for result in results), [0, 4]
+        )
+        self.assertEqual(
+            CertRatingHistory.objects.filter(
+                entity=self.entity, match=match
+            ).count(), 4
+        )
+        self.assertEqual(
+            list(PlayerCertRating.objects.filter(
+                entity=self.entity, player__in=self.players
+            ).values_list("matches_played", flat=True)),
+            [1] * 4,
+        )
