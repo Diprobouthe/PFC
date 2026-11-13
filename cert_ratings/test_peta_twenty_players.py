@@ -173,9 +173,38 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                     scored_first = 13 if (match.pk + round_number) % 2 else 7
                     scored_second = 7 if scored_first == 13 else 13
                 else:
-                    loser_score = rng.randint(0, 12)
-                    scored_first, scored_second = ((13, loser_score)
-                        if rng.randrange(2) else (loser_score, 13))
+                    # Hidden skill determines the odds; randomness represents
+                    # match-day variance, not a 50/50 coin toss.
+                    skill = getattr(self, "_simulation_skill", None)
+                    if skill is None:
+                        loser_score = rng.randint(0, 12)
+                        scored_first, scored_second = ((13, loser_score)
+                            if rng.randrange(2) else (loser_score, 13))
+                    else:
+                        side1 = list(MeleeRoundAssignment.objects.filter(
+                            tournament=tournament, round=current,
+                            team_id=match.team1_id,
+                            state=MeleeRoundAssignment.ASSIGNED,
+                        ).values_list("player_id", flat=True))
+                        side2 = list(MeleeRoundAssignment.objects.filter(
+                            tournament=tournament, round=current,
+                            team_id=match.team2_id,
+                            state=MeleeRoundAssignment.ASSIGNED,
+                        ).values_list("player_id", flat=True))
+                        self.assertEqual((len(side1), len(side2)), (2, 2))
+                        gap = sum(skill[p] for p in side1) / 2 - sum(
+                            skill[p] for p in side2) / 2
+                        probability_first = 1 / (1 + 10 ** (-gap / 65))
+                        first_wins = rng.random() < probability_first
+                        # Stronger mismatches tend toward wider margins,
+                        # while upsets and close games remain possible.
+                        expected_margin = min(11, 2 + abs(gap) / 12)
+                        margin = max(1, min(13, round(
+                            rng.gauss(expected_margin, 3.2))))
+                        loser_score = 13 - margin
+                        scored_first, scored_second = (
+                            (13, loser_score) if first_wins
+                            else (loser_score, 13))
                 submitted = submit_official_result(
                     match.pk, submitted_by_id=match.team1_id,
                     team1_score=scored_first, team2_score=scored_second,
@@ -436,6 +465,11 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             original[:15] + [newcomers[1], newcomers[2], newcomers[3],
                              newcomers[4], newcomers[5]],  # late 180
         ]
+        # Ground truth is immutable and invisible to PETA calculations.
+        self._simulation_skill = {
+            player.pk: float(PlayerProfile.objects.get(player=player).value)
+            for player in original + newcomers
+        }
         last_end = {}
         permanent_ids = {}
         all_event_ids = []
