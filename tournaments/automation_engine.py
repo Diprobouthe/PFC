@@ -929,7 +929,7 @@ class SwissGenerator(MatchGenerator):
         
         # Strategy 1: Ideal Swiss pairing (no repeats)
         pairings = self.try_ideal_pairing(teams)
-        if pairings:
+        if pairings and len(pairings) == len(teams) // 2:
             logger.info("✅ Using ideal Swiss pairing (no repeats)")
             matches_created = self.create_matches_from_pairings(pairings)
         else:
@@ -1106,7 +1106,8 @@ class SwissGenerator(MatchGenerator):
                     break
             
             if not opponent_found:
-                # Can't pair team1 without repeats
+                # Preserve team1 for cross-group pairing or repeat fallback.
+                unpaired.insert(0, team1)
                 break
         
         return pairings, unpaired
@@ -1128,6 +1129,8 @@ class SwissGenerator(MatchGenerator):
                     break
             
             if not opponent_found:
+                # Never silently drop a team when no non-repeat opponent exists.
+                unpaired.insert(0, team1)
                 break
         
         return pairings, unpaired
