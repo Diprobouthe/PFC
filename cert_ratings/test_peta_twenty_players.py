@@ -283,7 +283,8 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                 else:
                     self.assertAlmostEqual(
                         float(entries[entrant.pk]),
-                        max(100.0, float(previous_ends[entrant.pk]))
+                        max(float(PlayerProfile.objects.get(player=entrant).value),
+                            float(previous_ends[entrant.pk]))
                     )
             for player_id, prior_end in previous_ends.items():
                 if player_id in entries:
@@ -337,10 +338,16 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                     tournament.courts.add(Court.objects.create(
                         number=99500 + count * 10 + i, is_available=True
                     ))
-                # Independent series: the 19-player fixture is intentionally
-                # not settled, so the 21-player fixture cannot follow it.
+                # A PETA entity owns exactly one series. Give each independent
+                # unfinished BYE fixture its own entity and series.
+                isolated_entity = CertifyingEntity.objects.create(
+                    name=f"PETA odd roster entity {count}",
+                    rating_system="peta_algorithm"
+                )
+                tournament.certifying_entity = isolated_entity
+                tournament.save(update_fields=["certifying_entity"])
                 isolated_series = PetaSeries.objects.create(
-                    entity=self.entity, name=f"Odd roster fixture {count}"
+                    entity=isolated_entity, name=f"Odd roster fixture {count}"
                 )
                 PetaEvent.objects.create(
                     series=isolated_series, tournament=tournament,
