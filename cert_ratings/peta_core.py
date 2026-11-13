@@ -54,6 +54,28 @@ def pfc_match_delta(*, own_rating: float, opponent_average_rating: float,
     )
 
 
+def peta_team_match_delta(*, own_team_ratings, opponent_team_ratings,
+                          own_score: int, opponent_score: int) -> float:
+    """One PETA rating change shared by every member of a doubles team.
+
+    Compare the teams' PRE-match average ratings using the existing PFC
+    score-difference formula. Do not use a player's individual rating in
+    the ratio. This does not mutate the global PFC rating.
+    """
+    own = tuple(float(value) for value in own_team_ratings)
+    opponent = tuple(float(value) for value in opponent_team_ratings)
+    if len(own) != 2 or len(opponent) != 2:
+        raise ValueError("PETA team rating requires two players per side")
+    if any(not isfinite(value) or value < 0 for value in own + opponent):
+        raise ValueError("PETA team ratings must be finite and non-negative")
+    return pfc_match_delta(
+        own_rating=sum(own) / 2,
+        opponent_average_rating=sum(opponent) / 2,
+        own_score=own_score,
+        opponent_score=opponent_score,
+    )
+
+
 @dataclass(frozen=True)
 class AwardSplit:
     retained: tuple[tuple[str, Decimal], ...]
