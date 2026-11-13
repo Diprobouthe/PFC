@@ -232,6 +232,7 @@ def _create_simple_tournament(form_data):
         max_participants=max_participants_val,
         is_melee=True,
         melee_format=melee_format_val,
+        certifying_entity=scenario.certifying_entity,
         melee_teams_generated=False,
         shuffle_players_after_round=shuffle_players,
         automation_status="idle",
