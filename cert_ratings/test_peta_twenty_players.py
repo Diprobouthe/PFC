@@ -263,11 +263,13 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
 
         previous_ends = {}
         event_ids = []
+        tournament_ids = []
         for ordinal in range(1, 5):
             if ordinal == 3:
                 self.players[-1] = entrant
             tournament, stage, event, entries = self._prepare_event(ordinal)
             event_ids.append(event.pk)
+            tournament_ids.append(tournament.pk)
             self._assert_first_snake_pairs(tournament, stage, entries)
             if ordinal < 3:
                 self.assertNotIn(entrant.pk, entries)
@@ -301,5 +303,5 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             event_id__in=event_ids, player=entrant
         ).count(), 2)
         self.assertEqual(CertRatingHistory.objects.filter(
-            entity=self.entity, match__tournament__in=list(Tournament.objects.filter(petaevent__pk__in=event_ids))
+            entity=self.entity, match__tournament_id__in=tournament_ids
         ).count(), 4 * self.ROUNDS * self.PLAYERS)
