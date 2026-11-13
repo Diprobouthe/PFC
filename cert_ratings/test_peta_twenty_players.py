@@ -337,9 +337,14 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                     tournament.courts.add(Court.objects.create(
                         number=99500 + count * 10 + i, is_available=True
                     ))
+                # Independent series: the 19-player fixture is intentionally
+                # not settled, so the 21-player fixture cannot follow it.
+                isolated_series = PetaSeries.objects.create(
+                    entity=self.entity, name=f"Odd roster fixture {count}"
+                )
                 PetaEvent.objects.create(
-                    series=self.series, tournament=tournament,
-                    ordinal=count, include_podium=True
+                    series=isolated_series, tournament=tournament,
+                    ordinal=1, include_podium=True
                 )
                 for player in roster:
                     MeleePlayer.objects.create(tournament=tournament, player=player)
