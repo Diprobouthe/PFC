@@ -224,8 +224,16 @@ def shooting_practice(request):
             s['tdp_points'] = pts_map.get(s.get('outcome', ''), 0)
         initial_shots_json = _json.dumps(shots_list)
 
+    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    delegated_name = None
+    if grant.get('codename') == codename and grant.get('practice_type') == 'shooting':
+        from friendly_games.models import PlayerCodename
+        pc = PlayerCodename.objects.select_related('player').filter(codename=codename).first()
+        delegated_name = pc.player.name if pc else 'Player'
+
     context = {
         **session_context,
+        'delegated_practice_name': delegated_name,
         'active_session': active_session,
         'recent_sessions': recent_sessions,
         'court_complexes': court_complexes,
@@ -263,8 +271,16 @@ def pointing_practice(request):
         is_active=False
     ).order_by('-started_at')[:3]
 
+    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    delegated_name = None
+    if grant.get('codename') == codename and grant.get('practice_type') == 'pointing':
+        from friendly_games.models import PlayerCodename
+        pc = PlayerCodename.objects.select_related('player').filter(codename=codename).first()
+        delegated_name = pc.player.name if pc else 'Player'
+
     context = {
         **session_context,
+        'delegated_practice_name': delegated_name,
         'active_session': active_session,
         'recent_sessions': recent_sessions,
         'page_title': 'Pointing Practice',
