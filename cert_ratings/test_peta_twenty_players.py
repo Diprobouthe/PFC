@@ -283,13 +283,12 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                 else:
                     self.assertAlmostEqual(
                         float(entries[entrant.pk]),
-                        max(float(PlayerProfile.objects.get(player=entrant).value),
-                            float(previous_ends[entrant.pk]))
+                        float(previous_ends[entrant.pk])
                     )
             for player_id, prior_end in previous_ends.items():
                 if player_id in entries:
-                    self.assertGreaterEqual(
-                        float(entries[player_id]), float(prior_end) - 0.00001
+                    self.assertAlmostEqual(
+                        float(entries[player_id]), float(prior_end)
                     )
             ends = self._play_full_event(tournament, stage, event)
             previous_ends = {pid: entry.end_rating for pid, entry in ends.items()}
