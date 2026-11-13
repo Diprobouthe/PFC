@@ -53,7 +53,7 @@ def _practice_owner_codename(request, practice_type=None):
 
 def _practice_active_session(request, practice_type=None):
     """Only the session granted by QR, or the user's own active session."""
-    grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+    grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
     if grant:
         session = PracticeSession.objects.filter(
             pk=grant.get("session_id"), player_codename=grant.get("codename"),
