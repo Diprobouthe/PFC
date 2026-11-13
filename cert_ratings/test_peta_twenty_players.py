@@ -262,6 +262,7 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
         PlayerCodename.objects.get_or_create(player=entrant)
 
         previous_ends = {}
+        permanent_row_ids = {}
         event_ids = []
         tournament_ids = []
         for ordinal in range(1, 5):
@@ -271,6 +272,19 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             event_ids.append(event.pk)
             tournament_ids.append(tournament.pk)
             self._assert_first_snake_pairs(tournament, stage, entries)
+            # A returning player must keep the SAME permanent competitor row.
+            # Each event gets a distinct historical entry, not a second account.
+            permanent = dict(PetaCompetitor.objects.filter(
+                series=self.series, player_id__in=entries
+            ).values_list('player_id', 'pk'))
+            self.assertEqual(set(permanent), set(entries))
+            for player_id, row_id in permanent.items():
+                if player_id in permanent_row_ids:
+                    self.assertEqual(row_id, permanent_row_ids[player_id])
+                else:
+                    permanent_row_ids[player_id] = row_id
+            self.assertEqual(PetaCompetitor.objects.filter(
+                series=self.series).count(), len(permanent_row_ids))
             if ordinal < 3:
                 self.assertNotIn(entrant.pk, entries)
             else:
@@ -292,6 +306,11 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                     )
             ends = self._play_full_event(tournament, stage, event)
             previous_ends = {pid: entry.end_rating for pid, entry in ends.items()}
+            for player_id, end_rating in previous_ends.items():
+                competitor = PetaCompetitor.objects.get(
+                    series=self.series, player_id=player_id)
+                self.assertAlmostEqual(float(competitor.last_end_rating),
+                                       float(end_rating))
 
         self.assertEqual(PetaEvent.objects.filter(
             pk__in=event_ids, settled_at__isnull=False
