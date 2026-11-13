@@ -296,8 +296,6 @@ def start_session(request):
     if not CodenameSessionManager.is_logged_in(request) and not getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
-    codename = _practice_owner_codename(request)
-
     try:
         data = json.loads(request.body)
         practice_type = data.get('practice_type', 'shooting')
@@ -314,6 +312,11 @@ def start_session(request):
 
     if practice_type not in ['shooting', 'pointing']:
         return JsonResponse({'error': 'Invalid practice type'}, status=400)
+
+    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    if grant and grant.get('practice_type') != practice_type:
+        return JsonResponse({'error': 'QR authorization is for a different practice type'}, status=403)
+    codename = _practice_owner_codename(request, practice_type)
 
     valid_distances = ['6m', '7m', '8m', '9m', '10m', 'ing']
     if distance not in valid_distances:
