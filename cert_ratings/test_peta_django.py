@@ -95,7 +95,7 @@ class PetaTwoEventDatabaseTests(TestCase):
         second = self._completed_match(tournament)
         player = self.players[0]
         code, _ = PlayerCodename.objects.get_or_create(player=player)
-        scoreboard = LiveScoreboard.objects.create(tournament_match=first)
+        scoreboard, _ = LiveScoreboard.objects.get_or_create(tournament_match=first)
         ScoreUpdate.objects.create(
             scoreboard=scoreboard, team1_score=1, team2_score=0,
             scorekeeper_codename=code.codename, update_type="increment")
