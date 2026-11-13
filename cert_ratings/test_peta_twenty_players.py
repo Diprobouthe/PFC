@@ -466,6 +466,21 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                 series=self.series).count(), len(permanent_ids))
             end_entries = self._play_full_event(
                 tournament, stage, event, rng=rng)
+            snapshot = sorted(
+                ((next(p.name for p in roster if p.pk == pid),
+                  float(entry.entry_rating), float(entry.end_rating))
+                 for pid, entry in end_entries.items()),
+                key=lambda item: -item[2],
+            )
+            print(
+                "PETA_SIM_EVENT", ordinal, "seed=20261113",
+                "players=20", "matches=25",
+                "top5=" + repr([(name, round(start, 2), round(end, 2))
+                                  for name, start, end in snapshot[:5]]),
+                "bottom5=" + repr([(name, round(start, 2), round(end, 2))
+                                     for name, start, end in snapshot[-5:]]),
+                flush=True,
+            )
             for pid, entry in end_entries.items():
                 last_end[pid] = entry.end_rating
                 self.assertAlmostEqual(
