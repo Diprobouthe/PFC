@@ -305,3 +305,58 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
         self.assertEqual(CertRatingHistory.objects.filter(
             entity=self.entity, match__tournament_id__in=tournament_ids
         ).count(), 4 * self.ROUNDS * self.PLAYERS)
+
+    def test_odd_rosters_have_explicit_individual_byes(self):
+        """19/21 player Snake Draft must preserve all entrants, never silently lose one."""
+        for count in (19, 21):
+            with self.subTest(players=count):
+                # A fresh TestCase transaction rolls back at test end; each
+                # tournament and its round assignments remain independent.
+                roster = list(self.players[:min(count, len(self.players))])
+                if count == 21:
+                    team = Team.objects.create(name="PETA odd roster HOME")
+                    extra = Player.objects.create(name="PETA odd roster extra", team=team)
+                    PlayerProfile.objects.update_or_create(
+                        player=extra, defaults={"value": 100.0}
+                    )
+                    PlayerCodename.objects.get_or_create(player=extra)
+                    roster.append(extra)
+                now = timezone.now()
+                tournament = Tournament.objects.create(
+                    name=f"PETA odd roster {count}", format="multi_stage",
+                    play_format="doublets", is_melee=True, melee_format="doublets",
+                    shuffle_players_after_round=True, start_date=now,
+                    end_date=now + timedelta(hours=6),
+                    certifying_entity=self.entity,
+                )
+                stage = Stage.objects.create(
+                    tournament=tournament, stage_number=1, format="swiss",
+                    num_qualifiers=1, num_rounds_in_stage=self.ROUNDS,
+                )
+                for i in range(6):
+                    tournament.courts.add(Court.objects.create(
+                        number=99500 + count * 10 + i, is_available=True
+                    ))
+                PetaEvent.objects.create(
+                    series=self.series, tournament=tournament,
+                    ordinal=count, include_podium=True
+                )
+                for player in roster:
+                    MeleePlayer.objects.create(tournament=tournament, player=player)
+                tournament.generate_melee_teams("snake_draft")
+                round_one = Round.objects.get(
+                    tournament=tournament, stage=stage, number_in_stage=1
+                )
+                assignments = list(MeleeRoundAssignment.objects.filter(
+                    tournament=tournament, round=round_one
+                ))
+                self.assertEqual(len(assignments), count)
+                self.assertEqual(
+                    {row.player_id for row in assignments},
+                    {player.pk for player in roster},
+                )
+                self.assertEqual(
+                    PetaEventEntry.objects.filter(
+                        event__tournament=tournament
+                    ).count(), count
+                )
