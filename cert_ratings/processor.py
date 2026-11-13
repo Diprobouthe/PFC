@@ -57,6 +57,10 @@ def process_match_cert_ratings(match):
     if not entity.is_active:
         return {"success": True, "reason": f"Certifying entity '{entity.name}' is inactive"}
 
+    if entity.rating_system == "peta_algorithm":
+        from .peta_service import process_peta_match
+        return process_peta_match(match, entity)
+
     if entity.rating_system != "classic_elo":
         return {
             "success": False,
