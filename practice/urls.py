@@ -19,6 +19,9 @@ urlpatterns = [
     path('api/undo-shot/', views.undo_last_shot, name='undo_shot'),
     path('api/end-session/', views.end_session, name='end_session'),
 
+    path('api/authorize-qr/', views.authorize_practice_qr, name='authorize_practice_qr'),
+    path('api/leave-delegation/', views.leave_delegated_practice, name='leave_delegated_practice'),
+
     # Court complexes API (for session start form)
     path('api/court-complexes/', views.court_complexes_api, name='court_complexes_api'),
 
