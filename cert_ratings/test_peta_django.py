@@ -19,7 +19,7 @@ from practice.models import PracticeSession, Shot
 
 from cert_ratings.models import CertifyingEntity, CertRatingHistory, PlayerCertRating
 from cert_ratings.peta_models import PetaSeries, PetaEvent, PetaEventEntry, PetaCompetitor
-from cert_ratings.peta_service import freeze_peta_entries, settle_peta_tournament
+from cert_ratings.peta_service import _contributing_player_ids, freeze_peta_entries, settle_peta_tournament
 
 
 class PetaTwoEventDatabaseTests(TestCase):
@@ -88,6 +88,35 @@ class PetaTwoEventDatabaseTests(TestCase):
         event.refresh_from_db()
         self.assertIsNotNone(event.settled_at)
         return first
+
+    def test_be_helpful_requires_each_match_and_accepts_delegated_tracking(self):
+        tournament, event, _ = self._event(1)
+        first = self._completed_match(tournament)
+        second = self._completed_match(tournament)
+        player = self.players[0]
+        code, _ = PlayerCodename.objects.get_or_create(player=player)
+        scoreboard = LiveScoreboard.objects.create(tournament_match=first)
+        ScoreUpdate.objects.create(
+            scoreboard=scoreboard, team1_score=1, team2_score=0,
+            scorekeeper_codename=code.codename, update_type="increment")
+        # One scored match cannot qualify a player who played twice.
+        self.assertNotIn(
+            player.pk, _contributing_player_ids(tournament, [player.pk]))
+        tracking = MatchTrackingSession.objects.create(
+            match_type="match", match_pk=second.pk)
+        practice = PracticeSession.objects.create(
+            player_codename=code.codename, practice_type="shooting", distance="ing")
+        TrackingPracticeSession.objects.create(
+            tracking_session=tracking, player=player,
+            practice_session=practice, practice_type="shooting")
+        # Authorization or an empty tracking session does not qualify.
+        self.assertNotIn(
+            player.pk, _contributing_player_ids(tournament, [player.pk]))
+        Shot.objects.create(session=practice, outcome="miss")
+        practice.update_statistics()
+        # The credited player is the tracked target, regardless of operator.
+        self.assertIn(
+            player.pk, _contributing_player_ids(tournament, [player.pk]))
 
     def test_two_events_global_pfc_and_peta_ratings_are_independent(self):
         t1, event1, frozen1 = self._event(1)
