@@ -1,7 +1,42 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Pointing Practice - Petanque Platform{% endblock %}
+{% block title %}Pointing Practice - Petanque Platform
+{% csrf_token %}
+<div class="container mt-2 mb-3" id="practiceQrDelegationPanel">
+  <button type="button" class="btn btn-outline-primary btn-sm" onclick="openQrScanner()">Scan player QR to record their practice</button>
+  {% if delegated_practice_name %}
+    <div class="alert alert-info mt-2">Recording {{ delegated_practice_name }}'s {{ 'pointing' }} practice</div>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="leavePracticeDelegation">Leave delegated practice</button>
+  {% endif %}
+</div>
+<script>
+window.QR_RESOLVE_URL = "{% url 'qr_resolve_match' %}";
+document.addEventListener('qrPlayerResolved', async function(e) {
+  try {
+    const response = await fetch("{% url 'practice:authorize_practice_qr' %}", {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value},
+      body: JSON.stringify({practice_type: 'pointing'})
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) { alert(result.error || 'QR authorization failed'); return; }
+    window.location.reload();
+  } catch (error) { alert('QR authorization failed. Please retry.'); }
+});
+document.addEventListener('DOMContentLoaded', function() {
+  const leave = document.getElementById('leavePracticeDelegation');
+  if (leave) leave.addEventListener('click', async function() {
+    await fetch("{% url 'practice:leave_delegated_practice' %}", {
+      method: 'POST',
+      headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}
+    });
+    window.location.reload();
+  });
+});
+</script>
+{% include 'partials/qr_scanner_modal.html' %}
+{% endblock %}
 
 {% block content %}
 <style>
