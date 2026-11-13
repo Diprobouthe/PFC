@@ -3,7 +3,7 @@ import unittest
 from decimal import Decimal
 
 from cert_ratings.peta_core import (
-    distribute_pool, pfc_match_delta, protected_entry_rating, split_awards,
+    distribute_pool, pfc_match_delta, peta_team_match_delta, protected_entry_rating, split_awards,
 )
 
 
@@ -57,6 +57,32 @@ class PetaPolicyNeutralCoreTests(unittest.TestCase):
             distribute_pool(2, {1: -1})
         with self.assertRaises(ValueError):
             split_awards({'bad': -2})
+
+    def test_team_combined_rating_underdog_win_and_loss(self):
+        # 180 + 80 against 140 + 140: the same team delta for both players.
+        win = peta_team_match_delta(
+            own_team_ratings=[180, 80], opponent_team_ratings=[140, 140],
+            own_score=13, opponent_score=7)
+        loss = peta_team_match_delta(
+            own_team_ratings=[180, 80], opponent_team_ratings=[140, 140],
+            own_score=7, opponent_score=13)
+        self.assertEqual(win, 3.23)
+        self.assertEqual(loss, -2.79)
+        self.assertEqual(peta_team_match_delta(
+            own_team_ratings=[140, 140], opponent_team_ratings=[180, 80],
+            own_score=7, opponent_score=13), -3.23)
+        self.assertEqual(peta_team_match_delta(
+            own_team_ratings=[140, 140], opponent_team_ratings=[180, 80],
+            own_score=13, opponent_score=7), 2.79)
+
+    def test_team_delta_requires_complete_valid_doubles(self):
+        for own, opponent in (([180], [140, 140]), ([180, 80], [140]),
+                              ([float('nan'), 80], [140, 140]),
+                              ([-1, 80], [140, 140])):
+            with self.subTest(own=own, opponent=opponent), self.assertRaises(ValueError):
+                peta_team_match_delta(
+                    own_team_ratings=own, opponent_team_ratings=opponent,
+                    own_score=13, opponent_score=7)
 
     def test_delegates_to_existing_pfc_math(self):
         # Requires the real PFC Django runtime, exercised by GitHub Actions.
