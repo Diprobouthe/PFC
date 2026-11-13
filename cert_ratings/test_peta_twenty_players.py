@@ -436,13 +436,13 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                     ).count(), count
                 )
 
-    def test_eight_events_seeded_random_scores_and_late_strong_entrants(self):
-        """8 actual five-round events; 1000 player-match rating writes.
+    def _run_skill_simulation(self, seed):
+        """8 actual five-round events; 800 player-match rating writes.
 
-        Deterministic random scores, staggered 120/140/180 entrants, and
+        Skill-weighted scores, staggered 120/140/180 entrants, and
         returners after gaps. Global PFC intentionally changes between events.
         """
-        rng = Random(20261113)
+        rng = Random(seed)
         original = list(self.players)
         newcomers = []
         for idx, rating in enumerate((120, 180, 140, 180, 120, 180), 1):
@@ -507,7 +507,7 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                 key=lambda item: -item[2],
             )
             print(
-                "PETA_SIM_EVENT", ordinal, "seed=20261113",
+                "PETA_SIM_EVENT", ordinal, f"seed={seed}",
                 "players=20", "matches=25",
                 "top5=" + repr([(name, round(start, 2), round(end, 2))
                                   for name, start, end in snapshot[:5]]),
@@ -531,3 +531,9 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             self.assertEqual(PetaEventEntry.objects.filter(
                 event__series=self.series, player=entrant,
                 event__ordinal__lt=3).count(), 0)
+
+    def test_skill_simulation_seed_20261114(self):
+        self._run_skill_simulation(20261114)
+
+    def test_skill_simulation_seed_20261115(self):
+        self._run_skill_simulation(20261115)
