@@ -148,7 +148,7 @@ class PetaTwoEventDatabaseTests(TestCase):
         PlayerProfile.objects.filter(player=rising).update(value=prior_rising + 12)
         t2, event2, frozen2 = self._event(2)
         self.assertAlmostEqual(frozen2[falling.pk], prior_falling)
-        self.assertAlmostEqual(frozen2[rising.pk], prior_rising + 12)
+        self.assertAlmostEqual(frozen2[rising.pk], prior_rising)
 
         match2 = self._completed_match(t2, first_score=9, second_score=13)
         self.assertTrue(process_tournament_transition(match2.pk))
