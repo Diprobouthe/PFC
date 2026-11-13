@@ -24,6 +24,96 @@ from .models import (
 from .utils import calculate_session_summary, get_player_progress_summary
 
 
+
+# Separate from match tracking: a QR grant is scoped to this browser and one
+# practice session. It never changes the logged-in player's identity.
+PRACTICE_DELEGATION_KEY = "delegated_practice_session"
+
+
+def _practice_owner_codename(request, practice_type=None):
+    """Resolve the authorized practice owner; never trust a client-supplied codename."""
+    own = CodenameSessionManager.get_logged_in_codename(request)
+    grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
+    if grant:
+        try:
+            if not grant.get("session_id"):
+                if practice_type is None or grant.get("practice_type") == practice_type:
+                    return grant["codename"]
+            delegated = PracticeSession.objects.get(
+                pk=grant["session_id"], player_codename=grant["codename"],
+                is_active=True,
+            )
+            if practice_type is None or delegated.practice_type == practice_type:
+                return delegated.player_codename
+        except (PracticeSession.DoesNotExist, KeyError, ValueError, TypeError):
+            request.session.pop(PRACTICE_DELEGATION_KEY, None)
+            request.session.modified = True
+    return own
+
+
+def _practice_active_session(request, practice_type=None):
+    """Only the session granted by QR, or the user's own active session."""
+    grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
+    if grant:
+        session = PracticeSession.objects.filter(
+            pk=grant.get("session_id"), player_codename=grant.get("codename"),
+            is_active=True,
+        )
+        if practice_type:
+            session = session.filter(practice_type=practice_type)
+        found = session.first()
+        if found:
+            return found
+        if grant.get("session_id"):
+            request.session.pop(PRACTICE_DELEGATION_KEY, None)
+            request.session.modified = True
+    own = CodenameSessionManager.get_logged_in_codename(request)
+    if not own:
+        return None
+    query = PracticeSession.objects.filter(player_codename=own, is_active=True)
+    if practice_type:
+        query = query.filter(practice_type=practice_type)
+    return query.first()
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def authorize_practice_qr(request):
+    """Consume the existing QR resolver proof to delegate one active session."""
+    from friendly_games.models import PlayerCodename
+    qr_codename = request.session.pop("qr_resolved_codename", None)
+    request.session.modified = True
+    if not qr_codename:
+        return JsonResponse({"error": "Scan the player's QR again"}, status=403)
+    if not PlayerCodename.objects.filter(codename=qr_codename).exists():
+        return JsonResponse({"error": "Unknown player QR"}, status=403)
+    try:
+        practice_type = json.loads(request.body).get("practice_type")
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    if practice_type not in ("shooting", "pointing"):
+        return JsonResponse({"error": "Invalid practice type"}, status=400)
+    active = PracticeSession.objects.filter(
+        player_codename=qr_codename, practice_type=practice_type,
+        is_active=True,
+    ).first()
+    request.session[PRACTICE_DELEGATION_KEY] = {
+        "session_id": str(active.pk) if active else None,
+        "codename": qr_codename, "practice_type": practice_type,
+    }
+    request.session.modified = True
+    return JsonResponse({"success": True, "practice_type": practice_type,
+                         "session_id": str(active.pk) if active else None})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def leave_delegated_practice(request):
+    request.session.pop(PRACTICE_DELEGATION_KEY, None)
+    request.session.modified = True
+    return JsonResponse({"success": True})
+
+
 def practice_home(request):
     """Main practice page — shows available practice types."""
     session_context = SessionManager.get_session_context(request)
@@ -55,12 +145,12 @@ def practice_home(request):
 
 def shooting_practice(request):
     """Shooting practice page — main interface for recording shots."""
-    if not CodenameSessionManager.is_logged_in(request):
+    if not CodenameSessionManager.is_logged_in(request) and not getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY):
         messages.error(request, "Please log in with your codename to start practice.")
         return redirect('practice:practice_home')
 
     session_context = SessionManager.get_session_context(request)
-    codename = session_context['session_codename']
+    codename = _practice_owner_codename(request, 'shooting')
 
     active_session = PracticeSession.objects.filter(
         player_codename=codename,
@@ -134,8 +224,16 @@ def shooting_practice(request):
             s['tdp_points'] = pts_map.get(s.get('outcome', ''), 0)
         initial_shots_json = _json.dumps(shots_list)
 
+    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    delegated_name = None
+    if grant.get('codename') == codename and grant.get('practice_type') == 'shooting':
+        from friendly_games.models import PlayerCodename
+        pc = PlayerCodename.objects.select_related('player').filter(codename=codename).first()
+        delegated_name = pc.player.name if pc else 'Player'
+
     context = {
         **session_context,
+        'delegated_practice_name': delegated_name,
         'active_session': active_session,
         'recent_sessions': recent_sessions,
         'court_complexes': court_complexes,
@@ -159,7 +257,7 @@ def pointing_practice(request):
         return redirect('practice:practice_home')
 
     session_context = SessionManager.get_session_context(request)
-    codename = session_context['session_codename']
+    codename = _practice_owner_codename(request, 'pointing')
 
     active_session = PracticeSession.objects.filter(
         player_codename=codename,
@@ -173,8 +271,16 @@ def pointing_practice(request):
         is_active=False
     ).order_by('-started_at')[:3]
 
+    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    delegated_name = None
+    if grant.get('codename') == codename and grant.get('practice_type') == 'pointing':
+        from friendly_games.models import PlayerCodename
+        pc = PlayerCodename.objects.select_related('player').filter(codename=codename).first()
+        delegated_name = pc.player.name if pc else 'Player'
+
     context = {
         **session_context,
+        'delegated_practice_name': delegated_name,
         'active_session': active_session,
         'recent_sessions': recent_sessions,
         'page_title': 'Pointing Practice',
@@ -187,10 +293,8 @@ def pointing_practice(request):
 @require_http_methods(["POST"])
 def start_session(request):
     """Start a new practice session."""
-    if not CodenameSessionManager.is_logged_in(request):
+    if not CodenameSessionManager.is_logged_in(request) and not getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
-
-    codename = CodenameSessionManager.get_logged_in_codename(request)
 
     try:
         data = json.loads(request.body)
@@ -208,6 +312,11 @@ def start_session(request):
 
     if practice_type not in ['shooting', 'pointing']:
         return JsonResponse({'error': 'Invalid practice type'}, status=400)
+
+    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    if grant and grant.get('practice_type') != practice_type:
+        return JsonResponse({'error': 'QR authorization is for a different practice type'}, status=403)
+    codename = _practice_owner_codename(request, practice_type)
 
     valid_distances = ['6m', '7m', '8m', '9m', '10m', 'ing']
     if distance not in valid_distances:
@@ -268,6 +377,11 @@ def start_session(request):
             'message': 'Practice session started!',
             'drill_type': session.drill_type,
         }
+        grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
+        if grant and not grant.get("session_id"):
+            grant["session_id"] = str(session.pk)
+            request.session[PRACTICE_DELEGATION_KEY] = grant
+            request.session.modified = True
         if court_complex_obj:
             response['court_complex_name'] = court_complex_obj.name
 
@@ -281,7 +395,7 @@ def start_session(request):
 @require_http_methods(["POST"])
 def record_shot(request):
     """Record a shot in the active session."""
-    if not CodenameSessionManager.is_logged_in(request):
+    if not CodenameSessionManager.is_logged_in(request) and not request.session.get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
     try:
@@ -300,12 +414,7 @@ def record_shot(request):
         if outcome not in valid_outcomes:
             return JsonResponse({'error': 'Invalid shot outcome'}, status=400)
 
-        codename = CodenameSessionManager.get_logged_in_codename(request)
-
-        session = PracticeSession.objects.filter(
-            player_codename=codename,
-            is_active=True
-        ).first()
+        session = _practice_active_session(request)
 
         if not session:
             return JsonResponse({'error': 'No active session found'}, status=404)
@@ -397,15 +506,11 @@ def record_shot(request):
 @require_http_methods(["POST"])
 def undo_last_shot(request):
     """Undo the last shot in the active session."""
-    if not CodenameSessionManager.is_logged_in(request):
+    if not CodenameSessionManager.is_logged_in(request) and not request.session.get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
-    codename = CodenameSessionManager.get_logged_in_codename(request)
-
-    session = PracticeSession.objects.filter(
-        player_codename=codename,
-        is_active=True
-    ).first()
+    session = _practice_active_session(request)
+    codename = session.player_codename if session else None
 
     if not session:
         return JsonResponse({'error': 'No active session found'}, status=404)
@@ -472,15 +577,11 @@ def undo_last_shot(request):
 @require_http_methods(["POST"])
 def end_session(request):
     """End the active practice session."""
-    if not CodenameSessionManager.is_logged_in(request):
+    if not CodenameSessionManager.is_logged_in(request) and not request.session.get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
-    codename = CodenameSessionManager.get_logged_in_codename(request)
-
-    session = PracticeSession.objects.filter(
-        player_codename=codename,
-        is_active=True
-    ).first()
+    session = _practice_active_session(request)
+    codename = session.player_codename if session else None
 
     if not session:
         return JsonResponse({'error': 'No active session found'}, status=404)
@@ -488,6 +589,10 @@ def end_session(request):
     try:
         with transaction.atomic():
             session.end_session()
+            grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+            if grant.get('session_id') == str(session.pk):
+                request.session.pop(PRACTICE_DELEGATION_KEY, None)
+                request.session.modified = True
             PracticeStatistics.update_for_player(codename)
             summary = calculate_session_summary(session)
 

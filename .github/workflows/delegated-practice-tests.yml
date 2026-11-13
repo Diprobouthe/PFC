@@ -1,0 +1,39 @@
+name: Delegated Practice QR integration
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'practice/**'
+      - '.github/workflows/delegated-practice-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  delegated-practice:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_practice_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_practice_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_practice_test
+      SECRET_KEY: isolated-practice-ci-not-production
+      DEBUG: 'False'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py test practice.test_delegated_qr practice.tests --verbosity 2
