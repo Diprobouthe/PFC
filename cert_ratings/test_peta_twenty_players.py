@@ -59,6 +59,32 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             PlayerCodename.objects.get_or_create(player=player)
             self.players.append(player)
 
+    def test_generate_teams_requires_explicit_peta_event_mapping(self):
+        """Real creator can produce a PETA-certified tournament without an event.
+
+        Reproduce the production #201 failure before any temporary teams exist.
+        The failure must be actionable, not an uncaught Django DoesNotExist.
+        """
+        now = timezone.now()
+        tournament = Tournament.objects.create(
+            name="PETA creator missing mapping regression",
+            format="multi_stage", play_format="doublets",
+            is_melee=True, melee_format="doublets",
+            start_date=now, end_date=now + timedelta(hours=6),
+            certifying_entity=self.entity,
+        )
+        Stage.objects.create(
+            tournament=tournament, stage_number=1,
+            format="swiss", num_qualifiers=1, num_rounds_in_stage=5,
+        )
+        for player in self.players:
+            MeleePlayer.objects.create(tournament=tournament, player=player)
+        with self.assertRaisesRegex(ValueError, "PETA.*event|event.*PETA"):
+            tournament.generate_melee_teams("snake_draft")
+        tournament.refresh_from_db()
+        self.assertFalse(tournament.melee_teams_generated)
+        self.assertEqual(TournamentTeam.objects.filter(tournament=tournament).count(), 0)
+
     def _prepare_event(self, ordinal):
         now = timezone.now()
         tournament = Tournament.objects.create(
