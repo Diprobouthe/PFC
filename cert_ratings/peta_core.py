@@ -24,7 +24,7 @@ def decimal(value) -> Decimal:
 
 
 def protected_entry_rating(current_pfc_rating: float, previous_peta_end_rating: float | None = None) -> float:
-    """Start from current PFC; ignore an intervening drop since previous PETA end."""
+    """Use PFC on first entry; resume the exact last PETA rating thereafter."""
     current = float(current_pfc_rating)
     if not isfinite(current) or current < 0:
         raise ValueError('Current PFC rating must be finite and non-negative')
@@ -33,7 +33,7 @@ def protected_entry_rating(current_pfc_rating: float, previous_peta_end_rating: 
     previous = float(previous_peta_end_rating)
     if not isfinite(previous) or previous < 0:
         raise ValueError('Previous PETA rating must be finite and non-negative')
-    return max(current, previous)
+    return previous
 
 
 def pfc_match_delta(*, own_rating: float, opponent_average_rating: float,
