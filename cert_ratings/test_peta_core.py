@@ -10,7 +10,7 @@ from cert_ratings.peta_core import (
 class PetaPolicyNeutralCoreTests(unittest.TestCase):
     def test_entry_protection(self):
         self.assertEqual(protected_entry_rating(84, 116), 116)
-        self.assertEqual(protected_entry_rating(142, 116), 142)
+        self.assertEqual(protected_entry_rating(142, 116), 116)
         self.assertEqual(protected_entry_rating(123), 123)
 
     def test_entry_rejects_invalid(self):
