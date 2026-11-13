@@ -26,9 +26,16 @@ def peta_event_for_tournament(tournament):
     entity = getattr(tournament, "certifying_entity", None)
     if not entity or entity.rating_system != "peta_algorithm":
         return None
-    return PetaEvent.objects.select_related("series", "series__entity").get(
+    event = PetaEvent.objects.select_related("series", "series__entity").filter(
         tournament_id=tournament.pk, series__entity=entity,
-    )
+    ).first()
+    if event is None:
+        raise ValueError(
+            f"PETA event mapping missing for tournament #{tournament.pk}. "
+            "Configure its PETA Series and Event (ordinal 1-8) in Django admin "
+            "before generating teams."
+        )
+    return event
 
 
 def freeze_peta_entries(tournament, melee_players):
