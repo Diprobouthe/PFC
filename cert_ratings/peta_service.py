@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from .models import CertRatingHistory, PlayerCertRating
 from .peta_models import PetaCompetitor, PetaEvent, PetaEventEntry
-from .peta_core import peta_team_match_delta, protected_entry_rating
+from .peta_core import pfc_match_delta, protected_entry_rating
 from .peta_policy import (
     MULTIPLIERS, TOP_FRACTION, BASE_FRACTION, MIDDLE_SHARE,
     MIN_WIN_RATE_MATCHES, MIN_WIN_RATE, awards_for_player,
@@ -87,7 +87,7 @@ def peta_entry_ratings(tournament):
 def process_peta_match(match, entity):
     """Persist one certified-rating projection per completed Match.
 
-    Both teammates receive the same delta from PRE-match team averages.
+    Each participant receives an individual delta against the PRE-match opposing team average.
     A retry cannot update a player twice because immutable history is unique.
     """
     if match.status != "completed" or not match.winner_id or not match.loser_id:
@@ -125,17 +125,19 @@ def process_peta_match(match, entity):
             losers_score = match.team2_score if match.winner_id == match.team1_id else match.team1_score
             winner_ratings = [ratings[i].current_rating for i in winner_ids]
             loser_ratings = [ratings[i].current_rating for i in loser_ids]
-            winner_delta = peta_team_match_delta(
-                own_team_ratings=winner_ratings, opponent_team_ratings=loser_ratings,
-                own_score=winners_score, opponent_score=losers_score)
-            loser_delta = peta_team_match_delta(
-                own_team_ratings=loser_ratings, opponent_team_ratings=winner_ratings,
-                own_score=losers_score, opponent_score=winners_score)
+            winner_opponent_average = sum(loser_ratings) / len(loser_ratings)
+            loser_opponent_average = sum(winner_ratings) / len(winner_ratings)
             updates = []
-            for side, delta in ((winner_ids, winner_delta), (loser_ids, loser_delta)):
+            for side, opponent_average, own_score, opponent_score in (
+                (winner_ids, winner_opponent_average, winners_score, losers_score),
+                (loser_ids, loser_opponent_average, losers_score, winners_score),
+            ):
                 for player_id in side:
                     cert = ratings[player_id]
                     old = cert.current_rating
+                    delta = pfc_match_delta(
+                        own_rating=old, opponent_average_rating=opponent_average,
+                        own_score=own_score, opponent_score=opponent_score)
                     new = max(0.0, old + delta)
                     CertRatingHistory.objects.create(
                         entity=entity, match=match, player_id=player_id,
@@ -150,31 +152,51 @@ def process_peta_match(match, entity):
         return {"success": False, "reason": "Retryable PETA projection failure"}
 
 
-def _contributing_player_ids(player_ids, since):
-    """Check TWO existing audit paths once at final settlement.
+def _contributing_player_ids(tournament, player_ids):
+    """Require an actual score update or tracked shot in EVERY played match.
 
-    Match Tracking credits the tracked PLAYER, not the person holding the phone.
-    Empty tracking sessions, mere QR authorizations and login do not qualify.
+    Match tracking credits the tracked participant, not the browser operator.
+    An empty authorization, a shot in another match, or an earlier event
+    never qualifies a player for this event's dividend.
     """
     from friendly_games.models import PlayerCodename
-    from matches.models import ScoreUpdate
+    from matches.models import MatchPlayer, ScoreUpdate
     from match_tracking.models import TrackingPracticeSession
+
+    match_players = list(MatchPlayer.objects.filter(
+        match__tournament=tournament, match__status="completed",
+        player_id__in=player_ids,
+    ).values_list("match_id", "player_id"))
+    required = {}
+    for match_id, player_id in match_players:
+        required.setdefault(player_id, set()).add(match_id)
 
     codes = dict(PlayerCodename.objects.filter(
         player_id__in=player_ids).values_list("codename", "player_id"))
-    score_codes = ScoreUpdate.objects.filter(
+    scored = set()
+    for match_id, code in ScoreUpdate.objects.filter(
+        scoreboard__tournament_match__tournament=tournament,
+        scoreboard__tournament_match__status="completed",
         scorekeeper_codename__in=list(codes),
-        timestamp__gte=since,
         update_type__in=("increment", "correction"),
     ).exclude(team1_score=0, team2_score=0).values_list(
-        "scorekeeper_codename", flat=True).distinct()
-    scored_ids = {codes[code] for code in score_codes if code in codes}
-    tracked_ids = set(TrackingPracticeSession.objects.filter(
+        "scoreboard__tournament_match_id", "scorekeeper_codename"
+    ).distinct():
+        player_id = codes.get(code)
+        if match_id in required.get(player_id, set()):
+            scored.add((match_id, player_id))
+
+    tracked = set(TrackingPracticeSession.objects.filter(
+        tracking_session__match_type="match",
+        tracking_session__match_pk__in=[match_id for match_id, _ in match_players],
         player_id__in=player_ids,
-        practice_session__started_at__gte=since,
         practice_session__total_shots__gt=0,
-    ).values_list("player_id", flat=True).distinct())
-    return scored_ids | tracked_ids
+    ).values_list("tracking_session__match_pk", "player_id").distinct())
+    contributed = scored | tracked
+    return {
+        player_id for player_id, match_ids in required.items()
+        if match_ids and all((match_id, player_id) in contributed for match_id in match_ids)
+    }
 
 
 def settle_peta_tournament(tournament):
@@ -230,7 +252,7 @@ def settle_peta_tournament(tournament):
         max_winrate = max(
             (Decimal(s.wins) / Decimal(s.matches_played) for s in qualified),
             default=Decimal(0))
-        contributors = _contributing_player_ids(player_ids, locked.series.created_at)
+        contributors = _contributing_player_ids(tournament, player_ids)
         entry_by_id = {entry.player_id: entry for entry in entries}
         ranks = sorted(player_ids, key=lambda i: (
             -(certs[i].current_rating - entry_by_id[i].entry_rating), -stats[i].wins, i))
