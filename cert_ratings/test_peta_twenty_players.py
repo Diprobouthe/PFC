@@ -7,6 +7,7 @@ shuffle. Runs on isolated PostgreSQL in GitHub Actions, never production.
 """
 from datetime import timedelta
 from decimal import Decimal
+from random import Random
 
 from django.test import TestCase
 from django.utils import timezone
@@ -119,7 +120,7 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
             expected,
         )
 
-    def _play_full_event(self, tournament, stage, event):
+    def _play_full_event(self, tournament, stage, event, rng=None):
         seen_match_ids = set()
         for round_number in range(1, self.ROUNDS + 1):
             current = Round.objects.get(
@@ -158,8 +159,13 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                         scorekeeper_codename=code.codename,
                     )
 
-                scored_first = 13 if (match.pk + round_number) % 2 else 7
-                scored_second = 7 if scored_first == 13 else 13
+                if rng is None:
+                    scored_first = 13 if (match.pk + round_number) % 2 else 7
+                    scored_second = 7 if scored_first == 13 else 13
+                else:
+                    loser_score = rng.randint(0, 12)
+                    scored_first, scored_second = ((13, loser_score)
+                        if rng.randrange(2) else (loser_score, 13))
                 submitted = submit_official_result(
                     match.pk, submitted_by_id=match.team1_id,
                     team1_score=scored_first, team2_score=scored_second,
@@ -390,3 +396,79 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
                         event__tournament=tournament
                     ).count(), count
                 )
+
+    def test_eight_events_seeded_random_scores_and_late_strong_entrants(self):
+        """8 actual five-round events; 1000 player-match rating writes.
+
+        Deterministic random scores, staggered 120/140/180 entrants, and
+        returners after gaps. Global PFC intentionally changes between events.
+        """
+        rng = Random(20261113)
+        original = list(self.players)
+        newcomers = []
+        for idx, rating in enumerate((120, 180, 140, 180, 120, 180), 1):
+            team = Team.objects.create(name=f"PETA rotating HOME {idx}")
+            player = Player.objects.create(
+                name=f"PETA late entrant {idx} rating {rating}", team=team)
+            PlayerProfile.objects.update_or_create(
+                player=player, defaults={"value": float(rating)})
+            PlayerCodename.objects.get_or_create(player=player)
+            newcomers.append(player)
+
+        rosters = [
+            original,
+            original,
+            original[:19] + [newcomers[0]],           # 120 enters
+            original[:18] + [newcomers[0], newcomers[1]],  # 180 enters
+            original[:17] + [newcomers[0], newcomers[1], newcomers[2]],
+            original[:17] + [newcomers[1], newcomers[2], newcomers[3]],
+            original[:16] + [newcomers[1], newcomers[2], newcomers[3], newcomers[4]],
+            original[:15] + [newcomers[1], newcomers[2], newcomers[3],
+                             newcomers[4], newcomers[5]],  # late 180
+        ]
+        last_end = {}
+        permanent_ids = {}
+        all_event_ids = []
+        for ordinal, roster in enumerate(rosters, 1):
+            self.players = list(roster)
+            self.assertEqual(len({p.pk for p in roster}), self.PLAYERS)
+            # Deliberately scramble global PFC: returning PETA players must
+            # ignore it, whereas newcomers must use their initial PFC.
+            if ordinal > 1:
+                for player in roster:
+                    if player.pk in last_end:
+                        PlayerProfile.objects.filter(player=player).update(
+                            value=float(last_end[player.pk]) + rng.randint(-35, 35))
+            tournament, stage, event, entries = self._prepare_event(ordinal)
+            all_event_ids.append(event.pk)
+            self._assert_first_snake_pairs(tournament, stage, entries)
+            for player in roster:
+                expected = last_end.get(player.pk)
+                if expected is None:
+                    expected = PlayerProfile.objects.get(player=player).value
+                self.assertAlmostEqual(float(entries[player.pk]), float(expected))
+                competitor = PetaCompetitor.objects.get(
+                    series=self.series, player=player)
+                if player.pk in permanent_ids:
+                    self.assertEqual(competitor.pk, permanent_ids[player.pk])
+                permanent_ids[player.pk] = competitor.pk
+            self.assertEqual(PetaCompetitor.objects.filter(
+                series=self.series).count(), len(permanent_ids))
+            end_entries = self._play_full_event(
+                tournament, stage, event, rng=rng)
+            for pid, entry in end_entries.items():
+                last_end[pid] = entry.end_rating
+                self.assertAlmostEqual(
+                    float(PetaCompetitor.objects.get(
+                        series=self.series, player_id=pid).last_end_rating),
+                    float(entry.end_rating))
+        self.assertEqual(PetaEvent.objects.filter(
+            pk__in=all_event_ids, settled_at__isnull=False).count(), 8)
+        self.assertEqual(PetaEventEntry.objects.filter(
+            event_id__in=all_event_ids).count(), 160)
+        self.assertEqual(CertRatingHistory.objects.filter(
+            entity=self.entity).count(), 8 * self.ROUNDS * self.PLAYERS)
+        for entrant in newcomers:
+            self.assertEqual(PetaEventEntry.objects.filter(
+                event__series=self.series, player=entrant,
+                event__ordinal__lt=3).count(), 0)
