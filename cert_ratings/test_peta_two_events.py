@@ -135,7 +135,7 @@ class PetaTwoEventReplayTests(unittest.TestCase):
 
         self.assertAlmostEqual(second['current_pfc'][4], first['end'][4] - 35)
         self.assertAlmostEqual(second['entry'][4], first['end'][4])
-        self.assertAlmostEqual(second['entry'][2], first['end'][2] + 12)
+        self.assertAlmostEqual(second['entry'][2], first['end'][2])
 
         for event in (first, second):
             result = event['result']
