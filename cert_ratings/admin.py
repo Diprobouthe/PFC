@@ -43,3 +43,48 @@ class CertRatingHistoryAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False  # history is immutable
+
+
+from django import forms
+from django.core.exceptions import ValidationError
+from .peta_models import PetaSeries, PetaEvent
+
+
+@admin.register(PetaSeries)
+class PetaSeriesAdmin(admin.ModelAdmin):
+    list_display = ("name", "entity", "rules_commitment", "created_at")
+    search_fields = ("name", "entity__name")
+
+
+class PetaEventAdminForm(forms.ModelForm):
+    class Meta:
+        model = PetaEvent
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        series = cleaned.get("series")
+        tournament = cleaned.get("tournament")
+        ordinal = cleaned.get("ordinal")
+        if series and series.entity.rating_system != "peta_algorithm":
+            raise ValidationError("PETA Series entity must use the PETA algorithm.")
+        if series and tournament and tournament.certifying_entity_id != series.entity_id:
+            raise ValidationError(
+                "Tournament certification must match the selected PETA Series entity."
+            )
+        if series and ordinal and not self.instance.pk:
+            prior = PetaEvent.objects.filter(series=series, ordinal__lt=ordinal)
+            if ordinal > 1 and prior.count() != ordinal - 1:
+                raise ValidationError(
+                    "Create PETA events in ordinal order, beginning with event 1."
+                )
+        return cleaned
+
+
+@admin.register(PetaEvent)
+class PetaEventAdmin(admin.ModelAdmin):
+    form = PetaEventAdminForm
+    list_display = ("tournament", "series", "ordinal", "settled_at")
+    list_filter = ("series", "settled_at")
+    search_fields = ("tournament__name", "series__name")
+    readonly_fields = ("settled_at", "settlement_audit")
