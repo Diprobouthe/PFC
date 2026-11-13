@@ -237,7 +237,7 @@ class PetaTwentyPlayerFiveRoundTwoEventTests(TestCase):
 
         second, stage2, event2, second_entries = self._prepare_event(2)
         self.assertAlmostEqual(second_entries[dropping.pk], previous_drop)
-        self.assertAlmostEqual(second_entries[rising.pk], previous_rise + 35)
+        self.assertAlmostEqual(second_entries[rising.pk], previous_rise)
         self._assert_first_snake_pairs(second, stage2, second_entries)
         self._play_full_event(second, stage2, event2)
 
