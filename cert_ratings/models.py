@@ -166,4 +166,4 @@ class CertRatingHistory(models.Model):
 
 
 # PETA series models share the cert_ratings app label and migration chain.
-from .peta_models import PetaSeries, PetaEvent, PetaCompetitor, PetaEventEntry  # noqa: E402,F401
+from .peta_models import PetaSeries, PetaEvent, PetaCompetitor, PetaEventEntry, PetaKeepAllChoice  # noqa: E402,F401

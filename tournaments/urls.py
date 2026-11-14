@@ -22,6 +22,7 @@ urlpatterns = [
     
     # Mêlée Mode URLs
     path('<int:tournament_id>/register/melee/', views.tournament_register_melee, name='tournament_register_melee'),
+    path('<int:tournament_id>/peta/keep-all/', views.tournament_peta_keep_all, name='tournament_peta_keep_all'),
     path('<int:tournament_id>/register/melee/qr-resolve/', views.tournament_melee_qr_resolve, name='tournament_melee_qr_resolve'),
     path('<int:tournament_id>/melee/status/', views.tournament_melee_status, name='tournament_melee_status'),
     path('<int:tournament_id>/melee/generate/', views.tournament_generate_melee_teams, name='tournament_generate_melee_teams'),

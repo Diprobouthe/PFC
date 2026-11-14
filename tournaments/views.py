@@ -895,6 +895,9 @@ def tournament_register_melee(request, tournament_id):
         messages.success(request, _reg_msg)
         return redirect('tournament_detail', tournament_id=tournament.id)
 
+    from cert_ratings.peta_keep_all import keep_all_state
+    keep_all = keep_all_state(tournament, session_player) if session_player and already_registered else None
+
     # ── Build context for GET ───────────────────────────────────────────────────
     current_registrations = tournament.melee_players.all().select_related('player')
     # Determine team size from the actual melee_format so tete_a_tete (1v1)
@@ -925,6 +928,7 @@ def tournament_register_melee(request, tournament_id):
         'is_singles': _fmt == 'tete_a_tete',
         'estimated_teams': estimated_teams,
         'leftover_players': reg_count % team_size,
+        'peta_keep_all': keep_all,
     }
 
     return render(request, 'tournaments/melee_register.html', context)
@@ -1895,3 +1899,32 @@ def tournament_register_api_qr_team(request, tournament_id):
         "players":   players,
         "tournament_team_id": tournament_team.id,
     })
+
+
+@require_POST
+def tournament_peta_keep_all(request, tournament_id):
+    """Only the registered player may select Keep All before roster freeze."""
+    from friendly_games.models import PlayerCodename
+    from cert_ratings.peta_keep_all import set_keep_all_choice
+    from cert_ratings.peta_models import PetaEvent
+    from django.http import HttpResponseBadRequest, HttpResponseForbidden
+    tournament = get_object_or_404(Tournament, pk=tournament_id)
+    codename = request.session.get("player_codename")
+    if not codename or not request.session.get("session_active"):
+        return HttpResponseForbidden("Sign in with your PFC player identity.")
+    try:
+        player = PlayerCodename.objects.select_related("player").get(
+            codename=codename.upper()
+        ).player
+    except PlayerCodename.DoesNotExist:
+        return HttpResponseForbidden("Invalid player identity.")
+    selection = request.POST.get("keep_all")
+    if selection not in ("yes", "no"):
+        return HttpResponseBadRequest("Invalid Keep All selection.")
+    try:
+        set_keep_all_choice(tournament.pk, player.pk, selection == "yes")
+    except (ValueError, PetaEvent.DoesNotExist) as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "Keep All preference saved. It locks when teams are generated.")
+    return redirect("tournament_register_melee", tournament_id=tournament.pk)

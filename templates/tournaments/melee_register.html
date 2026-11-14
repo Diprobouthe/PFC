@@ -308,6 +308,29 @@
     </div>
   {% endif %}
 
+  {% if peta_keep_all %}
+  <section style="margin:0 16px 16px;padding:16px;border:1px solid #3b5280;border-radius:14px;background:#17233a;color:#f9fafb">
+    <h2 style="font-size:18px;font-weight:800;margin:0 0 8px">✈️ KEEP ALL · One-time choice</h2>
+    <p style="font-size:13px;color:#cbd5e1">Choose before this Super Mêlée begins. Keep every award earned at this meeting instead of contributing the extra awards to the shared pool. This is available once per series, even if you win no awards.</p>
+    {% if peta_keep_all.used %}
+      <p style="color:#fbbf24">Your Keep All has already been used in this series.</p>
+    {% elif peta_keep_all.locked %}
+      <p style="color:#fbbf24">Selection locked when the event roster was frozen.</p>
+      <strong>Selection: {% if peta_keep_all.enabled %}KEEP ALL{% else %}Standard sharing{% endif %}</strong>
+    {% elif peta_keep_all.can_edit %}
+      <p style="color:#93c5fd">Current selection: <strong>{% if peta_keep_all.enabled %}KEEP ALL{% else %}Standard sharing{% endif %}</strong></p>
+      <form method="post" action="{% url 'tournament_peta_keep_all' tournament.id %}" style="display:flex;flex-wrap:wrap;gap:8px">
+        {% csrf_token %}
+        {% if not peta_keep_all.enabled %}
+          <button type="submit" name="keep_all" value="yes" onclick="return confirm('Use your one Keep All for this Super Mêlée? This becomes final when teams are generated.')" style="padding:12px;border:0;border-radius:9px;background:#2563eb;color:white;font-weight:800">Activate Keep All</button>
+        {% else %}
+          <button type="submit" name="keep_all" value="no" style="padding:12px;border:0;border-radius:9px;background:#374151;color:white;font-weight:800">Cancel selection before lock</button>
+        {% endif %}
+      </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {# ── Registered players list ──────────────────────────────────────── #}
   {% if current_registrations %}
     <div class="mr-reg-section">
