@@ -31,7 +31,7 @@ class KeepAllPrestartTests(TestCase):
             certifying_entity=self.entity,
         )
         self.event = PetaEvent.objects.create(
-            series=self.series, tournament=self.tournament, ordinal=1
+            series=self.series, tournament=self.tournament, ordinal=5
         )
         self.registration = MeleePlayer.objects.create(
             tournament=self.tournament, player=self.player
@@ -67,24 +67,31 @@ class KeepAllPrestartTests(TestCase):
         with self.assertRaisesRegex(ValueError, "locked"):
             set_keep_all_choice(self.tournament.pk, self.player.pk, True)
 
-    def test_used_exception_cannot_be_selected_again(self):
+    def test_previous_keep_all_does_not_block_repeat(self):
         PetaCompetitor.objects.create(
             series=self.series, player=self.player, exception_used=True
         )
-        with self.assertRaisesRegex(ValueError, "already been used"):
-            set_keep_all_choice(self.tournament.pk, self.player.pk, True)
+        set_keep_all_choice(self.tournament.pk, self.player.pk, True)
+        self.assertTrue(keep_all_state(self.tournament, self.player)["enabled"])
 
-    def test_second_meeting_cannot_be_reserved_while_first_selected(self):
+    def test_another_meeting_can_also_be_selected(self):
         set_keep_all_choice(self.tournament.pk, self.player.pk, True)
         later = Tournament.objects.create(
             name="Second Keep All meeting", play_format="doublets",
             start_date=timezone.now(), end_date=timezone.now() + timedelta(hours=3),
             is_melee=True, melee_format="doublets", certifying_entity=self.entity,
         )
-        PetaEvent.objects.create(series=self.series, tournament=later, ordinal=2)
+        PetaEvent.objects.create(series=self.series, tournament=later, ordinal=6)
         MeleePlayer.objects.create(tournament=later, player=self.player)
-        with self.assertRaisesRegex(ValueError, "already selected"):
-            set_keep_all_choice(later.pk, self.player.pk, True)
+        set_keep_all_choice(later.pk, self.player.pk, True)
+        self.assertTrue(PetaKeepAllChoice.objects.get(event__ordinal=6, player=self.player).enabled)
+
+    def test_early_events_reject_keep_all(self):
+        self.event.ordinal = 4
+        self.event.save(update_fields=["ordinal"])
+        with self.assertRaisesRegex(ValueError, "events 5 through 8"):
+            set_keep_all_choice(self.tournament.pk, self.player.pk, True)
+        self.assertFalse(keep_all_state(self.tournament, self.player)["can_edit"])
 
     def test_post_requires_authenticated_player_session(self):
         url = reverse("tournament_peta_keep_all", args=[self.tournament.pk])
