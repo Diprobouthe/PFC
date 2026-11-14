@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import CertRatingHistory, PlayerCertRating
-from .peta_models import PetaCompetitor, PetaEvent, PetaEventEntry
+from .peta_models import PetaCompetitor, PetaEvent, PetaEventEntry, PetaKeepAllChoice
 from .peta_core import pfc_match_delta, protected_entry_rating
 from .peta_policy import (
     MULTIPLIERS, TOP_FRACTION, BASE_FRACTION, MIDDLE_SHARE,
@@ -67,6 +67,14 @@ def freeze_peta_entries(tournament, melee_players):
         # Never silently replace a frozen roster with a different roster.
         if set(existing) - set(player_ids):
             raise ValueError("PETA roster changed after entry freeze")
+        selected_keep_all = set(PetaKeepAllChoice.objects.filter(
+            event=locked, player_id__in=player_ids, enabled=True
+        ).values_list("player_id", flat=True))
+        if selected_keep_all and event.ordinal < 5:
+            raise ValueError("Keep All is available only in events 5 through 8.")
+        from .peta_keep_all import prior_participation_count
+        if any(prior_participation_count(event, pid) < 3 for pid in selected_keep_all):
+            raise ValueError("Keep All requires three completed previous PETA events.")
         for player_id in player_ids:
             if player_id in existing:
                 continue
@@ -75,7 +83,8 @@ def freeze_peta_entries(tournament, melee_players):
             rating = protected_entry_rating(
                 profile_values.get(player_id, 100.0), competitor.last_end_rating)
             PetaEventEntry.objects.create(
-                event=event, player_id=player_id, entry_rating=rating)
+                event=event, player_id=player_id, entry_rating=rating,
+                use_exception=player_id in selected_keep_all)
             PlayerCertRating.objects.update_or_create(
                 entity=event.series.entity, player_id=player_id,
                 defaults={"current_rating": rating})
@@ -291,6 +300,12 @@ def settle_peta_tournament(tournament):
                 keep_all_now=entry.use_exception,
                 exception_used_before=competitors[player_id].exception_used,
             ))
+        if locked.ordinal < 5 and any(entry.use_exception for entry in entries):
+            raise ValueError("Keep All is available only in events 5 through 8.")
+        from .peta_keep_all import prior_participation_count
+        if any(entry.use_exception and prior_participation_count(locked, entry.player_id) < 3
+               for entry in entries):
+            raise ValueError("Keep All requires three completed previous PETA events.")
         result = settle_event(
             inputs, multiplier=MULTIPLIERS[locked.ordinal - 1],
             middle_fraction=MIDDLE_SHARE,

@@ -53,14 +53,12 @@ def settle_event(
     by_id = {p.player_id: p for p in players}
     splits, personal = {}, {}
     for p in players:
-        if p.keep_all_now and p.exception_used_before:
-            raise ValueError("One keep-all exception per player per series")
         split = split_awards(p.awards, keep_all=p.keep_all_now)
         splits[p.player_id] = split
         own_awards = sum((amount for _, amount in split.retained), Decimal(0))
         personal[p.player_id] = (
             decimal(p.prior_travel_points)
-            + decimal(p.rating_delta) + m * own_awards
+            + decimal(p.rating_delta) + (own_awards if p.keep_all_now else m * own_awards)
         ).quantize(UNIT, rounding=ROUND_HALF_UP)
 
     pool = (m * sum((s.pooled_total for s in splits.values()), Decimal(0))).quantize(

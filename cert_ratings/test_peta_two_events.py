@@ -163,15 +163,16 @@ class PetaTwoEventReplayTests(unittest.TestCase):
         self.assertEqual(result['distributed'], 0)
         self.assertEqual(result['undistributed'], Decimal('4.0000'))
 
-    def test_keep_all_cannot_be_reused(self):
+    def test_keep_all_can_be_reused(self):
         players = [EventPlayer(1, 0, 0, {'a': 10, 'b': 6},
                                dividend_eligible=True, keep_all_now=True)]
         self.assertEqual(settle_event(players, multiplier=1)['pool'], 0)
         players = [EventPlayer(1, 0, 0, {'a': 10, 'b': 6},
                                dividend_eligible=True, keep_all_now=True,
                                exception_used_before=True)]
-        with self.assertRaises(ValueError):
-            settle_event(players, multiplier=1)
+        result = settle_event(players, multiplier=2)
+        self.assertEqual(result["personal_points"][1], 16)
+        self.assertEqual(result["pool"], 0)
 
 
 if __name__ == '__main__':

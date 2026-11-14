@@ -69,3 +69,16 @@ class PetaEventEntry(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["event", "player"], name="peta_unique_event_entry")
         ]
+
+
+class PetaKeepAllChoice(models.Model):
+    """Pre-start decision; independent of the later frozen rating snapshot."""
+    event = models.ForeignKey(PetaEvent, on_delete=models.PROTECT, related_name="keep_all_choices")
+    player = models.ForeignKey("teams.Player", on_delete=models.PROTECT)
+    enabled = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["event", "player"], name="peta_unique_keep_all_choice")
+        ]
