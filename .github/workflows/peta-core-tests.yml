@@ -8,6 +8,12 @@ on:
       - cert_ratings/peta_series.py
       - cert_ratings/peta_policy.py
       - cert_ratings/peta_service.py
+      - cert_ratings/peta_keep_all.py
+      - cert_ratings/test_peta_keep_all.py
+      - cert_ratings/migrations/0003_peta_keep_all_choice.py
+      - tournaments/views.py
+      - tournaments/urls.py
+      - templates/tournaments/melee_register.html
       - cert_ratings/peta_display.py
       - cert_ratings/test_peta_display.py
       - teams/views.py
@@ -72,6 +78,7 @@ jobs:
             cert_ratings.test_peta_two_events \
             cert_ratings.test_peta_django \
             cert_ratings.test_peta_display \
+            cert_ratings.test_peta_keep_all \
             cert_ratings.test_peta_full_snake \
             cert_ratings.test_peta_twenty_players \
             --verbosity 2
