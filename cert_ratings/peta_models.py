@@ -24,7 +24,7 @@ class PetaEvent(models.Model):
     tournament = models.OneToOneField(
         "tournaments.Tournament", on_delete=models.PROTECT, related_name="peta_event")
     ordinal = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(8)])
-    include_podium = models.BooleanField(default=False)
+    include_podium = models.BooleanField(default=True)
     require_task = models.BooleanField(default=False)
     settled_at = models.DateTimeField(null=True, blank=True)
     settlement_audit = models.JSONField(default=dict, blank=True)
