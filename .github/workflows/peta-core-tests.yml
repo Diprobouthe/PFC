@@ -10,7 +10,7 @@ on:
       - cert_ratings/peta_service.py
       - cert_ratings/peta_keep_all.py
       - cert_ratings/test_peta_keep_all.py
-      - cert_ratings/migrations/0003_peta_keep_all_choice.py
+      - cert_ratings/migrations/0004_peta_keep_all_choice.py
       - tournaments/views.py
       - tournaments/urls.py
       - templates/tournaments/melee_register.html
