@@ -128,14 +128,14 @@ class PetaKeepAllMultiplierTests(unittest.TestCase):
         result = self._settle({}, "3", False, delta="-4")
         self.assertEqual(result["personal_points"][1], Decimal("6.0000"))
 
-    def test_second_keep_all_is_rejected(self):
+    def test_repeat_keep_all_is_allowed(self):
         from cert_ratings.peta_series import EventPlayer, settle_event
-        with self.assertRaisesRegex(ValueError, "One keep-all exception"):
-            settle_event([
+        result = settle_event([
                 EventPlayer(player_id=1, prior_travel_points=0, rating_delta=0,
                             awards={"a": 6}, keep_all_now=True,
                             exception_used_before=True)
             ], multiplier="3")
+        self.assertEqual(result["personal_points"][1], 6)
 
 if __name__ == '__main__':
     unittest.main()
