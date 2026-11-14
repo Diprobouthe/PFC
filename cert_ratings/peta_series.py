@@ -53,8 +53,6 @@ def settle_event(
     by_id = {p.player_id: p for p in players}
     splits, personal = {}, {}
     for p in players:
-        if p.keep_all_now and p.exception_used_before:
-            raise ValueError("One keep-all exception per player per series")
         split = split_awards(p.awards, keep_all=p.keep_all_now)
         splits[p.player_id] = split
         own_awards = sum((amount for _, amount in split.retained), Decimal(0))
