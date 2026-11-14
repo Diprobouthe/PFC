@@ -60,7 +60,7 @@ def settle_event(
         own_awards = sum((amount for _, amount in split.retained), Decimal(0))
         personal[p.player_id] = (
             decimal(p.prior_travel_points)
-            + decimal(p.rating_delta) + m * own_awards
+            + decimal(p.rating_delta) + (own_awards if p.keep_all_now else m * own_awards)
         ).quantize(UNIT, rounding=ROUND_HALF_UP)
 
     pool = (m * sum((s.pooled_total for s in splits.values()), Decimal(0))).quantize(
