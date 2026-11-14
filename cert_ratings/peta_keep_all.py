@@ -23,7 +23,7 @@ def keep_all_state(tournament, player):
         "enabled": bool(choice and choice.enabled),
         "used": bool(competitor and competitor.exception_used),
         "locked": locked,
-        "can_edit": registered and not locked and not bool(competitor and competitor.exception_used),
+        "can_edit": registered and not locked and event.ordinal >= 5,
     }
 
 
@@ -42,13 +42,8 @@ def set_keep_all_choice(tournament_id, player_id, enabled):
         competitor, _ = PetaCompetitor.objects.get_or_create(
             series=event.series, player_id=player_id
         )
-        if competitor.exception_used:
-            raise ValueError("Your one Keep All has already been used in this series.")
-        if enabled and PetaKeepAllChoice.objects.filter(
-            event__series=event.series, player_id=player_id,
-            enabled=True,
-        ).exclude(event=event).exists():
-            raise ValueError("Keep All is already selected for another meeting in this series.")
+        if enabled and event.ordinal < 5:
+            raise ValueError("Keep All is available only in events 5 through 8.")
         PetaKeepAllChoice.objects.update_or_create(
             event=event, player_id=player_id, defaults={"enabled": enabled}
         )
