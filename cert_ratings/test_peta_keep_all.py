@@ -36,6 +36,35 @@ class KeepAllPrestartTests(TestCase):
         self.registration = MeleePlayer.objects.create(
             tournament=self.tournament, player=self.player
         )
+        self._add_prior_participations(3)
+
+    def _add_prior_participations(self, count):
+        for ordinal in range(1, count + 1):
+            prior = Tournament.objects.create(
+                name=f"Earlier meeting {ordinal}", play_format="doublets",
+                start_date=timezone.now(), end_date=timezone.now() + timedelta(hours=3),
+                is_melee=True, melee_format="doublets", certifying_entity=self.entity,
+            )
+            prior_event = PetaEvent.objects.create(
+                series=self.series, tournament=prior, ordinal=ordinal,
+                settled_at=timezone.now(),
+            )
+            PetaEventEntry.objects.create(event=prior_event, player=self.player, entry_rating=100)
+
+
+    def test_only_two_previous_events_blocks_selection(self):
+        PetaEventEntry.objects.filter(event__series=self.series, event__ordinal=3, player=self.player).delete()
+        state = keep_all_state(self.tournament, self.player)
+        self.assertEqual(state["prior_participations"], 2)
+        self.assertFalse(state["can_edit"])
+        with self.assertRaisesRegex(ValueError, "three completed previous"):
+            set_keep_all_choice(self.tournament.pk, self.player.pk, True)
+        set_keep_all_choice(self.tournament.pk, self.player.pk, False)
+
+    def test_unsettled_previous_event_does_not_count(self):
+        PetaEvent.objects.filter(series=self.series, ordinal=3).update(settled_at=None)
+        with self.assertRaisesRegex(ValueError, "three completed previous"):
+            set_keep_all_choice(self.tournament.pk, self.player.pk, True)
 
     def test_registration_required(self):
         with self.assertRaisesRegex(ValueError, "Register"):
