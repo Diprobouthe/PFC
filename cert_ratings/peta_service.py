@@ -72,6 +72,9 @@ def freeze_peta_entries(tournament, melee_players):
         ).values_list("player_id", flat=True))
         if selected_keep_all and event.ordinal < 5:
             raise ValueError("Keep All is available only in events 5 through 8.")
+        from .peta_keep_all import prior_participation_count
+        if any(prior_participation_count(event, pid) < 3 for pid in selected_keep_all):
+            raise ValueError("Keep All requires three completed previous PETA events.")
         for player_id in player_ids:
             if player_id in existing:
                 continue
@@ -299,6 +302,10 @@ def settle_peta_tournament(tournament):
             ))
         if locked.ordinal < 5 and any(entry.use_exception for entry in entries):
             raise ValueError("Keep All is available only in events 5 through 8.")
+        from .peta_keep_all import prior_participation_count
+        if any(entry.use_exception and prior_participation_count(locked, entry.player_id) < 3
+               for entry in entries):
+            raise ValueError("Keep All requires three completed previous PETA events.")
         result = settle_event(
             inputs, multiplier=MULTIPLIERS[locked.ordinal - 1],
             middle_fraction=MIDDLE_SHARE,
