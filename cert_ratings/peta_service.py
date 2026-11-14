@@ -70,6 +70,8 @@ def freeze_peta_entries(tournament, melee_players):
         selected_keep_all = set(PetaKeepAllChoice.objects.filter(
             event=locked, player_id__in=player_ids, enabled=True
         ).values_list("player_id", flat=True))
+        if selected_keep_all and event.ordinal < 5:
+            raise ValueError("Keep All is available only in events 5 through 8.")
         for player_id in player_ids:
             if player_id in existing:
                 continue
@@ -295,6 +297,8 @@ def settle_peta_tournament(tournament):
                 keep_all_now=entry.use_exception,
                 exception_used_before=competitors[player_id].exception_used,
             ))
+        if locked.ordinal < 5 and any(entry.use_exception for entry in entries):
+            raise ValueError("Keep All is available only in events 5 through 8.")
         result = settle_event(
             inputs, multiplier=MULTIPLIERS[locked.ordinal - 1],
             middle_fraction=MIDDLE_SHARE,
