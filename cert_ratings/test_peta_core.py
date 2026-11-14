@@ -95,5 +95,47 @@ class PetaPolicyNeutralCoreTests(unittest.TestCase):
                                          own_score=own, opponent_score=opp), expected)
 
 
+
+class PetaKeepAllMultiplierTests(unittest.TestCase):
+    """Keep All sacrifices the multiplier on ALL retained awards."""
+
+    def _settle(self, awards, multiplier, keep_all, delta="2.5"):
+        from cert_ratings.peta_series import EventPlayer, settle_event
+        return settle_event([
+            EventPlayer(player_id=1, prior_travel_points="10", rating_delta=delta,
+                        awards=awards, keep_all_now=keep_all),
+        ], multiplier=multiplier)
+
+    def test_keep_all_never_multiplies_awards(self):
+        for multiplier in ("1", "1.5", "2", "3"):
+            with self.subTest(multiplier=multiplier):
+                result = self._settle({"a": 10, "b": 7, "c": 4}, multiplier, True)
+                self.assertEqual(result["personal_points"][1], Decimal("33.5000"))
+                self.assertEqual(result["pool"], Decimal("0"))
+
+    def test_standard_retains_only_largest_with_multiplier(self):
+        result = self._settle({"a": 10, "b": 7, "c": 4}, "3", False)
+        self.assertEqual(result["personal_points"][1], Decimal("42.5000"))
+        self.assertEqual(result["pool"], Decimal("33.0000"))
+
+    def test_keep_all_can_win_on_multiple_awards(self):
+        standard = self._settle({"a": 10, "b": 8, "c": 7}, "2", False)
+        keep_all = self._settle({"a": 10, "b": 8, "c": 7}, "2", True)
+        self.assertEqual(standard["personal_points"][1], Decimal("32.5000"))
+        self.assertEqual(keep_all["personal_points"][1], Decimal("37.5000"))
+
+    def test_rating_delta_is_not_multiplied(self):
+        result = self._settle({}, "3", False, delta="-4")
+        self.assertEqual(result["personal_points"][1], Decimal("6.0000"))
+
+    def test_second_keep_all_is_rejected(self):
+        from cert_ratings.peta_series import EventPlayer, settle_event
+        with self.assertRaisesRegex(ValueError, "One keep-all exception"):
+            settle_event([
+                EventPlayer(player_id=1, prior_travel_points=0, rating_delta=0,
+                            awards={"a": 6}, keep_all_now=True,
+                            exception_used_before=True)
+            ], multiplier="3")
+
 if __name__ == '__main__':
     unittest.main()
