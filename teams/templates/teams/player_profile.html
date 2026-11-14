@@ -563,6 +563,31 @@ a.mh-card::after {
         {% endif %}
     </div>
 
+    {% if peta_travel_series %}
+    <section class="pp-section" aria-label="PETA Travel Points">
+      <div class="pp-section-hdr"><i class="fas fa-plane" aria-hidden="true"></i> PETA Travel Points</div>
+      <div class="pp-section-body">
+        {% for item in peta_travel_series %}
+        <div style="padding:12px;border:1px solid #dce7f8;border-radius:12px;margin-bottom:10px;background:#f8fbff">
+          <div style="font-weight:800;color:#173e78">{{ item.series.name }}</div>
+          <div style="font-size:27px;font-weight:900;color:#0d47a1"><i class="fas fa-plane" aria-hidden="true"></i> {{ item.total|floatformat:2 }} TP</div>
+          <small style="color:#607d8b">Total Travel Points · {{ item.events|length }} participations</small>
+          {% if item.events %}
+          <div style="margin-top:10px">
+            {% for participation in item.events %}
+            <div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid #dce7f8">
+              <a href="{% url 'tournament_detail' participation.event.tournament_id %}" style="min-width:0">{{ participation.event.tournament.name }} · {{ participation.event.ordinal }}/8</a>
+              <span style="white-space:nowrap;font-weight:700">{% if participation.earned > 0 %}+{% endif %}{{ participation.earned|floatformat:2 }} TP <small style="color:#607d8b">({{ participation.total|floatformat:2 }} total)</small></span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <!-- ===== QUICK STATS ===== -->
     {% if show_public_statistics %}
     <div class="pp-stats-strip">

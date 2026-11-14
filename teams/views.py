@@ -1324,6 +1324,9 @@ def player_profile(request, player_id):
     except Exception:
         friendly_match_history_count = 0
 
+    from cert_ratings.peta_display import profile_travel_points
+    peta_travel_series = profile_travel_points(player) if show_public_statistics else []
+
     context = {
         'player': player,
         'accurate_stats': accurate_stats,  # Tournament statistics (unchanged)
@@ -1341,6 +1344,7 @@ def player_profile(request, player_id):
         'is_own_profile': is_own_profile,  # True only when viewing your own profile
         'show_public_statistics': show_public_statistics,
         'tournament_history': tournament_history,
+        'peta_travel_series': peta_travel_series,
     }
     
     return render(request, 'teams/player_profile.html', context)

@@ -218,6 +218,35 @@
     </div>
   </div>
 
+  {% if peta_travel %}
+  <section style="background:#fff;border:1px solid #dce7f8;border-radius:16px;padding:18px;margin-bottom:20px" aria-label="PETA Travel Points">
+    <h2 style="font-size:1.25rem;font-weight:800;color:#173e78;margin-bottom:4px"><i class="fas fa-plane" aria-hidden="true"></i> PETA Travel Points</h2>
+    <p style="color:#607d8b;font-size:.85rem">{{ peta_travel.event.series.name }} · Event {{ peta_travel.event.ordinal }}/8</p>
+    {% if peta_travel.settled %}
+      <p style="font-size:.85rem;color:#607d8b">Travel Points earned here and cumulative series standings. The highest final total wins the trip.</p>
+      <div style="overflow-x:auto">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>#</th><th>Player</th><th>Earned here</th><th><i class="fas fa-plane" aria-hidden="true"></i> Total TP</th></tr></thead>
+          <tbody>
+          {% for row in peta_travel.rows %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td><a href="{% url 'player_profile' row.player.id %}">{{ row.player.name }}</a></td>
+            <td>{% if row.earned > 0 %}+{% endif %}{{ row.earned|floatformat:2 }}</td>
+            <td><strong>{{ row.total|floatformat:2 }}</strong></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4">No finalized Travel Points recorded.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p style="color:#607d8b;margin-bottom:0">Travel Points appear after this PETA event is finalized.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <!-- ── Three primary action buttons ───────────────────────────── -->
   <div class="td-actions">
     <a href="{% url 'tournament_overview' tournament.id %}" class="td-action-btn td-btn-overview" target="_blank">

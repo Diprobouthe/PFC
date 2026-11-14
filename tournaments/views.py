@@ -226,6 +226,8 @@ def tournament_detail(request, tournament_id):
         'vs_report_ready': vs_report_ready,
         'can_edit_report_notes': can_edit_notes,
     }
+    from cert_ratings.peta_display import tournament_travel_points
+    context['peta_travel'] = tournament_travel_points(tournament)
     return render(request, 'tournaments/tournament_detail.html', context)
 
 @require_GET
