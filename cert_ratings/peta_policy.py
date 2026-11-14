@@ -27,7 +27,7 @@ MIN_WIN_RATE = Decimal("0.80")
 
 
 def awards_for_player(*, best_streak: int, top_points: bool,
-                      best_win_rate: bool, podium_rank=None, include_podium=False):
+                      best_win_rate: bool, podium_rank=None, include_podium=True):
     awards = {}
     if best_streak >= 5:
         awards["fires"] = AWARDS["fire5"]
