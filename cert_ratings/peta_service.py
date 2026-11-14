@@ -278,7 +278,7 @@ def settle_peta_tournament(tournament):
                     s.matches_played >= MIN_WIN_RATE_MATCHES
                     and ratio >= MIN_WIN_RATE and ratio == max_winrate),
                 podium_rank=podium[player_id],
-                include_podium=locked.include_podium,
+                include_podium=True,  # PETA series always awards podium 3/2/1.
             )
             awards_by_id[player_id] = awards
             inputs.append(EventPlayer(
