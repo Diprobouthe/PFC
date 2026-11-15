@@ -52,7 +52,10 @@ def tournament_travel_points(tournament):
         return None
     if event.settled_at is None:
         return {"event": event, "settled": False, "rows": []}
-    after = (event.settlement_audit or {}).get("travel_points_after", {})
+    audit = event.settlement_audit or {}
+    after = audit.get("travel_points_after", {})
+    classes = audit.get("classes", {})
+    dividend_class_ids = {str(pid) for group in ("middle", "base") for pid in classes.get(group, [])}
     entries = (
         PetaEventEntry.objects.filter(event=event)
         .select_related("player").order_by("player__name")
@@ -67,6 +70,7 @@ def tournament_travel_points(tournament):
             "personal": entry.personal_earnings, "dividend": entry.dividend,
             "total": Decimal(str(total)),
             "eligible_for_dividend": entry.eligible_for_dividend,
+            "dividend_allowed": (entry.eligible_for_dividend is True and str(entry.player_id) in dividend_class_ids),
         })
     rows.sort(key=lambda row: (-row["total"], row["player"].name, row["player"].id))
     return {"event": event, "settled": True, "rows": rows}
