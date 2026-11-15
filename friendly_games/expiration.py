@@ -5,7 +5,7 @@ Friendly detail requests so abandoned games cannot indefinitely block players.
 """
 from datetime import timedelta
 
-from django.db.models import F, Q
+from django.db.models import Q
 from django.utils import timezone
 
 from friendly_games.models import FriendlyGame
@@ -22,9 +22,9 @@ def expire_stale_friendly_games(*, now=None):
 
     stale = FriendlyGame.objects.filter(
         Q(status='WAITING_FOR_PLAYERS', created_at__lt=pre_start_cutoff)
-        | Q(status__in=('ACTIVE', 'PENDING_VALIDATION'),
+        | Q(status='ACTIVE',
             started_at__lt=started_cutoff)
-        | Q(status__in=('ACTIVE', 'PENDING_VALIDATION'),
+        | Q(status='ACTIVE',
             started_at__isnull=True, created_at__lt=started_cutoff)
     ).values_list('pk', flat=True)
     ids = list(stale)
