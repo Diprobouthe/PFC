@@ -89,6 +89,50 @@ jobs:
           python manage.py migrate --noinput
           python scripts/virtual_tournament_lab.py seed --players 30
           python scripts/virtual_tournament_browser_load.py prepare
+      - name: Isolate cost of legacy stale-game maintenance (ablation)
+        run: |
+          mkdir -p ab-results
+          python - <<'PY'
+          from pathlib import Path
+          source=Path('/tmp/smart-router-baseline.py').read_text()
+          start=source.index('    # Auto-expire stale games before querying')
+          end=source.index('    # Find joinable games at this complex',start)
+          patched=source[:start]+source[end:]
+          assert source[start:end].count('.update(status=')==2
+          Path('/tmp/smart-router-no-maintenance.py').write_text(patched)
+          print('Removed exactly two legacy UPDATE calls for controlled ablation')
+          PY
+          for variant in with-maintenance no-maintenance; do
+            if [ "$variant" = with-maintenance ]; then
+              cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
+            else
+              cp /tmp/smart-router-no-maintenance.py pfc_core/smart_router.py
+            fi
+            VARIANT="$variant" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from virtual_tournament_lab import setup_isolated_django
+          setup_isolated_django()
+          from smart_router_ab_benchmark import profile_sql
+          actors=json.loads(Path('/tmp/pfc_vtl_browser_sessions.json').read_text())['actors']
+          result=profile_sql(actors)
+          Path('ab-results/ablation-'+os.environ['VARIANT']+'.json').write_text(json.dumps(result,indent=2))
+          print(os.environ['VARIANT'],json.dumps({
+            'queries':result['all_sql_count'],
+            'wall_ms':result['all_wall_ms'],
+            'writes_by_role':{k:v['write_count']['mean'] for k,v in result['by_role'].items()}
+          }))
+          PY
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('ab-results/ablation-with-maintenance.json').read_text())
+          b=json.loads(Path('ab-results/ablation-no-maintenance.json').read_text())
+          assert a['decisions']==b['decisions'], 'Ablation changed routing decisions'
+          print('ABLATON DIFFERENCE SQL queries:',a['all_sql_count']['mean']-b['all_sql_count']['mean'])
+          print('ABLATON DIFFERENCE wall ms:',a['all_wall_ms']['mean']-b['all_wall_ms']['mean'])
+          PY
       - name: Measure original Smart with 30 real Chromium sessions
         id: baseline
         continue-on-error: true
