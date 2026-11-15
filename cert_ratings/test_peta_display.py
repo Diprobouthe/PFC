@@ -1,5 +1,8 @@
 """Focused HTTP regression for PETA Travel Points display (isolated test DB)."""
 from datetime import timedelta
+from io import BytesIO
+
+from pypdf import PdfReader
 from decimal import Decimal
 
 from django.test import TestCase
@@ -125,6 +128,14 @@ class PetaTravelPointsDisplayTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
+        reader = PdfReader(BytesIO(response.content))
+        self.assertEqual(len(reader.pages), 1)
+        page_text = reader.pages[0].extract_text()
+        self.assertIn("HELPFUL", page_text)
+        self.assertIn("PFC START", page_text)
+        self.assertIn("PETA ENTRY", page_text)
+        self.assertIn("Travel NPC 13", page_text)
+        self.assertIn("23.75", page_text)
         page = self.client.get(reverse("tournament_detail", args=[self.tournaments[2].pk]))
         self.assertContains(page, "Not eligible")
         self.assertContains(page, "Download PETA audit PDF")
