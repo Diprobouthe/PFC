@@ -131,6 +131,19 @@
     }
     .pfc-cta-btn:active { transform: scale(.95) translateY(1px); }
     .pfc-cta-btn img { height: 52px; width: auto; }
+    /* Client-only SMART busy state: no polling, server locks, or extra requests. */
+    .pfc-cta-btn.pfc-smart-busy { pointer-events: none; cursor: progress; }
+    .pfc-cta-btn.pfc-smart-busy img { opacity: .28; }
+    .pfc-smart-spinner {
+        display: none; position: absolute; width: 32px; height: 32px;
+        border: 4px solid #d8e3ee; border-top-color: #0d47a1;
+        border-radius: 50%; animation: pfc-smart-spin .7s linear infinite;
+    }
+    .pfc-cta-btn.pfc-smart-busy .pfc-smart-spinner { display: block; }
+    @keyframes pfc-smart-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+        .pfc-smart-spinner { animation-duration: 2s; }
+    }
 
     /* RIGHT: Refresh + Invites + Burger — larger touch targets */
     .pfc-actions {
@@ -235,8 +248,9 @@
             </div>
 
             <!-- CENTRE: Ball icon — PRIMARY ACTION (smart router) -->
-            <a href="{% url 'my_active_matches' %}" class="pfc-cta-btn" title="PFC — {% translate 'My Matches' %}">
+            <a href="{% url 'my_active_matches' %}" class="pfc-cta-btn" id="pfc-smart-cta" title="PFC — {% translate 'My Matches' %}">
                 <img src="{% static 'pfcLOGO.svg' %}" alt="PFC">
+                <span class="pfc-smart-spinner" aria-hidden="true"></span>
             </a>
 
             <!-- RIGHT: Invites + Burger -->
@@ -403,6 +417,33 @@
     
     <!-- Team PIN Auto-Fill JavaScript -->
     <script src="{% static 'js/team_pin_autofill.js' %}"></script>
+    <script>
+    // Prevent impatient repeat taps while the browser navigates to SMART.
+    // Runs in capture phase so the busy flag is set before other click handlers.
+    (function () {
+        var smart = document.getElementById('pfc-smart-cta');
+        if (!smart) return;
+        var busy = false;
+        function reset() {
+            busy = false;
+            smart.classList.remove('pfc-smart-busy');
+            smart.removeAttribute('aria-busy');
+            smart.setAttribute('title', 'PFC — {% translate "My Matches" %}');
+        }
+        smart.addEventListener('click', function (event) {
+            // Do not interfere with open-in-new-tab or other modified clicks.
+            if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            if (busy) { event.preventDefault(); return; }
+            busy = true;
+            smart.classList.add('pfc-smart-busy');
+            smart.setAttribute('aria-busy', 'true');
+            smart.setAttribute('title', '{% translate "Searching…" %}');
+        }, true);
+        // Restore the CTA if browser back/forward cache returns to this page.
+        window.addEventListener('pageshow', reset);
+    })();
+    </script>
+
     
     <!-- Optional PWA registration and non-intrusive installation action.
          The service worker has root scope but only caches static/app-shell
