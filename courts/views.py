@@ -117,36 +117,9 @@ def _current_billboard_presence_for_complex(court_complex):
     existing Billboard current-presence windows to the canonical
     ``BillboardEntry`` source without creating or changing any presence data.
     """
-    from billboard.models import BillboardEntry
-    from courts.timezone_utils import get_court_local_now
+    from billboard.presence_query import current_court_presence
 
-    now = timezone.now()
-    manual_cutoff = get_court_local_now(court_complex) - timedelta(hours=2)
-    game_cutoff = now - timedelta(hours=6)
-    candidates = (
-        BillboardEntry.objects.filter(
-            court_complex=court_complex,
-            action_type='AT_COURTS',
-            is_active=True,
-        )
-        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
-        .filter(
-            Q(
-                presence_source__in=(
-                    BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
-                    BillboardEntry.PRESENCE_SOURCE_MATCH,
-                ),
-                created_at__gte=game_cutoff,
-            )
-            | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME)
-            | Q(
-                presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
-                created_at__gte=manual_cutoff,
-            )
-            | Q(presence_source__isnull=True, created_at__gte=manual_cutoff)
-        )
-        .order_by('-created_at')
-    )
+    candidates = current_court_presence(court_complex)
 
     present = []
     seen_codenames = set()
