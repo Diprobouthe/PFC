@@ -66,6 +66,7 @@ def tournament_travel_points(tournament):
             "player": entry.player, "earned": entry.personal_earnings + entry.dividend,
             "personal": entry.personal_earnings, "dividend": entry.dividend,
             "total": Decimal(str(total)),
+            "eligible_for_dividend": entry.eligible_for_dividend,
         })
     rows.sort(key=lambda row: (-row["total"], row["player"].name, row["player"].id))
     return {"event": event, "settled": True, "rows": rows}
