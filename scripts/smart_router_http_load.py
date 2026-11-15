@@ -78,5 +78,37 @@ def main():
         }
         print(args.version,concurrency,json.dumps(results[str(concurrency)]),flush=True)
         if errors: raise SystemExit("HTTP benchmark errors: "+str(errors[:2]))
+    # Synchronized repeated presses: all 30 sessions, including overlapping
+    # requests from the same player. Smart GET only, not mutating buttons.
+    for presses in (2,5,10):
+        batch=[a for a in actors for _ in range(presses)]
+        latencies=[];statuses={};errors=[]
+        before_cpu,before_rss=sample(pid)
+        start=time.perf_counter()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(batch)) as pool:
+            futures=[pool.submit(run_one,args.base,a) for a in batch]
+            for future in concurrent.futures.as_completed(futures):
+                result=future.result()
+                latencies.append(result["ms"])
+                status=str(result["status"])
+                statuses[status]=statuses.get(status,0)+1
+                if result["status"] not in (200,301,302,303):
+                    errors.append(result)
+        elapsed=time.perf_counter()-start
+        after_cpu,after_rss=sample(pid)
+        results[f"burst_{presses}"]={
+            "players":30,"presses_per_player":presses,
+            "requests":len(latencies),"elapsed_s":round(elapsed,3),
+            "requests_per_second":round(len(latencies)/elapsed,2),
+            "p50_ms":percentile(latencies,.50),
+            "p95_ms":percentile(latencies,.95),
+            "mean_ms":round(statistics.mean(latencies),2),
+            "statuses":statuses,"errors":errors[:10],
+            "server_cpu_seconds_delta":round(after_cpu-before_cpu,3) if before_cpu is not None and after_cpu is not None else None,
+            "server_rss_mb_before":round(before_rss,2) if before_rss is not None else None,
+            "server_rss_mb_after":round(after_rss,2) if after_rss is not None else None,
+        }
+        print(args.version,f"burst_{presses}",json.dumps(results[f"burst_{presses}"]),flush=True)
+        if errors:raise SystemExit("Burst errors: "+str(errors[:2]))
     Path(args.output).write_text(json.dumps({"version":args.version,"results":results},indent=2))
 if __name__=="__main__":main()
