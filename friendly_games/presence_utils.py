@@ -121,7 +121,7 @@ def register_friendly_game_players_at_court(game):
 
 # ── Deactivation + post-game grace ────────────────────────────────────────────
 
-def deactivate_friendly_game_presence(game):
+def deactivate_friendly_game_presence(game, *, create_grace=True):
     """
     Deactivate all AT_COURTS entries that were created for *game* and replace
     them with short-lived 'post_game' grace entries (30 minutes).
@@ -170,7 +170,15 @@ def deactivate_friendly_game_presence(game):
             )
 
         # Create post-game grace entries for each player.
-        _create_post_game_grace_entries(active_entries, game_ref)
+        if create_grace:
+            _create_post_game_grace_entries(active_entries, game_ref)
+        else:
+            BillboardEntry.objects.filter(
+                action_type='AT_COURTS',
+                game_ref=game_ref,
+                presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                is_active=True,
+            ).update(is_active=False)
 
     except Exception as exc:
         logger.error(
