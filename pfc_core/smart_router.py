@@ -36,7 +36,7 @@ so the info page is the correct destination.
 
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
@@ -257,6 +257,7 @@ def _resolve_nearby_friendly_games(request, player):
             players__player=player,
         )
         .distinct()
+        .annotate(smart_player_count=Count('players', distinct=True))
         .order_by('-created_at')
     )
 
@@ -271,7 +272,7 @@ def _resolve_nearby_friendly_games(request, player):
     #   2. Tie-break: most recently created
     # This ensures we ALWAYS prefill match_number, even when multiple games exist.
     def _game_sort_key(g):
-        player_count = g.players.count()
+        player_count = g.smart_player_count
         return (-player_count, -g.created_at.timestamp())
 
     best_game = sorted(fresh_games, key=_game_sort_key)[0]
