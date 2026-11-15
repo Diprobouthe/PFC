@@ -43,6 +43,9 @@ def auto_register_players_to_billboard(match):
     Automatically register all players in a match to the Billboard
     when the match is activated.
     """
+    # Mêlée participants are registered once when teams are generated.
+    if match.tournament.is_melee:
+        return
     try:
         # Get the court complex from the match's assigned court
         if not match.court:
@@ -55,63 +58,51 @@ def auto_register_players_to_billboard(match):
             logger.warning(f"Match {match.id}'s court {match.court.number} is not assigned to any court complex")
             return
         
-        # Get all players from both teams in the match
-        match_players = MatchPlayer.objects.filter(match=match).select_related('player')
-        
-        game_ref = f"match:{match.id}"
+        # Resolve the whole Match roster and its codenames in two bounded reads,
+        # rather than two extra SELECTs for every player. Keep individual creates
+        # so the existing Billboard post_save preference sync still fires.
+        player_ids = list(
+            MatchPlayer.objects.filter(match=match).values_list("player_id", flat=True)
+        )
+        if not player_ids:
+            return
+        codenames = dict(
+            PlayerCodename.objects.filter(player_id__in=player_ids)
+            .values_list("player_id", "codename")
+        )
+        if not codenames:
+            return
 
-        for match_player in match_players:
-            player = match_player.player
-            
-            # Get player's codename
-            try:
-                player_codename = PlayerCodename.objects.get(player=player)
-                codename = player_codename.codename
-                
-                # Check if an active entry already exists for this player + match.
-                existing = BillboardEntry.objects.filter(
-                    codename=codename,
-                    action_type='AT_COURTS',
-                    court_complex=court_complex,
-                    game_ref=game_ref,
-                    is_active=True,
-                ).first()
-                
-                if not existing:
-                    # Create a fresh Billboard entry tagged with source and game_ref.
-                    # Use update_fields=[] after create to force created_at to now
-                    # (auto_now_add always uses now() at INSERT time, so this is correct).
-                    BillboardEntry.objects.create(
-                        codename=codename,
-                        action_type='AT_COURTS',
-                        court_complex=court_complex,
-                        message=f"Auto-registered via match activation",
-                        is_active=True,
-                        presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
-                        game_ref=game_ref,
-                    )
-                    logger.info(f"Auto-registered player {player.name} (codename: {codename}) to Billboard at {court_complex.name}")
-                else:
-                    # Entry already exists for this match — this is a re-activation
-                    # (e.g. 'disagree' reverted match to active). Deactivate the old
-                    # entry and create a fresh one so created_at reflects now.
-                    existing.is_active = False
-                    existing.save(update_fields=['is_active'])
-                    BillboardEntry.objects.create(
-                        codename=codename,
-                        action_type='AT_COURTS',
-                        court_complex=court_complex,
-                        message=f"Auto-registered via match re-activation",
-                        is_active=True,
-                        presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
-                        game_ref=game_ref,
-                    )
-                    logger.debug(f"Player {player.name} re-registered for match {match.id} with fresh timestamp")
-                    
-            except PlayerCodename.DoesNotExist:
-                logger.warning(f"Player {player.name} (ID: {player.id}) has no codename for Billboard registration")
-                continue
-                
+        game_ref = f"match:{match.id}"
+        existing_by_codename = {}
+        for entry in BillboardEntry.objects.filter(
+            codename__in=set(codenames.values()),
+            action_type='AT_COURTS',
+            court_complex=court_complex,
+            game_ref=game_ref,
+            is_active=True,
+        ).order_by('-created_at'):
+            existing_by_codename.setdefault(entry.codename, entry)
+
+        for codename in set(codenames.values()):
+            existing = existing_by_codename.get(codename)
+            if existing:
+                # Preserve the existing reactivation behavior and audit history.
+                existing.is_active = False
+                existing.save(update_fields=['is_active'])
+            BillboardEntry.objects.create(
+                codename=codename,
+                action_type='AT_COURTS',
+                court_complex=court_complex,
+                message=(
+                    "Auto-registered via match re-activation"
+                    if existing else "Auto-registered via match activation"
+                ),
+                is_active=True,
+                presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
+                game_ref=game_ref,
+            )
+
     except Exception as e:
         logger.error(f"Error auto-registering players to Billboard for match {match.id}: {e}")
 
@@ -135,6 +126,9 @@ def _deactivate_match_presence(match, skip_grace=False):
     Historical records are preserved (is_active=False, not deleted).
     Safe to call multiple times — idempotent.  Never raises.
     """
+    # Mêlée presence is tied to the tournament, never to an individual Match.
+    if match.tournament.is_melee:
+        return
     try:
         game_ref = f"match:{match.id}"
 

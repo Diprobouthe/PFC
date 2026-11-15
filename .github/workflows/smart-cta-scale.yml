@@ -1,0 +1,82 @@
+name: SMART CTA real browser scale (20-100 players)
+
+on:
+  push:
+    branches:
+      - fix/friendly-billboard-presence-20261115
+    paths:
+      - scripts/test_smart_cta_scale.py
+      - .github/workflows/smart-cta-scale.yml
+      - templates/base.html
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smart-cta-scale:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_vtl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_vtl_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_vtl_test
+      SECRET_KEY: test-only-smart-cta-scale
+      DEBUG: "false"
+      ALLOWED_HOSTS: "127.0.0.1,localhost"
+      PYTHONPATH: ".:scripts"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out isolated virtual tournament laboratory
+        uses: actions/checkout@v4
+        with:
+          ref: test/virtual-tournament-lab-20261020
+      - name: Inject PR50 SMART button and browser test
+        run: |
+          git fetch --no-tags --depth=1 origin fix/friendly-billboard-presence-20261115
+          git show FETCH_HEAD:templates/base.html > templates/base.html
+          git show FETCH_HEAD:scripts/test_smart_cta_scale.py > scripts/test_smart_cta_scale.py
+          git show FETCH_HEAD:pfc_core/smart_router.py > pfc_core/smart_router.py
+          git show FETCH_HEAD:billboard/presence_query.py > billboard/presence_query.py
+          # The isolated fixture has a conservative 60-player limit; this test
+          # requires 100 distinct real player records and authenticated sessions.
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/virtual_tournament_lab.py')
+          s=p.read_text()
+          assert 'if not 4 <= players <= 60:' in s
+          p.write_text(s.replace('if not 4 <= players <= 60:', 'if not 4 <= players <= 100:'))
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies and Chromium
+        run: |
+          pip install -r requirements.txt
+          pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Seed 100 distinct authenticated players
+        run: |
+          python manage.py migrate --noinput
+          python scripts/virtual_tournament_lab.py seed --players 100
+      - name: Run real-browser SMART CTA scale
+        run: |
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-cta-scale-server.log 2>&1 & echo $! > /tmp/cta-scale.pid)
+          trap 'kill $(cat /tmp/cta-scale.pid) 2>/dev/null || true' EXIT
+          python scripts/test_smart_cta_scale.py
+      - name: Print server errors if test fails
+        if: failure()
+        run: tail -n 100 /tmp/smart-cta-scale-server.log || true

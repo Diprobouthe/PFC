@@ -244,10 +244,42 @@ def create_simple_tournament(request):
                     messages.error(request, 'Invalid or already used voucher code')
                     return redirect('simple_creator_home')
         
-        # Auto-generate dates (next day)
-        tomorrow = timezone.now().date() + timedelta(days=1)
-        start_datetime = timezone.make_aware(datetime.combine(tomorrow, datetime.min.time().replace(hour=9)))
-        end_datetime = timezone.make_aware(datetime.combine(tomorrow, datetime.min.time().replace(hour=18)))
+        # Resolve the Scenario's venue timezone, not the server timezone.
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        from django.utils.dateparse import parse_datetime
+
+        if scenario_obj is None:
+            messages.error(request, 'A configured Scenario is required to schedule a tournament.')
+            return redirect('simple_creator_home')
+        venue = scenario_obj.default_court_complex
+        try:
+            venue_tz = ZoneInfo(venue.timezone_name)
+        except (ZoneInfoNotFoundError, TypeError, ValueError):
+            messages.error(request, 'The selected Court Complex has an invalid timezone.')
+            return redirect('simple_creator_home')
+
+        created_at = timezone.now()
+        schedule_mode = request.POST.get('schedule_mode', 'now')
+        if schedule_mode == 'now':
+            start_datetime = created_at + timedelta(minutes=30)
+        elif schedule_mode == 'scheduled':
+            local_start = parse_datetime(request.POST.get('scheduled_start', ''))
+            if local_start is None or local_start.tzinfo is not None:
+                messages.error(request, 'Choose a valid local start date and time.')
+                return redirect('simple_creator_home')
+            start_datetime = local_start.replace(tzinfo=venue_tz)
+            # Reject nonexistent local wall times (DST spring-forward).
+            if start_datetime.astimezone(ZoneInfo('UTC')).astimezone(venue_tz).replace(tzinfo=None) != local_start:
+                messages.error(request, 'This local time does not exist at the selected venue.')
+                return redirect('simple_creator_home')
+            if start_datetime <= created_at:
+                messages.error(request, 'Start must be in the future. Choose a later time or use Now.')
+                return redirect('simple_creator_home')
+        else:
+            messages.error(request, 'Invalid tournament scheduling option.')
+            return redirect('simple_creator_home')
+        end_datetime = start_datetime + timedelta(hours=3)
+        event_date = timezone.localtime(start_datetime, venue_tz).date()
         
         # Create tournament using virtual courts
         # 'singles' maps to max_singles; 'doubles' to max_doubles; 'triples' to max_triples
@@ -260,14 +292,14 @@ def create_simple_tournament(request):
 
             tournament_name = allocate_scenario_tournament_title(
                 scenario=scenario_obj,
-                event_date=tomorrow,
+                event_date=event_date,
                 display_name=scenario['name'],
             )
         else:
             # Only the inactive, code-only fallback lacks a persistent Scenario
             # identity. Keep its historical title behavior rather than creating
             # an unreliable name-derived counter.
-            tournament_name = f"{scenario['name']} - {tomorrow.strftime('%Y-%m-%d')}"
+            tournament_name = f"{scenario['name']} - {event_date.strftime('%Y-%m-%d')}"
         
         # Determine scenario mode (default to 'melee' for backwards compatibility)
         scenario_mode = scenario.get('scenario_mode', 'melee')

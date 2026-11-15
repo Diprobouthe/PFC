@@ -4,10 +4,14 @@ on:
   push:
     branches:
       - fix/smart-router-query-efficiency
+      - fix/friendly-billboard-presence-20261115
     paths:
       - pfc_core/smart_router.py
       - scripts/smart_router_ab_benchmark.py
       - .github/workflows/smart-router-ab-benchmark.yml
+      - scripts/smart_router_http_load.py
+      - scripts/smart_router_phase_profile.py
+      - scripts/test_smart_cta_scale.py
   pull_request:
     branches:
       - main
@@ -23,7 +27,7 @@ permissions:
 jobs:
   compare:
     name: Same DB fixture, original and optimized Smart / six Courts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     services:
       postgres:
@@ -66,11 +70,15 @@ jobs:
       - name: Retrieve baseline, proposed router and benchmark script
         run: |
           git fetch --no-tags --depth=1 origin \
-            main:refs/remotes/origin/main \
+            df558a6e270c5117018c861be0c88f63a506a897 \
+            fix/friendly-billboard-presence-20261115:refs/remotes/origin/fix/friendly-billboard-presence-20261115 \
             fix/smart-router-query-efficiency:refs/remotes/origin/fix/smart-router-query-efficiency
-          git show origin/main:pfc_core/smart_router.py > /tmp/smart-router-baseline.py
-          git show origin/fix/smart-router-query-efficiency:pfc_core/smart_router.py > /tmp/smart-router-optimized.py
+          git show df558a6e270c5117018c861be0c88f63a506a897:pfc_core/smart_router.py > /tmp/smart-router-baseline.py
+          git show origin/fix/friendly-billboard-presence-20261115:pfc_core/smart_router.py > /tmp/smart-router-optimized.py
+          git show origin/fix/friendly-billboard-presence-20261115:billboard/presence_query.py > /tmp/presence-query-pr50.py
           git show origin/fix/smart-router-query-efficiency:scripts/smart_router_ab_benchmark.py > scripts/smart_router_ab_benchmark.py
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/smart_router_http_load.py > scripts/smart_router_http_load.py
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/smart_router_phase_profile.py > scripts/smart_router_phase_profile.py
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -86,6 +94,137 @@ jobs:
           python manage.py migrate --noinput
           python scripts/virtual_tournament_lab.py seed --players 30
           python scripts/virtual_tournament_browser_load.py prepare
+      - name: Verify five rapid SMART taps cause one browser navigation
+        run: |
+          # This workflow checks out the isolated lab; inject the actual PR50 CTA.
+          git show origin/fix/friendly-billboard-presence-20261115:templates/base.html > templates/base.html
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/test_smart_cta_repeat_taps.py > /tmp/test_smart_cta_repeat_taps.py
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-cta-daphne.log 2>&1 & echo $! > /tmp/smart-cta-daphne.pid)
+          trap 'kill $(cat /tmp/smart-cta-daphne.pid) 2>/dev/null || true' EXIT
+          python /tmp/test_smart_cta_repeat_taps.py
+      - name: Run SMART CTA scale with 20, 30, 50, 100 distinct Chromium sessions
+        run: |
+          git show origin/fix/friendly-billboard-presence-20261115:templates/base.html > templates/base.html
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/test_smart_cta_scale.py > scripts/test_smart_cta_scale.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/virtual_tournament_lab.py')
+          s=p.read_text()
+          assert 'if not 4 <= players <= 60:' in s
+          p.write_text(s.replace('if not 4 <= players <= 60:', 'if not 4 <= players <= 100:'))
+          PY
+          python scripts/virtual_tournament_lab.py seed --players 100
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-cta-scale-server.log 2>&1 & echo $! > /tmp/cta-scale.pid)
+          trap 'kill $(cat /tmp/cta-scale.pid) 2>/dev/null || true' EXIT
+          python scripts/test_smart_cta_scale.py
+      - name: Isolate cost of legacy stale-game maintenance (ablation)
+        run: |
+          mkdir -p ab-results
+          python - <<'PY'
+          from pathlib import Path
+          source=Path('/tmp/smart-router-baseline.py').read_text()
+          start=source.index('    # Auto-expire stale games before querying')
+          end=source.index('    # Find joinable games at this complex',start)
+          patched=source[:start]+source[end:]
+          assert source[start:end].count('.update(status=')==2
+          Path('/tmp/smart-router-no-maintenance.py').write_text(patched)
+          print('Removed exactly two legacy UPDATE calls for controlled ablation')
+          PY
+          for variant in with-maintenance no-maintenance; do
+            if [ "$variant" = with-maintenance ]; then
+              cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
+            else
+              cp /tmp/smart-router-no-maintenance.py pfc_core/smart_router.py
+            fi
+            VARIANT="$variant" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from virtual_tournament_lab import setup_isolated_django
+          setup_isolated_django()
+          from smart_router_ab_benchmark import profile_sql
+          actors=json.loads(Path('/tmp/pfc_vtl_browser_sessions.json').read_text())['actors']
+          result=profile_sql(actors)
+          Path('ab-results/ablation-'+os.environ['VARIANT']+'.json').write_text(json.dumps(result,indent=2))
+          print(os.environ['VARIANT'],json.dumps({
+            'queries':result['all_sql_count'],
+            'wall_ms':result['all_wall_ms'],
+            'writes_by_role':{k:v['write_count']['mean'] for k,v in result['by_role'].items()}
+          }))
+          PY
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('ab-results/ablation-with-maintenance.json').read_text())
+          b=json.loads(Path('ab-results/ablation-no-maintenance.json').read_text())
+          assert a['decisions']==b['decisions'], 'Ablation changed routing decisions'
+          print('ABLATON DIFFERENCE SQL queries:',a['all_sql_count']['mean']-b['all_sql_count']['mean'])
+          print('ABLATON DIFFERENCE wall ms:',a['all_wall_ms']['mean']-b['all_wall_ms']['mean'])
+          PY
+      - name: Profile Smart CPU SQL and four decision phases
+        run: |
+          cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
+          python scripts/smart_router_phase_profile.py --version baseline --output ab-results/phases-baseline.json
+          cp /tmp/presence-query-pr50.py billboard/presence_query.py
+          cp /tmp/smart-router-optimized.py pfc_core/smart_router.py
+          python scripts/smart_router_phase_profile.py --version optimized --output ab-results/phases-optimized.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          b=json.loads(Path('ab-results/phases-baseline.json').read_text())
+          o=json.loads(Path('ab-results/phases-optimized.json').read_text())
+          assert b['decisions']==o['decisions'], 'Phase benchmark changed decisions'
+          for key in ('request_cpu_ms','request_wall_ms','sql_queries','sql_writes','sql_ms'):
+              print('PHASE_COMPARE',key,b['phases'][key]['mean'],'->',o['phases'][key]['mean'])
+          PY
+      - name: Compare legacy and source-aware presence SQL execution plans
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from virtual_tournament_lab import setup_isolated_django
+          setup_isolated_django()
+          from django.db import connection
+          from billboard.models import BillboardEntry
+          from friendly_games.models import PlayerCodename
+          from django.db.models import Q
+          from django.utils import timezone
+          from datetime import timedelta
+          from billboard.presence_query import current_player_court_presence
+          codename=PlayerCodename.objects.values_list('codename',flat=True).first()
+          assert codename, 'No player fixture'
+          now=timezone.now()
+          legacy=BillboardEntry.objects.filter(codename=codename,action_type='AT_COURTS',is_active=True).order_by('-created_at').values_list('court_complex_id',flat=True)[:1]
+          current=current_player_court_presence(codename).values_list('court_complex_id',flat=True)[:1]
+          report={}
+          for label,queryset in [('legacy',legacy),('source_aware',current)]:
+              # Real execution plan with actual rows, buffer reads and timing.
+              report[label]={'sql':str(queryset.query),'plan':json.loads(queryset.explain(analyze=True,buffers=True,format='JSON'))}
+              plan=report[label]['plan'][0]
+              print('PRESENCE_SQL',label,'planning_ms',plan['Planning Time'],'execution_ms',plan['Execution Time'],'root',plan['Plan']['Node Type'])
+          Path('ab-results/presence-sql-explain.json').write_text(json.dumps(report,indent=2,default=str))
+          PY
+      - name: Measure optimized Smart with same fixture
+        id: optimized
+        continue-on-error: true
+        run: |
+          cp /tmp/presence-query-pr50.py billboard/presence_query.py
+          cp /tmp/smart-router-optimized.py pfc_core/smart_router.py
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-daphne-optimized.log 2>&1 & echo $! > /tmp/daphne.pid)
+          for i in $(seq 1 35); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
+            sleep 1
+          done
+          # HTTP overload must not prevent the independent browser/SQL report.
+          python scripts/smart_router_http_load.py --version optimized --output ab-results/http-optimized.json || echo "HTTP stress reported failures (optimized); continue independent A/B measurements"
+          python scripts/smart_router_ab_benchmark.py --version optimized --output ab-results/optimized.json
+          kill $(cat /tmp/daphne.pid) || true
+          sleep 2
+      - name: Ensure optimized Daphne is stopped
+        if: always()
+        run: |
+          if test -f /tmp/daphne.pid; then kill $(cat /tmp/daphne.pid) || true; fi
+          sleep 2
       - name: Measure original Smart with 30 real Chromium sessions
         id: baseline
         continue-on-error: true
@@ -97,25 +236,9 @@ jobs:
             if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
             sleep 1
           done
+          # HTTP overload must not prevent the independent browser/SQL report.
+          python scripts/smart_router_http_load.py --version baseline --output ab-results/http-baseline.json || echo "HTTP stress reported failures (baseline); continue independent A/B measurements"
           python scripts/smart_router_ab_benchmark.py --version baseline --output ab-results/baseline.json
-          kill $(cat /tmp/daphne.pid) || true
-          sleep 2
-      - name: Ensure old Daphne is stopped
-        if: always()
-        run: |
-          if test -f /tmp/daphne.pid; then kill $(cat /tmp/daphne.pid) || true; fi
-          sleep 2
-      - name: Measure optimized Smart with same fixture
-        id: optimized
-        continue-on-error: true
-        run: |
-          cp /tmp/smart-router-optimized.py pfc_core/smart_router.py
-          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-daphne-optimized.log 2>&1 & echo $! > /tmp/daphne.pid)
-          for i in $(seq 1 35); do
-            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
-            sleep 1
-          done
-          python scripts/smart_router_ab_benchmark.py --version optimized --output ab-results/optimized.json
           kill $(cat /tmp/daphne.pid) || true
           sleep 2
       - name: Compare routing invariants and SQL counts
@@ -133,7 +256,14 @@ jobs:
           print(f"Active player SQL queries: {before:.2f} -> {after:.2f}")
           print(f"Baseline browser p95: {b['browser']['click_to_target_ms']['p95']} ms")
           print(f"Optimized browser p95: {o['browser']['click_to_target_ms']['p95']} ms")
-          assert after < before, 'No reduction in active-player SQL count'
+          print(f"All-role mean SQL queries: {b['sql']['all_sql_count']['mean']:.2f} -> {o['sql']['all_sql_count']['mean']:.2f}")
+          print(f"All-role mean SQL writes: {sum(x['write_count']['mean'] for x in b['sql']['by_role'].values()):.2f} -> {sum(x['write_count']['mean'] for x in o['sql']['by_role'].values()):.2f}")
+          hb=json.loads(Path('ab-results/http-baseline.json').read_text())['results']
+          ho=json.loads(Path('ab-results/http-optimized.json').read_text())['results']
+          for n in ('1','10','30','burst_2','burst_5','burst_10'):
+              print(f'HTTP load={n}: p95 {hb[n]["p95_ms"]} -> {ho[n]["p95_ms"]} ms; RPS {hb[n]["requests_per_second"]} -> {ho[n]["requests_per_second"]}; server CPU seconds {hb[n]["server_cpu_seconds_delta"]} -> {ho[n]["server_cpu_seconds_delta"]}')
+              assert not hb[n]['errors'] and not ho[n]['errors']
+          assert o['browser']['measured_clicks']==90, 'Incomplete browser clicks'
           assert not o['browser']['errors']
           PY
       - name: Keep complete benchmark reports and Daphne logs

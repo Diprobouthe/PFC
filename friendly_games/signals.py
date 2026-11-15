@@ -45,7 +45,9 @@ def deactivate_presence_on_terminal_status(sender, instance, created, **kwargs):
 
     try:
         from .presence_utils import deactivate_friendly_game_presence
-        deactivate_friendly_game_presence(instance)
+        deactivate_friendly_game_presence(
+            instance, create_grace=(instance.status == 'COMPLETED')
+        )
     except Exception as exc:
         logger.error(
             f"Signal: error deactivating presence for FriendlyGame {instance.id} "

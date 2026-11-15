@@ -699,6 +699,8 @@ def create_game(request):
 
 def game_detail(request, game_id):
     """Display details of a friendly game"""
+    from .expiration import expire_stale_friendly_games
+    expire_stale_friendly_games()
     from pfc_core.qr_action_auth import get_qr_action_player, get_qr_action_token
     game = get_object_or_404(FriendlyGame, id=game_id)
     players = game.players.all().select_related('player', 'player__team')
@@ -793,6 +795,39 @@ def game_detail(request, game_id):
     }
 
     return render(request, 'friendly_games/game_detail.html', context)
+
+
+@require_POST
+def cancel_game(request, game_id):
+    """Creator-only cancellation; preserve history, no result or rating change."""
+    from pfc_core.qr_action_auth import get_qr_action_player
+    from .expiration import expire_stale_friendly_games
+    expire_stale_friendly_games()
+    game = get_object_or_404(FriendlyGame, id=game_id)
+    qr_player = get_qr_action_player(request)
+    authorized = bool(
+        _session_creator_player(request, game)
+        or (qr_player and qr_player.pk == game.creator_player_id)
+    )
+    if not authorized:
+        messages.error(request, 'Only the game creator can cancel this Friendly Game.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+    if game.status not in {'WAITING_FOR_PLAYERS', 'READY', 'DRAFT', 'ACTIVE'}:
+        messages.error(request, 'This Friendly Game can no longer be cancelled.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+    if hasattr(game, 'result'):
+        messages.error(request, 'A game with a submitted result cannot be cancelled.')
+        return redirect('friendly_games:game_detail', game_id=game.id)
+    with transaction.atomic():
+        game = FriendlyGame.objects.select_for_update().get(pk=game.pk)
+        if game.status not in {'WAITING_FOR_PLAYERS', 'READY', 'DRAFT', 'ACTIVE'} or hasattr(game, 'result'):
+            messages.error(request, 'This Friendly Game can no longer be cancelled.')
+            return redirect('friendly_games:game_detail', game_id=game.id)
+        game.status = 'CANCELLED'
+        game.save(update_fields=['status'])
+    notify_game_state_changed(game.id, game.status, game=game)
+    messages.success(request, 'Friendly Game cancelled. Players are free to join another game.')
+    return redirect('friendly_games:game_detail', game_id=game.id)
 
 
 @require_POST
@@ -1355,6 +1390,8 @@ def start_match(request, game_id):
     Start a friendly game match - transition from WAITING_FOR_PLAYERS to ACTIVE.
     Only the creator/host can start the game.
     """
+    from .expiration import expire_stale_friendly_games
+    expire_stale_friendly_games()
     game = get_object_or_404(FriendlyGame, id=game_id)
 
     # ── Auto-expire if unstarted for more than 10 minutes ────────────────────

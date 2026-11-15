@@ -1,0 +1,57 @@
+name: Friendly presence and lifecycle regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'friendly_games/**'
+      - 'billboard/presence_query.py'
+      - 'courts/views.py'
+      - 'pfc_core/smart_router.py'
+      - '.github/workflows/friendly-presence-lifecycle-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  friendly-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: friendly_regressions
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/friendly_regressions
+      SECRET_KEY: isolated-friendly-regression-only
+      DEBUG: "False"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Django checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Venue presence and expiry/cancel regressions
+        run: |
+          python manage.py test \
+            friendly_games.tests.test_venue_policy \
+            friendly_games.tests.test_expiration_and_cancel \
+            pfc_core.test_smart_identity_presence \
+            pfc_core.test_smart_router_no_global_expiration \
+            --verbosity 2
