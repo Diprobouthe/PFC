@@ -296,7 +296,7 @@ def _resolve_friendly_games(player):
         players__player=player
     ).exclude(
         status__in=['COMPLETED', 'CANCELLED', 'EXPIRED']
-    ).distinct()
+    ).select_related('result', 'live_scoreboard').distinct()
 
     for game in games:
         # Check if game needs validation from THIS player
