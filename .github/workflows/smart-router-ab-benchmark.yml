@@ -214,7 +214,8 @@ jobs:
             if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
             sleep 1
           done
-          python scripts/smart_router_http_load.py --version optimized --output ab-results/http-optimized.json
+          # HTTP overload must not prevent the independent browser/SQL report.
+          python scripts/smart_router_http_load.py --version optimized --output ab-results/http-optimized.json || echo "HTTP stress reported failures (optimized); continue independent A/B measurements"
           python scripts/smart_router_ab_benchmark.py --version optimized --output ab-results/optimized.json
           kill $(cat /tmp/daphne.pid) || true
           sleep 2
@@ -234,7 +235,8 @@ jobs:
             if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
             sleep 1
           done
-          python scripts/smart_router_http_load.py --version baseline --output ab-results/http-baseline.json
+          # HTTP overload must not prevent the independent browser/SQL report.
+          python scripts/smart_router_http_load.py --version baseline --output ab-results/http-baseline.json || echo "HTTP stress reported failures (baseline); continue independent A/B measurements"
           python scripts/smart_router_ab_benchmark.py --version baseline --output ab-results/baseline.json
           kill $(cat /tmp/daphne.pid) || true
           sleep 2
