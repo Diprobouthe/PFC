@@ -37,6 +37,11 @@ def current_court_presence(court_complex):
                 ),
                 created_at__gte=game_cutoff,
             )
+            | Q(
+                presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
+                game_ref__startswith="tournament:",
+                expires_at__isnull=False,
+            )
             | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
                 expires_at__isnull=False)
             | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
