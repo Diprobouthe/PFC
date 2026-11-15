@@ -14,6 +14,7 @@ import psycopg2
 class ConnectionMonitor:
     def __init__(self):
         self.samples=[]
+        self.db_limits={}
         self.stop=threading.Event()
         self.thread=None
     def start(self):
@@ -22,6 +23,9 @@ class ConnectionMonitor:
                 conn=psycopg2.connect(os.environ['DATABASE_URL'],connect_timeout=3)
                 conn.autocommit=True
                 with conn.cursor() as cur:
+                    cur.execute("SELECT current_setting('max_connections')::int, current_setting('superuser_reserved_connections')::int")
+                    limit,reserved=cur.fetchone()
+                    self.db_limits={'max_connections':limit,'superuser_reserved_connections':reserved,'ordinary_connection_capacity':limit-reserved}
                     while not self.stop.is_set():
                         cur.execute("SELECT count(*),count(*) FILTER (WHERE state='active'),count(*) FILTER (WHERE state='idle') FROM pg_stat_activity WHERE datname=current_database()")
                         self.samples.append(cur.fetchone())
@@ -35,7 +39,7 @@ class ConnectionMonitor:
         self.stop.set()
         if self.thread:self.thread.join(timeout=5)
         valid=[x for x in self.samples if isinstance(x,tuple)]
-        return {'samples':len(valid),'peak_total':max((x[0] for x in valid),default=None),'peak_active':max((x[1] for x in valid),default=None),'peak_idle':max((x[2] for x in valid),default=None),'error':next((x['monitor_error'] for x in self.samples if isinstance(x,dict)),None)}
+        return {'limits':self.db_limits,'samples':len(valid),'peak_total':max((x[0] for x in valid),default=None),'peak_active':max((x[1] for x in valid),default=None),'peak_idle':max((x[2] for x in valid),default=None),'error':next((x['monitor_error'] for x in self.samples if isinstance(x,dict)),None)}
 
 def percentile(values, p):
     s=sorted(values)
@@ -127,6 +131,7 @@ def main():
                 if result["status"] not in (200,301,302,303):
                     errors.append(result)
         elapsed=time.perf_counter()-start
+        db_connections=monitor.finish()
         after_cpu,after_rss=sample(pid)
         results[f"burst_{presses}"]={
             "players":30,"presses_per_player":presses,
@@ -135,7 +140,8 @@ def main():
             "p50_ms":percentile(latencies,.50),
             "p95_ms":percentile(latencies,.95),
             "mean_ms":round(statistics.mean(latencies),2),
-            "statuses":statuses,"errors":errors[:10],
+            "statuses":statuses,"errors":errors[:10],"error_count":len(errors),
+            "db_connections":db_connections,
             "server_cpu_seconds_delta":round(after_cpu-before_cpu,3) if before_cpu is not None and after_cpu is not None else None,
             "server_rss_mb_before":round(before_rss,2) if before_rss is not None else None,
             "server_rss_mb_after":round(after_rss,2) if after_rss is not None else None,
