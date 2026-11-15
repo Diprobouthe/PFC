@@ -61,7 +61,7 @@ class FriendlyExpiryAndCancelTests(TestCase):
         game.refresh_from_db()
         self.assertEqual(game.status, 'PENDING_VALIDATION')
 
-    def test_expiry_does_not_grant_post_game_presence(self):
+    def test_expiry_preserves_existing_court_presence(self):
         game = self.make_game(age_minutes=151)
         BillboardEntry.objects.create(
             codename=self.codename.codename, action_type='AT_COURTS',
@@ -70,7 +70,7 @@ class FriendlyExpiryAndCancelTests(TestCase):
             court_complex=self.complex,
         )
         expire_stale_friendly_games()
-        self.assertFalse(BillboardEntry.objects.filter(
+        self.assertTrue(BillboardEntry.objects.filter(
             game_ref=f'friendly:{game.pk}', is_active=True
         ).exists())
 
@@ -100,3 +100,45 @@ class FriendlyExpiryAndCancelTests(TestCase):
         self.client.get(reverse('friendly_games:cancel_game', args=[game.pk]))
         game.refresh_from_db()
         self.assertEqual(game.status, 'ACTIVE')
+
+    def test_friendly_activation_reuses_presence_without_writing(self):
+        from friendly_games.presence_utils import register_friendly_game_players_at_court
+        from friendly_games.models import FriendlyGamePlayer
+        game = self.make_game()
+        game.court_complex = self.complex
+        game.save(update_fields=['court_complex'])
+        FriendlyGamePlayer.objects.create(game=game, player=self.creator, team='BLACK', position='milieu')
+        now = timezone.now()
+        entry = BillboardEntry.objects.create(
+            codename=self.codename.codename, action_type='AT_COURTS',
+            court_complex=self.complex, is_active=True,
+            presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+            expires_at=now + timedelta(minutes=110),
+        )
+        original_created_at = entry.created_at
+        register_friendly_game_players_at_court(game)
+        entry.refresh_from_db()
+        self.assertEqual(entry.created_at, original_created_at)
+        self.assertEqual(BillboardEntry.objects.filter(
+            codename=self.codename.codename, court_complex=self.complex,
+            action_type='AT_COURTS').count(), 1)
+
+    def test_friendly_activation_refreshes_near_expiry_without_insert(self):
+        from friendly_games.presence_utils import register_friendly_game_players_at_court
+        from friendly_games.models import FriendlyGamePlayer
+        game = self.make_game()
+        game.court_complex = self.complex
+        game.save(update_fields=['court_complex'])
+        FriendlyGamePlayer.objects.create(game=game, player=self.creator, team='BLACK', position='milieu')
+        entry = BillboardEntry.objects.create(
+            codename=self.codename.codename, action_type='AT_COURTS',
+            court_complex=self.complex, is_active=True,
+            presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+            expires_at=timezone.now() + timedelta(minutes=25),
+        )
+        register_friendly_game_players_at_court(game)
+        entry.refresh_from_db()
+        self.assertGreater(entry.expires_at, timezone.now() + timedelta(minutes=119))
+        self.assertEqual(BillboardEntry.objects.filter(
+            codename=self.codename.codename, court_complex=self.complex,
+            action_type='AT_COURTS').count(), 1)
