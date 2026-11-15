@@ -62,9 +62,9 @@ def register_melee_tournament_presence(tournament_id):
         ).values_list("codename", flat=True)
     )
     now = timezone.now()
-    # Explicit expiry, independent of individual Match completion.
-    # Long-running events remain visible past the legacy six-hour game cap.
-    expiry = max(tournament.end_date + timedelta(hours=2), now + timedelta(hours=6))
+    # Presence begins at team generation, with a simple three-hour window.
+    # This is deliberately independent of the scheduled tournament end_date.
+    expiry = now + timedelta(hours=3)
     rows = [
         BillboardEntry(
             codename=codename,
