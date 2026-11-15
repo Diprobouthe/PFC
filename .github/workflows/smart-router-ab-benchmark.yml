@@ -11,6 +11,7 @@ on:
       - .github/workflows/smart-router-ab-benchmark.yml
       - scripts/smart_router_http_load.py
       - scripts/smart_router_phase_profile.py
+      - scripts/test_smart_cta_scale.py
   pull_request:
     branches:
       - main
