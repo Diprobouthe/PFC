@@ -76,9 +76,8 @@ def resolve_decision_url(request):
         - An HttpResponseRedirect to the decision-state page, OR
         - A rendered "no matches" / "not logged in" template.
     """
-    from friendly_games.expiration import expire_stale_friendly_games
-    expire_stale_friendly_games()
-
+    # Routing must not run global Friendly lifecycle maintenance.
+    # Expiration is handled by Friendly lifecycle entry points.
     # ---- Step 1: Resolve player identity from session ----
     codename = request.session.get('player_codename')
     if not codename:
