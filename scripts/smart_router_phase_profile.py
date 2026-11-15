@@ -26,7 +26,7 @@ def main():
     assert len(actors)==30
     observations=collections.defaultdict(list)
     decisions=[]
-    original={name:getattr(router,name) for name in PHASES}
+    # The baseline router resolves identity inline; _session_player exists only\n    # in the optimized router. Profile shared phases on both variants, and\n    # measure identity cost as part of the full request for both.\n    available_phases=tuple(name for name in PHASES if hasattr(router,name))\n    original={name:getattr(router,name) for name in available_phases}
     current={}
     def wrapped(name):
         def call(*a,**kw):
@@ -37,7 +37,7 @@ def main():
                 current[name+"_wall_ms"]=(time.perf_counter()-before)*1000
                 current[name+"_cpu_ms"]=(time.process_time()-cpu)*1000
         return call
-    patches=[patch.object(router,name,wrapped(name)) for name in PHASES]
+    patches=[patch.object(router,name,wrapped(name)) for name in available_phases]
     for p in patches:p.start()
     try:
         for wave in range(4):
@@ -61,7 +61,7 @@ def main():
                 cpu=(time.process_time()-cpu)*1000
                 if response.status_code>=500:raise RuntimeError(f"HTTP {response.status_code}")
                 if wave==0:decisions.append([response.status_code,response.get("Location","")])
-                for name in PHASES:
+                for name in available_phases:
                     for suffix in ("wall_ms","cpu_ms"):
                         key=name+"_"+suffix
                         observations[key].append(current.get(key,0))
@@ -69,7 +69,7 @@ def main():
                     observations[key].append(value)
     finally:
         for p in reversed(patches):p.stop()
-    report={"version":args.version,"requests":len(actors)*4,"phases":{k:summary(v) for k,v in observations.items()},"decisions":decisions}
+    report={"version":args.version,"requests":len(actors)*4,"instrumented_phases":available_phases,"phases":{k:summary(v) for k,v in observations.items()},"decisions":decisions}
     Path(args.output).write_text(json.dumps(report,indent=2))
     print("PHASE_PROFILE",args.version,json.dumps(report["phases"]),flush=True)
 if __name__=="__main__":main()
