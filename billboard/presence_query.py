@@ -51,3 +51,36 @@ def current_court_presence(court_complex):
         )
         .order_by('-created_at')
     )
+
+
+def current_player_court_presence(codename):
+    """Read the latest valid physical presence for a codename across complexes.
+
+    Uses the same source-aware freshness constraints as current_court_presence.
+    Timezone-aware timestamps compare as absolute instants in the ORM, so the
+    two-hour cutoff does not require loading a CourtComplex first.
+    """
+    now = timezone.now()
+    manual_cutoff = now - timedelta(hours=2)
+    game_cutoff = now - timedelta(hours=6)
+    return (
+        BillboardEntry.objects.filter(
+            codename=codename, action_type='AT_COURTS', is_active=True,
+        )
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+        .filter(
+            Q(presence_source__in=(
+                BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
+                BillboardEntry.PRESENCE_SOURCE_MATCH,
+            ), created_at__gte=game_cutoff)
+            | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MATCH,
+                game_ref__startswith='tournament:', expires_at__isnull=False)
+            | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_POST_GAME,
+                expires_at__isnull=False)
+            | Q(presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
+                created_at__gte=manual_cutoff)
+            | Q(presence_source__isnull=True,
+                created_at__gte=manual_cutoff)
+        )
+        .order_by('-created_at')
+    )
