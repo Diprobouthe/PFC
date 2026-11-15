@@ -207,8 +207,8 @@ jobs:
           print(f"All-role mean SQL writes: {sum(x['write_count']['mean'] for x in b['sql']['by_role'].values()):.2f} -> {sum(x['write_count']['mean'] for x in o['sql']['by_role'].values()):.2f}")
           hb=json.loads(Path('ab-results/http-baseline.json').read_text())['results']
           ho=json.loads(Path('ab-results/http-optimized.json').read_text())['results']
-          for n in ('1','10','30'):
-              print(f'HTTP concurrency={n}: p95 {hb[n]["p95_ms"]} -> {ho[n]["p95_ms"]} ms; RPS {hb[n]["requests_per_second"]} -> {ho[n]["requests_per_second"]}; server CPU seconds {hb[n]["server_cpu_seconds_delta"]} -> {ho[n]["server_cpu_seconds_delta"]}')
+          for n in ('1','10','30','burst_2','burst_5','burst_10'):
+              print(f'HTTP load={n}: p95 {hb[n]["p95_ms"]} -> {ho[n]["p95_ms"]} ms; RPS {hb[n]["requests_per_second"]} -> {ho[n]["requests_per_second"]}; server CPU seconds {hb[n]["server_cpu_seconds_delta"]} -> {ho[n]["server_cpu_seconds_delta"]}')
               assert not hb[n]['errors'] and not ho[n]['errors']
           assert o['browser']['measured_clicks']==90, 'Incomplete browser clicks'
           assert not o['browser']['errors']
