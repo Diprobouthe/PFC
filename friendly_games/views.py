@@ -820,7 +820,7 @@ def cancel_game(request, game_id):
         return redirect('friendly_games:game_detail', game_id=game.id)
     with transaction.atomic():
         game = FriendlyGame.objects.select_for_update().get(pk=game.pk)
-        if game.status not in {'WAITING_FOR_PLAYERS', 'READY', 'DRAFT', 'ACTIVE'}:
+        if game.status not in {'WAITING_FOR_PLAYERS', 'READY', 'DRAFT', 'ACTIVE'} or hasattr(game, 'result'):
             messages.error(request, 'This Friendly Game can no longer be cancelled.')
             return redirect('friendly_games:game_detail', game_id=game.id)
         game.status = 'CANCELLED'
@@ -1386,12 +1386,12 @@ def join_game(request):
 
 
 def start_match(request, game_id):
-    from .expiration import expire_stale_friendly_games
-    expire_stale_friendly_games()
     """
     Start a friendly game match - transition from WAITING_FOR_PLAYERS to ACTIVE.
     Only the creator/host can start the game.
     """
+    from .expiration import expire_stale_friendly_games
+    expire_stale_friendly_games()
     game = get_object_or_404(FriendlyGame, id=game_id)
 
     # ── Auto-expire if unstarted for more than 10 minutes ────────────────────
