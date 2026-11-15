@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
@@ -84,13 +86,56 @@ class FriendlyVenuePolicyTests(TestCase):
         )
         self.assertNotIn(self.pedion_areos.pk, {complex.pk for complex in allowed})
 
-    def test_game_generated_presence_does_not_authorize_a_physical_venue(self):
-        self._login_creator()
+    def test_active_friendly_presence_authorizes_physical_venue(self):
         self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_FRIENDLY)
-
         allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.ioannina.pk, self.virtual.pk])
 
-        self.assertEqual([complex.pk for complex in allowed], [self.virtual.pk])
+    def test_active_match_presence_authorizes_physical_venue(self):
+        self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_MATCH)
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.ioannina.pk, self.virtual.pk])
+
+    def test_unexpired_post_game_presence_authorizes_physical_venue(self):
+        entry = self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_POST_GAME)
+        entry.expires_at = timezone.now() + timedelta(minutes=30)
+        entry.save(update_fields=['expires_at'])
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.ioannina.pk, self.virtual.pk])
+
+    def test_expired_post_game_presence_does_not_authorize_physical_venue(self):
+        entry = self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_POST_GAME)
+        entry.expires_at = timezone.now() - timedelta(seconds=1)
+        entry.save(update_fields=['expires_at'])
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.virtual.pk])
+
+    def test_inactive_game_presence_does_not_authorize_physical_venue(self):
+        entry = self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_FRIENDLY)
+        entry.is_active = False
+        entry.save(update_fields=['is_active'])
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.virtual.pk])
+
+    def test_stale_game_presence_does_not_authorize_physical_venue(self):
+        entry = self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_MATCH)
+        BillboardEntry.objects.filter(pk=entry.pk).update(
+            created_at=timezone.now() - timedelta(hours=7)
+        )
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.virtual.pk])
+
+    def test_post_game_presence_does_not_authorize_other_physical_complex(self):
+        entry = self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_POST_GAME)
+        entry.expires_at = timezone.now() + timedelta(minutes=30)
+        entry.save(update_fields=['expires_at'])
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertNotIn(self.pedion_areos.pk, [c.pk for c in allowed])
+
+    def test_post_game_presence_without_expiry_is_not_authorized(self):
+        self._manual_gps_presence_at_ioannina(BillboardEntry.PRESENCE_SOURCE_POST_GAME)
+        allowed = get_allowed_friendly_complexes(self._creator_request())
+        self.assertEqual([c.pk for c in allowed], [self.virtual.pk])
 
     def test_explicit_court_from_other_complex_is_rejected_not_used_as_override(self):
         self._login_creator()
