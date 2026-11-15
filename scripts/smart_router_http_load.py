@@ -8,6 +8,34 @@ import statistics
 import time
 from pathlib import Path
 import requests
+import threading
+import psycopg2
+
+class ConnectionMonitor:
+    def __init__(self):
+        self.samples=[]
+        self.stop=threading.Event()
+        self.thread=None
+    def start(self):
+        def watch():
+            try:
+                conn=psycopg2.connect(os.environ['DATABASE_URL'],connect_timeout=3)
+                conn.autocommit=True
+                with conn.cursor() as cur:
+                    while not self.stop.is_set():
+                        cur.execute("SELECT count(*),count(*) FILTER (WHERE state='active'),count(*) FILTER (WHERE state='idle') FROM pg_stat_activity WHERE datname=current_database()")
+                        self.samples.append(cur.fetchone())
+                        self.stop.wait(.05)
+                conn.close()
+            except Exception as exc:
+                self.samples.append({'monitor_error':str(exc)})
+        self.thread=threading.Thread(target=watch,daemon=True)
+        self.thread.start()
+    def finish(self):
+        self.stop.set()
+        if self.thread:self.thread.join(timeout=5)
+        valid=[x for x in self.samples if isinstance(x,tuple)]
+        return {'samples':len(valid),'peak_total':max((x[0] for x in valid),default=None),'peak_active':max((x[1] for x in valid),default=None),'peak_idle':max((x[2] for x in valid),default=None),'error':next((x['monitor_error'] for x in self.samples if isinstance(x,dict)),None)}
 
 def percentile(values, p):
     s=sorted(values)
@@ -48,10 +76,12 @@ def main():
     if len(actors)!=30: raise SystemExit("Exactly 30 synthetic actors required")
     pid=int(Path(args.pid_file).read_text())
     results={}
+    any_errors=False
     for concurrency in (1,10,30):
         batch=actors[:concurrency]
         latencies=[];statuses={};errors=[]
         before_cpu,before_rss=sample(pid)
+        monitor=ConnectionMonitor();monitor.start()
         start=time.perf_counter()
         # 10 sustained waves; each wave synchronizes all concurrent clients
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
@@ -65,25 +95,27 @@ def main():
                     if result["status"] not in (200,301,302,303):
                         errors.append(result)
         elapsed=time.perf_counter()-start
+        db_connections=monitor.finish()
         after_cpu,after_rss=sample(pid)
         results[str(concurrency)]={
             "requests":len(latencies),"elapsed_s":round(elapsed,3),
             "requests_per_second":round(len(latencies)/elapsed,2),
             "p50_ms":percentile(latencies,.50),"p95_ms":percentile(latencies,.95),
             "mean_ms":round(statistics.mean(latencies),2),
-            "statuses":statuses,"errors":errors[:10],
+            "statuses":statuses,"errors":errors[:10],"error_count":len(errors),"db_connections":db_connections,"error_count":len(errors),"db_connections":db_connections,
             "server_cpu_seconds_delta":round(after_cpu-before_cpu,3) if before_cpu is not None and after_cpu is not None else None,
             "server_rss_mb_before":round(before_rss,2) if before_rss is not None else None,
             "server_rss_mb_after":round(after_rss,2) if after_rss is not None else None,
         }
         print(args.version,concurrency,json.dumps(results[str(concurrency)]),flush=True)
-        if errors: raise SystemExit("HTTP benchmark errors: "+str(errors[:2]))
+        if errors:any_errors=True
     # Synchronized repeated presses: all 30 sessions, including overlapping
     # requests from the same player. Smart GET only, not mutating buttons.
     for presses in (2,5,10):
         batch=[a for a in actors for _ in range(presses)]
         latencies=[];statuses={};errors=[]
         before_cpu,before_rss=sample(pid)
+        monitor=ConnectionMonitor();monitor.start()
         start=time.perf_counter()
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(batch)) as pool:
             futures=[pool.submit(run_one,args.base,a) for a in batch]
@@ -109,6 +141,7 @@ def main():
             "server_rss_mb_after":round(after_rss,2) if after_rss is not None else None,
         }
         print(args.version,f"burst_{presses}",json.dumps(results[f"burst_{presses}"]),flush=True)
-        if errors:raise SystemExit("Burst errors: "+str(errors[:2]))
+        if errors:any_errors=True
     Path(args.output).write_text(json.dumps({"version":args.version,"results":results},indent=2))
+    if any_errors:raise SystemExit("HTTP benchmark completed with errors; all loads recorded")
 if __name__=="__main__":main()
