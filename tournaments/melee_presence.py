@@ -3,7 +3,6 @@
 The ordinary Match lifecycle must not create or retire player presence.
 """
 import logging
-from datetime import timedelta
 
 from django.utils import timezone
 
@@ -62,9 +61,8 @@ def register_melee_tournament_presence(tournament_id):
         ).values_list("codename", flat=True)
     )
     now = timezone.now()
-    # The configured tournament schedule is authoritative. Keep a one-hour
-    # post-event buffer without introducing another duration setting.
-    expiry = tournament.end_date + timedelta(hours=1)
+    # The organizer's configured end time already includes any desired buffer.
+    expiry = tournament.end_date
     if expiry <= now:
         logger.warning("Melee %s: scheduled presence already expired", tournament_id)
         return 0
