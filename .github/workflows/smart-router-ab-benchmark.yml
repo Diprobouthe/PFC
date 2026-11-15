@@ -153,6 +153,33 @@ jobs:
           for key in ('request_cpu_ms','request_wall_ms','sql_queries','sql_writes','sql_ms'):
               print('PHASE_COMPARE',key,b['phases'][key]['mean'],'->',o['phases'][key]['mean'])
           PY
+      - name: Compare legacy and source-aware presence SQL execution plans
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from virtual_tournament_lab import setup_isolated_django
+          setup_isolated_django()
+          from django.db import connection
+          from billboard.models import BillboardEntry
+          from friendly_games.models import PlayerCodename
+          from django.db.models import Q
+          from django.utils import timezone
+          from datetime import timedelta
+          from billboard.presence_query import current_player_court_presence
+          codename=PlayerCodename.objects.values_list('codename',flat=True).first()
+          assert codename, 'No player fixture'
+          now=timezone.now()
+          legacy=BillboardEntry.objects.filter(codename=codename,action_type='AT_COURTS',is_active=True).order_by('-created_at').values_list('court_complex_id',flat=True)[:1]
+          current=current_player_court_presence(codename).values_list('court_complex_id',flat=True)[:1]
+          report={}
+          for label,queryset in [('legacy',legacy),('source_aware',current)]:
+              # Real execution plan with actual rows, buffer reads and timing.
+              report[label]={'sql':str(queryset.query),'plan':json.loads(queryset.explain(analyze=True,buffers=True,format='JSON'))}
+              plan=report[label]['plan'][0]
+              print('PRESENCE_SQL',label,'planning_ms',plan['Planning Time'],'execution_ms',plan['Execution Time'],'root',plan['Plan']['Node Type'])
+          Path('ab-results/presence-sql-explain.json').write_text(json.dumps(report,indent=2,default=str))
+          PY
       - name: Measure optimized Smart with same fixture
         id: optimized
         continue-on-error: true
