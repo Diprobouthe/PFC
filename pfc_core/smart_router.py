@@ -48,7 +48,8 @@ from friendly_games.models import (
     PlayerCodename, FriendlyGame, FriendlyGamePlayer, FriendlyGameResult
 )
 from friendly_games.court_utils import SESSION_PREF_COMPLEX_KEY
-from billboard.models import BillboardEntry
+from billboard.presence_query import current_player_court_presence
+from teams.models import Player
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,31 @@ PRIORITY_FRIENDLY_NEARBY_JOIN          = 62   # Location-aware joinable game
 PRIORITY_FRIENDLY_WAITING              = 70   # Waiting for opponent validation
 PRIORITY_FRIENDLY_SETUP                = 75   # Waiting for players / pre-start
 PRIORITY_TOURNAMENT_WAITING_OPPONENT   = 80   # Waiting for opponent (info only)
+
+
+def _session_player(request):
+    """Resolve the session player; scanned QR identity stays independent.
+
+    Cache the player ID paired to its codename. Existing sessions are upgraded
+    lazily and stale/mismatched pairs fall back to codename resolution.
+    """
+    codename = request.session.get('player_codename')
+    if not codename:
+        return None
+    player_id = request.session.get('smart_router_player_id')
+    if player_id and request.session.get('smart_router_player_codename') == codename:
+        player = Player.objects.filter(pk=player_id).first()
+        if player is not None:
+            return player
+    try:
+        pc = PlayerCodename.objects.select_related('player').get(codename=codename)
+    except PlayerCodename.DoesNotExist:
+        request.session.pop('smart_router_player_id', None)
+        request.session.pop('smart_router_player_codename', None)
+        return None
+    request.session['smart_router_player_id'] = pc.player_id
+    request.session['smart_router_player_codename'] = codename
+    return pc.player
 
 
 def resolve_decision_url(request):
@@ -86,10 +112,8 @@ def resolve_decision_url(request):
             'no_login': True,
         })
 
-    try:
-        player_codename = PlayerCodename.objects.get(codename=codename)
-        player = player_codename.player
-    except PlayerCodename.DoesNotExist:
+    player = _session_player(request)
+    if player is None:
         return render(request, 'pfc_core/my_matches.html', {
             'matches': [],
             'no_login': True,
@@ -167,22 +191,16 @@ def _get_player_court_complex(request, player):
         - court_complex_id (int) if found
         - None if no context available
     """
-    # 1. Check active billboard presence (most reliable — player declared location)
+    # Source-aware, time-valid Billboard presence (PR #50).
     codename = request.session.get('player_codename')
     if codename:
-        billboard_entry = (
-            BillboardEntry.objects
-            .filter(
-                codename=codename,
-                action_type='AT_COURTS',
-                is_active=True,
-            )
-            .order_by('-created_at')
+        court_complex_id = (
+            current_player_court_presence(codename)
             .values_list('court_complex_id', flat=True)
             .first()
         )
-        if billboard_entry:
-            return billboard_entry
+        if court_complex_id:
+            return court_complex_id
 
     # 2. Check session preference (set when player created a friendly game)
     pref = request.session.get(SESSION_PREF_COMPLEX_KEY)
@@ -549,10 +567,8 @@ def my_matches_list(request):
             'no_login': True,
         })
 
-    try:
-        player_codename = PlayerCodename.objects.get(codename=codename)
-        player = player_codename.player
-    except PlayerCodename.DoesNotExist:
+    player = _session_player(request)
+    if player is None:
         return render(request, 'pfc_core/my_matches.html', {
             'matches': [],
             'no_login': True,
@@ -656,10 +672,8 @@ def resolve_next_url(request):
     if not codename:
         return _JsonResponse({'authenticated': False, 'next_url': None, 'label': None, 'priority': None})
 
-    try:
-        player_codename = PlayerCodename.objects.get(codename=codename)
-        player = player_codename.player
-    except PlayerCodename.DoesNotExist:
+    player = _session_player(request)
+    if player is None:
         return _JsonResponse({'authenticated': False, 'next_url': None, 'label': None, 'priority': None})
 
     candidates = []
