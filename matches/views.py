@@ -43,6 +43,9 @@ def auto_register_players_to_billboard(match):
     Automatically register all players in a match to the Billboard
     when the match is activated.
     """
+    # Mêlée participants are registered once when teams are generated.
+    if match.tournament.is_melee:
+        return
     try:
         # Get the court complex from the match's assigned court
         if not match.court:
@@ -123,6 +126,9 @@ def _deactivate_match_presence(match, skip_grace=False):
     Historical records are preserved (is_active=False, not deleted).
     Safe to call multiple times — idempotent.  Never raises.
     """
+    # Mêlée presence is tied to the tournament, never to an individual Match.
+    if match.tournament.is_melee:
+        return
     try:
         game_ref = f"match:{match.id}"
 
