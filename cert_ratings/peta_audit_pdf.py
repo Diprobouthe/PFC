@@ -31,7 +31,7 @@ def _fmt(value):
     return "—" if value is None else f"{float(value):.2f}"
 
 
-def peta_audit_pdf(tournament_id):
+def peta_audit_pdf(request, tournament_id):
     event = PetaEvent.objects.select_related("series", "tournament").filter(
         tournament_id=tournament_id, settled_at__isnull=False
     ).first()
