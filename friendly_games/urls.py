@@ -14,6 +14,7 @@ urlpatterns = [
     path('<int:game_id>/creator-assign/', views.creator_assign_players, name='creator_assign_players'),
     path('<int:game_id>/creator-remove/<int:player_id>/', views.creator_remove_player, name='creator_remove_player'),
     path('<int:game_id>/start/', views.start_match, name='start_match'),
+    path('<int:game_id>/cancel/', views.cancel_game, name='cancel_game'),
     path('<int:game_id>/submit-score/', views.submit_score, name='submit_score'),
     path('<int:game_id>/validate-result/', views.validate_result, name='validate_result'),
     path('<int:game_id>/check-codename/', views.check_codename, name='check_codename'),
