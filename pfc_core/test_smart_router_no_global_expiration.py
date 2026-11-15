@@ -24,10 +24,9 @@ class SmartRouterNoGlobalExpirationTests(SimpleTestCase):
         request = self.factory.get('/my-matches/')
         request.session = {'player_codename': 'TEST001'}
         player = SimpleNamespace(pk=1, id=1)
-        player_codename = SimpleNamespace(player=player)
         candidate = {'priority': 55, 'url': '/matches/scoreboard/123/', 'label': 'Live'}
         with (patch('friendly_games.expiration.expire_stale_friendly_games') as expire,
-              patch('pfc_core.smart_router.PlayerCodename.objects.get', return_value=player_codename),
+              patch('pfc_core.smart_router._session_player', return_value=player),
               patch('pfc_core.smart_router._resolve_tournament_matches', return_value=[candidate]),
               patch('pfc_core.smart_router._resolve_friendly_games', return_value=[]),
               patch('pfc_core.smart_router._resolve_nearby_friendly_games', return_value=None)):
