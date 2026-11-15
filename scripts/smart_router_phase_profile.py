@@ -26,7 +26,11 @@ def main():
     assert len(actors)==30
     observations=collections.defaultdict(list)
     decisions=[]
-    # The baseline router resolves identity inline; _session_player exists only\n    # in the optimized router. Profile shared phases on both variants, and\n    # measure identity cost as part of the full request for both.\n    available_phases=tuple(name for name in PHASES if hasattr(router,name))\n    original={name:getattr(router,name) for name in available_phases}
+    # The baseline router resolves identity inline; _session_player exists only
+    # in the optimized router. Profile shared phases on both variants, and
+    # measure identity cost as part of the full request for both.
+    available_phases=tuple(name for name in PHASES if hasattr(router,name))
+    original={name:getattr(router,name) for name in available_phases}
     current={}
     def wrapped(name):
         def call(*a,**kw):
