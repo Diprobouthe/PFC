@@ -517,6 +517,12 @@
         <a href="{% url 'home' %}" class="fg-btn-ghost">
             <i class="fas fa-home"></i> {% translate "Home" %}
         </a>
+        {% if is_creator and game.status == 'ACTIVE' or is_creator and game.status == 'WAITING_FOR_PLAYERS' or is_creator and game.status == 'READY' or is_creator and game.status == 'DRAFT' %}
+        <form method="post" action="{% url 'friendly_games:cancel_game' game.id %}" onsubmit="return confirm('Cancel this Friendly Game? No result or rating will be recorded.');">
+            {% csrf_token %}
+            <button type="submit" class="fg-btn-ghost" style="border:1px solid #c44;color:#c44;">Cancel Friendly Game</button>
+        </form>
+        {% endif %}
         <a href="{% url 'friendly_games:create_game' %}" class="fg-btn-ghost">
             <i class="fas fa-plus"></i> New Game
         </a>
