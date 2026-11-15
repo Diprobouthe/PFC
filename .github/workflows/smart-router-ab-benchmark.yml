@@ -9,6 +9,7 @@ on:
       - pfc_core/smart_router.py
       - scripts/smart_router_ab_benchmark.py
       - .github/workflows/smart-router-ab-benchmark.yml
+      - scripts/smart_router_http_load.py
   pull_request:
     branches:
       - main
@@ -74,6 +75,7 @@ jobs:
           git show origin/fix/friendly-billboard-presence-20261115:pfc_core/smart_router.py > /tmp/smart-router-optimized.py
           git show origin/fix/friendly-billboard-presence-20261115:billboard/presence_query.py > /tmp/presence-query-pr50.py
           git show origin/fix/smart-router-query-efficiency:scripts/smart_router_ab_benchmark.py > scripts/smart_router_ab_benchmark.py
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/smart_router_http_load.py > scripts/smart_router_http_load.py
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -144,6 +146,7 @@ jobs:
             if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
             sleep 1
           done
+          python scripts/smart_router_http_load.py --version baseline --output ab-results/http-baseline.json
           python scripts/smart_router_ab_benchmark.py --version baseline --output ab-results/baseline.json
           kill $(cat /tmp/daphne.pid) || true
           sleep 2
@@ -163,6 +166,7 @@ jobs:
             if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
             sleep 1
           done
+          python scripts/smart_router_http_load.py --version optimized --output ab-results/http-optimized.json
           python scripts/smart_router_ab_benchmark.py --version optimized --output ab-results/optimized.json
           kill $(cat /tmp/daphne.pid) || true
           sleep 2
@@ -183,6 +187,11 @@ jobs:
           print(f"Optimized browser p95: {o['browser']['click_to_target_ms']['p95']} ms")
           print(f"All-role mean SQL queries: {b['sql']['all_sql_count']['mean']:.2f} -> {o['sql']['all_sql_count']['mean']:.2f}")
           print(f"All-role mean SQL writes: {sum(x['write_count']['mean'] for x in b['sql']['by_role'].values()):.2f} -> {sum(x['write_count']['mean'] for x in o['sql']['by_role'].values()):.2f}")
+          hb=json.loads(Path('ab-results/http-baseline.json').read_text())['results']
+          ho=json.loads(Path('ab-results/http-optimized.json').read_text())['results']
+          for n in ('1','10','30'):
+              print(f'HTTP concurrency={n}: p95 {hb[n]["p95_ms"]} -> {ho[n]["p95_ms"]} ms; RPS {hb[n]["requests_per_second"]} -> {ho[n]["requests_per_second"]}; server CPU seconds {hb[n]["server_cpu_seconds_delta"]} -> {ho[n]["server_cpu_seconds_delta"]}')
+              assert not hb[n]['errors'] and not ho[n]['errors']
           assert o['browser']['measured_clicks']==90, 'Incomplete browser clicks'
           assert not o['browser']['errors']
           PY
