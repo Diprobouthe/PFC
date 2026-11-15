@@ -178,6 +178,8 @@ def live_scores_list(request):
     Display all active live scoreboards.
     This is the main /live-scores/ page.
     """
+    from friendly_games.expiration import expire_stale_friendly_games
+    expire_stale_friendly_games()
     # Get all active scoreboards
     active_scoreboards = LiveScoreboard.objects.filter(is_active=True).order_by('-updated_at')
     
