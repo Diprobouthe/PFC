@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from billboard.models import BillboardEntry
+from courts.models import CourtComplex
 from friendly_games.expiration import expire_stale_friendly_games
 from friendly_games.models import FriendlyGame, PlayerCodename
 from teams.models import Player, Team
@@ -14,6 +15,7 @@ from teams.models import Player, Team
 class FriendlyExpiryAndCancelTests(TestCase):
     def setUp(self):
         team = Team.objects.create(name='Expiry Test Team')
+        self.complex = CourtComplex.objects.create(name='Expiry Test Courts')
         self.creator = Player.objects.create(name='Expiry Creator', team=team)
         self.other = Player.objects.create(name='Expiry Other', team=team)
         self.codename = PlayerCodename.objects.create(
@@ -65,6 +67,7 @@ class FriendlyExpiryAndCancelTests(TestCase):
             codename=self.codename.codename, action_type='AT_COURTS',
             presence_source=BillboardEntry.PRESENCE_SOURCE_FRIENDLY,
             game_ref=f'friendly:{game.pk}', is_active=True,
+            court_complex=self.complex,
         )
         expire_stale_friendly_games()
         self.assertFalse(BillboardEntry.objects.filter(
