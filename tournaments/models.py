@@ -602,6 +602,14 @@ class Tournament(models.Model):
         stats_created = initialize_melee_player_stats(self)
         logger.info(f"Initialized stats for {stats_created} players")
         
+        # Presence is a tournament-level event, not a per-Match side effect.
+        # Run after commit so no presence is published for rolled-back teams.
+        if teams_created > 0:
+            from tournaments.melee_presence import register_melee_tournament_presence
+            transaction.on_commit(
+                lambda tournament_id=self.pk: register_melee_tournament_presence(tournament_id)
+            )
+
         logger.info(f"Generated {teams_created} Mêlée teams for tournament {self.name} using {algorithm} algorithm")
         return teams_created
 
