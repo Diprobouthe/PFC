@@ -1,7 +1,10 @@
 from django.urls import path, include
 from . import views
 
+from cert_ratings.peta_audit_pdf import peta_audit_pdf
+
 urlpatterns = [
+    path('<int:tournament_id>/peta/audit/pdf/', peta_audit_pdf, name='peta_audit_pdf'),
     path('', views.tournament_list, name='tournament_list'),
     path('<int:tournament_id>/', views.tournament_detail, name='tournament_detail'),
     path('<int:tournament_id>/overview/', views.tournament_overview, name='tournament_overview'),

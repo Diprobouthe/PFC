@@ -224,9 +224,10 @@
     <p style="color:#607d8b;font-size:.85rem">{{ peta_travel.event.series.name }} · Event {{ peta_travel.event.ordinal }}/8</p>
     {% if peta_travel.settled %}
       <p style="font-size:.85rem;color:#607d8b">Travel Points earned here and cumulative series standings. The highest final total wins the trip.</p>
+      <p><a class="btn btn-outline-primary btn-sm" href="{% url 'peta_audit_pdf' tournament.id %}"><i class="fas fa-file-pdf" aria-hidden="true"></i> Download PETA audit PDF</a></p>
       <div style="overflow-x:auto">
         <table class="table table-sm align-middle">
-          <thead><tr><th>#</th><th>Player</th><th>Earned here</th><th><i class="fas fa-plane" aria-hidden="true"></i> Total TP</th></tr></thead>
+          <thead><tr><th>#</th><th>Player</th><th>Earned here</th><th><i class="fas fa-plane" aria-hidden="true"></i> Total TP</th><th>Dividend eligibility</th></tr></thead>
           <tbody>
           {% for row in peta_travel.rows %}
           <tr>
@@ -234,9 +235,10 @@
             <td><a href="{% url 'player_profile' row.player.id %}">{{ row.player.name }}</a></td>
             <td>{% if row.earned > 0 %}+{% endif %}{{ row.earned|floatformat:2 }}</td>
             <td><strong>{{ row.total|floatformat:2 }}</strong></td>
+            <td>{% if row.eligible_for_dividend == False %}<span style="color:#b42318;font-weight:700">Not eligible</span>{% elif row.eligible_for_dividend == True %}<span style="color:#137333;font-weight:700">Eligible</span>{% else %}<span style="color:#64748b">Not assessed</span>{% endif %}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="4">No finalized Travel Points recorded.</td></tr>
+          <tr><td colspan="5">No finalized Travel Points recorded.</td></tr>
           {% endfor %}
           </tbody>
         </table>

@@ -1,5 +1,8 @@
 """Focused HTTP regression for PETA Travel Points display (isolated test DB)."""
 from datetime import timedelta
+from io import BytesIO
+
+from pypdf import PdfReader
 from decimal import Decimal
 
 from django.test import TestCase
@@ -108,3 +111,31 @@ class PetaTravelPointsDisplayTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "PETA Travel Points")
         self.assertNotContains(response, "23.75")
+
+    def test_audit_pdf_requires_settlement_and_shows_saved_values(self):
+        pending = self.client.get(reverse("peta_audit_pdf", args=[self.tournaments[1].pk]))
+        self.assertEqual(pending.status_code, 404)
+        event = self.events[2]
+        entry = PetaEventEntry.objects.get(event=event, player=self.player)
+        entry.eligible_for_dividend = False
+        entry.save(update_fields=["eligible_for_dividend"])
+        event.settlement_audit.update({
+            "pool": "11.25", "distributed": "0", "undistributed": "11.25",
+            "awards": {str(self.player.pk): {"podium": "2"}},
+        })
+        event.save(update_fields=["settlement_audit"])
+        response = self.client.get(reverse("peta_audit_pdf", args=[self.tournaments[2].pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+        reader = PdfReader(BytesIO(response.content))
+        self.assertEqual(len(reader.pages), 1)
+        page_text = reader.pages[0].extract_text()
+        self.assertIn("HELPFUL", page_text)
+        self.assertIn("PFC START", page_text)
+        self.assertIn("PETA ENTRY", page_text)
+        self.assertIn("Travel NPC 13", page_text)
+        self.assertIn("23.75", page_text)
+        page = self.client.get(reverse("tournament_detail", args=[self.tournaments[2].pk]))
+        self.assertContains(page, "Not eligible")
+        self.assertContains(page, "Download PETA audit PDF")
