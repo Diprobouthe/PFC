@@ -153,26 +153,6 @@ jobs:
           for key in ('request_cpu_ms','request_wall_ms','sql_queries','sql_writes','sql_ms'):
               print('PHASE_COMPARE',key,b['phases'][key]['mean'],'->',o['phases'][key]['mean'])
           PY
-      - name: Measure original Smart with 30 real Chromium sessions
-        id: baseline
-        continue-on-error: true
-        run: |
-          mkdir -p ab-results
-          cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
-          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-daphne-baseline.log 2>&1 & echo $! > /tmp/daphne.pid)
-          for i in $(seq 1 35); do
-            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
-            sleep 1
-          done
-          python scripts/smart_router_http_load.py --version baseline --output ab-results/http-baseline.json
-          python scripts/smart_router_ab_benchmark.py --version baseline --output ab-results/baseline.json
-          kill $(cat /tmp/daphne.pid) || true
-          sleep 2
-      - name: Ensure old Daphne is stopped
-        if: always()
-        run: |
-          if test -f /tmp/daphne.pid; then kill $(cat /tmp/daphne.pid) || true; fi
-          sleep 2
       - name: Measure optimized Smart with same fixture
         id: optimized
         continue-on-error: true
@@ -186,6 +166,26 @@ jobs:
           done
           python scripts/smart_router_http_load.py --version optimized --output ab-results/http-optimized.json
           python scripts/smart_router_ab_benchmark.py --version optimized --output ab-results/optimized.json
+          kill $(cat /tmp/daphne.pid) || true
+          sleep 2
+      - name: Ensure optimized Daphne is stopped
+        if: always()
+        run: |
+          if test -f /tmp/daphne.pid; then kill $(cat /tmp/daphne.pid) || true; fi
+          sleep 2
+      - name: Measure original Smart with 30 real Chromium sessions
+        id: baseline
+        continue-on-error: true
+        run: |
+          mkdir -p ab-results
+          cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-daphne-baseline.log 2>&1 & echo $! > /tmp/daphne.pid)
+          for i in $(seq 1 35); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
+            sleep 1
+          done
+          python scripts/smart_router_http_load.py --version baseline --output ab-results/http-baseline.json
+          python scripts/smart_router_ab_benchmark.py --version baseline --output ab-results/baseline.json
           kill $(cat /tmp/daphne.pid) || true
           sleep 2
       - name: Compare routing invariants and SQL counts
