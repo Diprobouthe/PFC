@@ -10,6 +10,7 @@ on:
       - scripts/smart_router_ab_benchmark.py
       - .github/workflows/smart-router-ab-benchmark.yml
       - scripts/smart_router_http_load.py
+      - scripts/smart_router_phase_profile.py
   pull_request:
     branches:
       - main
@@ -76,6 +77,7 @@ jobs:
           git show origin/fix/friendly-billboard-presence-20261115:billboard/presence_query.py > /tmp/presence-query-pr50.py
           git show origin/fix/smart-router-query-efficiency:scripts/smart_router_ab_benchmark.py > scripts/smart_router_ab_benchmark.py
           git show origin/fix/friendly-billboard-presence-20261115:scripts/smart_router_http_load.py > scripts/smart_router_http_load.py
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/smart_router_phase_profile.py > scripts/smart_router_phase_profile.py
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -134,6 +136,22 @@ jobs:
           assert a['decisions']==b['decisions'], 'Ablation changed routing decisions'
           print('ABLATON DIFFERENCE SQL queries:',a['all_sql_count']['mean']-b['all_sql_count']['mean'])
           print('ABLATON DIFFERENCE wall ms:',a['all_wall_ms']['mean']-b['all_wall_ms']['mean'])
+          PY
+      - name: Profile Smart CPU SQL and four decision phases
+        run: |
+          cp /tmp/smart-router-baseline.py pfc_core/smart_router.py
+          python scripts/smart_router_phase_profile.py --version baseline --output ab-results/phases-baseline.json
+          cp /tmp/presence-query-pr50.py billboard/presence_query.py
+          cp /tmp/smart-router-optimized.py pfc_core/smart_router.py
+          python scripts/smart_router_phase_profile.py --version optimized --output ab-results/phases-optimized.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          b=json.loads(Path('ab-results/phases-baseline.json').read_text())
+          o=json.loads(Path('ab-results/phases-optimized.json').read_text())
+          assert b['decisions']==o['decisions'], 'Phase benchmark changed decisions'
+          for key in ('request_cpu_ms','request_wall_ms','sql_queries','sql_writes','sql_ms'):
+              print('PHASE_COMPARE',key,b['phases'][key]['mean'],'->',o['phases'][key]['mean'])
           PY
       - name: Measure original Smart with 30 real Chromium sessions
         id: baseline
