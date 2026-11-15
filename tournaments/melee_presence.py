@@ -62,9 +62,12 @@ def register_melee_tournament_presence(tournament_id):
         ).values_list("codename", flat=True)
     )
     now = timezone.now()
-    # Presence begins at team generation, with a simple three-hour window.
-    # This is deliberately independent of the scheduled tournament end_date.
-    expiry = now + timedelta(hours=3)
+    # The configured tournament schedule is authoritative. Keep a one-hour
+    # post-event buffer without introducing another duration setting.
+    expiry = tournament.end_date + timedelta(hours=1)
+    if expiry <= now:
+        logger.warning("Melee %s: scheduled presence already expired", tournament_id)
+        return 0
     rows = [
         BillboardEntry(
             codename=codename,
