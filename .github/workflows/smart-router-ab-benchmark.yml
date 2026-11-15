@@ -101,6 +101,21 @@ jobs:
           (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-cta-daphne.log 2>&1 & echo $! > /tmp/smart-cta-daphne.pid)
           trap 'kill $(cat /tmp/smart-cta-daphne.pid) 2>/dev/null || true' EXIT
           python /tmp/test_smart_cta_repeat_taps.py
+      - name: Run SMART CTA scale with 20, 30, 50, 100 distinct Chromium sessions
+        run: |
+          git show origin/fix/friendly-billboard-presence-20261115:templates/base.html > templates/base.html
+          git show origin/fix/friendly-billboard-presence-20261115:scripts/test_smart_cta_scale.py > scripts/test_smart_cta_scale.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/virtual_tournament_lab.py')
+          s=p.read_text()
+          assert 'if not 4 <= players <= 60:' in s
+          p.write_text(s.replace('if not 4 <= players <= 60:', 'if not 4 <= players <= 100:'))
+          PY
+          python scripts/virtual_tournament_lab.py seed --players 100
+          (daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/smart-cta-scale-server.log 2>&1 & echo $! > /tmp/cta-scale.pid)
+          trap 'kill $(cat /tmp/cta-scale.pid) 2>/dev/null || true' EXIT
+          python scripts/test_smart_cta_scale.py
       - name: Isolate cost of legacy stale-game maintenance (ablation)
         run: |
           mkdir -p ab-results
