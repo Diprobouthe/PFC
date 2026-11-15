@@ -20,6 +20,9 @@ async def main():
             errors=[]
             counts=[]
             durations=[]
+            request_start_delays=[]
+            server_response_times=[]
+            navigation_after_response=[]
             ready=[]
             gate=asyncio.Event()
             async def actor_task(actor):
@@ -40,8 +43,16 @@ async def main():
                     await page.goto(ORIGIN+'/',wait_until='domcontentloaded',timeout=45000)
                     await page.locator('#pfc-smart-cta').wait_for()
                     seen=[]
-                    page.on('request',lambda req: seen.append(req.url)
-                        if urlsplit(req.url).path=='/my-matches/' else None)
+                    timing={'request':None,'response':None}
+                    def on_request(req):
+                        if urlsplit(req.url).path=='/my-matches/':
+                            seen.append(req.url)
+                            timing['request']=time.monotonic()
+                    def on_response(resp):
+                        if urlsplit(resp.url).path=='/my-matches/':
+                            timing['response']=time.monotonic()
+                    page.on('request',on_request)
+                    page.on('response',on_response)
                     ready.append(actor['player_id'])
                     await gate.wait()
                     t0=time.monotonic()
@@ -51,7 +62,13 @@ async def main():
                     }""")
                     await page.wait_for_url(lambda url: urlsplit(str(url)).path!='/',
                                             timeout=45000)
-                    durations.append(round((time.monotonic()-t0)*1000,1))
+                    finished=time.monotonic()
+                    durations.append(round((finished-t0)*1000,1))
+                    if timing['request'] is not None:
+                        request_start_delays.append(round((timing['request']-t0)*1000,1))
+                    if timing['response'] is not None and timing['request'] is not None:
+                        server_response_times.append(round((timing['response']-timing['request'])*1000,1))
+                        navigation_after_response.append(round((finished-timing['response'])*1000,1))
                     counts.append(len(seen))
                     if len(seen)!=1:
                         errors.append('player %s made %s SMART requests'%(actor['player_id'],len(seen)))
@@ -65,10 +82,16 @@ async def main():
             await asyncio.gather(*tasks)
             for c in contexts:
                 await c.close()
+            def p95(values):
+                return sorted(values)[int((len(values)-1)*.95)] if values else None
             result={'players':n,'attempted_taps':5*n,'ready':len(ready),
                     'completed':len(counts),'smart_requests':sum(counts),
                     'one_request_per_player':all(x==1 for x in counts),
-                    'p95_ms':sorted(durations)[int((len(durations)-1)*.95)] if durations else None,
+                    'p95_ms':p95(durations),
+                    'p95_click_to_request_ms':p95(request_start_delays),
+                    'p95_request_to_response_ms':p95(server_response_times),
+                    'p95_response_to_navigation_ms':p95(navigation_after_response),
+                    'timing_samples':{'request':len(request_start_delays),'response':len(server_response_times)},
                     'errors':errors[:12]}
             print('SMART_CTA_SCALE',json.dumps(result),flush=True)
             assert not errors and len(counts)==n and sum(counts)==n, 'SMART CTA scale failure at %s'%n
