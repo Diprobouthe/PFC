@@ -221,6 +221,25 @@
                         </div>
                     </div>
                     
+                    <!-- Scheduling uses the Scenario's configured Court Complex timezone. -->
+                    <div class="mb-4" id="schedule-section">
+                        <h4 class="mb-3"><span class="badge bg-primary rounded-pill me-2">4</span> When should it start?</h4>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="schedule_mode" id="schedule_now" value="now" checked>
+                            <label class="form-check-label" for="schedule_now"><strong>Now</strong> — registration opens immediately; tournament starts in 30 minutes</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="schedule_mode" id="schedule_later" value="scheduled">
+                            <label class="form-check-label" for="schedule_later"><strong>Schedule</strong> — choose a date and local start time</label>
+                        </div>
+                        <div id="schedule-date-fields" class="mt-3" hidden>
+                            <label for="scheduled_start" class="form-label">Start date and time (Court Complex local time)</label>
+                            <input type="datetime-local" class="form-control" id="scheduled_start" name="scheduled_start">
+                            <div class="form-text">Registrations close 10 minutes before start. Start must be at least 10 minutes from now.</div>
+                        </div>
+                        <div class="form-text">Default duration: 3 hours. Admin can adjust the schedule later.</div>
+                    </div>
+
                     <!-- Step 4: Voucher Code (conditional) -->
                     <div class="voucher-section" id="voucher-section">
                         <h4 class="mb-3"><span class="badge bg-warning rounded-pill me-2">4</span> Enter Voucher Code</h4>
@@ -248,9 +267,9 @@
                     <div class="mt-4 p-3 bg-light rounded">
                         <h6><i class="bi bi-info-circle"></i> Auto-Filled Information</h6>
                         <small class="text-muted">
-                            <strong>Start:</strong> Tomorrow 9:00 AM | 
-                            <strong>End:</strong> Tomorrow 6:00 PM | 
-                            <strong>Registration Deadline:</strong> Tomorrow 8:00 AM<br>
+                            <strong>Now:</strong> starts 30 minutes after creation | 
+                            <strong>Scheduled:</strong> your selected local date/time | 
+                            <strong>Duration:</strong> 3 hours<br>
                             <strong>Team PINs:</strong> Generated automatically | 
                             <strong>Virtual Courts:</strong> Tournament-specific courts (VC-1, VC-2, etc.)<br>
                             <strong>Match Generation:</strong> Created when admin generates teams>
@@ -260,6 +279,19 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const scheduleFields = document.getElementById('schedule-date-fields');
+            const scheduledStart = document.getElementById('scheduled_start');
+            function updateScheduleMode() {
+                const scheduled = document.getElementById('schedule_later').checked;
+                scheduleFields.hidden = !scheduled;
+                scheduledStart.required = scheduled;
+                scheduledStart.disabled = !scheduled;
+            }
+            document.querySelectorAll('input[name="schedule_mode"]').forEach(
+                input => input.addEventListener('change', updateScheduleMode)
+            );
+            updateScheduleMode();
+
             const scenarioCards = document.querySelectorAll('.scenario-card'); // kept for compat
             const formatCards = document.querySelectorAll('.format-card');
             const voucherSection = document.getElementById('voucher-section');
