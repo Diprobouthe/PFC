@@ -137,5 +137,24 @@ class PetaTravelPointsDisplayTests(TestCase):
         self.assertIn("Travel NPC 13", page_text)
         self.assertIn("23.75", page_text)
         page = self.client.get(reverse("tournament_detail", args=[self.tournaments[2].pk]))
-        self.assertContains(page, "Not eligible")
+        self.assertContains(page, "Not entitled to dividend")
         self.assertContains(page, "Download PETA audit PDF")
+
+    def test_dividend_amount_and_red_x_follow_frozen_classes(self):
+        event = self.events[2]
+        entry = PetaEventEntry.objects.get(event=event, player=self.player)
+        entry.eligible_for_dividend = True
+        entry.dividend = Decimal("2.5000")
+        entry.save(update_fields=["eligible_for_dividend", "dividend"])
+        event.settlement_audit["classes"] = {
+            "top": [self.other.pk], "middle": [self.player.pk], "base": []
+        }
+        event.save(update_fields=["settlement_audit"])
+        page = self.client.get(reverse("tournament_detail", args=[self.tournaments[2].pk]))
+        self.assertContains(page, "2.50 TP")
+        self.assertContains(page, "Not entitled to dividend")
+        response = self.client.get(reverse("peta_audit_pdf", args=[self.tournaments[2].pk]))
+        self.assertEqual(response.status_code, 200)
+        text = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+        self.assertIn("2.50", text)
+        self.assertIn("DIVIDEND", text)
