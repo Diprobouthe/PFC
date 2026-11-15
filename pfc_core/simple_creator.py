@@ -272,8 +272,8 @@ def create_simple_tournament(request):
             if start_datetime.astimezone(ZoneInfo('UTC')).astimezone(venue_tz).replace(tzinfo=None) != local_start:
                 messages.error(request, 'This local time does not exist at the selected venue.')
                 return redirect('simple_creator_home')
-            if start_datetime < created_at + timedelta(minutes=10):
-                messages.error(request, 'Start must be at least 10 minutes from now. Choose a later time or use Now.')
+            if start_datetime <= created_at:
+                messages.error(request, 'Start must be in the future. Choose a later time or use Now.')
                 return redirect('simple_creator_home')
         else:
             messages.error(request, 'Invalid tournament scheduling option.')
