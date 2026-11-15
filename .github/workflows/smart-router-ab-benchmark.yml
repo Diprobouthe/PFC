@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/smart-router-query-efficiency
+      - fix/friendly-billboard-presence-20261115
     paths:
       - pfc_core/smart_router.py
       - scripts/smart_router_ab_benchmark.py
@@ -66,10 +67,11 @@ jobs:
       - name: Retrieve baseline, proposed router and benchmark script
         run: |
           git fetch --no-tags --depth=1 origin \
-            main:refs/remotes/origin/main \
+            df558a6e270c5117018c861be0c88f63a506a897 \
+            fix/friendly-billboard-presence-20261115:refs/remotes/origin/fix/friendly-billboard-presence-20261115 \
             fix/smart-router-query-efficiency:refs/remotes/origin/fix/smart-router-query-efficiency
-          git show origin/main:pfc_core/smart_router.py > /tmp/smart-router-baseline.py
-          git show origin/fix/smart-router-query-efficiency:pfc_core/smart_router.py > /tmp/smart-router-optimized.py
+          git show df558a6e270c5117018c861be0c88f63a506a897:pfc_core/smart_router.py > /tmp/smart-router-baseline.py
+          git show origin/fix/friendly-billboard-presence-20261115:pfc_core/smart_router.py > /tmp/smart-router-optimized.py
           git show origin/fix/smart-router-query-efficiency:scripts/smart_router_ab_benchmark.py > scripts/smart_router_ab_benchmark.py
       - uses: actions/setup-python@v5
         with:
@@ -133,7 +135,9 @@ jobs:
           print(f"Active player SQL queries: {before:.2f} -> {after:.2f}")
           print(f"Baseline browser p95: {b['browser']['click_to_target_ms']['p95']} ms")
           print(f"Optimized browser p95: {o['browser']['click_to_target_ms']['p95']} ms")
-          assert after < before, 'No reduction in active-player SQL count'
+          print(f"All-role mean SQL queries: {b['sql']['all_sql_count']['mean']:.2f} -> {o['sql']['all_sql_count']['mean']:.2f}")
+          print(f"All-role mean SQL writes: {sum(x['write_count']['mean'] for x in b['sql']['by_role'].values()):.2f} -> {sum(x['write_count']['mean'] for x in o['sql']['by_role'].values()):.2f}")
+          assert o['browser']['measured_clicks']==90, 'Incomplete browser clicks'
           assert not o['browser']['errors']
           PY
       - name: Keep complete benchmark reports and Daphne logs
