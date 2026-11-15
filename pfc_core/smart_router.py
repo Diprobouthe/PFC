@@ -76,6 +76,9 @@ def resolve_decision_url(request):
         - An HttpResponseRedirect to the decision-state page, OR
         - A rendered "no matches" / "not logged in" template.
     """
+    from friendly_games.expiration import expire_stale_friendly_games
+    expire_stale_friendly_games()
+
     # ---- Step 1: Resolve player identity from session ----
     codename = request.session.get('player_codename')
     if not codename:
@@ -225,21 +228,6 @@ def _resolve_nearby_friendly_games(request, player):
     complex_id = _get_player_court_complex(request, player)
     if not complex_id:
         return None
-
-    # Auto-expire stale games before querying — two tiers:
-    #   Tier 1: Unstarted (WAITING_FOR_PLAYERS) > 10 minutes → CANCELLED
-    #   Tier 2: Started but unvalidated (ACTIVE, PENDING_VALIDATION) > 6 hours → CANCELLED
-    from django.utils import timezone as _tz
-    from datetime import timedelta as _td
-    _now = _tz.now()
-    FriendlyGame.objects.filter(
-        status='WAITING_FOR_PLAYERS',
-        created_at__lt=_now - _td(minutes=10),
-    ).update(status='CANCELLED')
-    FriendlyGame.objects.filter(
-        status__in=['ACTIVE', 'PENDING_VALIDATION'],
-        created_at__lt=_now - _td(hours=6),
-    ).update(status='CANCELLED')
 
     # Find joinable games at this complex
     joinable_games = list(
