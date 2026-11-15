@@ -269,7 +269,7 @@ def create_simple_tournament(request):
                 return redirect('simple_creator_home')
             start_datetime = local_start.replace(tzinfo=venue_tz)
             # Reject nonexistent local wall times (DST spring-forward).
-            if start_datetime.astimezone(timezone.utc).astimezone(venue_tz).replace(tzinfo=None) != local_start:
+            if start_datetime.astimezone(ZoneInfo('UTC')).astimezone(venue_tz).replace(tzinfo=None) != local_start:
                 messages.error(request, 'This local time does not exist at the selected venue.')
                 return redirect('simple_creator_home')
             if start_datetime < created_at + timedelta(minutes=10):
