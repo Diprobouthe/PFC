@@ -112,7 +112,7 @@ class ScenarioTournamentNamingTests(TestCase):
             )
             self.assertEqual(response.status_code, 302)
 
-            printed_date = timezone.now().date() + timedelta(days=1)
+            printed_date = timezone.localdate()
             self.assertTrue(
                 Tournament.objects.filter(
                     name=(
