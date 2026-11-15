@@ -39,6 +39,7 @@ def peta_audit_pdf(request, tournament_id):
         raise Http404("PETA audit is available only after settlement.")
 
     audit = event.settlement_audit or {}
+    dividend_class_ids = {str(pid) for group in ("middle", "base") for pid in audit.get("classes", {}).get(group, [])}
     entries = list(PetaEventEntry.objects.filter(event=event)
                    .select_related("player").order_by("player__name", "player_id"))
     stats = {s.player_id: s for s in MeleePlayerStats.objects.filter(
@@ -84,7 +85,7 @@ def peta_audit_pdf(request, tournament_id):
     columns = [
         ("PLAYER", 27), ("PFC START → END", 211), ("PETA ENTRY → END", 342),
         ("TP +", 482), ("TOTAL TP", 552), ("PFC DROP", 641),
-        ("HELPFUL", 724), ("DIVIDEND", 781),
+        ("HELPFUL", 700), ("DIVIDEND", 755),
     ]
     top = page_h - 111
     pdf.setFillColor(navy)
@@ -134,15 +135,17 @@ def peta_audit_pdf(request, tournament_id):
 
         helpful = entry.player_id in contributors
         pdf.setFillColor(green if helpful else red)
-        pdf.drawString(724, y - row_h + 8, "✓" if helpful else "✕")
-        eligible = entry.eligible_for_dividend
-        pdf.setFillColor(green if eligible is True else red if eligible is False else muted)
-        pdf.drawString(781, y - row_h + 8, "✓" if eligible is True else "✕" if eligible is False else "—")
+        pdf.drawString(700, y - row_h + 8, "✓" if helpful else "✕")
+        allowed = entry.eligible_for_dividend is True and str(entry.player_id) in dividend_class_ids
+        pdf.setFillColor(green if allowed else red)
+        pdf.setFont(bold, font_size)
+        pdf.drawString(755, y - row_h + 8, _fmt(entry.dividend) if allowed else "✕")
         y -= row_h
 
     pdf.setFillColor(muted)
     pdf.setFont(regular, 7.1)
     pdf.drawString(27, 38, "Helpful: valid Live Score update or tracked shot in EVERY completed match played.")
+    pdf.drawString(490, 38, "Dividend: green = paid/eligible; red X = not entitled.")
     pdf.drawString(27, 27, "PFC drop: previous event settlement → current event start; WARN 10–<20, RED ≥20. A warning is not a penalty.")
     if any(suspended.values()):
         pdf.setFillColor(red)
