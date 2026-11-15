@@ -607,7 +607,8 @@ class Tournament(models.Model):
         if teams_created > 0:
             from tournaments.melee_presence import register_melee_tournament_presence
             transaction.on_commit(
-                lambda tournament_id=self.pk: register_melee_tournament_presence(tournament_id)
+                lambda tournament_id=self.pk: register_melee_tournament_presence(tournament_id),
+                robust=True,
             )
 
         logger.info(f"Generated {teams_created} Mêlée teams for tournament {self.name} using {algorithm} algorithm")
