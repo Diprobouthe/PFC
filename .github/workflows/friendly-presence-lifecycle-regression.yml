@@ -52,4 +52,6 @@ jobs:
           python manage.py test \
             friendly_games.tests.test_venue_policy \
             friendly_games.tests.test_expiration_and_cancel \
+            pfc_core.test_smart_identity_presence \
+            pfc_core.test_smart_router_no_global_expiration \
             --verbosity 2
