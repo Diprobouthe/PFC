@@ -1,18 +1,14 @@
-"""Friendly-only creator venue policy.
+"""Friendly creator venue policy based on current Billboard court presence.
 
-A physical Friendly venue is permitted only when the creator has a current
-manual AT_COURTS presence at that geolocated CourtComplex.  The manual check-in
-flow is already GPS/proximity protected.  The one non-geolocated CourtComplex
-is the existing virtual Friendly venue.
+Any valid current AT_COURTS presence at a physical CourtComplex permits
+creating a Friendly there, regardless of how presence was established.
+The non-geolocated complex remains the virtual venue.
 """
-
-from datetime import timedelta
 
 from django.utils.translation import gettext_lazy as _
 
-from billboard.models import BillboardEntry
+from billboard.presence_query import current_court_presence
 from courts.models import CourtComplex
-from courts.timezone_utils import get_court_local_now
 from pfc_core.session_utils import CodenameSessionManager
 
 
@@ -20,34 +16,28 @@ class FriendlyVenueError(ValueError):
     """Raised when a Friendly venue is missing, invalid, or not permitted."""
 
 
-def _current_creator_gps_complex(request, creator_codename=None):
-    """Return the creator's newest current manual presence at a physical complex.
+def _current_creator_presence_complex(request, creator_codename=None):
+    """Return the newest physical complex where the creator is currently present.
 
-    Manual ``AT_COURTS`` presence is the existing GPS-protected "I'm Here"
-    result.  Friendly-, tournament-, and post-game-generated presence never
-    authorizes a physical Friendly venue.
+    Use the same source-aware presence windows as the court-complex display.
+    Never authorize a venue solely from an inactive or expired record.
     """
     codename = creator_codename or CodenameSessionManager.get_logged_in_codename(request)
     if not codename:
         return None
 
-    entries = (
-        BillboardEntry.objects.filter(
-            codename=codename.upper(),
-            action_type='AT_COURTS',
-            presence_source=BillboardEntry.PRESENCE_SOURCE_MANUAL,
-            is_active=True,
-        )
-        .select_related('court_complex')
-        .order_by('-created_at')
-    )
-    for entry in entries:
-        court_complex = entry.court_complex
-        if not court_complex.has_coordinates():
-            continue
-        if entry.created_at >= get_court_local_now(court_complex) - timedelta(hours=2):
-            return court_complex
-    return None
+    physical_complexes = [
+        complex_obj for complex_obj in CourtComplex.objects.order_by('name')
+        if complex_obj.has_coordinates()
+    ]
+    latest = None
+    for complex_obj in physical_complexes:
+        entry = current_court_presence(complex_obj).filter(
+            codename__iexact=codename,
+        ).first()
+        if entry and (latest is None or entry.created_at > latest.created_at):
+            latest = entry
+    return latest.court_complex if latest else None
 
 
 def get_allowed_friendly_complexes(request, creator_codename=None):
@@ -55,9 +45,8 @@ def get_allowed_friendly_complexes(request, creator_codename=None):
 
     The configured data model defines a physical complex as one with both GPS
     coordinates.  Exactly one non-geolocated complex is required as the virtual
-    Friendly venue.  A creator with current GPS-protected presence may use that
-    exact physical complex plus the virtual complex; every other creator may
-    use only the virtual complex.
+    Friendly venue.  A creator with current Billboard presence may use that exact physical
+    complex plus the virtual complex; others may use only the virtual complex.
     """
     virtual_complexes = [
         court_complex
@@ -70,7 +59,7 @@ def get_allowed_friendly_complexes(request, creator_codename=None):
         )
 
     virtual_complex = virtual_complexes[0]
-    physical_complex = _current_creator_gps_complex(request, creator_codename=creator_codename)
+    physical_complex = _current_creator_presence_complex(request, creator_codename=creator_codename)
     if physical_complex:
         return [physical_complex, virtual_complex]
     return [virtual_complex]
