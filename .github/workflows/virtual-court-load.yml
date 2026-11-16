@@ -1,0 +1,121 @@
+name: PFC Court Contention Laboratory (PostgreSQL)
+
+on:
+  push:
+    branches:
+      - test/virtual-tournament-lab-*
+    paths:
+      - scripts/virtual_tournament_court_load.py
+      - scripts/virtual_tournament_lab.py
+      - .github/workflows/virtual-court-load.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/virtual_tournament_court_load.py
+      - scripts/virtual_tournament_lab.py
+      - .github/workflows/virtual-court-load.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  court-contention:
+    name: Real 30-player Court allocator / ${{ matrix.courts }} Courts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        courts: [4, 6, 8]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_vtl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_vtl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PFC_VTL_ISOLATED: "1"
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_vtl_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      SECRET_KEY: github-isolated-virtual-court-lab-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PYTHONPATH: "."
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Isolated schema
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate --noinput
+      - name: Batch deadline freeze and Court handoff
+        id: batch
+        continue-on-error: true
+        run: |
+          mkdir -p court-reports
+          python scripts/virtual_tournament_lab.py seed --players 30
+          python scripts/virtual_tournament_court_load.py \
+            --courts ${{ matrix.courts }} --mode batch \
+            --output court-reports/batch-${{ matrix.courts }}.json
+      - name: Reset disposable test database and re-seed
+        if: always()
+        run: |
+          python manage.py flush --noinput
+          python scripts/virtual_tournament_lab.py seed --players 30
+      - name: Seven concurrent Court claims and Court handoff
+        id: competing
+        continue-on-error: true
+        run: |
+          mkdir -p court-reports
+          python scripts/virtual_tournament_court_load.py \
+            --courts ${{ matrix.courts }} --mode concurrent \
+            --output court-reports/concurrent-${{ matrix.courts }}.json
+      - name: Keep aggregate reports even when regression fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfc-courts-${{ matrix.courts }}
+          path: court-reports/
+          retention-days: 14
+      - name: Enforce Court allocator invariants
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          n="${{ matrix.courts }}"
+          checks=[]
+          for mode in ("batch","concurrent"):
+              path=Path(f"court-reports/{mode}-{n}.json")
+              okay=path.exists() and json.loads(path.read_text()).get("passed") is True
+              print(f"{mode} with {n} Courts: {'PASS' if okay else 'FAIL or missing report'}")
+              checks.append(okay)
+          if not all(checks):
+              raise SystemExit(1)
+          PY
