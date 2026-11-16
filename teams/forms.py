@@ -1,6 +1,7 @@
 from django import forms
 from .models import Team, Player, TeamAvailability, PlayerProfile, TeamProfile, SubTeam, SubTeamPlayerAssignment
 from .image_utils import validate_profile_image_upload
+from .team_photo_utils import validate_team_photo_upload
 
 class TeamForm(forms.ModelForm):
     """Form for creating and editing teams"""
@@ -255,16 +256,12 @@ class TeamProfileForm(forms.ModelForm):
         return logo
     
     def clean_team_photo_jpg(self):
-        """Validate JPG file upload"""
+        """Validate Team photos before they reach storage/Pillow resizing."""
         photo = self.cleaned_data.get('team_photo_jpg')
         if photo:
             if not photo.name.lower().endswith(('.jpg', '.jpeg')):
                 raise forms.ValidationError('Please upload a valid JPG file.')
-            
-            # Check file size (max 5MB)
-            if photo.size > 5 * 1024 * 1024:
-                raise forms.ValidationError('Photo file size must be less than 5MB.')
-        
+            validate_team_photo_upload(photo)
         return photo
 
 class TeamBadgeForm(forms.Form):
