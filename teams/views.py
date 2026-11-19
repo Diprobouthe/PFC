@@ -1307,6 +1307,16 @@ def player_profile(request, player_id):
     # identical codename-session/privacy rule.
     is_own_profile, show_public_statistics = _profile_statistics_visibility(request, player)
 
+    # Practice summaries are strictly opt-in for other viewers. Never query a
+    # viewer's session codename as a fallback for the profile being displayed.
+    show_practice_tab = is_own_profile
+    public_practice_progress = None
+    if not is_own_profile and show_public_statistics:
+        from practice.public_profiles import public_practice_progress_for_player
+
+        public_practice_progress = public_practice_progress_for_player(player)
+        show_practice_tab = public_practice_progress is not None
+
     # Permanent tournament history is an activation-onward snapshot created at
     # authoritative tournament finalization. It follows the existing public
     # statistics privacy boundary and never derives entries from Player.team.
@@ -1344,6 +1354,8 @@ def player_profile(request, player_id):
         'bell_curve_data': bell_curve_data,  # NEW: Bell curve skill comparison data
         'rating_chart_data': rating_chart_data,  # NEW: Rating progression chart data
         'tracker_enabled': True,  # Enable shooting practice tracker tab
+        'show_practice_tab': show_practice_tab,
+        'public_practice_progress': public_practice_progress,
         'tournament_match_history_count': tournament_match_history_count,
         'friendly_match_history_count': friendly_match_history_count,
         'player_match_history_page_size': PLAYER_PROFILE_HISTORY_PAGE_SIZE,
@@ -2239,6 +2251,15 @@ def edit_player_profile(request):
             player_profile.hide_public_statistics = request.POST.get('hide_public_statistics') == 'on'
             player_profile.save(update_fields=['hide_public_statistics', 'updated_at'])
             messages.success(request, 'Statistics privacy preference saved!')
+            return redirect('edit_player_profile')
+
+        # --- Public practice progress: separate, explicit opt-in ---
+        if action == 'update_practice_sharing':
+            player_profile.share_practice_statistics = (
+                request.POST.get('share_practice_statistics') == 'on'
+            )
+            player_profile.save(update_fields=['share_practice_statistics', 'updated_at'])
+            messages.success(request, 'Practice sharing preference saved!')
             return redirect('edit_player_profile')
 
         # --- Boule details ---
