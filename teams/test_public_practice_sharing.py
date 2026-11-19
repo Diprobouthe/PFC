@@ -108,7 +108,9 @@ class PracticeSharingProfileTests(TestCase):
         self.assertFalse(page.context["is_own_profile"])
         self.assertTrue(page.context["show_practice_tab"])
         self.assertContains(page, 'data-pp-tab="pp-shooting"')
-        self.assertContains(page, 'class="pp-public-practice-chart"', count=2)
+        self.assertContains(page, 'class="pp-public-practice-chart"', count=4)
+        self.assertContains(page, 'data-accuracy-button="ing"')
+        self.assertContains(page, 'data-accuracy-button="training"')
         values = page.context["public_practice_progress"]
         self.assertEqual(values["shooting"]["mean"], 75.0)
         self.assertEqual(values["shooting"]["total_shots"], 4)
@@ -120,6 +122,33 @@ class PracticeSharingProfileTests(TestCase):
         self.assertNotContains(page, "Recent Sessions")
         self.assertNotContains(page, "Start Practice Session")
         self.assertNotContains(page, reverse("practice:session_summary", args=[self.target_shoot.pk]))
+
+    def test_public_summary_separates_ing_from_fixed_distance_without_leaking_sessions(self):
+        from practice.public_profiles import public_practice_progress_for_player
+        from django.utils import timezone
+
+        in_game = PracticeSession.objects.create(
+            player_codename="TARGET", practice_type="shooting",
+            distance="ing", is_active=False, ended_at=timezone.now(),
+        )
+        for _ in range(4):
+            Shot.objects.create(session=in_game, outcome="miss")
+        self.target_profile.share_practice_statistics = True
+        self.target_profile.save(update_fields=["share_practice_statistics"])
+
+        grouped = public_practice_progress_for_player(self.target, grouped=True)
+        self.assertEqual(grouped["training"]["shooting"]["mean"], 75.0)
+        self.assertEqual(grouped["ing"]["shooting"]["mean"], 0.0)
+        self.assertEqual(grouped["all"]["shooting"]["mean"], 37.5)
+        self.assertEqual(grouped["all"]["shooting"]["total_shots"], 8)
+
+        self._login("VIEWER")
+        rendered = self._profile()
+        self.assertContains(rendered, 'data-accuracy-panel="ing"')
+        self.assertContains(rendered, 'data-accuracy-panel="training"')
+        self.assertNotContains(rendered, str(in_game.pk))
+        self.assertNotContains(rendered, str(self.target_shoot.pk))
+        self.assertNotContains(rendered, str(self.visitor_shoot.pk))
 
     def test_owner_can_access_own_private_tracker(self):
         self._login("TARGET")
