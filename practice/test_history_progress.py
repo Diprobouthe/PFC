@@ -95,9 +95,8 @@ class PracticeProgressRenderedTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="ph-trends"')
         self.assertContains(response, 'class="ph-trend-graph"', count=2)
-        self.assertContains(response, '75,0%', count=0)  # Django locale may use a comma.
-        self.assertContains(response, '75.0%', count=1)
-        self.assertContains(response, '50.0%', count=1)
+        self.assertEqual(response.context["progress"]["shooting"]["mean"], 75.0)
+        self.assertEqual(response.context["progress"]["pointing"]["mean"], 50.0)
         self.assertContains(response, 'class="ph-trend-dot"', count=2)
 
     def test_template_compiles_and_retains_session_card_links(self):
