@@ -977,6 +977,12 @@ def player_profile(request, player_id):
     except Exception:
         accurate_stats = {'matches_played': 0, 'matches_won': 0, 'win_rate': 0}
     
+    # Presentation-only derived count: never attempt arithmetic in Django templates.
+    accurate_stats['matches_lost'] = max(
+        0, int(accurate_stats.get('matches_played', 0) or 0)
+        - int(accurate_stats.get('matches_won', 0) or 0),
+    )
+
     # Enhanced statistics (safe, backward-compatible)
     enhanced_stats = {}
     try:
