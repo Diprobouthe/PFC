@@ -3,10 +3,12 @@
 Only aggregate recent performance. Individual sessions, timestamps, durations,
 shot sequences, codenames and detail URLs are never exposed to the template.
 """
-from practice.history_progress import WINDOW, summarize_practice_progress
+from practice.history_progress import (
+    WINDOW, FIXED_DISTANCE_CODES, summarize_accuracy_views,
+)
 
 
-def public_practice_progress_for_player(player):
+def public_practice_progress_for_player(player, *, grouped=False):
     """Return aggregate display data only if this exact player opted in.
 
     None means private or globally hidden, so the caller should omit the tab.
@@ -25,22 +27,25 @@ def public_practice_progress_for_player(player):
         .first()
     )
     if not owner_codename:
-        return {kind: {"count": 0, "total_shots": 0} for kind in ("shooting", "pointing")}
+        empty = summarize_accuracy_views([])
+        return empty if grouped else empty["all"]
 
     series = []
+    # Last 12 in each source, per discipline; otherwise older training would
+    # disappear when the player's 12 most recent sessions were all InG.
     for kind in ("shooting", "pointing"):
-        series.extend(
-            PracticeSession.objects.filter(
-                player_codename=owner_codename,
-                practice_type=kind,
-                is_active=False,
-                ended_at__isnull=False,
-                total_shots__gt=0,
-                drill_type__in=("", "open"),
+        for distances in (FIXED_DISTANCE_CODES, ("ing",)):
+            series.extend(
+                PracticeSession.objects.filter(
+                    player_codename=owner_codename,
+                    practice_type=kind,
+                    distance__in=distances,
+                    is_active=False,
+                    ended_at__isnull=False,
+                    total_shots__gt=0,
+                    drill_type__in=("", "open"),
+                ).order_by("-started_at")[:WINDOW]
             )
-            .order_by("-started_at")[:WINDOW]
-        )
-    # The shared progression engine requires newest-first order; keep the
-    # window per type instead of truncating both types together.
     series.sort(key=lambda item: item.started_at, reverse=True)
-    return summarize_practice_progress(series)
+    views = summarize_accuracy_views(series)
+    return views if grouped else views["all"]
