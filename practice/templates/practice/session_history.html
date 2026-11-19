@@ -1,275 +1,204 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static i18n %}
 
-{% block title %}Practice Session History - Petanque Platform{% endblock %}
+{% block title %}{% translate "Practice Session History" %} - PFC{% endblock %}
 
 {% block extra_css %}
 <style>
-.history-container {
-    max-width: 1200px;
-    margin: 0 auto;
+/* PFC Practice History — mobile-first, isolated from generic stat/Bootstrap styles. */
+.practice-history {
+    max-width: 760px; margin: 0 auto; padding: 10px 4px 32px;
+    color: #213a5b;
 }
-
-.session-card {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-    border: 1px solid #e9ecef;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+.practice-history *, .practice-history *::before, .practice-history *::after { box-sizing: border-box; }
+.ph-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px; border-radius: 16px; margin-bottom: 10px;
+    background: linear-gradient(135deg, #0f4da5, #1769d1);
+    color: #fff; box-shadow: 0 6px 18px rgba(13,71,161,.18);
 }
-
-.session-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+.ph-head-main { min-width: 0; }
+.ph-kicker { font-size: .67rem; font-weight: 800; opacity: .78; letter-spacing: .09em; }
+.ph-head h1 { margin: 4px 0; font-size: clamp(1.22rem, 5vw, 1.55rem); line-height: 1.18; font-weight: 850; color: #fff; }
+.ph-head p { margin: 0; font-size: .78rem; opacity: .89; overflow-wrap: anywhere; }
+.ph-back {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    min-height: 38px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.58);
+    border-radius: 10px; text-decoration: none; font-size: .77rem; font-weight: 800; color: #fff;
 }
-
-.session-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    gap: 1rem;
+.ph-back:hover, .ph-back:focus-visible { color: #fff; background: rgba(255,255,255,.16); }
+.ph-overview {
+    display: flex; justify-content: space-between; align-items: center; gap: 14px;
+    background: #fff; border: 1px solid #e7eef9; border-radius: 15px;
+    box-shadow: 0 3px 14px rgba(15,55,110,.08); padding: 13px 15px; margin-bottom: 15px;
 }
-
-.session-type-badge {
-    padding: 0.5rem 1rem;
-    border-radius: 2rem;
-    font-weight: 600;
-    font-size: 0.875rem;
+.ph-count { display: block; font-size: 1.7rem; line-height: 1; font-weight: 850; color: #145ab5; }
+.ph-count-label { display: block; font-size: .72rem; margin-top: 3px; color: #687d99; font-weight: 700; }
+.ph-overview-note { font-size: .76rem; line-height: 1.3; color: #5c7390; text-align: right; max-width: 160px; }
+.ph-list-title { margin: 0 3px 9px; font-size: .98rem; font-weight: 850; color: #244c80; }
+.ph-list { display: flex; flex-direction: column; gap: 9px; }
+.ph-item {
+    background: #fff; border: 1px solid #e5edf7; border-radius: 15px;
+    padding: 12px; box-shadow: 0 3px 12px rgba(15,55,110,.08);
 }
-
-.session-type-shooting {
-    background-color: #e3f2fd;
-    color: #1976d2;
+.ph-item.shooting { border-left: 4px solid #1769d1; }
+.ph-item.pointing { border-left: 4px solid #7c3aed; }
+.ph-item-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.ph-type-icon {
+    flex: 0 0 35px; width: 35px; height: 35px; border-radius: 11px;
+    display: grid; place-items: center; font-size: 1rem;
+    background: #eaf3ff; color: #1769d1;
 }
-
-.session-type-pointing {
-    background-color: #e8f5e9;
-    color: #388e3c;
+.ph-item.pointing .ph-type-icon { background: #f3ebff; color: #7541d3; }
+.ph-type-copy { flex: 1 1 auto; min-width: 0; }
+.ph-type-copy strong { display: block; font-size: .87rem; line-height: 1.3; color: #263d5d; font-weight: 850; }
+.ph-type-copy small { display: block; font-size: .72rem; color: #6b7e96; margin-top: 2px; }
+.ph-details {
+    flex: 0 0 auto; min-height: 36px; min-width: 36px; border-radius: 10px;
+    display: inline-flex; justify-content: center; align-items: center;
+    background: #edf5ff; color: #1559ac; text-decoration: none;
 }
-
-.session-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1rem;
-    margin: 1rem 0;
+.ph-details:hover, .ph-details:focus-visible { background: #dceaff; color: #0f4da5; }
+.ph-metrics {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px; margin-top: 10px;
 }
-
-.stat-item {
-    text-align: center;
-}
-
-.stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-}
-
-.stat-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-}
-
-.session-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.filter-section {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-}
-
-.stats-overview {
-    background: linear-gradient(135deg, #3f51b5 0%, #5c6bc0 100%);
-    color: white;
-    border-radius: 0.5rem;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    text-align: center;
-}
-
-.overview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 2rem;
-    margin-top: 1.5rem;
-}
-
-.overview-item {
-    text-align: center;
-}
-
-.overview-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-}
-
-.overview-label {
-    font-size: 0.875rem;
-    opacity: 0.9;
-}
-
-@media (max-width: 768px) {
-    .session-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .session-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .overview-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-    }
-    
-    .overview-value {
-        font-size: 2rem;
-    }
+.ph-metric { background: #f6f9fd; border-radius: 10px; padding: 8px 6px; text-align: center; min-width: 0; }
+.ph-metric strong { display: block; font-size: 1.16rem; line-height: 1.1; font-weight: 850; color: #145ab5; overflow-wrap: anywhere; }
+.ph-metric.success strong { color: #20824c; }
+.ph-metric small { display: block; font-size: .64rem; font-weight: 750; color: #718096; line-height: 1.2; margin-top: 3px; }
+.ph-meta { display: flex; flex-wrap: wrap; gap: 5px 10px; align-items: center; margin-top: 9px; }
+.ph-chip { display: inline-flex; gap: 5px; align-items: center; color: #5e7390; font-size: .69rem; line-height: 1.3; font-weight: 650; }
+.ph-chip i { color: #6e85a2; }
+.ph-chip strong { color: #355677; }
+.ph-empty { text-align: center; background: #fff; border-radius: 15px; padding: 25px 17px; box-shadow: 0 3px 14px rgba(15,55,110,.08); }
+.ph-empty i { color: #8ea8c6; font-size: 2rem; }
+.ph-empty h2 { font-size: 1rem; margin-top: 10px; color: #244c80; }
+.ph-empty p { font-size: .82rem; color: #647b95; }
+.ph-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.ph-empty-actions a { border-radius: 10px; font-size: .79rem; font-weight: 750; }
+@media (max-width: 390px) {
+    .ph-head { padding: 12px; }
+    .ph-back span { display: none; }
+    .ph-type-copy strong { font-size: .81rem; }
+    .ph-metric strong { font-size: 1.06rem; }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="history-container">
-        <!-- Page Header -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h1 class="h2 mb-2">
-                    <i class="fas fa-history me-2"></i>Practice Session History
+{% get_current_language as UI_LANGUAGE %}
+<div class="container mt-2 mb-4">
+    <main class="practice-history">
+        <header class="ph-head">
+            <div class="ph-head-main">
+                <div class="ph-kicker">PFC · PRACTICE</div>
+                <h1><i class="fas fa-history me-1" aria-hidden="true"></i>
+                    {% if UI_LANGUAGE == 'el' %}Ιστορικό προπονήσεων{% else %}Practice History{% endif %}
                 </h1>
-                <p class="text-muted mb-0">
-                    <i class="fas fa-user me-1"></i>{{ player_name|default:session_codename }}
-                </p>
+                <p><i class="fas fa-user me-1" aria-hidden="true"></i>{{ player_name|default:session_codename }}</p>
             </div>
-            <a href="{% url 'practice:practice_home' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Back to Practice
+            <a class="ph-back" href="{% url 'practice:practice_home' %}" aria-label="{% if UI_LANGUAGE == 'el' %}Πίσω στην προπόνηση{% else %}Back to Practice{% endif %}">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if UI_LANGUAGE == 'el' %}Πίσω{% else %}Back{% endif %}</span>
             </a>
-        </div>
+        </header>
 
-        <!-- Overall Statistics -->
-        <div class="stats-overview">
-            <h3 class="mb-1">Your Practice Journey</h3>
-            <p class="mb-0 opacity-75">Track your progress over time</p>
-            <div class="overview-grid">
-                <div class="overview-item">
-                    <div class="overview-value">{{ total_sessions }}</div>
-                    <div class="overview-label">Total Sessions</div>
-                </div>
-                <div class="overview-item">
-                    <div class="overview-value">
-                        {{ sessions|length|add:"0" }}
-                    </div>
-                    <div class="overview-label">Completed</div>
-                </div>
+        <section class="ph-overview" aria-label="{% if UI_LANGUAGE == 'el' %}Σύνοψη ιστορικού{% else %}Practice history overview{% endif %}">
+            <div>
+                <strong class="ph-count">{{ total_sessions }}</strong>
+                <span class="ph-count-label">{% if UI_LANGUAGE == 'el' %}Συνεδρίες{% else %}Sessions{% endif %}</span>
             </div>
-        </div>
+            <span class="ph-overview-note">
+                {% if UI_LANGUAGE == 'el' %}Η πορεία των προπονήσεών σου, από τη νεότερη στην παλαιότερη{% else %}Your practice history, newest first{% endif %}
+            </span>
+        </section>
 
-        <!-- Sessions List -->
         {% if sessions %}
-            <div class="mb-3">
-                <h5 class="text-muted">
-                    <i class="fas fa-list me-2"></i>All Sessions ({{ total_sessions }})
-                </h5>
-            </div>
-
+        <h2 class="ph-list-title">{% if UI_LANGUAGE == 'el' %}Οι προπονήσεις μου{% else %}My sessions{% endif %} ({{ total_sessions }})</h2>
+        <div class="ph-list">
             {% for item in sessions %}
-                {% with session=item.session summary=item.summary %}
-                <div class="session-card">
-                    <div class="session-header">
-                        <div>
-                            <span class="session-type-badge session-type-{{ session.practice_type }}">
-                                {% if session.practice_type == 'shooting' %}
-                                    <i class="fas fa-bullseye me-1"></i>Shooting Practice
-                                {% else %}
-                                    <i class="fas fa-dot-circle me-1"></i>Pointing Practice
-                                {% endif %}
-                            </span>
-                        </div>
-                        <div class="text-muted">
-                            <i class="fas fa-calendar me-1"></i>{{ session.started_at|date:"M d, Y" }}
-                            <i class="fas fa-clock ms-2 me-1"></i>{{ session.started_at|time:"H:i" }}
-                        </div>
-                    </div>
-
-                    <div class="session-stats">
-                        <div class="stat-item">
-                            <div class="stat-value text-primary">{{ summary.total_shots }}</div>
-                            <div class="stat-label">Total Shots</div>
-                        </div>
-                        
-                        {% if session.practice_type == 'shooting' %}
-                            <div class="stat-item">
-                                <div class="stat-value text-success">{{ summary.hit_percentage }}%</div>
-                                <div class="stat-label">Hit Rate</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value text-warning">{{ summary.carreau_percentage }}%</div>
-                                <div class="stat-label">Carreau Rate</div>
-                            </div>
-                        {% else %}
-                            <div class="stat-item">
-                                <div class="stat-value text-success">{{ session.perfect_percentage|floatformat:0 }}%</div>
-                                <div class="stat-label">Perfect Rate</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value text-info">{{ session.good_percentage|floatformat:0 }}%</div>
-                                <div class="stat-label">Good Rate</div>
-                            </div>
-                        {% endif %}
-                        
-                        <div class="stat-item">
-                            <div class="stat-value text-danger">{{ summary.longest_streak }}</div>
-                            <div class="stat-label">Best Streak</div>
-                        </div>
-                        
-                        <div class="stat-item">
-                            <div class="stat-value text-muted">{{ summary.duration }}</div>
-                            <div class="stat-label">Duration</div>
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
-                        <div class="text-muted small">
-                            <i class="fas fa-ruler me-1"></i>Distance: {{ session.distance }}
-                            {% if session.sequence_tracking %}
-                                <i class="fas fa-sort-numeric-down ms-3 me-1"></i>Sequence: ON
+            {% with session=item.session summary=item.summary %}
+            <article class="ph-item {{ session.practice_type }}">
+                <div class="ph-item-head">
+                    <span class="ph-type-icon" aria-hidden="true">
+                        {% if session.practice_type == 'shooting' %}<i class="fas fa-crosshairs"></i>
+                        {% else %}<i class="fas fa-dot-circle"></i>{% endif %}
+                    </span>
+                    <div class="ph-type-copy">
+                        <strong>
+                            {% if session.practice_type == 'shooting' %}
+                                {% if UI_LANGUAGE == 'el' %}Προπόνηση χτυπήματος{% else %}Shooting Practice{% endif %}
+                            {% else %}
+                                {% if UI_LANGUAGE == 'el' %}Προπόνηση προσέγγισης{% else %}Pointing Practice{% endif %}
                             {% endif %}
-                        </div>
-                        <a href="{% url 'practice:session_summary' session.id %}" class="btn btn-sm btn-primary">
-                            <i class="fas fa-chart-line me-1"></i>View Details
-                        </a>
+                        </strong>
+                        <small>
+                            <i class="far fa-calendar-alt me-1" aria-hidden="true"></i>{{ session.started_at|date:"d/m/Y" }}
+                            <span aria-hidden="true">·</span> {{ session.started_at|time:"H:i" }}
+                            {% if session.is_active %}
+                                <span aria-hidden="true">·</span> {% if UI_LANGUAGE == 'el' %}Σε εξέλιξη{% else %}Active{% endif %}
+                            {% endif %}
+                        </small>
+                    </div>
+                    <a class="ph-details" href="{% url 'practice:session_summary' session.id %}" aria-label="{% if UI_LANGUAGE == 'el' %}Λεπτομέρειες συνεδρίας{% else %}Session details{% endif %}">
+                        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    </a>
+                </div>
+
+                <div class="ph-metrics">
+                    <div class="ph-metric">
+                        <strong>{{ summary.total_shots|default:0 }}</strong>
+                        <small>{% if UI_LANGUAGE == 'el' %}Προσπάθειες{% else %}Shots{% endif %}</small>
+                    </div>
+                    <div class="ph-metric success">
+                        <strong>{{ summary.hit_percentage|default:0|floatformat:0 }}%</strong>
+                        <small>{% if UI_LANGUAGE == 'el' %}Επιτυχία{% else %}Success rate{% endif %}</small>
+                    </div>
+                    <div class="ph-metric">
+                        <strong>{{ summary.longest_streak|default:0 }}</strong>
+                        <small>{% if UI_LANGUAGE == 'el' %}Καλύτερο σερί{% else %}Best streak{% endif %}</small>
                     </div>
                 </div>
-                {% endwith %}
-            {% endfor %}
-        {% else %}
-            <div class="text-center py-5">
-                <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
-                <h4 class="text-muted">No Practice Sessions Yet</h4>
-                <p class="text-muted mb-4">Start your first practice session to track your progress!</p>
-                <div class="d-flex gap-2 justify-content-center">
-                    <a href="{% url 'practice:shooting_practice' %}" class="btn btn-primary">
-                        <i class="fas fa-bullseye me-2"></i>Start Shooting Practice
-                    </a>
-                    <a href="{% url 'practice:pointing_practice' %}" class="btn btn-success">
-                        <i class="fas fa-dot-circle me-2"></i>Start Pointing Practice
-                    </a>
+
+                <div class="ph-meta">
+                    {% if session.practice_type == 'shooting' %}
+                    <span class="ph-chip"><i class="fas fa-bullseye" aria-hidden="true"></i>
+                        {% if UI_LANGUAGE == 'el' %}Καρό{% else %}Carreau{% endif %}:
+                        <strong>{{ summary.carreau_percentage|default:0|floatformat:0 }}%</strong>
+                    </span>
+                    {% else %}
+                    <span class="ph-chip"><i class="fas fa-circle" aria-hidden="true"></i>
+                        {% if UI_LANGUAGE == 'el' %}Τέλειες{% else %}Perfect{% endif %}:
+                        <strong>{{ summary.perfect_percentage|default:0|floatformat:0 }}%</strong>
+                    </span>
+                    <span class="ph-chip"><i class="fas fa-check" aria-hidden="true"></i>
+                        {% if UI_LANGUAGE == 'el' %}Καλές{% else %}Good{% endif %}:
+                        <strong>{{ summary.good_percentage|default:0|floatformat:0 }}%</strong>
+                    </span>
+                    {% endif %}
+                    <span class="ph-chip"><i class="far fa-clock" aria-hidden="true"></i>{{ summary.duration }}</span>
+                    {% if session.drill_type == 'tir_de_precision' or session.drill_type == 'tactical' or session.drill_type == 'sequence' or session.drill_type == 'hidden_target' %}
+                    <span class="ph-chip"><i class="fas fa-trophy" aria-hidden="true"></i>{{ session.get_drill_type_display }}</span>
+                    {% else %}
+                    <span class="ph-chip"><i class="fas fa-ruler" aria-hidden="true"></i>{{ session.get_distance_display }}</span>
+                    {% endif %}
                 </div>
+            </article>
+            {% endwith %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <section class="ph-empty">
+            <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+            <h2>{% if UI_LANGUAGE == 'el' %}Δεν υπάρχουν ακόμη προπονήσεις{% else %}No practice sessions yet{% endif %}</h2>
+            <p>{% if UI_LANGUAGE == 'el' %}Ξεκίνα μια προπόνηση για να παρακολουθείς την πρόοδό σου.{% else %}Start a practice session to follow your progress.{% endif %}</p>
+            <div class="ph-empty-actions">
+                <a class="btn btn-primary" href="{% url 'practice:shooting_practice' %}">{% if UI_LANGUAGE == 'el' %}Προπόνηση χτυπήματος{% else %}Shooting{% endif %}</a>
+                <a class="btn btn-outline-primary" href="{% url 'practice:pointing_practice' %}">{% if UI_LANGUAGE == 'el' %}Προπόνηση προσέγγισης{% else %}Pointing{% endif %}</a>
             </div>
+        </section>
         {% endif %}
-    </div>
+    </main>
 </div>
 {% endblock %}
