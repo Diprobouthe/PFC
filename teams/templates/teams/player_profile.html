@@ -825,7 +825,7 @@ a.mh-card::after {
                     <div class="pp-stats-item"><strong>{{ accurate_stats.matches_played|default:0 }}</strong><small>Games</small></div>
                     <div class="pp-stats-item"><strong>{{ accurate_stats.win_rate|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
                     <div class="pp-stats-item"><strong>{{ accurate_stats.matches_won|default:0 }}</strong><small>Wins</small></div>
-                    <div class="pp-stats-item"><strong>{{ accurate_stats.matches_played|default:0|add:"-"|add:accurate_stats.matches_won|default:0 }}</strong><small>Losses</small></div>
+                    <div class="pp-stats-item"><strong>{{ accurate_stats.matches_lost|default:0 }}</strong><small>Losses</small></div>
                 </div>
 
                 {% if enhanced_stats.recent_matches %}
@@ -887,7 +887,7 @@ a.mh-card::after {
             <div class="tab-pane fade" id="pp-friendly">
                 <div class="pp-stats-grid" style="margin-top:8px !important;">
                     <div class="pp-stats-item"><strong>{{ friendly_stats.total_games|default:0 }}</strong><small>Games</small></div>
-                    <div class="pp-stats-item"><strong>{{ friendly_stats.win_percentage|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
+                    <div class="pp-stats-item"><strong>{{ friendly_stats.win_rate|default:0|floatformat:1 }}%</strong><small>Win Rate</small></div>
                     <div class="pp-stats-item"><strong>{{ friendly_stats.total_wins|default:0 }}</strong><small>Wins</small></div>
                     <div class="pp-stats-item"><strong>{{ friendly_stats.total_losses|default:0 }}</strong><small>Losses</small></div>
                 </div>
