@@ -28,6 +28,9 @@ from .utils import calculate_session_summary, get_player_progress_summary
 # Separate from match tracking: a QR grant is scoped to this browser and one
 # practice session. It never changes the logged-in player's identity.
 PRACTICE_DELEGATION_KEY = "delegated_practice_session"
+# QR helpers may view just their authorized session summary after finishing.
+PRACTICE_SUMMARY_GRANT_KEY = "delegated_practice_summary"
+PRACTICE_SUMMARY_GRANT_SECONDS = 900
 
 
 def _practice_owner_codename(request, practice_type=None):
@@ -590,7 +593,15 @@ def end_session(request):
         with transaction.atomic():
             session.end_session()
             grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
-            if grant.get('session_id') == str(session.pk):
+            if (grant.get('session_id') == str(session.pk)
+                    and grant.get('codename') == session.player_codename):
+                # Keep a strictly scoped, short-lived read grant for a QR
+                # delegate's post-session summary. Never grant history access.
+                request.session[PRACTICE_SUMMARY_GRANT_KEY] = {
+                    'session_id': str(session.pk),
+                    'codename': session.player_codename,
+                    'issued_at': int(timezone.now().timestamp()),
+                }
                 request.session.pop(PRACTICE_DELEGATION_KEY, None)
                 request.session.modified = True
             PracticeStatistics.update_for_player(codename)
@@ -613,10 +624,35 @@ def session_summary(request, session_id):
 
     session = get_object_or_404(PracticeSession, id=session_id)
 
-    if session_context['player_logged_in']:
-        if session.player_codename != session_context['session_codename']:
-            messages.error(request, "You can only view your own practice sessions.")
-            return redirect('practice:practice_home')
+    own_codename = session_context.get('session_codename')
+    is_owner = bool(
+        session_context['player_logged_in'] and own_codename
+        and session.player_codename.upper() == own_codename.upper()
+    )
+
+    # QR delegates may inspect only the active session they were authorized for,
+    # or its completed summary for 15 minutes immediately after finishing.
+    qr_grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+    active_delegate = (
+        session.is_active
+        and qr_grant.get('session_id') == str(session.pk)
+        and qr_grant.get('codename') == session.player_codename
+    )
+    summary_grant = request.session.get(PRACTICE_SUMMARY_GRANT_KEY) or {}
+    try:
+        seconds_since_issue = (
+            int(timezone.now().timestamp()) - int(summary_grant.get('issued_at'))
+        )
+    except (TypeError, ValueError):
+        seconds_since_issue = PRACTICE_SUMMARY_GRANT_SECONDS + 1
+    recent_delegate = (
+        summary_grant.get('session_id') == str(session.pk)
+        and summary_grant.get('codename') == session.player_codename
+        and 0 <= seconds_since_issue <= PRACTICE_SUMMARY_GRANT_SECONDS
+    )
+
+    if not (is_owner or active_delegate or recent_delegate):
+        return HttpResponseForbidden('Practice session details are private.')
 
     summary = calculate_session_summary(session)
     shots = session.shots.order_by('sequence_number')

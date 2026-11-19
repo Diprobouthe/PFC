@@ -1,0 +1,62 @@
+name: Public Practice opt-in privacy gate
+
+on:
+  push:
+    branches:
+      - feature/optin-public-practice-stats-20261119
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  practice-optin-privacy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_practice_privacy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_practice_privacy_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_practice_privacy_test
+      SECRET_KEY: isolated-public-practice-optin-test-no-production
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Protect rating, match and practice calculation engines
+        run: |
+          git diff --exit-code a39c8fe4fccfccf89e94ae78886c280c812f2a5a HEAD -- \
+            cert_ratings matches practice/models.py practice/utils.py practice/history_progress.py
+      - name: Validate Django models, templates and migrations
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Run privacy and previously locked Practice / PFC UI regression tests
+        run: |
+          python manage.py test \
+            teams.test_public_practice_sharing \
+            teams.test_player_profile_stats_tabs \
+            teams.tests \
+            practice.test_history_progress \
+            practice.test_history_mobile \
+            practice.test_private_session_summary \
+            practice.tests.PointingFairSemanticsTests \
+            --verbosity 2

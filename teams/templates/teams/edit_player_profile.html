@@ -469,6 +469,40 @@
     </form>
   </div>
 
+  <!-- PRACTICE SHARING: independent, private-by-default player choice -->
+  {% get_current_language as UI_LANGUAGE %}
+  <div class="ep-row" id="practice-sharing-preference">
+    <div class="ep-label">{% if UI_LANGUAGE == 'el' %}Ιδιωτικότητα προπονήσεων{% else %}Practice Privacy{% endif %}</div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_practice_sharing">
+      <label class="ep-team-row" style="cursor:pointer;gap:12px;">
+        <input type="checkbox" name="share_practice_statistics" class="form-check-input"
+               style="width:20px;height:20px;margin:0;"
+               {% if player_profile.share_practice_statistics %}checked{% endif %}>
+        <span style="flex:1;">
+          <strong style="font-size:.9rem;">
+            {% if UI_LANGUAGE == 'el' %}Να φαίνεται η πρόοδός μου σε άλλους παίκτες{% else %}Share my practice progress{% endif %}
+          </strong>
+          <small style="display:block;color:#6c757d;margin-top:2px;">
+            {% if UI_LANGUAGE == 'el' %}
+              Μόνο συγκεντρωτικά στοιχεία: μέση επιτυχία, μεταβλητότητα και γραφήματα χτυπήματος/προσέγγισης.
+              Οι ημερομηνίες, οι επιμέρους συνεδρίες και οι λεπτομέρειες παραμένουν ιδιωτικές.
+              Η γενική επιλογή «Απόκρυψη δημόσιων στατιστικών» υπερισχύει.
+            {% else %}
+              Only averages, variability and shooting/pointing progress charts are shared.
+              Session dates, individual sessions and details stay private.
+              The general "Hide my public statistics" preference overrides this option.
+            {% endif %}
+          </small>
+        </span>
+        <button type="submit" class="ep-save-btn visible">
+          {% if UI_LANGUAGE == 'el' %}Αποθήκευση{% else %}Save{% endif %}
+        </button>
+      </label>
+    </form>
+  </div>
+
   <!-- ⑤ MATCH ALERTS -->
   <div class="ep-row" id="pfc-match-alerts-settings">
     <div class="ep-label">{% translate "Match Alerts" %}</div>

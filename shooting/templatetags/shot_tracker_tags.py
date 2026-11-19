@@ -152,13 +152,24 @@ def shot_stats_summary(context):
     request = context.get('request')
     player = context.get('player')
     
-    # Get player codename from context or session
+    # A profile-bound widget must *never* silently switch to the visitor's
+    # codename. Only the actual owner may render the full session/detail widget.
     player_codename = None
-    if player and hasattr(player, 'codename'):
-        player_codename = player.codename
-    elif request:
+    if player is not None:
+        if context.get('is_own_profile') is not True or request is None:
+            return {'has_stats': False}
+        active_codename = CodenameSessionManager.get_logged_in_codename(request)
+        identity = getattr(player, 'codename_profile', None)
+        target_codename = getattr(identity, 'codename', None)
+        if not active_codename or not target_codename:
+            return {'has_stats': False}
+        if active_codename.upper() != target_codename.upper():
+            return {'has_stats': False}
+        player_codename = target_codename
+    elif request is not None:
+        # Legacy standalone personal widgets (without a profile subject).
         player_codename = CodenameSessionManager.get_logged_in_codename(request)
-    
+
     if not player_codename:
         return {'has_stats': False}
     
