@@ -27,8 +27,8 @@ class PracticeProgressMathTests(SimpleTestCase):
     def test_weighted_mean_and_deviation_without_fake_improvement(self):
         # 1/1=100%, 0/9=0% => weighted mean 10%, not naive 50%.
         result = summarize_practice_progress([
-            sample("shooting", 9, 0),
             sample("shooting", 1, 1),
+            sample("shooting", 9, 0),
         ])["shooting"]
         self.assertEqual(result["count"], 2)
         self.assertEqual(result["mean"], 10.0)
