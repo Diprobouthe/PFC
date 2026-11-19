@@ -83,6 +83,31 @@
     .ph-type-copy strong { font-size: .81rem; }
     .ph-metric strong { font-size: 1.06rem; }
 }
+/* Longitudinal glance: fixed 0–100 axis, colour-coded by practice type. */
+.ph-trends-heading { margin: 2px 3px 9px; font-size: .98rem; font-weight: 850; color: #244c80; }
+.ph-trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-bottom: 17px; }
+.ph-trend { min-width: 0; border-radius: 15px; padding: 12px; background: #fff; border: 1px solid #e5edf7; box-shadow: 0 3px 12px rgba(15,55,110,.08); --trend: #1769d1; }
+.ph-trend.pointing { --trend: #7c3aed; }
+.ph-trend-title { margin: 0 0 8px; color: #2d4665; font-size: .81rem; font-weight: 850; }
+.ph-trend-title i { color: var(--trend); margin-right: 4px; }
+.ph-trend-figures { display: flex; gap: 8px; justify-content: space-between; }
+.ph-trend-number { font-size: 1.22rem; line-height: 1.15; color: var(--trend); font-weight: 850; }
+.ph-trend-metric small { display: block; margin-top: 3px; color: #697e98; font-size: .65rem; line-height: 1.2; }
+.ph-trend-metric + .ph-trend-metric { text-align: right; }
+.ph-trend-graph { display: block; width: 100%; height: auto; margin: 9px 0 5px; overflow: visible; }
+.ph-trend-grid { stroke: #e4edf7; stroke-width: 1; }
+.ph-trend-mean { stroke: #9bacc4; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.ph-trend-path { fill: none; stroke: var(--trend); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ph-trend-dot { fill: var(--trend); }
+.ph-trend-caption { color: #70839e; font-size: .66rem; line-height: 1.35; }
+.ph-trend-variation { color: #596f8d; font-size: .7rem; font-weight: 750; margin-top: 5px; }
+.ph-trend-empty { font-size: .78rem; line-height: 1.4; min-height: 80px; color: #718096; }
+.ph-trends-note { color: #647b95; font-size: .7rem; line-height: 1.4; margin: -7px 2px 16px; }
+@media (max-width: 430px) {
+    .ph-trends { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .ph-trend { padding: 11px 13px; }
+    .ph-trend-graph { max-height: 94px; }
+}
 </style>
 {% get_current_language as UI_LANGUAGE %}
 <div class="container mt-2 mb-4">
@@ -110,6 +135,63 @@
                 {% if UI_LANGUAGE == 'el' %}Η πορεία των προπονήσεών σου, από τη νεότερη στην παλαιότερη{% else %}Your practice history, newest first{% endif %}
             </span>
         </section>
+
+
+        <h2 class="ph-trends-heading">{% if UI_LANGUAGE == 'el' %}Η πορεία μου{% else %}My progress{% endif %}</h2>
+        <section class="ph-trends" aria-label="{% if UI_LANGUAGE == 'el' %}Απόδοση και σταθερότητα{% else %}Performance and consistency{% endif %}">
+            {% for kind, item in progress.items %}
+            <article class="ph-trend {{ kind }}">
+                <h3 class="ph-trend-title">
+                    {% if kind == 'shooting' %}<i class="fas fa-crosshairs" aria-hidden="true"></i>
+                        {% if UI_LANGUAGE == 'el' %}Χτύπημα{% else %}Shooting{% endif %}
+                    {% else %}<i class="fas fa-dot-circle" aria-hidden="true"></i>
+                        {% if UI_LANGUAGE == 'el' %}Προσέγγιση{% else %}Pointing{% endif %}
+                    {% endif %}
+                </h3>
+                {% if item.count %}
+                <div class="ph-trend-figures">
+                    <div class="ph-trend-metric">
+                        <div class="ph-trend-number">{{ item.mean|floatformat:1 }}%</div>
+                        <small>{% if UI_LANGUAGE == 'el' %}Μέση επιτυχία{% else %}Average success{% endif %}</small>
+                    </div>
+                    <div class="ph-trend-metric">
+                        <div class="ph-trend-number">±{{ item.deviation|floatformat:1 }}</div>
+                        <small>{% if UI_LANGUAGE == 'el' %}Μεταβλητότητα (μ.π.){% else %}Variation (pp){% endif %}</small>
+                    </div>
+                </div>
+                <svg class="ph-trend-graph" viewBox="0 0 300 100" role="img" aria-label="{% if UI_LANGUAGE == 'el' %}Πορεία ποσοστού επιτυχίας, από το παλιότερο στο νεότερο, {{ item.count }} συνεδρίες{% else %}Success rate history, oldest to newest, {{ item.count }} sessions{% endif %}">
+                    <line class="ph-trend-grid" x1="10" y1="10" x2="290" y2="10"></line>
+                    <line class="ph-trend-grid" x1="10" y1="50" x2="290" y2="50"></line>
+                    <line class="ph-trend-grid" x1="10" y1="90" x2="290" y2="90"></line>
+                    <line class="ph-trend-mean" x1="10" y1="{{ item.average_y }}" x2="290" y2="{{ item.average_y }}"></line>
+                    {% if item.count == 1 %}
+                    <circle class="ph-trend-dot" cx="150" cy="{{ item.average_y }}" r="4.5"></circle>
+                    {% else %}
+                    <polyline class="ph-trend-path" points="{{ item.path }}"></polyline>
+                    {% endif %}
+                </svg>
+                <div class="ph-trend-caption">
+                    {% if UI_LANGUAGE == 'el' %}{{ item.count }} συνεδρίες · {{ item.total_shots }} προσπάθειες · παλιότερη → νεότερη{% else %}{{ item.count }} sessions · {{ item.total_shots }} shots · oldest → newest{% endif %}
+                </div>
+                {% if item.trend != None %}
+                <div class="ph-trend-variation">
+                    {% if UI_LANGUAGE == 'el' %}Τελευταίες 4 έναντι προηγούμενων 4:{% else %}Last 4 vs previous 4:{% endif %}
+                    {% if item.trend > 0 %}+{% endif %}{{ item.trend|floatformat:1 }} {% if UI_LANGUAGE == 'el' %}μ.π.{% else %}pp{% endif %}
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="ph-trend-empty">{% if UI_LANGUAGE == 'el' %}Δεν υπάρχουν ακόμη ολοκληρωμένες συνεδρίες αυτού του τύπου.{% else %}No completed sessions of this type yet.{% endif %}</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </section>
+        <p class="ph-trends-note">
+            {% if UI_LANGUAGE == 'el' %}
+            Έως 12 τελευταίες ολοκληρωμένες απλές προπονήσεις ανά τύπο. Η διακεκομμένη γραμμή δείχνει τον μέσο όρο. Η μεταβλητότητα είναι η τυπική απόκλιση των επιδόσεων ανά συνεδρία. Οι ειδικές ασκήσεις δεν αναμειγνύονται.
+            {% else %}
+            Up to 12 recent completed ordinary sessions per type. The dashed line marks the average. Variation is the standard deviation across sessions. Specialty drills are not mixed in.
+            {% endif %}
+        </p>
 
         {% if sessions %}
         <h2 class="ph-list-title">{% if UI_LANGUAGE == 'el' %}Οι προπονήσεις μου{% else %}My sessions{% endif %} ({{ total_sessions }})</h2>

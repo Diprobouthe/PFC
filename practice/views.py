@@ -722,8 +722,14 @@ def session_history(request):
         player_codename=player_codename
     ).select_related('court_complex').order_by('-started_at')
 
+    # Reuse the exact same read-only snapshot for the list and longitudinal
+    # progress; never write to a session when opening the history page.
+    session_list = list(sessions)
+    from .history_progress import summarize_practice_progress
+    progress = summarize_practice_progress(session_list)
+
     sessions_with_summary = []
-    for session in sessions:
+    for session in session_list:
         summary = calculate_session_summary(session)
         sessions_with_summary.append({
             'session': session,
@@ -733,7 +739,8 @@ def session_history(request):
     context = {
         **session_context,
         'sessions': sessions_with_summary,
-        'total_sessions': sessions.count(),
+        'total_sessions': len(session_list),
+        'progress': progress,
         'page_title': 'Practice Session History',
     }
 
