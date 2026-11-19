@@ -85,21 +85,6 @@ class PracticeProgressMathTests(SimpleTestCase):
         self.assertEqual(groups["ing"]["pointing"]["mean"], 100.0)
         self.assertEqual(groups["all"]["shooting"]["total_shots"], 8)
 
-    def test_history_zero_attempt_card_is_unmeasured_not_zero_percent(self):
-        from unittest.mock import patch
-        zero = PracticeSession.objects.create(
-            player_codename="ZERO_TEST", practice_type="shooting",
-            distance="ing", is_active=False, ended_at=timezone.now(),
-        )
-        context = {"player_logged_in": True, "session_codename": "ZERO_TEST",
-                   "player_name": "Zero test"}
-        with patch("practice.views.SessionManager.get_session_context", return_value=context):
-            response = self.client.get(reverse("practice:session_history"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No shots yet")
-        self.assertContains(response, "InG")
-        self.assertEqual(response.context["progress"]["shooting"]["count"], 0)
-
     def test_empty_history_not_misrepresented_as_zero_performance(self):
         result = summarize_practice_progress([])
         self.assertEqual(result["shooting"]["count"], 0)
@@ -137,6 +122,21 @@ class PracticeProgressRenderedTests(TestCase):
         self.assertEqual(response.context["progress"]["shooting"]["mean"], 75.0)
         self.assertEqual(response.context["progress"]["pointing"]["mean"], 50.0)
         self.assertContains(response, 'class="ph-trend-dot"', count=4)
+
+    def test_history_zero_attempt_card_is_unmeasured_not_zero_percent(self):
+        from unittest.mock import patch
+        zero = PracticeSession.objects.create(
+            player_codename="ZERO_TEST", practice_type="shooting",
+            distance="ing", is_active=False, ended_at=timezone.now(),
+        )
+        context = {"player_logged_in": True, "session_codename": "ZERO_TEST",
+                   "player_name": "Zero test"}
+        with patch("practice.views.SessionManager.get_session_context", return_value=context):
+            response = self.client.get(reverse("practice:session_history"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No shots yet")
+        self.assertContains(response, "InG")
+        self.assertEqual(response.context["progress"]["shooting"]["count"], 0)
 
     def test_template_compiles_and_retains_session_card_links(self):
         get_template("practice/session_history.html")
