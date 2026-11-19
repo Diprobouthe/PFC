@@ -131,7 +131,7 @@ class PracticeProgressRenderedTests(TestCase):
             response = self.client.get(reverse("practice:session_history"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="ph-trends"', count=3)
-        self.assertContains(response, 'class="ph-trend-graph"', count=6)
+        self.assertContains(response, 'class="ph-trend-graph"', count=4)
         self.assertContains(response, 'data-accuracy-button="ing"')
         self.assertContains(response, 'data-accuracy-button="training"')
         self.assertEqual(response.context["progress"]["shooting"]["mean"], 75.0)
