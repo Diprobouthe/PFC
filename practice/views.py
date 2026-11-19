@@ -761,8 +761,9 @@ def session_history(request):
     # Reuse the exact same read-only snapshot for the list and longitudinal
     # progress; never write to a session when opening the history page.
     session_list = list(sessions)
-    from .history_progress import summarize_practice_progress
-    progress = summarize_practice_progress(session_list)
+    from .history_progress import summarize_accuracy_views
+    progress_groups = summarize_accuracy_views(session_list)
+    progress = progress_groups['all']
 
     sessions_with_summary = []
     for session in session_list:
@@ -777,6 +778,7 @@ def session_history(request):
         'sessions': sessions_with_summary,
         'total_sessions': len(session_list),
         'progress': progress,
+        'progress_groups': progress_groups,
         'page_title': 'Practice Session History',
     }
 
