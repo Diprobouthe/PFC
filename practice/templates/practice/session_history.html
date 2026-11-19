@@ -120,7 +120,7 @@
             <div class="ph-head-main">
                 <div class="ph-kicker">PFC · PRACTICE</div>
                 <h1><i class="fas fa-history me-1" aria-hidden="true"></i>
-                    {% if UI_LANGUAGE == 'el' %}Ιστορικό προπονήσεων{% else %}Practice History{% endif %}
+                    {% if UI_LANGUAGE == 'el' %}Ιστορικό ευστοχίας{% else %}Accuracy History{% endif %}
                 </h1>
                 <p><i class="fas fa-user me-1" aria-hidden="true"></i>{{ player_name|default:session_codename }}</p>
             </div>
@@ -136,7 +136,7 @@
                 <span class="ph-count-label">{% if UI_LANGUAGE == 'el' %}Συνεδρίες{% else %}Sessions{% endif %}</span>
             </div>
             <span class="ph-overview-note">
-                {% if UI_LANGUAGE == 'el' %}Η πορεία των προπονήσεών σου, από τη νεότερη στην παλαιότερη{% else %}Your practice history, newest first{% endif %}
+                {% if UI_LANGUAGE == 'el' %}Όλες οι καταγραφές σου, από τη νεότερη στην παλαιότερη{% else %}Your shot records, newest first{% endif %}
             </span>
         </section>
 
@@ -211,7 +211,7 @@
         </p>
 
         {% if sessions %}
-        <h2 class="ph-list-title">{% if UI_LANGUAGE == 'el' %}Οι προπονήσεις μου{% else %}My sessions{% endif %} ({{ total_sessions }})</h2>
+        <h2 class="ph-list-title">{% if UI_LANGUAGE == 'el' %}Οι καταγραφές μου{% else %}My records{% endif %} ({{ total_sessions }})</h2>
         <div class="ph-list">
             {% for item in sessions %}
             {% with session=item.session summary=item.summary %}
@@ -294,8 +294,8 @@
         {% else %}
         <section class="ph-empty">
             <i class="fas fa-clipboard-list" aria-hidden="true"></i>
-            <h2>{% if UI_LANGUAGE == 'el' %}Δεν υπάρχουν ακόμη προπονήσεις{% else %}No practice sessions yet{% endif %}</h2>
-            <p>{% if UI_LANGUAGE == 'el' %}Ξεκίνα μια προπόνηση για να παρακολουθείς την πρόοδό σου.{% else %}Start a practice session to follow your progress.{% endif %}</p>
+            <h2>{% if UI_LANGUAGE == 'el' %}Δεν υπάρχουν ακόμη καταγραφές{% else %}No accuracy records yet{% endif %}</h2>
+            <p>{% if UI_LANGUAGE == 'el' %}Κατάγραψε προσπάθειες από προπόνηση ή InG για να δεις την εξέλιξή σου.{% else %}Record shots during practice or InG to see your progress.{% endif %}</p>
             <div class="ph-empty-actions">
                 <a class="btn btn-primary" href="{% url 'practice:shooting_practice' %}">{% if UI_LANGUAGE == 'el' %}Προπόνηση χτυπήματος{% else %}Shooting{% endif %}</a>
                 <a class="btn btn-outline-primary" href="{% url 'practice:pointing_practice' %}">{% if UI_LANGUAGE == 'el' %}Προπόνηση προσέγγισης{% else %}Pointing{% endif %}</a>
