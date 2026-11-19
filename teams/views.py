@@ -2255,6 +2255,9 @@ def edit_player_profile(request):
 
         # --- Public practice progress: separate, explicit opt-in ---
         if action == 'update_practice_sharing':
+            if not request.session.get('session_active'):
+                messages.error(request, 'An active player session is required to change practice sharing.')
+                return redirect('edit_player_profile')
             player_profile.share_practice_statistics = (
                 request.POST.get('share_practice_statistics') == 'on'
             )
