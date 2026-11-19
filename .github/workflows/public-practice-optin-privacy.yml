@@ -57,5 +57,6 @@ jobs:
             teams.tests \
             practice.test_history_progress \
             practice.test_history_mobile \
+            practice.test_private_session_summary \
             practice.tests.PointingFairSemanticsTests \
             --verbosity 2
