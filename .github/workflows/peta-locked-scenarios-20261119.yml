@@ -1,0 +1,32 @@
+name: PETA locked four-scenario simulation
+
+on:
+  push:
+    branches:
+      - test/peta-locked-scenarios-20261119
+    paths:
+      - cert_ratings/test_peta_scenarios_20261119.py
+      - .github/workflows/peta-locked-scenarios-20261119.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-scenarios:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Assert that locked PETA engine and policy are unchanged
+        shell: bash
+        run: |
+          git diff --exit-code 0778c529aaf76f582bd6926def26ced6b9ebb2d1 HEAD --             cert_ratings/peta_core.py             cert_ratings/peta_series.py             cert_ratings/peta_policy.py             cert_ratings/peta_keep_all.py             cert_ratings/peta_service.py
+      - name: Run exactly four synthetic settlement scenarios
+        run: |
+          python -m unittest -v cert_ratings.test_peta_scenarios_20261119
