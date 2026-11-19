@@ -108,6 +108,10 @@
     .ph-trend { padding: 11px 13px; }
     .ph-trend-graph { max-height: 94px; }
 }
+.ph-accuracy-switch { display:flex; gap:5px; padding:4px; background:#eaf1f9; border-radius:12px; margin-bottom:10px; }
+.ph-accuracy-switch button { flex:1; min-height:38px; border:0; border-radius:9px; padding:7px 5px; background:transparent; color:#43617e; font-size:.79rem; font-weight:800; }
+.ph-accuracy-switch button[aria-pressed="true"] { background:white; color:#145db9; box-shadow:0 2px 7px rgba(13,71,161,.13); }
+[data-accuracy-panel][hidden] { display:none !important; }
 </style>
 {% get_current_language as UI_LANGUAGE %}
 <div class="container mt-2 mb-4">
@@ -137,9 +141,17 @@
         </section>
 
 
-        <h2 class="ph-trends-heading">{% if UI_LANGUAGE == 'el' %}Η πορεία μου{% else %}My progress{% endif %}</h2>
+        <h2 class="ph-trends-heading">{% if UI_LANGUAGE == 'el' %}Η εξέλιξη της ευστοχίας μου{% else %}My accuracy over time{% endif %}</h2>
+        <div data-accuracy-switch>
+          <div class="ph-accuracy-switch" role="group" aria-label="{% if UI_LANGUAGE == 'el' %}Είδος καταγραφής ευστοχίας{% else %}Accuracy observation source{% endif %}">
+            <button type="button" data-accuracy-button="all" aria-pressed="true">{% if UI_LANGUAGE == 'el' %}Σύνολο{% else %}All{% endif %}</button>
+            <button type="button" data-accuracy-button="training" aria-pressed="false">{% if UI_LANGUAGE == 'el' %}Απόσταση{% else %}Fixed distance{% endif %}</button>
+            <button type="button" data-accuracy-button="ing" aria-pressed="false">InG</button>
+          </div>
+          {% for source, scoped in progress_groups.items %}
+          <div data-accuracy-panel="{{ source }}" {% if source != 'all' %}hidden{% endif %}>
         <section class="ph-trends" aria-label="{% if UI_LANGUAGE == 'el' %}Απόδοση και σταθερότητα{% else %}Performance and consistency{% endif %}">
-            {% for kind, item in progress.items %}
+            {% for kind, item in scoped.items %}
             <article class="ph-trend {{ kind }}">
                 <h3 class="ph-trend-title">
                     {% if kind == 'shooting' %}<i class="fas fa-crosshairs" aria-hidden="true"></i>
@@ -185,11 +197,16 @@
             </article>
             {% endfor %}
         </section>
+          </div>
+          {% endfor %}
+        </div>
         <p class="ph-trends-note">
             {% if UI_LANGUAGE == 'el' %}
-            Έως 12 τελευταίες ολοκληρωμένες απλές προπονήσεις ανά τύπο. Η διακεκομμένη γραμμή δείχνει τον μέσο όρο. Η μεταβλητότητα είναι η τυπική απόκλιση των επιδόσεων ανά συνεδρία. Οι ειδικές ασκήσεις δεν αναμειγνύονται.
+            Σύνολο: ευστοχία σε προπόνηση καθορισμένης απόστασης και InG μαζί. Απόσταση: μόνο 6–10 μ. InG: μόνο καταγραφές μέσα στο παιχνίδι.
+            Έως 12 ολοκληρωμένες καταγραφές ανά τύπο και φίλτρο, με τουλάχιστον 1 προσπάθεια. Η διακεκομμένη γραμμή είναι ο μέσος όρος και η μεταβλητότητα η τυπική απόκλιση ανά καταγραφή.
             {% else %}
-            Up to 12 recent completed ordinary sessions per type. The dashed line marks the average. Variation is the standard deviation across sessions. Specialty drills are not mixed in.
+            All combines fixed-distance practice and InG observations. Fixed distance uses 6–10 m; InG uses observations during play.
+            Up to 12 completed records per type and scope, with at least 1 shot. The dashed line shows the mean, variation is standard deviation across records.
             {% endif %}
         </p>
 
@@ -206,7 +223,9 @@
                     </span>
                     <div class="ph-type-copy">
                         <strong>
-                            {% if session.practice_type == 'shooting' %}
+                            {% if session.distance == 'ing' %}
+                                InG · {% if session.practice_type == 'shooting' %}{% if UI_LANGUAGE == 'el' %}Χτύπημα{% else %}Shooting{% endif %}{% else %}{% if UI_LANGUAGE == 'el' %}Προσέγγιση{% else %}Pointing{% endif %}{% endif %}
+                            {% elif session.practice_type == 'shooting' %}
                                 {% if UI_LANGUAGE == 'el' %}Προπόνηση χτυπήματος{% else %}Shooting Practice{% endif %}
                             {% else %}
                                 {% if UI_LANGUAGE == 'el' %}Προπόνηση προσέγγισης{% else %}Pointing Practice{% endif %}
@@ -231,8 +250,13 @@
                         <small>{% if UI_LANGUAGE == 'el' %}Προσπάθειες{% else %}Shots{% endif %}</small>
                     </div>
                     <div class="ph-metric success">
+                        {% if session.total_shots %}
                         <strong>{{ summary.hit_percentage|default:0|floatformat:0 }}%</strong>
-                        <small>{% if UI_LANGUAGE == 'el' %}Επιτυχία{% else %}Success rate{% endif %}</small>
+                        <small>{% if UI_LANGUAGE == 'el' %}Ευστοχία{% else %}Accuracy{% endif %}</small>
+                        {% else %}
+                        <strong>—</strong>
+                        <small>{% if UI_LANGUAGE == 'el' %}Χωρίς προσπάθειες{% else %}No shots yet{% endif %}</small>
+                        {% endif %}
                     </div>
                     <div class="ph-metric">
                         <strong>{{ summary.longest_streak|default:0 }}</strong>
@@ -244,16 +268,16 @@
                     {% if session.practice_type == 'shooting' %}
                     <span class="ph-chip"><i class="fas fa-bullseye" aria-hidden="true"></i>
                         {% if UI_LANGUAGE == 'el' %}Καρό{% else %}Carreau{% endif %}:
-                        <strong>{{ summary.carreau_percentage|default:0|floatformat:0 }}%</strong>
+                        <strong>{% if session.total_shots %}{{ summary.carreau_percentage|default:0|floatformat:0 }}%{% else %}—{% endif %}</strong>
                     </span>
                     {% else %}
                     <span class="ph-chip"><i class="fas fa-circle" aria-hidden="true"></i>
                         {% if UI_LANGUAGE == 'el' %}Τέλειες{% else %}Perfect{% endif %}:
-                        <strong>{{ session.perfects|percentage_of:summary.total_shots }}%</strong>
+                        <strong>{% if session.total_shots %}{{ session.perfects|percentage_of:summary.total_shots }}%{% else %}—{% endif %}</strong>
                     </span>
                     <span class="ph-chip"><i class="fas fa-check" aria-hidden="true"></i>
                         {% if UI_LANGUAGE == 'el' %}Καλές{% else %}Good{% endif %}:
-                        <strong>{{ session.goods|percentage_of:summary.total_shots }}%</strong>
+                        <strong>{% if session.total_shots %}{{ session.goods|percentage_of:summary.total_shots }}%{% else %}—{% endif %}</strong>
                     </span>
                     {% endif %}
                     <span class="ph-chip"><i class="far fa-clock" aria-hidden="true"></i>{{ summary.duration }}</span>
@@ -280,4 +304,5 @@
         {% endif %}
     </main>
 </div>
+<script defer src="{% static 'practice/js/accuracy-filters.js' %}"></script>
 {% endblock %}
