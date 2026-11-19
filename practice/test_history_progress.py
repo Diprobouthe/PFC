@@ -12,7 +12,7 @@ from practice.history_progress import summarize_practice_progress
 from practice.models import PracticeSession, Shot
 
 
-def sample(kind, shots, successes, *, active=False, drill="", ended=True):
+def sample(kind, shots, successes, *, active=False, drill="", ended=True, distance="7m"):
     return SimpleNamespace(
         practice_type=kind,
         drill_type=drill,
@@ -20,6 +20,7 @@ def sample(kind, shots, successes, *, active=False, drill="", ended=True):
         ended_at=timezone.now() if ended else None,
         total_shots=shots,
         successful_shots=successes,
+        distance=distance,
     )
 
 
@@ -63,6 +64,42 @@ class PracticeProgressMathTests(SimpleTestCase):
         self.assertEqual(result["first"], 25.0)
         self.assertEqual(result["last"], 50.0)
 
+    def test_ing_and_fixed_distance_are_distinct_observation_sources(self):
+        from practice.history_progress import summarize_accuracy_views
+        records = [
+            sample("shooting", 0, 0, distance="ing"),      # not an accuracy observation
+            sample("shooting", 4, 4, distance="ing"),      # InG: 100%
+            sample("shooting", 4, 0, distance="8m"),       # training: real 0%
+            sample("shooting", 10, 10, distance="ing", active=True),
+            sample("pointing", 6, 3, distance="7m"),
+            sample("pointing", 6, 6, distance="ing"),
+        ]
+        groups = summarize_accuracy_views(records)
+        self.assertEqual(groups["all"]["shooting"]["count"], 2)
+        self.assertEqual(groups["all"]["shooting"]["mean"], 50.0)
+        self.assertEqual(groups["training"]["shooting"]["mean"], 0.0)
+        self.assertEqual(groups["ing"]["shooting"]["mean"], 100.0)
+        self.assertEqual(groups["training"]["shooting"]["count"], 1)
+        self.assertEqual(groups["ing"]["shooting"]["count"], 1)
+        self.assertEqual(groups["training"]["pointing"]["mean"], 50.0)
+        self.assertEqual(groups["ing"]["pointing"]["mean"], 100.0)
+        self.assertEqual(groups["all"]["shooting"]["total_shots"], 8)
+
+    def test_history_zero_attempt_card_is_unmeasured_not_zero_percent(self):
+        from unittest.mock import patch
+        zero = PracticeSession.objects.create(
+            player_codename="ZERO_TEST", practice_type="shooting",
+            distance="ing", is_active=False, ended_at=timezone.now(),
+        )
+        context = {"player_logged_in": True, "session_codename": "ZERO_TEST",
+                   "player_name": "Zero test"}
+        with patch("practice.views.SessionManager.get_session_context", return_value=context):
+            response = self.client.get(reverse("practice:session_history"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No shots yet")
+        self.assertContains(response, "InG")
+        self.assertEqual(response.context["progress"]["shooting"]["count"], 0)
+
     def test_empty_history_not_misrepresented_as_zero_performance(self):
         result = summarize_practice_progress([])
         self.assertEqual(result["shooting"]["count"], 0)
@@ -93,11 +130,13 @@ class PracticeProgressRenderedTests(TestCase):
         with patch("practice.views.SessionManager.get_session_context", return_value=session_context):
             response = self.client.get(reverse("practice:session_history"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'class="ph-trends"')
-        self.assertContains(response, 'class="ph-trend-graph"', count=2)
+        self.assertContains(response, 'class="ph-trends"', count=3)
+        self.assertContains(response, 'class="ph-trend-graph"', count=6)
+        self.assertContains(response, 'data-accuracy-button="ing"')
+        self.assertContains(response, 'data-accuracy-button="training"')
         self.assertEqual(response.context["progress"]["shooting"]["mean"], 75.0)
         self.assertEqual(response.context["progress"]["pointing"]["mean"], 50.0)
-        self.assertContains(response, 'class="ph-trend-dot"', count=2)
+        self.assertContains(response, 'class="ph-trend-dot"', count=4)
 
     def test_template_compiles_and_retains_session_card_links(self):
         get_template("practice/session_history.html")
