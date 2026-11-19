@@ -1,0 +1,53 @@
+name: Practice History progression regression
+
+on:
+  push:
+    branches:
+      - feature/practice-history-progress-20261119
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  history-progression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_progress_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_progress_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_progress_ci
+      SECRET_KEY: isolated-practice-progress-ci-not-production
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Ensure locked PETA engine and existing practice scoring are unchanged
+        run: |
+          git diff --exit-code 3387abac4ec5eef18d44514c5aabfaf06bb285bb HEAD -- \
+            cert_ratings teams matches practice/models.py practice/utils.py
+      - name: Django system checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Verify mathematical summaries, history renders and prior safety checks
+        run: |
+          python manage.py test practice.test_history_progress practice.test_history_mobile practice.tests.PointingFairSemanticsTests --verbosity 2
