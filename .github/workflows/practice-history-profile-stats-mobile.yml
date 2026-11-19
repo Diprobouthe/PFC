@@ -1,0 +1,59 @@
+name: Practice History and Profile Stats mobile regression
+
+on:
+  push:
+    branches:
+      - fix/profile-stats-practice-history-mobile-20261119
+    paths:
+      - practice/templates/practice/session_history.html
+      - practice/test_history_mobile.py
+      - teams/templates/teams/player_profile.html
+      - teams/views.py
+      - teams/test_player_profile_stats_tabs.py
+      - .github/workflows/practice-history-profile-stats-mobile.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-ui-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_practice_ui_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_practice_ui_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_practice_ui_test
+      SECRET_KEY: isolated-practice-history-regression-not-production
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Confirm no rating, match or PETA engine changed
+        run: |
+          git diff --exit-code 0778c529aaf76f582bd6926def26ced6b9ebb2d1 HEAD --             cert_ratings teams/models.py matches practice/models.py practice/utils.py
+      - name: Django consistency checks
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Test real template rendering and exact existing percentage keys
+        run: |
+          python manage.py test             practice.test_history_mobile             teams.test_player_profile_stats_tabs             practice.tests.PointingFairSemanticsTests             --verbosity 2
