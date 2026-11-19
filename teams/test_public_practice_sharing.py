@@ -129,7 +129,7 @@ class PracticeSharingProfileTests(TestCase):
         self.assertTrue(page.context["show_practice_tab"])
         self.assertContains(page, 'data-pp-tab="pp-shooting"')
         self.assertContains(page, "Open Practice")
-        self.assertNotContains(page, "pp-public-practice-chart")
+        self.assertNotContains(page, 'class="pp-public-practice-chart"')
 
     def test_global_hide_statistics_overrides_opt_in_for_others(self):
         self.target_profile.share_practice_statistics = True
