@@ -472,7 +472,7 @@
   <!-- PRACTICE SHARING: independent, private-by-default player choice -->
   {% get_current_language as UI_LANGUAGE %}
   <div class="ep-row" id="practice-sharing-preference">
-    <div class="ep-label">{% if UI_LANGUAGE == 'el' %}Ιδιωτικότητα προπονήσεων{% else %}Practice Privacy{% endif %}</div>
+    <div class="ep-label">{% if UI_LANGUAGE == 'el' %}Κοινοποίηση στοιχείων ευστοχίας{% else %}Accuracy Sharing{% endif %}</div>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="update_practice_sharing">
@@ -482,16 +482,16 @@
                {% if player_profile.share_practice_statistics %}checked{% endif %}>
         <span style="flex:1;">
           <strong style="font-size:.9rem;">
-            {% if UI_LANGUAGE == 'el' %}Να φαίνεται η πρόοδός μου σε άλλους παίκτες{% else %}Share my practice progress{% endif %}
+            {% if UI_LANGUAGE == 'el' %}Κοινοποίηση της εξέλιξης της ευστοχίας μου{% else %}Share my shooting and pointing accuracy{% endif %}
           </strong>
           <small style="display:block;color:#6c757d;margin-top:2px;">
             {% if UI_LANGUAGE == 'el' %}
-              Μόνο συγκεντρωτικά στοιχεία: μέση επιτυχία, μεταβλητότητα και γραφήματα χτυπήματος/προσέγγισης.
-              Οι ημερομηνίες, οι επιμέρους συνεδρίες και οι λεπτομέρειες παραμένουν ιδιωτικές.
+              Δημοσιεύονται μόνο συγκεντρωτικά ποσοστά και γραφήματα ευστοχίας για χτύπημα και προσέγγιση, με φίλτρο «Σύνολο / Απόσταση / InG».
+              Οι ημερομηνίες και οι επιμέρους καταγραφές παραμένουν ιδιωτικές.
               Η γενική επιλογή «Απόκρυψη δημόσιων στατιστικών» υπερισχύει.
             {% else %}
-              Only averages, variability and shooting/pointing progress charts are shared.
-              Session dates, individual sessions and details stay private.
+              Share only aggregate shooting and pointing accuracy, variability and charts, with All / Fixed distance / InG filters.
+              Individual records and dates stay private.
               The general "Hide my public statistics" preference overrides this option.
             {% endif %}
           </small>
