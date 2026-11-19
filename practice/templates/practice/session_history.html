@@ -3,7 +3,7 @@
 
 {% block title %}{% translate "Practice Session History" %} - PFC{% endblock %}
 
-{% block extra_css %}
+{% block content %}
 <style>
 /* PFC Practice History — mobile-first, isolated from generic stat/Bootstrap styles. */
 .practice-history {
@@ -84,9 +84,6 @@
     .ph-metric strong { font-size: 1.06rem; }
 }
 </style>
-{% endblock %}
-
-{% block content %}
 {% get_current_language as UI_LANGUAGE %}
 <div class="container mt-2 mb-4">
     <main class="practice-history">
