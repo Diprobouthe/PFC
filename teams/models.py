@@ -200,6 +200,13 @@ class PlayerProfile(models.Model):
         default=False,
         help_text="Hide rating and statistical summaries from other users while preserving personal access."
     )
+    share_practice_statistics = models.BooleanField(
+        default=False,
+        help_text=(
+            "Opt in to showing aggregated shooting and pointing practice progress "
+            "on the public player profile; individual sessions remain private."
+        ),
+    )
     boule_brand = models.CharField(max_length=80, blank=True, default='')
     boule_diameter_mm = models.PositiveSmallIntegerField(blank=True, null=True)
     boule_weight_g = models.PositiveSmallIntegerField(blank=True, null=True)
