@@ -9,14 +9,30 @@ from math import sqrt
 
 
 WINDOW = 12
+FIXED_DISTANCE_CODES = frozenset(("6m", "7m", "8m", "9m", "10m"))
+SOURCE_MODES = ("all", "training", "ing")
 
 
-def summarize_practice_progress(sessions, window=WINDOW):
+def summarize_accuracy_views(sessions, window=WINDOW):
+    """Three comparable scopes for the same two disciplines.
+
+    'all' includes fixed-distance practice + in-game observations; other
+    modes split by the stored distance field (not by is_active).
+    """
+    return {
+        mode: summarize_practice_progress(sessions, window=window, mode=mode)
+        for mode in SOURCE_MODES
+    }
+
+
+def summarize_practice_progress(sessions, window=WINDOW, mode="all"):
     """Return two small chart-ready series from PracticeSession model objects.
 
     The caller supplies newest-first sessions. Charts are chronological, and
     each percentage uses the existing PracticeSession.successful_shots rule.
     """
+    if mode not in SOURCE_MODES:
+        raise ValueError("Unknown accuracy observation source")
     result = {}
     for kind in ("shooting", "pointing"):
         eligible = [
@@ -26,6 +42,11 @@ def summarize_practice_progress(sessions, window=WINDOW):
             and item.ended_at is not None
             and item.drill_type in ("", "open")
             and item.total_shots > 0
+            and (
+                (mode == "all" and getattr(item, "distance", "7m") in FIXED_DISTANCE_CODES | {"ing"})
+                or (mode == "training" and getattr(item, "distance", "7m") in FIXED_DISTANCE_CODES)
+                or (mode == "ing" and getattr(item, "distance", "7m") == "ing")
+            )
         ][:window]
         eligible.reverse()
         total_shots = sum(int(x.total_shots) for x in eligible)
