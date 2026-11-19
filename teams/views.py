@@ -1311,11 +1311,15 @@ def player_profile(request, player_id):
     # viewer's session codename as a fallback for the profile being displayed.
     show_practice_tab = is_own_profile
     public_practice_progress = None
+    public_practice_groups = None
     if not is_own_profile and show_public_statistics:
         from practice.public_profiles import public_practice_progress_for_player
 
-        public_practice_progress = public_practice_progress_for_player(player)
-        show_practice_tab = public_practice_progress is not None
+        public_practice_groups = public_practice_progress_for_player(player, grouped=True)
+        public_practice_progress = (
+            public_practice_groups["all"] if public_practice_groups is not None else None
+        )
+        show_practice_tab = public_practice_groups is not None
 
     # Permanent tournament history is an activation-onward snapshot created at
     # authoritative tournament finalization. It follows the existing public
@@ -1356,6 +1360,7 @@ def player_profile(request, player_id):
         'tracker_enabled': True,  # Enable shooting practice tracker tab
         'show_practice_tab': show_practice_tab,
         'public_practice_progress': public_practice_progress,
+        'public_practice_groups': public_practice_groups,
         'tournament_match_history_count': tournament_match_history_count,
         'friendly_match_history_count': friendly_match_history_count,
         'player_match_history_page_size': PLAYER_PROFILE_HISTORY_PAGE_SIZE,
