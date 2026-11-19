@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load shot_tracker_tags i18n l10n avatar_tags %}
+{% load shot_tracker_tags i18n l10n avatar_tags static %}
 
 {% block title %}{{ player.name }} - {% translate "Player Profile" %}{% endblock %}
 
@@ -550,6 +550,15 @@ a.mh-card::after {
   .pp-public-practice-grid { grid-template-columns: minmax(0,1fr) !important; }
   .pp-public-practice-chart { max-height: 102px !important; }
 }
+.pp-accuracy-switch { display:flex !important; gap:5px !important; padding:4px !important;
+    background:#eaf1f9 !important; border-radius:12px !important; margin:0 0 10px !important; }
+.pp-accuracy-switch button { min-height:38px !important; flex:1 !important; border:0 !important;
+    border-radius:9px !important; padding:7px 5px !important; font-size:13px !important; font-weight:800 !important;
+    color:#43617e !important; background:transparent !important; }
+.pp-accuracy-switch button[aria-pressed="true"] { background:white !important; color:#145db9 !important;
+    box-shadow:0 2px 7px rgba(13,71,161,.13) !important; }
+[data-accuracy-panel][hidden] { display:none !important; }
+
 
 </style>
 
@@ -972,10 +981,18 @@ a.mh-card::after {
                 <div class="pp-public-practice">
                     <div class="pp-public-practice-intro">
                         <i class="fas fa-chart-line" aria-hidden="true"></i>
-                        {% if PROFILE_LANG == 'el' %}Δημόσια σύνοψη προπονήσεων του {{ player.name }}{% else %}Practice progress shared by {{ player.name }}{% endif %}
+                        {% if PROFILE_LANG == 'el' %}Εξέλιξη ευστοχίας · {{ player.name }}{% else %}Accuracy progression · {{ player.name }}{% endif %}
                     </div>
+                    <div data-accuracy-switch>
+                      <div class="pp-accuracy-switch" role="group" aria-label="{% if PROFILE_LANG == 'el' %}Είδος καταγραφής{% else %}Observation source{% endif %}">
+                        <button type="button" data-accuracy-button="all" aria-pressed="true">{% if PROFILE_LANG == 'el' %}Σύνολο{% else %}All{% endif %}</button>
+                        <button type="button" data-accuracy-button="training" aria-pressed="false">{% if PROFILE_LANG == 'el' %}Απόσταση{% else %}Fixed distance{% endif %}</button>
+                        <button type="button" data-accuracy-button="ing" aria-pressed="false">InG</button>
+                      </div>
+                      {% for source, scoped in public_practice_groups.items %}
+                      <div data-accuracy-panel="{{ source }}" {% if source != 'all' %}hidden{% endif %}>
                     <div class="pp-public-practice-grid">
-                        {% for kind, item in public_practice_progress.items %}
+                        {% for kind, item in scoped.items %}
                         <section class="pp-public-practice-card {{ kind }}">
                             <h3>
                                 {% if kind == 'shooting' %}
@@ -1020,12 +1037,15 @@ a.mh-card::after {
                         </section>
                         {% endfor %}
                     </div>
+                      </div>
+                      {% endfor %}
+                    </div>
                     <p class="pp-public-practice-note">
                         <i class="fas fa-lock" aria-hidden="true"></i>
                         {% if PROFILE_LANG == 'el' %}
-                        Ο παίκτης επέλεξε να μοιράζεται μόνο συγκεντρωτικά δεδομένα από έως 12 ολοκληρωμένες απλές συνεδρίες ανά τύπο. Οι συνεδρίες, οι ημερομηνίες και οι λεπτομέρειες παραμένουν ιδιωτικές.
+                        Ο παίκτης επέλεξε να μοιράζεται μόνο συγκεντρωτική ευστοχία σε χτύπημα και προσέγγιση. Σύνολο: απόσταση 6–10 μ. και InG μαζί, με ξεχωριστά φίλτρα. Έως 12 ολοκληρωμένες καταγραφές ανά τύπο και φίλτρο με τουλάχιστον 1 προσπάθεια. Οι ατομικές καταγραφές και ημερομηνίες παραμένουν ιδιωτικές.
                         {% else %}
-                        This player shares aggregated statistics from up to 12 completed ordinary sessions per type. Individual sessions, dates and details remain private.
+                        This player opted to share aggregate shooting/pointing accuracy. All combines fixed-distance sessions (6–10 m) and InG; filters separate them. Up to 12 completed records per kind and scope, each with at least one shot. Individual records and dates remain private.
                         {% endif %}
                     </p>
                 </div>
@@ -1371,4 +1391,5 @@ document.addEventListener('DOMContentLoaded', function() {
 }());
 </script>
 
+<script defer src="{% static 'practice/js/accuracy-filters.js' %}"></script>
 {% endblock %}

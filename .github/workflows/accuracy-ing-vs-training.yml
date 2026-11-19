@@ -1,0 +1,60 @@
+name: InG vs Fixed-Distance Accuracy Regression
+
+on:
+  push:
+    branches:
+      - fix/accuracy-ing-vs-training-20261119
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accuracy-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_accuracy_source_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_accuracy_source_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_accuracy_source_test
+      SECRET_KEY: isolated-accuracy-source-ci-not-production
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Verify locked PETA and scoring engines unchanged
+        run: |
+          git diff --exit-code f6bcde7251da319f04c641baa66e6023e3816317 HEAD -- \
+            cert_ratings matches practice/models.py practice/utils.py
+      - name: Django checks and no schema changes
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Run accuracy, privacy and recent history regressions
+        run: |
+          python manage.py test \
+            practice.test_history_progress \
+            practice.test_history_mobile \
+            practice.test_private_session_summary \
+            teams.test_public_practice_sharing \
+            teams.test_player_profile_stats_tabs \
+            practice.tests.PointingFairSemanticsTests \
+            --verbosity 2
