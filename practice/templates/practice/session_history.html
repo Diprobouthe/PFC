@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static i18n %}
+{% load static i18n practice_display %}
 
 {% block title %}{% translate "Practice Session History" %} - PFC{% endblock %}
 
@@ -170,11 +170,11 @@
                     {% else %}
                     <span class="ph-chip"><i class="fas fa-circle" aria-hidden="true"></i>
                         {% if UI_LANGUAGE == 'el' %}Τέλειες{% else %}Perfect{% endif %}:
-                        <strong>{{ summary.perfect_percentage|default:0|floatformat:0 }}%</strong>
+                        <strong>{{ session.perfects|percentage_of:summary.total_shots }}%</strong>
                     </span>
                     <span class="ph-chip"><i class="fas fa-check" aria-hidden="true"></i>
                         {% if UI_LANGUAGE == 'el' %}Καλές{% else %}Good{% endif %}:
-                        <strong>{{ summary.good_percentage|default:0|floatformat:0 }}%</strong>
+                        <strong>{{ session.goods|percentage_of:summary.total_shots }}%</strong>
                     </span>
                     {% endif %}
                     <span class="ph-chip"><i class="far fa-clock" aria-hidden="true"></i>{{ summary.duration }}</span>
