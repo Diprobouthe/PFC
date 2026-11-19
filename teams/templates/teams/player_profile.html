@@ -511,6 +511,46 @@ a.mh-card::after {
     .pp-stats-strip { grid-template-columns: repeat(2, 1fr) !important; }
     .pp-chart-stats { grid-template-columns: repeat(2, 1fr) !important; }
 }
+
+/* Public, opt-in practice progress. Never display individual sessions here. */
+.pp-public-practice { padding: 4px 1px 12px !important; }
+.pp-public-practice-intro { margin-bottom: 12px !important; padding: 10px 12px !important;
+    border-radius: 12px !important; background: #eef6ff !important; color: #24558b !important;
+    font-size: 13px !important; font-weight: 750 !important; }
+.pp-public-practice-grid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 9px !important; }
+.pp-public-practice-card { min-width: 0 !important; background: white !important;
+    border: 1px solid #e2eaf6 !important; border-radius: 15px !important;
+    box-shadow: 0 3px 13px rgba(15,55,110,.08) !important; padding: 11px !important; --ppp-color: #1769d1; }
+.pp-public-practice-card.pointing { --ppp-color: #7c3aed; }
+.pp-public-practice-card h3 { margin: 0 0 10px !important; font-size: 15px !important;
+    color: #25405e !important; font-weight: 850 !important; }
+.pp-public-practice-card h3 i { color: var(--ppp-color) !important; }
+.pp-public-practice-metrics { display: flex !important; align-items: start !important;
+    justify-content: space-between !important; gap: 6px !important; }
+.pp-public-practice-metrics > div { min-width: 0 !important; }
+.pp-public-practice-metrics > div:last-child { text-align: right !important; }
+.pp-public-practice-metrics strong { display: block !important; font-size: 19px !important;
+    font-weight: 850 !important; line-height: 1.15 !important; color: var(--ppp-color) !important; }
+.pp-public-practice-metrics small { display: block !important; margin-top: 3px !important;
+    color: #6b809b !important; font-size: 10px !important; line-height: 1.3 !important; }
+.pp-public-practice-chart { display: block !important; width: 100% !important;
+    height: auto !important; max-height: 115px !important; margin-top: 8px !important; }
+.pp-public-practice-gridline { stroke: #e4edf7; stroke-width: 1; }
+.pp-public-practice-average { stroke: #9bacc4; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.pp-public-practice-path { fill: none; stroke: var(--ppp-color); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.pp-public-practice-dot { fill: var(--ppp-color); }
+.pp-public-practice-caption { color: #6a7d98 !important; font-size: 11px !important;
+    margin: 4px 0 0 !important; line-height: 1.35 !important; }
+.pp-public-practice-change { display: block !important; margin-top: 3px !important; font-weight: 750 !important; }
+.pp-public-practice-empty { margin: 10px 0 12px !important; color: #718096 !important;
+    font-size: 13px !important; line-height: 1.4 !important; }
+.pp-public-practice-note { margin: 11px 0 0 !important; color: #667e9b !important;
+    font-size: 12px !important; line-height: 1.45 !important; }
+@media (max-width: 500px) {
+  .pp-public-practice-grid { grid-template-columns: minmax(0,1fr) !important; }
+  .pp-public-practice-chart { max-height: 102px !important; }
+}
+
 </style>
 
 <div class="pp-wrap">
@@ -622,8 +662,9 @@ a.mh-card::after {
             {% if show_public_statistics %}
             <a class="pp-tab" data-pp-tab="pp-tournament" href="#">{% translate "Tournament" %}</a>
             <a class="pp-tab" data-pp-tab="pp-friendly" href="#">{% translate "Friendly" %}</a>
-            {% load shot_tracker_tags %}
+            {% if tracker_enabled and show_practice_tab %}
             <a class="pp-tab" data-pp-tab="pp-shooting" href="#">{% translate "Shot Tracker" %}</a>
+            {% endif %}
             {% endif %}
         </div>
 
@@ -909,9 +950,10 @@ a.mh-card::after {
                 {% endif %}
             </div>
 
-            <!-- ===== SHOT TRACKER TAB ===== -->
-            {% if tracker_enabled %}
+            <!-- ===== SHOT TRACKER TAB: owner-only details / consent-only public summary ===== -->
+            {% if tracker_enabled and show_practice_tab %}
             <div class="tab-pane fade" id="pp-shooting">
+                {% if is_own_profile %}
                 <div class="pp-section" style="margin-top:8px !important;">
                     <div class="pp-section-hdr"><i class="fas fa-crosshairs"></i> Shooting Practice</div>
                     <div class="pp-section-body">
@@ -923,7 +965,71 @@ a.mh-card::after {
                         </div>
                     </div>
                 </div>
+                {% load shot_tracker_tags %}
                 {% shot_stats_summary %}
+                {% else %}
+                {% get_current_language as PROFILE_LANG %}
+                <div class="pp-public-practice">
+                    <div class="pp-public-practice-intro">
+                        <i class="fas fa-chart-line" aria-hidden="true"></i>
+                        {% if PROFILE_LANG == 'el' %}Δημόσια σύνοψη προπονήσεων του {{ player.name }}{% else %}Practice progress shared by {{ player.name }}{% endif %}
+                    </div>
+                    <div class="pp-public-practice-grid">
+                        {% for kind, item in public_practice_progress.items %}
+                        <section class="pp-public-practice-card {{ kind }}">
+                            <h3>
+                                {% if kind == 'shooting' %}
+                                <i class="fas fa-crosshairs" aria-hidden="true"></i> {% if PROFILE_LANG == 'el' %}Χτύπημα{% else %}Shooting{% endif %}
+                                {% else %}
+                                <i class="fas fa-dot-circle" aria-hidden="true"></i> {% if PROFILE_LANG == 'el' %}Προσέγγιση{% else %}Pointing{% endif %}
+                                {% endif %}
+                            </h3>
+                            {% if item.count %}
+                            <div class="pp-public-practice-metrics">
+                                <div><strong>{{ item.mean|floatformat:1 }}%</strong>
+                                    <small>{% if PROFILE_LANG == 'el' %}Μέση επιτυχία{% else %}Average success{% endif %}</small>
+                                </div>
+                                <div><strong>±{{ item.deviation|floatformat:1 }}</strong>
+                                    <small>{% if PROFILE_LANG == 'el' %}Μεταβλητότητα (μ.π.){% else %}Variation (pp){% endif %}</small>
+                                </div>
+                            </div>
+                            <svg class="pp-public-practice-chart" viewBox="0 0 300 100" role="img"
+                                 aria-label="{% if PROFILE_LANG == 'el' %}Πορεία επιτυχίας σε {{ item.count }} συνεδρίες{% else %}Success trend over {{ item.count }} sessions{% endif %}">
+                                <line class="pp-public-practice-gridline" x1="10" y1="10" x2="290" y2="10"></line>
+                                <line class="pp-public-practice-gridline" x1="10" y1="50" x2="290" y2="50"></line>
+                                <line class="pp-public-practice-gridline" x1="10" y1="90" x2="290" y2="90"></line>
+                                <line class="pp-public-practice-average" x1="10" y1="{{ item.average_y }}" x2="290" y2="{{ item.average_y }}"></line>
+                                {% if item.count == 1 %}
+                                <circle class="pp-public-practice-dot" cx="150" cy="{{ item.average_y }}" r="4.5"></circle>
+                                {% else %}
+                                <polyline class="pp-public-practice-path" points="{{ item.path }}"></polyline>
+                                {% endif %}
+                            </svg>
+                            <p class="pp-public-practice-caption">
+                                {% if PROFILE_LANG == 'el' %}{{ item.count }} συνεδρίες · {{ item.total_shots }} προσπάθειες{% else %}{{ item.count }} sessions · {{ item.total_shots }} shots{% endif %}
+                                {% if item.trend != None %}<span class="pp-public-practice-change">
+                                  {% if PROFILE_LANG == 'el' %}Πρόσφατη μεταβολή{% else %}Recent change{% endif %}:
+                                  {% if item.trend > 0 %}+{% endif %}{{ item.trend|floatformat:1 }} {% if PROFILE_LANG == 'el' %}μ.π.{% else %}pp{% endif %}
+                                </span>{% endif %}
+                            </p>
+                            {% else %}
+                            <p class="pp-public-practice-empty">
+                              {% if PROFILE_LANG == 'el' %}Δεν υπάρχουν ακόμη ολοκληρωμένες απλές προπονήσεις.{% else %}No completed ordinary sessions yet.{% endif %}
+                            </p>
+                            {% endif %}
+                        </section>
+                        {% endfor %}
+                    </div>
+                    <p class="pp-public-practice-note">
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        {% if PROFILE_LANG == 'el' %}
+                        Ο παίκτης επέλεξε να μοιράζεται μόνο συγκεντρωτικά δεδομένα από έως 12 ολοκληρωμένες απλές συνεδρίες ανά τύπο. Οι συνεδρίες, οι ημερομηνίες και οι λεπτομέρειες παραμένουν ιδιωτικές.
+                        {% else %}
+                        This player shares aggregated statistics from up to 12 completed ordinary sessions per type. Individual sessions, dates and details remain private.
+                        {% endif %}
+                    </p>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
             {% endif %}
