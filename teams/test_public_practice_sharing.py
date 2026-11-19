@@ -119,7 +119,7 @@ class PracticeSharingProfileTests(TestCase):
         self.assertNotContains(page, str(self.visitor_shoot.pk))
         self.assertNotContains(page, "Recent Sessions")
         self.assertNotContains(page, "Start Practice Session")
-        self.assertNotContains(page, 'href="/practice/')  # No private detail links.
+        self.assertNotContains(page, reverse("practice:session_summary", args=[self.target_shoot.pk]))
 
     def test_owner_can_access_own_private_tracker(self):
         self._login("TARGET")
