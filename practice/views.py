@@ -25,58 +25,185 @@ from .utils import calculate_session_summary, get_player_progress_summary
 
 
 
-# Separate from match tracking: a QR grant is scoped to this browser and one
-# practice session. It never changes the logged-in player's identity.
-PRACTICE_DELEGATION_KEY = "delegated_practice_session"
-# QR helpers may view just their authorized session summary after finishing.
+# Authorizations are browser-session scoped and do not change the operator login.
+PRACTICE_DELEGATION_KEY = "delegated_practice_session"  # backwards-compatible single QR
+PRACTICE_GRANTS_KEY = "practice_qr_grants"
+PRACTICE_SELECTED_KEY = "practice_selected_owner"
 PRACTICE_SUMMARY_GRANT_KEY = "delegated_practice_summary"
 PRACTICE_SUMMARY_GRANT_SECONDS = 900
 
 
+def _practice_grant_key(grant):
+    return f"{grant['codename']}:{grant['practice_type']}"
+
+
+def _practice_grants(request):
+    grants = dict(request.session.get(PRACTICE_GRANTS_KEY) or {})
+    legacy = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+    if legacy.get("codename") and legacy.get("practice_type"):
+        key = _practice_grant_key(legacy)
+        if key not in grants:
+            grants[key] = legacy
+    return grants
+
+
+def _save_practice_grants(request, grants):
+    if grants:
+        request.session[PRACTICE_GRANTS_KEY] = grants
+        request.session[PRACTICE_DELEGATION_KEY] = list(grants.values())[-1]
+    else:
+        request.session.pop(PRACTICE_GRANTS_KEY, None)
+        request.session.pop(PRACTICE_DELEGATION_KEY, None)
+    request.session.modified = True
+
+
+def _selected_practice_key(request, grants=None):
+    if grants is None:
+        grants = _practice_grants(request)
+    selected = request.session.get(PRACTICE_SELECTED_KEY)
+    if selected == "self" or selected in grants:
+        return selected
+    return list(grants)[-1] if grants else "self"
+
+
+def _remove_practice_grant(request, key):
+    grants = _practice_grants(request)
+    grants.pop(key, None)
+    _save_practice_grants(request, grants)
+    if request.session.get(PRACTICE_SELECTED_KEY) == key:
+        # A revoked authorization never silently switches the next shot to someone else.
+        request.session[PRACTICE_SELECTED_KEY] = "self"
+        request.session.modified = True
+
+
+def _valid_practice_grant_session(grant):
+    if not grant.get("session_id"):
+        return None
+    return PracticeSession.objects.filter(
+        pk=grant["session_id"], player_codename=grant["codename"],
+        practice_type=grant["practice_type"], is_active=True,
+    ).first()
+
+
 def _practice_owner_codename(request, practice_type=None):
-    """Resolve the authorized practice owner; never trust a client-supplied codename."""
-    own = CodenameSessionManager.get_logged_in_codename(request)
-    grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
-    if grant:
-        try:
-            if not grant.get("session_id"):
-                if practice_type is None or grant.get("practice_type") == practice_type:
-                    return grant["codename"]
-            delegated = PracticeSession.objects.get(
-                pk=grant["session_id"], player_codename=grant["codename"],
-                is_active=True,
-            )
-            if practice_type is None or delegated.practice_type == practice_type:
-                return delegated.player_codename
-        except (PracticeSession.DoesNotExist, KeyError, ValueError, TypeError):
-            request.session.pop(PRACTICE_DELEGATION_KEY, None)
-            request.session.modified = True
-    return own
+    """Recipient explicitly selected by the operator, not by the current page."""
+    grants = _practice_grants(request)
+    selected = _selected_practice_key(request, grants)
+    if selected != "self":
+        grant = grants[selected]
+        if practice_type and grant.get("practice_type") != practice_type:
+            return None
+        if grant.get("session_id") and not _valid_practice_grant_session(grant):
+            _remove_practice_grant(request, selected)
+            return None
+        return grant["codename"]
+    return CodenameSessionManager.get_logged_in_codename(request)
 
 
-def _practice_active_session(request, practice_type=None):
-    """Only the session granted by QR, or the user's own active session."""
-    grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
-    if grant:
-        session = PracticeSession.objects.filter(
-            pk=grant.get("session_id"), player_codename=grant.get("codename"),
-            is_active=True,
-        )
-        if practice_type:
-            session = session.filter(practice_type=practice_type)
-        found = session.first()
-        if found:
-            return found
-        if grant.get("session_id"):
-            request.session.pop(PRACTICE_DELEGATION_KEY, None)
-            request.session.modified = True
+def _practice_active_session(request, practice_type=None, session_id=None):
+    """Fail closed on expired grants and cross-player or cross-session requests."""
+    grants = _practice_grants(request)
+    selected = _selected_practice_key(request, grants)
+    if selected != "self":
+        grant = grants[selected]
+        active = _valid_practice_grant_session(grant)
+        if active is None:
+            if grant.get("session_id"):
+                _remove_practice_grant(request, selected)
+            return None
+        if practice_type and active.practice_type != practice_type:
+            return None
+        if session_id and str(active.pk) != str(session_id):
+            return None
+        return active
+
     own = CodenameSessionManager.get_logged_in_codename(request)
     if not own:
         return None
     query = PracticeSession.objects.filter(player_codename=own, is_active=True)
     if practice_type:
         query = query.filter(practice_type=practice_type)
-    return query.first()
+    if session_id:
+        query = query.filter(pk=session_id)
+    return query.order_by("-started_at").first()
+
+
+def _practice_owner_ui_context(request, practice_type):
+    """Name chips share the same server-side selection on shooting and pointing."""
+    from friendly_games.models import PlayerCodename
+
+    own = CodenameSessionManager.get_logged_in_codename(request)
+    grants = _practice_grants(request)
+    for key, grant in list(grants.items()):
+        if grant.get("session_id") and not _valid_practice_grant_session(grant):
+            _remove_practice_grant(request, key)
+    grants = _practice_grants(request)
+    selected = _selected_practice_key(request, grants)
+
+    codes = ([own] if own else []) + [g["codename"] for g in grants.values()]
+    profiles = PlayerCodename.objects.select_related("player").filter(
+        codename__in=codes
+    ) if codes else []
+    names = {p.codename: p.player.name for p in profiles}
+    options = []
+    if own:
+        options.append({
+            "key": "self", "name": names.get(own, own),
+            "practice_type": practice_type, "is_delegated": False,
+        })
+    for key, grant in grants.items():
+        options.append({
+            "key": key, "name": names.get(grant["codename"], grant["codename"]),
+            "practice_type": grant["practice_type"], "is_delegated": True,
+        })
+    current = next((c for c in options if c["key"] == selected), None)
+    return {
+        "practice_owner_choices": options,
+        "practice_selected_key": selected,
+        "recording_player_name": current["name"] if current else own,
+        "is_practice_delegated": bool(current and current["is_delegated"]),
+    }
+
+
+def _requested_practice_session_id(request):
+    try:
+        return json.loads(request.body or b"{}").get("session_id")
+    except (TypeError, ValueError):
+        return None
+
+
+@require_http_methods(["POST"])
+def select_practice_owner(request):
+    """Switch between own and previously QR-authorised players without re-scan."""
+    from django.urls import reverse
+
+    try:
+        payload = json.loads(request.body)
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    key = payload.get("owner")
+    grants = _practice_grants(request)
+    if key == "self":
+        if not CodenameSessionManager.is_logged_in(request):
+            return JsonResponse({"error": "Player login required"}, status=401)
+        target_type = payload.get("practice_type")
+        if target_type not in ("shooting", "pointing"):
+            target_type = "shooting"
+    elif key in grants:
+        grant = grants[key]
+        if grant.get("session_id") and not _valid_practice_grant_session(grant):
+            _remove_practice_grant(request, key)
+            return JsonResponse({"error": "Authorised practice is no longer active"}, status=409)
+        target_type = grant["practice_type"]
+    else:
+        return JsonResponse({"error": "No QR authorization for this player"}, status=403)
+
+    request.session[PRACTICE_SELECTED_KEY] = key
+    request.session.modified = True
+    destination = ("practice:shooting_practice" if target_type == "shooting"
+                   else "practice:pointing_practice")
+    return JsonResponse({"success": True, "next_url": reverse(destination)})
 
 
 @csrf_exempt
