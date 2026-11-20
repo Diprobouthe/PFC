@@ -90,7 +90,9 @@ def seed():
             actors.append({
                 "session": session.session_key,
                 "codename": codename,
-                "expected": reverse("match_detail", args=[match.id]),
+                "expected": reverse("scoreboard_detail", kwargs={
+                    "scoreboard_id": match.live_scoreboard.pk,
+                }),
             })
     ACTORS.write_text(json.dumps(actors))
     print(f"CURRENT_HEAD_CHROMIUM_SEED actors={len(actors)} courts=5 "
