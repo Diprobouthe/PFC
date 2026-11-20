@@ -190,3 +190,125 @@ class SmartPracticeRoutingTests(TestCase):
             response = self.client.post(reverse("pfc_next_url"))
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.json()["next_url"])
+
+
+class PracticeOwnerSwitchTests(TestCase):
+    """A QR scan authorises one player/session; switching does not erase the grant."""
+
+    def setUp(self):
+        self.own = PracticeSession.objects.create(
+            player_codename="SELF01", practice_type="shooting")
+        self.linda = PracticeSession.objects.create(
+            player_codename="LINDA1", practice_type="shooting")
+        self.other = PracticeSession.objects.create(
+            player_codename="OTHER1", practice_type="pointing")
+        session = self.client.session
+        session["player_codename"] = "SELF01"
+        session["session_active"] = True
+        session.save()
+
+    def _scan(self, codename, practice_type):
+        session = self.client.session
+        session["qr_resolved_codename"] = codename
+        session.save()
+        with patch("friendly_games.models.PlayerCodename.objects.filter") as players:
+            players.return_value.exists.return_value = True
+            return self.client.post(
+                reverse("practice:authorize_practice_qr"),
+                data=json.dumps({"practice_type": practice_type}),
+                content_type="application/json")
+
+    def _choose(self, owner, practice_type="shooting"):
+        return self.client.post(
+            reverse("practice:select_practice_owner"),
+            data=json.dumps({"owner": owner, "practice_type": practice_type}),
+            content_type="application/json")
+
+    def _shot(self, session_id, outcome="hit"):
+        return self.client.post(
+            reverse("practice:record_shot"),
+            data=json.dumps({"outcome": outcome, "session_id": str(session_id)}),
+            content_type="application/json")
+
+    def test_last_scanned_default_and_return_without_rescan(self):
+        self.assertEqual(self._scan("LINDA1", "shooting").status_code, 200)
+        self.assertEqual(
+            self.client.session["practice_selected_owner"], "LINDA1:shooting")
+        # Navigating around the PFC does not change the selected recipient.
+        self.client.get(reverse("practice:practice_home"))
+        response = self.client.get(reverse("practice:shooting_practice"))
+        self.assertEqual(response.context["practice_selected_key"], "LINDA1:shooting")
+        self.assertEqual(str(response.context["active_session"].pk), str(self.linda.pk))
+
+        self.assertEqual(self._choose("self").status_code, 200)
+        self.assertEqual(self._shot(self.own.pk).status_code, 200)
+        self.assertEqual(self._choose("LINDA1:shooting").status_code, 200)
+        self.assertEqual(self._shot(self.linda.pk).status_code, 200)
+        self.own.refresh_from_db()
+        self.linda.refresh_from_db()
+        self.assertEqual(self.own.total_shots, 1)
+        self.assertEqual(self.linda.total_shots, 1)
+
+    def test_multiple_authorized_players_and_previous_session_switch(self):
+        self._scan("LINDA1", "shooting")
+        self._scan("OTHER1", "pointing")
+        self.assertEqual(
+            self.client.session["practice_selected_owner"], "OTHER1:pointing")
+        options = self.client.get(reverse("practice:pointing_practice")).context[
+            "practice_owner_choices"]
+        self.assertEqual([o["key"] for o in options],
+                         ["self", "LINDA1:shooting", "OTHER1:pointing"])
+        self.assertEqual(self._shot(self.other.pk, "good").status_code, 200)
+        response = self._choose("LINDA1:shooting")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["next_url"],
+                         reverse("practice:shooting_practice"))
+        self.assertEqual(self._shot(self.linda.pk).status_code, 200)
+        self.assertIn("OTHER1:pointing", self.client.session["practice_qr_grants"])
+
+    def test_switching_tabs_cannot_silently_reassign_shots(self):
+        self._scan("LINDA1", "shooting")
+        self._choose("self")
+        # Old tab still displays Linda's session ID, not the current recipient.
+        response = self._shot(self.linda.pk)
+        self.assertEqual(response.status_code, 409)
+        self.linda.refresh_from_db()
+        self.own.refresh_from_db()
+        self.assertEqual(self.linda.total_shots, 0)
+        self.assertEqual(self.own.total_shots, 0)
+
+    def test_unknown_qr_owner_selection_denied(self):
+        self._scan("LINDA1", "shooting")
+        response = self._choose("UNAUTHORIZED:shooting")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.session["practice_selected_owner"],
+                         "LINDA1:shooting")
+
+    def test_completing_one_qr_session_preserves_other_authorizations(self):
+        self._scan("LINDA1", "shooting")
+        self._scan("OTHER1", "pointing")
+        response = self.client.post(
+            reverse("practice:end_session"),
+            data=json.dumps({"session_id": str(self.other.pk)}),
+            content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertNotIn("OTHER1:pointing", self.client.session["practice_qr_grants"])
+        self.assertIn("LINDA1:shooting", self.client.session["practice_qr_grants"])
+        self.assertEqual(self._choose("LINDA1:shooting").status_code, 200)
+        self.assertEqual(self._shot(self.linda.pk).status_code, 200)
+
+    def test_ended_session_rejects_stale_shot_no_fallback_to_self(self):
+        self._scan("LINDA1", "shooting")
+        self.linda.end_session()
+        response = self._shot(self.linda.pk)
+        self.assertEqual(response.status_code, 409)
+        self.own.refresh_from_db()
+        self.assertEqual(self.own.total_shots, 0)
+
+    def test_logout_revokes_all_qr_grants(self):
+        self._scan("LINDA1", "shooting")
+        self._scan("OTHER1", "pointing")
+        self.client.get(reverse("codename_logout"))
+        self.assertNotIn("practice_qr_grants", self.client.session)
+        self.assertNotIn("delegated_practice_session", self.client.session)
+        self.assertNotIn("practice_selected_owner", self.client.session)
