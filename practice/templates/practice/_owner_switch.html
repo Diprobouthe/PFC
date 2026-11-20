@@ -1,0 +1,54 @@
+{# Shared operator/recipient switch — QR grant remains valid when another is chosen. #}
+<section class="practice-owner-panel" aria-label="Practice recording recipient" style="margin:10px 0 14px;padding:12px;border-radius:14px;border:1px solid #c9d8ed;background:#f8fbff;">
+  <div style="font-size:12px;font-weight:800;color:#46617e;margin-bottom:8px;">Για ποιον καταγράφεις τώρα;</div>
+  <div role="group" aria-label="Επιλογή παίκτη" style="display:flex;gap:7px;flex-wrap:wrap;">
+    {% for item in practice_owner_choices %}
+    <button type="button" data-practice-owner="{{ item.key }}" aria-pressed="{% if item.key == practice_selected_key %}true{% else %}false{% endif %}"
+      style="border:2px solid {% if item.key == practice_selected_key %}#198754{% else %}#cbd5e1{% endif %};border-radius:12px;padding:9px 12px;background:{% if item.key == practice_selected_key %}#e9f9ef{% else %}white{% endif %};color:#17365c;min-height:46px;font-size:14px;font-weight:750;">
+      {% if item.key == practice_selected_key %}<i class="fas fa-check-circle me-1" aria-hidden="true"></i>{% endif %}
+      {{ item.name }}
+      <small style="display:block;font-size:10px;font-weight:500;">{% if item.is_delegated %}QR · {{ item.practice_type|title }}{% else %}Εγώ{% endif %}</small>
+    </button>
+    {% endfor %}
+  </div>
+  <div style="margin-top:9px;font-size:12px;color:#34516d;">
+    Καταγράφεις για: <strong>{{ recording_player_name|default:"—" }}</strong>.
+    Η επιλογή διατηρείται όταν αλλάζεις σελίδα.
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;">
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openQrScanner()"><i class="fas fa-qrcode me-1"></i>Εξουσιοδότηση άλλου παίκτη με QR</button>
+    {% if is_practice_delegated %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="leavePracticeDelegation">Αφαίρεση αυτής της QR εξουσιοδότησης</button>
+    {% endif %}
+  </div>
+</section>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('[data-practice-owner]').forEach(function(button) {
+    button.addEventListener('click', async function() {
+      if (button.getAttribute('aria-pressed') === 'true') return;
+      document.querySelectorAll('[data-practice-owner]').forEach(b => b.disabled = true);
+      try {
+        const response = await fetch("{% url 'practice:select_practice_owner' %}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+          body: JSON.stringify({
+            owner: button.getAttribute('data-practice-owner'),
+            practice_type: '{% if practice_mode %}{{ practice_mode }}{% else %}shooting{% endif %}'
+          })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          alert(data.error || 'Δεν έγινε αλλαγή παίκτη.');
+          location.reload();
+          return;
+        }
+        window.location.assign(data.next_url);
+      } catch (error) {
+        alert('Δεν ήταν δυνατή η αλλαγή παίκτη.');
+        location.reload();
+      }
+    });
+  });
+});
+</script>
