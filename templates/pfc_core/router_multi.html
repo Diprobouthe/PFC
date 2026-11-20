@@ -168,6 +168,7 @@
 }
 .rm-badge-tournament { background: #cfe2ff; color: #084298; }
 .rm-badge-friendly   { background: #d1e7dd; color: #0a3622; }
+.rm-badge-practice   { background: #e7dcff; color: #49358a; }
 
 /* ── Bottom bar ── */
 .rm-bottom {
@@ -233,7 +234,7 @@
             <div style="flex:1;">
                 <div class="rm-other-label">{{ item.label }}</div>
                 <div class="rm-other-type">
-                    <span class="rm-badge {% if item.match_type == 'tournament' %}rm-badge-tournament{% else %}rm-badge-friendly{% endif %}">
+                    <span class="rm-badge {% if item.match_type == 'tournament' %}rm-badge-tournament{% elif item.match_type == 'practice' %}rm-badge-practice{% else %}rm-badge-friendly{% endif %}">
                         {{ item.match_type|title }}
                     </span>
                 </div>
