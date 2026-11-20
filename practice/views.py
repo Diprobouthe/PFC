@@ -159,6 +159,7 @@ def _practice_owner_ui_context(request, practice_type):
     current = next((c for c in options if c["key"] == selected), None)
     return {
         "practice_owner_choices": options,
+        "practice_mode": practice_type,
         "practice_selected_key": selected,
         "recording_player_name": current["name"] if current else own,
         "is_practice_delegated": bool(current and current["is_delegated"]),
@@ -187,7 +188,12 @@ def select_practice_owner(request):
     if key == "self":
         if not CodenameSessionManager.is_logged_in(request):
             return JsonResponse({"error": "Player login required"}, status=401)
-        target_type = payload.get("practice_type")
+        # Resume the most recent personal practice, not an arbitrary mode.
+        own_codename = CodenameSessionManager.get_logged_in_codename(request)
+        own_active = PracticeSession.objects.filter(
+            player_codename=own_codename, is_active=True
+        ).order_by("-started_at").first()
+        target_type = own_active.practice_type if own_active else payload.get("practice_type")
         if target_type not in ("shooting", "pointing"):
             target_type = "shooting"
     elif key in grants:
