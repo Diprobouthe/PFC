@@ -59,6 +59,7 @@ from teams.models import Player
 PRIORITY_TOURNAMENT_WAITING_VALIDATE   = 10   # Score validation (tournament)
 PRIORITY_TOURNAMENT_ACTIVE_SUBMIT      = 20   # Score submission (active match)
 PRIORITY_FRIENDLY_NEEDS_VALIDATION     = 30   # Friendly game score validation
+PRIORITY_ACTIVE_PRACTICE                = 35   # Return to an existing practice session
 PRIORITY_TOURNAMENT_NEEDS_ACTIVATION   = 40   # Opponent activated, you haven't
 PRIORITY_TOURNAMENT_PENDING            = 50   # Nobody activated yet
 PRIORITY_FRIENDLY_ACTIVE               = 55   # Active/live friendly game (player in it)
@@ -91,6 +92,44 @@ def _session_player(request):
     request.session['smart_router_player_id'] = pc.player_id
     request.session['smart_router_player_codename'] = codename
     return pc.player
+
+
+def _resolve_active_practice(request):
+    """Return to an existing practice, including one authorised by player QR.
+
+    A QR grant belongs to this browser session, not the logged-in player's
+    identity. Reuse the practice module's authorization resolver so Smart
+    cannot choose a different owner from the shot-recording endpoints.
+
+    A grant without session_id authorises starting a practice, but does not
+    represent a practice already in progress.
+    """
+    from practice.views import PRACTICE_DELEGATION_KEY, _practice_active_session
+
+    grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+    if grant and not grant.get('session_id'):
+        return None
+
+    active = _practice_active_session(request)
+    if active is None or active.practice_type not in ('shooting', 'pointing'):
+        return None
+
+    destination = (
+        'practice:shooting_practice'
+        if active.practice_type == 'shooting'
+        else 'practice:pointing_practice'
+    )
+    label = (
+        _("Resume Shooting Practice")
+        if active.practice_type == 'shooting'
+        else _("Resume Pointing Practice")
+    )
+    return {
+        'priority': PRIORITY_ACTIVE_PRACTICE,
+        'url': reverse(destination),
+        'label': label,
+        'match_type': 'practice',
+    }
 
 
 def resolve_decision_url(request):
@@ -133,7 +172,14 @@ def resolve_decision_url(request):
     # 3b. Friendly games the player is already IN
     candidates.extend(_resolve_friendly_games(player))
 
-    # 3c. Location-aware friendly game join (only if no score actions exist)
+    # 3c. Active practice (QR delegate or the player's own session).
+    # This does not affect the match-state JSON poller below: navigating to
+    # practice is an explicit Smart-button action, never an automatic jump.
+    practice = _resolve_active_practice(request)
+    if practice:
+        candidates.append(practice)
+
+    # 3d. Location-aware friendly game join (only if no score actions exist)
     #     This is the key safety gate: if the player has ANY score-related
     #     responsibility (priority <= 30), we skip the location shortcut
     #     entirely so they handle their responsibilities first.
@@ -158,8 +204,10 @@ def resolve_decision_url(request):
     candidates.sort(key=lambda c: c['priority'])
     best = candidates[0]
 
-    # ---- Step 5: If only one candidate, go straight there ----
-    if len(candidates) == 1:
+    # ---- Step 5: An ongoing practice resumes immediately unless an urgent
+    # score responsibility took precedence. Other actions remain accessible
+    # via the non-smart list; do not force a choice screen just to resume.
+    if len(candidates) == 1 or best['match_type'] == 'practice':
         return redirect(best['url'])
 
     # ---- Step 6: Multiple candidates — show best + direct links to all others ----
@@ -579,6 +627,9 @@ def my_matches_list(request):
     candidates = []
     candidates.extend(_resolve_tournament_matches(player))
     candidates.extend(_resolve_friendly_games(player))
+    practice = _resolve_active_practice(request)
+    if practice:
+        candidates.append(practice)
     candidates.sort(key=lambda c: c['priority'])
 
     return render(request, 'pfc_core/my_matches_list.html', {
