@@ -60,7 +60,7 @@ class JourneySmartTwentyPlayerGate(TransactionTestCase):
                 # Deliberately unrelated legacy membership tests exact Mêlée roster.
                 home = Team.objects.create(name=f"Journey home {idx}")
                 player = Player.objects.create(name=f"Journey participant {idx}", team=home)
-                codename = f"JRN{idx:04d}"
+                codename = f"JRN{idx:03d}"
                 PlayerCodename.objects.create(player=player, codename=codename)
                 MeleePlayer.objects.create(tournament=t, player=player, original_team=home)
                 MeleeRoundAssignment.objects.create(
