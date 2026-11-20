@@ -56,6 +56,10 @@ def codename_logout(request):
     try:
         codename = CodenameSessionManager.get_logged_in_codename(request)
         CodenameSessionManager.logout_player(request)
+        # QR practice authorizations must never survive a player logout.
+        for key in ('delegated_practice_session', 'practice_qr_grants',
+                    'practice_selected_owner', 'delegated_practice_summary'):
+            request.session.pop(key, None)
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({
