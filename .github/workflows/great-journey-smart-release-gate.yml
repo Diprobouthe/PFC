@@ -6,6 +6,7 @@ on:
       - 'pfc_core/smart_router.py'
       - 'practice/**'
       - 'matches/test_smart_journey_concurrency.py'
+      - 'scripts/great_journey_smart_chromium.py'
       - '.github/workflows/great-journey-smart-release-gate.yml'
   workflow_dispatch:
 
@@ -54,3 +55,34 @@ jobs:
             practice.test_delegated_qr \
             matches.test_melee_round_assignment_consumers \
             --verbosity 2
+      - name: Install browser and Daphne for real current-head tap test
+        run: |
+          pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Seed isolated synthetic 20-player Super Melee
+        env:
+          JOURNEY_SMART_ISOLATED: '1'
+        run: |
+          python manage.py migrate --noinput
+          python scripts/great_journey_smart_chromium.py seed
+      - name: Test five rapid Smart taps on 20 simultaneous Chromium players
+        run: |
+          daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/journey-smart-daphne.log 2>&1 &
+          echo $! > /tmp/journey-smart-daphne.pid
+          for attempt in $(seq 1 35); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
+            sleep 1
+          done
+          python scripts/great_journey_smart_chromium.py browser
+      - name: Stop isolated browser server
+        if: always()
+        run: |
+          if test -f /tmp/journey-smart-daphne.pid; then kill $(cat /tmp/journey-smart-daphne.pid) 2>/dev/null || true; fi
+          cp /tmp/journey-smart-daphne.log ./journey-smart-daphne.log 2>/dev/null || true
+      - name: Attach current-head browser server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-smart-current-head-daphne
+          path: journey-smart-daphne.log
+          retention-days: 7
