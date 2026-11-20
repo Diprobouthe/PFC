@@ -239,6 +239,10 @@ class PracticeOwnerSwitchTests(TestCase):
         response = self.client.get(reverse("practice:shooting_practice"))
         self.assertEqual(response.context["practice_selected_key"], "LINDA1:shooting")
         self.assertEqual(str(response.context["active_session"].pk), str(self.linda.pk))
+        # The choice must be visible above the recording buttons.
+        self.assertContains(response, 'data-practice-owner="LINDA1:shooting"')
+        self.assertContains(response, "Καταγράφεις για:")
+        self.assertContains(response, "Εξουσιοδότηση άλλου παίκτη με QR")
 
         self.assertEqual(self._choose("self").status_code, 200)
         self.assertEqual(self._shot(self.own.pk).status_code, 200)
