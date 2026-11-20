@@ -19,7 +19,7 @@ from matches.models import Match, MatchPlayer
 from practice.models import PracticeSession
 from teams.models import Team, Player
 from tournaments.models import (
-    MeleePlayer, MeleeRoundAssignment, Round, Stage, Tournament,
+    MeleePlayer, MeleeRoundAssignment, Round, Stage, Tournament, TournamentTeam,
 )
 
 
@@ -49,6 +49,8 @@ class JourneySmartTwentyPlayerGate(TransactionTestCase):
                     is_tournament_temp=True,
                 ) for side in range(2)
             ]
+            for side in sides:
+                TournamentTeam.objects.create(tournament=t, team=side)
             match = Match.objects.create(
                 tournament=t, stage=stage, round=round_one,
                 team1=sides[0], team2=sides[1],
