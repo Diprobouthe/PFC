@@ -34,7 +34,7 @@ def seed():
     from friendly_games.models import PlayerCodename
     from practice.models import PracticeSession
     from tournaments.models import (
-        Tournament, Stage, Round, MeleePlayer, MeleeRoundAssignment,
+        Tournament, Stage, Round, MeleePlayer, MeleeRoundAssignment, TournamentTeam,
     )
 
     now = timezone.now()
@@ -59,6 +59,8 @@ def seed():
                                 is_tournament_temp=True)
             for side in range(2)
         ]
+        for side in teams:
+            TournamentTeam.objects.create(tournament=tournament, team=side)
         match = Match.objects.create(
             tournament=tournament, stage=stage, round=round_one,
             team1=teams[0], team2=teams[1], status="active", start_time=None,
