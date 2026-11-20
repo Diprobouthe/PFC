@@ -227,10 +227,16 @@ def authorize_practice_qr(request):
         player_codename=qr_codename, practice_type=practice_type,
         is_active=True,
     ).first()
-    request.session[PRACTICE_DELEGATION_KEY] = {
+    grant = {
         "session_id": str(active.pk) if active else None,
         "codename": qr_codename, "practice_type": practice_type,
     }
+    grants = _practice_grants(request)
+    key = _practice_grant_key(grant)
+    grants.pop(key, None)
+    grants[key] = grant
+    _save_practice_grants(request, grants)
+    request.session[PRACTICE_SELECTED_KEY] = key
     request.session.modified = True
     return JsonResponse({"success": True, "practice_type": practice_type,
                          "session_id": str(active.pk) if active else None})
@@ -239,8 +245,9 @@ def authorize_practice_qr(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def leave_delegated_practice(request):
-    request.session.pop(PRACTICE_DELEGATION_KEY, None)
-    request.session.modified = True
+    selected = _selected_practice_key(request)
+    if selected != "self":
+        _remove_practice_grant(request, selected)
     return JsonResponse({"success": True})
 
 
@@ -280,6 +287,11 @@ def shooting_practice(request):
         return redirect('practice:practice_home')
 
     session_context = SessionManager.get_session_context(request)
+    selected_key = _selected_practice_key(request)
+    if selected_key != "self":
+        grant = _practice_grants(request).get(selected_key)
+        if grant and grant.get("practice_type") == "pointing":
+            return redirect("practice:pointing_practice")
     codename = _practice_owner_codename(request, 'shooting')
 
     active_session = PracticeSession.objects.filter(
@@ -363,6 +375,7 @@ def shooting_practice(request):
 
     context = {
         **session_context,
+        **_practice_owner_ui_context(request, 'shooting'),
         'delegated_practice_name': delegated_name,
         'active_session': active_session,
         'recent_sessions': recent_sessions,
@@ -387,6 +400,11 @@ def pointing_practice(request):
         return redirect('practice:practice_home')
 
     session_context = SessionManager.get_session_context(request)
+    selected_key = _selected_practice_key(request)
+    if selected_key != "self":
+        grant = _practice_grants(request).get(selected_key)
+        if grant and grant.get("practice_type") == "shooting":
+            return redirect("practice:shooting_practice")
     codename = _practice_owner_codename(request, 'pointing')
 
     active_session = PracticeSession.objects.filter(
@@ -410,6 +428,7 @@ def pointing_practice(request):
 
     context = {
         **session_context,
+        **_practice_owner_ui_context(request, 'pointing'),
         'delegated_practice_name': delegated_name,
         'active_session': active_session,
         'recent_sessions': recent_sessions,
@@ -443,10 +462,14 @@ def start_session(request):
     if practice_type not in ['shooting', 'pointing']:
         return JsonResponse({'error': 'Invalid practice type'}, status=400)
 
-    grant = getattr(request, 'session', {}).get(PRACTICE_DELEGATION_KEY) or {}
+    grants = _practice_grants(request)
+    chosen = _selected_practice_key(request, grants)
+    grant = grants.get(chosen) if chosen != "self" else None
     if grant and grant.get('practice_type') != practice_type:
         return JsonResponse({'error': 'QR authorization is for a different practice type'}, status=403)
     codename = _practice_owner_codename(request, practice_type)
+    if not codename:
+        return JsonResponse({'error': 'Choose an authorised practice first'}, status=409)
 
     valid_distances = ['6m', '7m', '8m', '9m', '10m', 'ing']
     if distance not in valid_distances:
@@ -507,11 +530,10 @@ def start_session(request):
             'message': 'Practice session started!',
             'drill_type': session.drill_type,
         }
-        grant = getattr(request, "session", {}).get(PRACTICE_DELEGATION_KEY) or {}
         if grant and not grant.get("session_id"):
-            grant["session_id"] = str(session.pk)
-            request.session[PRACTICE_DELEGATION_KEY] = grant
-            request.session.modified = True
+            grant = {**grant, "session_id": str(session.pk)}
+            grants[chosen] = grant
+            _save_practice_grants(request, grants)
         if court_complex_obj:
             response['court_complex_name'] = court_complex_obj.name
 
@@ -544,10 +566,11 @@ def record_shot(request):
         if outcome not in valid_outcomes:
             return JsonResponse({'error': 'Invalid shot outcome'}, status=400)
 
-        session = _practice_active_session(request)
+        requested_id = data.get("session_id")
+        session = _practice_active_session(request, session_id=requested_id)
 
         if not session:
-            return JsonResponse({'error': 'No active session found'}, status=404)
+            return JsonResponse({'error': 'Practice selection changed or session ended'}, status=409 if requested_id else 404)
 
         # Validate TdP-specific fields (also used for Tactical, Sequence, and Hidden Target)
         if session.drill_type in ('tir_de_precision', 'tactical', 'sequence', 'hidden_target'):
@@ -639,11 +662,12 @@ def undo_last_shot(request):
     if not CodenameSessionManager.is_logged_in(request) and not request.session.get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
-    session = _practice_active_session(request)
+    requested_id = _requested_practice_session_id(request)
+    session = _practice_active_session(request, session_id=requested_id)
     codename = session.player_codename if session else None
 
     if not session:
-        return JsonResponse({'error': 'No active session found'}, status=404)
+        return JsonResponse({'error': 'Practice selection changed or session ended'}, status=409 if requested_id else 404)
 
     last_shot = session.shots.order_by('-sequence_number').first()
 
@@ -710,27 +734,27 @@ def end_session(request):
     if not CodenameSessionManager.is_logged_in(request) and not request.session.get(PRACTICE_DELEGATION_KEY):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
-    session = _practice_active_session(request)
+    requested_id = _requested_practice_session_id(request)
+    session = _practice_active_session(request, session_id=requested_id)
     codename = session.player_codename if session else None
 
     if not session:
-        return JsonResponse({'error': 'No active session found'}, status=404)
+        return JsonResponse({'error': 'Practice selection changed or session ended'}, status=409 if requested_id else 404)
 
     try:
         with transaction.atomic():
             session.end_session()
-            grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
-            if (grant.get('session_id') == str(session.pk)
+            grants = _practice_grants(request)
+            selected = _selected_practice_key(request, grants)
+            grant = grants.get(selected) if selected != "self" else None
+            if (grant and grant.get('session_id') == str(session.pk)
                     and grant.get('codename') == session.player_codename):
-                # Keep a strictly scoped, short-lived read grant for a QR
-                # delegate's post-session summary. Never grant history access.
                 request.session[PRACTICE_SUMMARY_GRANT_KEY] = {
                     'session_id': str(session.pk),
                     'codename': session.player_codename,
                     'issued_at': int(timezone.now().timestamp()),
                 }
-                request.session.pop(PRACTICE_DELEGATION_KEY, None)
-                request.session.modified = True
+                _remove_practice_grant(request, selected)
             PracticeStatistics.update_for_player(codename)
             summary = calculate_session_summary(session)
 
@@ -759,11 +783,10 @@ def session_summary(request, session_id):
 
     # QR delegates may inspect only the active session they were authorized for,
     # or its completed summary for 15 minutes immediately after finishing.
-    qr_grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
-    active_delegate = (
-        session.is_active
-        and qr_grant.get('session_id') == str(session.pk)
-        and qr_grant.get('codename') == session.player_codename
+    active_delegate = session.is_active and any(
+        grant.get("session_id") == str(session.pk)
+        and grant.get("codename") == session.player_codename
+        for grant in _practice_grants(request).values()
     )
     summary_grant = request.session.get(PRACTICE_SUMMARY_GRANT_KEY) or {}
     try:
