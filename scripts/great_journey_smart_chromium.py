@@ -15,6 +15,10 @@ from statistics import median
 from time import perf_counter
 from urllib.parse import urljoin, urlsplit
 
+# Direct 'python scripts/...' execution makes scripts/ sys.path[0]; keep Django
+# project package importable without relying on a runner-specific PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 ACTORS = Path("/tmp/great_journey_smart_actors.json")
 ORIGIN = "http://127.0.0.1:8765"
 
