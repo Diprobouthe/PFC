@@ -38,8 +38,9 @@ def _practice_grant_key(grant):
 
 
 def _practice_grants(request):
-    grants = dict(request.session.get(PRACTICE_GRANTS_KEY) or {})
-    legacy = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+    session_data = getattr(request, "session", {})
+    grants = dict(session_data.get(PRACTICE_GRANTS_KEY) or {})
+    legacy = session_data.get(PRACTICE_DELEGATION_KEY) or {}
     if legacy.get("codename") and legacy.get("practice_type"):
         key = _practice_grant_key(legacy)
         if key not in grants:
@@ -60,7 +61,7 @@ def _save_practice_grants(request, grants):
 def _selected_practice_key(request, grants=None):
     if grants is None:
         grants = _practice_grants(request)
-    selected = request.session.get(PRACTICE_SELECTED_KEY)
+    selected = getattr(request, "session", {}).get(PRACTICE_SELECTED_KEY)
     if selected == "self" or selected in grants:
         return selected
     return list(grants)[-1] if grants else "self"
