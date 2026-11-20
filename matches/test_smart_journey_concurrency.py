@@ -79,7 +79,12 @@ class JourneySmartTwentyPlayerGate(TransactionTestCase):
                 session["player_codename"] = codename
                 session["session_active"] = True
                 session.save()
-                self.actors.append((client, reverse("match_detail", args=[match.pk])))
+                self.actors.append((
+                    client,
+                    reverse("scoreboard_detail", kwargs={
+                        "scoreboard_id": match.live_scoreboard.pk,
+                    }),
+                ))
 
     @staticmethod
     def _click_repeatedly(actor):
