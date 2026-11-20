@@ -68,7 +68,7 @@ def seed():
             home = Team.objects.create(name=f"CI browser home {idx}")
             player = Player.objects.create(name=f"CI browser player {idx}",
                                            team=home)
-            codename = f"CBJ{idx:04d}"
+            codename = f"CBJ{idx:03d}"
             PlayerCodename.objects.create(player=player, codename=codename)
             MeleePlayer.objects.create(
                 tournament=tournament, player=player, original_team=home)
