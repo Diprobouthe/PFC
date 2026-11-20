@@ -1,0 +1,56 @@
+name: Great Journey Smart release gate (CURRENT HEAD, 20 players)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pfc_core/smart_router.py'
+      - 'practice/**'
+      - 'matches/test_smart_journey_concurrency.py'
+      - '.github/workflows/great-journey-smart-release-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  current-head-smart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: journey_smart_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d journey_smart_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/journey_smart_test
+      SECRET_KEY: synthetic-journey-smart-ci-not-for-production
+      DEBUG: 'False'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Check out actual proposed PR code (never historical Smart versions)
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate Django
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: 20 real Super Melee participants, 5 Smart requests each, real Postgres
+        run: |
+          python manage.py test \
+            matches.test_smart_journey_concurrency \
+            practice.test_delegated_qr \
+            matches.test_melee_round_assignment_consumers \
+            --verbosity 2
