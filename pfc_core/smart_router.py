@@ -59,6 +59,7 @@ from teams.models import Player
 PRIORITY_TOURNAMENT_WAITING_VALIDATE   = 10   # Score validation (tournament)
 PRIORITY_TOURNAMENT_ACTIVE_SUBMIT      = 20   # Score submission (active match)
 PRIORITY_FRIENDLY_NEEDS_VALIDATION     = 30   # Friendly game score validation
+PRIORITY_ACTIVE_PRACTICE                = 90   # Fallback only when no current match/friendly action
 PRIORITY_TOURNAMENT_NEEDS_ACTIVATION   = 40   # Opponent activated, you haven't
 PRIORITY_TOURNAMENT_PENDING            = 50   # Nobody activated yet
 PRIORITY_FRIENDLY_ACTIVE               = 55   # Active/live friendly game (player in it)
@@ -91,6 +92,49 @@ def _session_player(request):
     request.session['smart_router_player_id'] = pc.player_id
     request.session['smart_router_player_codename'] = codename
     return pc.player
+
+
+def _resolve_active_practice(request):
+    """Return to an existing practice, including one authorised by player QR.
+
+    A QR grant belongs to this browser session, not the logged-in player's
+    identity. Reuse the practice module's authorization resolver so Smart
+    cannot choose a different owner from the shot-recording endpoints.
+
+    A grant without session_id authorises starting a practice, but does not
+    represent a practice already in progress.
+    """
+    from practice.views import (
+        _practice_active_session, _practice_grants, _selected_practice_key,
+    )
+    grants = _practice_grants(request)
+    selected = _selected_practice_key(request, grants)
+    if selected == 'self' and not (request.session.get('session_active')
+                                   and request.session.get('player_codename')):
+        return None
+    if selected != 'self' and not grants[selected].get('session_id'):
+        return None
+
+    active = _practice_active_session(request)
+    if active is None or active.practice_type not in ('shooting', 'pointing'):
+        return None
+
+    destination = (
+        'practice:shooting_practice'
+        if active.practice_type == 'shooting'
+        else 'practice:pointing_practice'
+    )
+    label = (
+        _("Resume Shooting Practice")
+        if active.practice_type == 'shooting'
+        else _("Resume Pointing Practice")
+    )
+    return {
+        'priority': PRIORITY_ACTIVE_PRACTICE,
+        'url': reverse(destination),
+        'label': label,
+        'match_type': 'practice',
+    }
 
 
 def resolve_decision_url(request):
@@ -133,7 +177,16 @@ def resolve_decision_url(request):
     # 3b. Friendly games the player is already IN
     candidates.extend(_resolve_friendly_games(player))
 
-    # 3c. Location-aware friendly game join (only if no score actions exist)
+    # 3c. A tournament/friendly action always wins over a lingering practice.
+    # No extra Practice query during a busy Super Mêlée Smart tap.
+    # The automatic match-state JSON poller remains unaffected.
+    practice = None
+    if not candidates:
+        practice = _resolve_active_practice(request)
+        if practice:
+            candidates.append(practice)
+
+    # 3d. Location-aware friendly game join (only if no score actions exist)
     #     This is the key safety gate: if the player has ANY score-related
     #     responsibility (priority <= 30), we skip the location shortcut
     #     entirely so they handle their responsibilities first.
@@ -141,7 +194,7 @@ def resolve_decision_url(request):
         c['priority'] <= PRIORITY_FRIENDLY_NEEDS_VALIDATION
         for c in candidates
     )
-    if not has_score_responsibility:
+    if not has_score_responsibility and not practice:
         nearby = _resolve_nearby_friendly_games(request, player)
         if nearby:
             candidates.append(nearby)
@@ -158,7 +211,8 @@ def resolve_decision_url(request):
     candidates.sort(key=lambda c: c['priority'])
     best = candidates[0]
 
-    # ---- Step 5: If only one candidate, go straight there ----
+    # ---- Step 5: Single match/practice routes directly; actual multi-match
+    # choices still use the existing choice screen.
     if len(candidates) == 1:
         return redirect(best['url'])
 
@@ -579,6 +633,9 @@ def my_matches_list(request):
     candidates = []
     candidates.extend(_resolve_tournament_matches(player))
     candidates.extend(_resolve_friendly_games(player))
+    practice = _resolve_active_practice(request)
+    if practice:
+        candidates.append(practice)
     candidates.sort(key=lambda c: c['priority'])
 
     return render(request, 'pfc_core/my_matches_list.html', {

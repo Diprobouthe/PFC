@@ -20,8 +20,16 @@ class CodenameSessionManager:
         """Store player codename in session"""
         if not CodenameSessionManager.is_valid_codename(codename):
             return False
-        
-        request.session['player_codename'] = codename.upper()
+
+        incoming = codename.upper()
+        current = request.session.get('player_codename')
+        # Browser-scoped QR authorizations belong to the operator. Changing
+        # player login must not carry another operator's grant across accounts.
+        if current != incoming:
+            for key in ('delegated_practice_session', 'practice_qr_grants',
+                        'practice_selected_owner', 'delegated_practice_summary'):
+                request.session.pop(key, None)
+        request.session['player_codename'] = incoming
         request.session['codename_login_time'] = timezone.now().isoformat()
         request.session['session_active'] = True
         return True

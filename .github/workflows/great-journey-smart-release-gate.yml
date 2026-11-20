@@ -1,0 +1,88 @@
+name: Great Journey Smart release gate (CURRENT HEAD, 20 players)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pfc_core/smart_router.py'
+      - 'practice/**'
+      - 'matches/test_smart_journey_concurrency.py'
+      - 'scripts/great_journey_smart_chromium.py'
+      - '.github/workflows/great-journey-smart-release-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  current-head-smart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: journey_smart_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d journey_smart_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/journey_smart_test
+      SECRET_KEY: synthetic-journey-smart-ci-not-for-production
+      DEBUG: 'False'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Check out actual proposed PR code (never historical Smart versions)
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate Django
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: 20 real Super Melee participants, 5 Smart requests each, real Postgres
+        run: |
+          python manage.py test \
+            matches.test_smart_journey_concurrency \
+            practice.test_delegated_qr \
+            matches.test_melee_round_assignment_consumers \
+            --verbosity 2
+      - name: Install browser and Daphne for real current-head tap test
+        run: |
+          pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Seed isolated synthetic 20-player Super Melee
+        env:
+          JOURNEY_SMART_ISOLATED: '1'
+        run: |
+          python manage.py migrate --noinput
+          python scripts/great_journey_smart_chromium.py seed
+      - name: Test five rapid Smart taps on 20 simultaneous Chromium players
+        run: |
+          daphne -b 127.0.0.1 -p 8765 pfc_core.asgi:application > /tmp/journey-smart-daphne.log 2>&1 &
+          echo $! > /tmp/journey-smart-daphne.pid
+          for attempt in $(seq 1 35); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8765/; then break; fi
+            sleep 1
+          done
+          python scripts/great_journey_smart_chromium.py browser
+      - name: Stop isolated browser server
+        if: always()
+        run: |
+          if test -f /tmp/journey-smart-daphne.pid; then kill $(cat /tmp/journey-smart-daphne.pid) 2>/dev/null || true; fi
+          cp /tmp/journey-smart-daphne.log ./journey-smart-daphne.log 2>/dev/null || true
+      - name: Attach current-head browser server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-smart-current-head-daphne
+          path: journey-smart-daphne.log
+          retention-days: 7

@@ -616,6 +616,8 @@
             </a>
         </div>
 
+        {% include 'practice/_owner_switch.html' %}
+
         {% if not active_session %}
         <!-- ===================================================
              START SESSION CARD
@@ -623,7 +625,7 @@
         <div class="card shadow-sm">
             <div class="card-header">
                 <h5 class="card-title mb-0"><i class="fas fa-bullseye me-2"></i>Shooting Practice</h5>
-                <div class="small text-muted mt-1">{{ player_name|default:session_codename }}</div>
+                <div class="small text-muted mt-1">{{ recording_player_name|default:session_codename }}</div>
             </div>
             <div class="card-body">
 
@@ -794,7 +796,7 @@
                 <div>
                     <div class="tdp-topbar-title"><i class="fas fa-eye-slash me-1"></i>Hidden Target</div>
                     <div class="tdp-topbar-sub">
-                        {{ player_name|default:session_codename }}
+                        {{ recording_player_name|default:session_codename }}
                         {% if active_session.court_complex %}
                             &nbsp;&bull;&nbsp;<i class="fas fa-map-marker-alt"></i>&nbsp;{{ active_session.court_complex.name }}
                         {% endif %}
@@ -943,7 +945,7 @@
                 <div>
                     <div class="tdp-topbar-title"><i class="fas fa-list-ol me-1"></i>Sequence Drill</div>
                     <div class="tdp-topbar-sub">
-                        {{ player_name|default:session_codename }}
+                        {{ recording_player_name|default:session_codename }}
                         {% if active_session.court_complex %}
                             &nbsp;&bull;&nbsp;<i class="fas fa-map-marker-alt"></i>&nbsp;{{ active_session.court_complex.name }}
                         {% endif %}
@@ -1096,7 +1098,7 @@
                 <div>
                     <div class="tdp-topbar-title"><i class="fas fa-chess me-1"></i>Tactical Situations</div>
                     <div class="tdp-topbar-sub">
-                        {{ player_name|default:session_codename }}
+                        {{ recording_player_name|default:session_codename }}
                         {% if active_session.court_complex %}
                             &nbsp;&bull;&nbsp;<i class="fas fa-map-marker-alt"></i>&nbsp;{{ active_session.court_complex.name }}
                         {% endif %}
@@ -1249,7 +1251,7 @@
                 <div>
                     <div class="tdp-topbar-title"><i class="fas fa-trophy me-1"></i>Tir de Précision</div>
                     <div class="tdp-topbar-sub">
-                        {{ player_name|default:session_codename }}
+                        {{ recording_player_name|default:session_codename }}
                         {% if active_session.court_complex %}
                             &nbsp;&bull;&nbsp;<i class="fas fa-map-marker-alt"></i>&nbsp;{{ active_session.court_complex.name }}
                         {% endif %}
@@ -1399,7 +1401,7 @@
             <!-- Session Header -->
             <div class="session-header text-center mb-3">
                 <h1 class="h3 mb-2"><i class="fas fa-bullseye me-2"></i>Shooting Practice</h1>
-                <p class="mb-1 opacity-75">{{ player_name|default:session_codename }}</p>
+                <p class="mb-1 opacity-75">{{ recording_player_name|default:session_codename }}</p>
                 {% if active_session %}
                 <div>
                     {% if active_session.drill_type %}
@@ -1516,13 +1518,6 @@
 
 <!-- No loading modal — all interactions use inline button state -->
 
-<div class="container my-3" id="practiceQrDelegationPanel">
-  <button type="button" class="btn btn-outline-primary btn-sm" onclick="openQrScanner()">Scan player QR for practice</button>
-  {% if delegated_practice_name %}
-  <div class="alert alert-info mt-2">Recording {{ delegated_practice_name }}'s shooting practice</div>
-  <button type="button" class="btn btn-outline-secondary btn-sm" id="leavePracticeDelegation">Leave delegated practice</button>
-  {% endif %}
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1555,6 +1550,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================================
 //  SHARED UTILITIES
 // ============================================================
+const PRACTICE_SESSION_ID = '{% if active_session %}{{ active_session.id }}{% endif %}';
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
     document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
 
@@ -1576,6 +1572,12 @@ function hideLoading() {
 function showError(msg) { alert('Error: ' + msg); }
 
 async function postJSON(url, body) {
+    // Bind recording operations to the exact session displayed in this tab.
+    // A player switch in another tab must not silently retarget a shot.
+    if (['record_shot', 'undo_shot', 'end_session'].some(
+      action => url.includes(action.replaceAll('_', '-')))) {
+      body = { ...body, session_id: PRACTICE_SESSION_ID };
+    }
     const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },

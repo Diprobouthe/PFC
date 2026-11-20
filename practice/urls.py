@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/end-session/', views.end_session, name='end_session'),
 
     path('api/authorize-qr/', views.authorize_practice_qr, name='authorize_practice_qr'),
+    path('api/select-owner/', views.select_practice_owner, name='select_practice_owner'),
     path('api/leave-delegation/', views.leave_delegated_practice, name='leave_delegated_practice'),
 
     # Court complexes API (for session start form)
