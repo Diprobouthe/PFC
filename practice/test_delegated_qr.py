@@ -312,3 +312,16 @@ class PracticeOwnerSwitchTests(TestCase):
         self.assertNotIn("practice_qr_grants", self.client.session)
         self.assertNotIn("delegated_practice_session", self.client.session)
         self.assertNotIn("practice_selected_owner", self.client.session)
+
+    def test_changing_operator_login_revokes_grants_but_same_login_retains(self):
+        from types import SimpleNamespace
+        from pfc_core.session_utils import CodenameSessionManager
+
+        self._scan("LINDA1", "shooting")
+        request = SimpleNamespace(session=dict(self.client.session))
+        self.assertTrue(CodenameSessionManager.login_player(request, "SELF01"))
+        self.assertIn("practice_qr_grants", request.session)
+        self.assertTrue(CodenameSessionManager.login_player(request, "NEW002"))
+        self.assertNotIn("practice_qr_grants", request.session)
+        self.assertNotIn("delegated_practice_session", request.session)
+        self.assertNotIn("practice_selected_owner", request.session)
