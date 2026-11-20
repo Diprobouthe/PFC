@@ -152,7 +152,7 @@ class SmartPracticeRoutingTests(TestCase):
         self.assertRedirects(response, reverse("practice:pointing_practice"),
                              fetch_redirect_response=False)
 
-    def test_smart_routes_to_practice_directly_even_if_friendly_is_available(self):
+    def test_active_friendly_wins_over_lingering_practice_without_extra_query(self):
         self._login()
         PracticeSession.objects.create(player_codename="SELF01", practice_type="shooting")
         from types import SimpleNamespace
@@ -162,21 +162,31 @@ class SmartPracticeRoutingTests(TestCase):
                     return_value=SimpleNamespace(pk=1, id=1)),
               patch("pfc_core.smart_router._resolve_tournament_matches", return_value=[]),
               patch("pfc_core.smart_router._resolve_friendly_games", return_value=[friendly]),
-              patch("pfc_core.smart_router._resolve_nearby_friendly_games", return_value=None)):
+              patch("pfc_core.smart_router._resolve_nearby_friendly_games", return_value=None),
+              patch("pfc_core.smart_router._resolve_active_practice") as practice_lookup):
             response = self.client.get(reverse("my_active_matches"))
-        self.assertRedirects(response, reverse("practice:shooting_practice"),
-                             fetch_redirect_response=False)
+        self.assertRedirects(response, friendly["url"], fetch_redirect_response=False)
+        practice_lookup.assert_not_called()
+
+    def test_pending_super_melee_match_wins_over_active_practice(self):
+        self._login()
+        PracticeSession.objects.create(player_codename="SELF01", practice_type="shooting")
+        pending = {"priority": 40, "url": "/matches/activate/123/",
+                   "label": "Activate Super Melee", "match_type": "tournament"}
+        with patch("pfc_core.smart_router._resolve_active_practice") as practice_lookup:
+            response = self._smart(tournament_candidates=[pending])
+        self.assertRedirects(response, pending["url"], fetch_redirect_response=False)
+        practice_lookup.assert_not_called()
 
     def test_urgent_score_action_still_precedes_practice(self):
         self._login()
         PracticeSession.objects.create(player_codename="SELF01", practice_type="shooting")
         urgent = {"priority": 10, "url": "/score/validate/",
                   "label": "Validate Score", "match_type": "tournament"}
-        response = self._smart(tournament_candidates=[urgent])
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["best"]["priority"], 10)
-        self.assertTrue(any(c["match_type"] == "practice"
-                            for c in response.context["others"]))
+        with patch("pfc_core.smart_router._resolve_active_practice") as practice_lookup:
+            response = self._smart(tournament_candidates=[urgent])
+        self.assertRedirects(response, urgent["url"], fetch_redirect_response=False)
+        practice_lookup.assert_not_called()
 
     def test_match_state_json_poller_does_not_auto_redirect_to_practice(self):
         self._login()
