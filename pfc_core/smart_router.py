@@ -59,7 +59,7 @@ from teams.models import Player
 PRIORITY_TOURNAMENT_WAITING_VALIDATE   = 10   # Score validation (tournament)
 PRIORITY_TOURNAMENT_ACTIVE_SUBMIT      = 20   # Score submission (active match)
 PRIORITY_FRIENDLY_NEEDS_VALIDATION     = 30   # Friendly game score validation
-PRIORITY_ACTIVE_PRACTICE                = 35   # Return to an existing practice session
+PRIORITY_ACTIVE_PRACTICE                = 90   # Fallback only when no current match/friendly action
 PRIORITY_TOURNAMENT_NEEDS_ACTIVATION   = 40   # Opponent activated, you haven't
 PRIORITY_TOURNAMENT_PENDING            = 50   # Nobody activated yet
 PRIORITY_FRIENDLY_ACTIVE               = 55   # Active/live friendly game (player in it)
@@ -104,9 +104,9 @@ def _resolve_active_practice(request):
     A grant without session_id authorises starting a practice, but does not
     represent a practice already in progress.
     """
-    from practice.views import PRACTICE_DELEGATION_KEY, _practice_active_session
-
-    from practice.views import _practice_grants, _selected_practice_key
+    from practice.views import (
+        _practice_active_session, _practice_grants, _selected_practice_key,
+    )
     grants = _practice_grants(request)
     selected = _selected_practice_key(request, grants)
     if selected == 'self' and not (request.session.get('session_active')
@@ -177,12 +177,14 @@ def resolve_decision_url(request):
     # 3b. Friendly games the player is already IN
     candidates.extend(_resolve_friendly_games(player))
 
-    # 3c. Active practice (QR delegate or the player's own session).
-    # This does not affect the match-state JSON poller below: navigating to
-    # practice is an explicit Smart-button action, never an automatic jump.
-    practice = _resolve_active_practice(request)
-    if practice:
-        candidates.append(practice)
+    # 3c. A tournament/friendly action always wins over a lingering practice.
+    # No extra Practice query during a busy Super Mêlée Smart tap.
+    # The automatic match-state JSON poller remains unaffected.
+    practice = None
+    if not candidates:
+        practice = _resolve_active_practice(request)
+        if practice:
+            candidates.append(practice)
 
     # 3d. Location-aware friendly game join (only if no score actions exist)
     #     This is the key safety gate: if the player has ANY score-related
@@ -192,7 +194,7 @@ def resolve_decision_url(request):
         c['priority'] <= PRIORITY_FRIENDLY_NEEDS_VALIDATION
         for c in candidates
     )
-    if not has_score_responsibility:
+    if not has_score_responsibility and not practice:
         nearby = _resolve_nearby_friendly_games(request, player)
         if nearby:
             candidates.append(nearby)
@@ -209,10 +211,9 @@ def resolve_decision_url(request):
     candidates.sort(key=lambda c: c['priority'])
     best = candidates[0]
 
-    # ---- Step 5: An ongoing practice resumes immediately unless an urgent
-    # score responsibility took precedence. Other actions remain accessible
-    # via the non-smart list; do not force a choice screen just to resume.
-    if len(candidates) == 1 or best['match_type'] == 'practice':
+    # ---- Step 5: Single match/practice routes directly; actual multi-match
+    # choices still use the existing choice screen.
+    if len(candidates) == 1:
         return redirect(best['url'])
 
     # ---- Step 6: Multiple candidates — show best + direct links to all others ----
