@@ -107,6 +107,12 @@ def _resolve_active_practice(request):
     from practice.views import PRACTICE_DELEGATION_KEY, _practice_active_session
 
     grant = request.session.get(PRACTICE_DELEGATION_KEY) or {}
+    # The practice views require an authenticated codename unless a valid QR
+    # delegation is present. Match that gate and avoid needless DB lookups for
+    # older match-only sessions carrying just a player_codename.
+    if not grant and not (request.session.get('session_active')
+                          and request.session.get('player_codename')):
+        return None
     if grant and not grant.get('session_id'):
         return None
 
