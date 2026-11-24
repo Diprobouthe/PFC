@@ -317,11 +317,9 @@
                         <td class="mkt-rank">{{ data.rank }}</td>
                         <td>
                             <div class="mkt-player">
-                                {% if data.player.profile.profile_picture %}
-                                    {% player_avatar_url data.player.profile 96 as avatar_1x %}
-                                    {% player_avatar_url data.player.profile 192 as avatar_2x %}
-                                    <img src="{{ avatar_1x }}"
-                                         srcset="{{ avatar_1x }} 96w, {{ avatar_2x }} 192w"
+                                {% if data.has_picture %}
+                                    <img src="{{ data.avatar_96 }}"
+                                         srcset="{{ data.avatar_96 }} 96w, {{ data.avatar_192 }} 192w"
                              sizes="32px"
                                          alt="{{ data.player.name }}"
                                          class="mkt-avatar"
