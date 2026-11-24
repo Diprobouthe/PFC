@@ -7,7 +7,21 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext as _, ngettext
 from datetime import timedelta
-from .models import PlayerProfile
+from teams.models import PlayerProfile
+from teams.avatar_utils import profile_avatar_name
+from types import SimpleNamespace
+
+
+def avatar_url(row, size):
+    name = row['profile_picture']
+    if not name:
+        return ''
+    try:
+        storage = PlayerProfile._meta.get_field('profile_picture').storage
+        variant = profile_avatar_name(SimpleNamespace(player_id=row['player_id']), size)
+        return storage.url(variant if storage.exists(variant) else name)
+    except (AttributeError, TypeError, ValueError):
+        return ''
 import json
 
 
@@ -91,22 +105,27 @@ def pfc_market(request):
     """
     # Get all active player profiles with ratings
     # Inactive profiles are excluded (admin can deactivate a profile without deleting it)
-    profiles = PlayerProfile.objects.filter(is_active=True).select_related('player__team').order_by('-value')
+    profiles = PlayerProfile.objects.filter(is_active=True).order_by('-value').values(
+        'player_id', 'player__name', 'player__team__name', 'value', 'rating_history', 'profile_picture'
+    )
     
     # Calculate trend for each player
     market_data = []
     for profile in profiles:
-        trend = calculate_player_trend(profile)
+        trend = calculate_player_trend(SimpleNamespace(rating_history=profile['rating_history']))
         
         market_data.append({
-            'player': profile.player,
-            'rating': profile.value,
+            'player': {'id': profile['player_id'], 'name': profile['player__name']},
+            'has_picture': bool(profile['profile_picture']),
+            'avatar_96': avatar_url(profile, 96),
+            'avatar_192': avatar_url(profile, 192),
+            'rating': profile['value'],
             'trend_direction': trend['direction'],
             'trend_change': trend['change'],
             'trend_percentage': trend['percentage'],
             'games_analyzed': trend['games_analyzed'],
             'window_label': trend['window_label'],
-            'team': profile.player.team.name if profile.player.team else _('No Team'),
+            'team': profile['player__team__name'] if profile['player__team__name'] is not None else _('No Team'),
             'rank': 0  # Will be set after sorting
         })
     
