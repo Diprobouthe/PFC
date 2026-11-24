@@ -1,0 +1,99 @@
+name: Market memory root cause
+on:
+  push:
+    branches: [diagnostics/market-memory-20261124]
+    paths:
+      - '.github/workflows/market-memory-causes.yml'
+      - 'diagnostics/market_memory_causes.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_market_memory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_market_memory_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_market_memory_test
+      SECRET_KEY: isolated-market-memory-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PFC_MARKET_DIAGNOSTIC: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Set up synthetic database
+        run: |
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput
+          python -m diagnostics.market_memory
+          python manage.py shell -c 'from teams.models import PlayerProfile; ids=list(PlayerProfile.objects.order_by("pk").values_list("pk",flat=True)[:150]); PlayerProfile.objects.filter(pk__in=ids).update(profile_picture="synthetic/avatar.webp")'
+      - name: Isolate object retention with weakrefs and cycle breaking
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p market-causes-output
+          daphne -b 127.0.0.1 -p 8765 diagnostics.market_memory_causes:application >market-causes-output/server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; cat market-causes-output/server.log' EXIT
+          python - <<'PY' | tee market-causes-output/results.jsonl
+          import json, time
+          from urllib.request import urlopen, Request
+          base = "http://127.0.0.1:8765"
+          def get(path):
+              with urlopen(Request(base + path, headers={"Accept-Language": "en", "Connection": "close"}), timeout=90) as r:
+                  assert r.status == 200
+                  return r.read()
+          def probe(command):
+              return json.loads(get("/__cause_probe__/" + command))
+          for i in range(60):
+              try:
+                  get("/auth/team/status/")
+                  break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Daphne did not start")
+          market = "/teams/players/pfc-market/"
+          # Warm all normal imports and template caches first.
+          assert b"Synthetic Player" in get(market)
+          for repetition in range(2):
+              for mode in ("full", "orm_only", "break_orm", "break_image", "break_both"):
+                  baseline = probe(mode)
+                  body = get(market)
+                  assert (body == b"ORM ONLY" if mode == "orm_only" else b"Synthetic Player" in body)
+                  size = len(body)
+                  del body
+                  time.sleep(0.3)
+                  before = probe("before_gc")
+                  after = probe("after_gc")
+                  assert before["profiles_created"] == 300, before
+                  print("CAUSE_RESULT " + json.dumps({"repetition": repetition+1,
+                        "mode": mode, "response_bytes": size,
+                        "baseline": baseline, "before_gc": before, "after_gc": after}), flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-memory-causes
+          path: market-causes-output/
+          if-no-files-found: warn
