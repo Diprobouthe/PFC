@@ -1,0 +1,137 @@
+name: Market flat A-B memory comparison
+on:
+  push:
+    branches: [diagnostics/market-memory-20261124]
+    paths:
+      - '.github/workflows/market-flat-comparison.yml'
+      - 'diagnostics/market_flat_candidate.py'
+      - 'diagnostics/market_flat_server.py'
+      - 'teams/templates/teams/pfc_market_flat_diagnostic.html'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [rss, trace]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_market_memory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_market_memory_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_market_memory_test
+      SECRET_KEY: isolated-market-memory-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PFC_MARKET_DIAGNOSTIC: "1"
+      DIAG_MODE: ${{ matrix.mode }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Set up synthetic database
+        run: |
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput
+          python -m diagnostics.market_memory
+          python manage.py shell -c 'from teams.models import PlayerProfile; ids=list(PlayerProfile.objects.order_by("pk").values_list("pk",flat=True)[:150]); PlayerProfile.objects.filter(pk__in=ids).update(profile_picture="synthetic/avatar.webp")'
+      - name: Compare fresh Daphne processes, unchanged versus flat
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p flat-comparison-output
+          for variant in original flat; do
+            PFC_MARKET_VARIANT="$variant" daphne -b 127.0.0.1 -p 8765 diagnostics.market_flat_server:application >"flat-comparison-output/$variant.server.log" 2>&1 &
+            server_pid=$!
+            trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+            VARIANT="$variant" python - <<'PY' | tee "flat-comparison-output/$variant.jsonl"
+          import hashlib, json, os, time
+          from pathlib import Path
+          from urllib.request import urlopen, Request
+          from bs4 import BeautifulSoup
+          base = "http://127.0.0.1:8765"
+          variant = os.environ["VARIANT"]
+          def get(path, language="en"):
+              with urlopen(Request(base + path, headers={"Accept-Language": language, "Connection": "close"}), timeout=90) as r:
+                  assert r.status == 200
+                  return r.read()
+          def probe(command, label):
+              value = json.loads(get("/__memory_probe__/" + command))
+              print("AB_SAMPLE " + json.dumps({"variant": variant, "label": label, **value}), flush=True)
+              return value
+          def fingerprint(body):
+              soup = BeautifulSoup(body, "html.parser")
+              rows = soup.select("tr[data-name]")
+              assert len(rows) == 300, len(rows)
+              # Canonicalize markup while retaining the actual row data, URLs and text.
+              def clean(node):
+                  return " ".join(str(node).split())
+              content = {"rows": [clean(r) for r in rows],
+                         "stats": [clean(n) for n in soup.select(".mkt-stat-value")],
+                         "count": clean(soup.select_one("#mktCount")),
+                         "sort": [clean(n) for n in soup.select(".mkt-sort-btn")]}
+              return hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+          for attempt in range(60):
+              try:
+                  probe("sample", "startup")
+                  break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Server startup failed")
+          market = "/teams/players/pfc-market/"
+          expected = {}
+          for lang in ("en", "el"):
+              for sort in ("rating", "trend"):
+                  expected[lang + "-" + sort] = fingerprint(get(market+"?sort="+sort, lang))
+          if variant == "original":
+              Path("flat-comparison-output/fingerprints.json").write_text(json.dumps(expected))
+          else:
+              assert expected == json.loads(Path("flat-comparison-output/fingerprints.json").read_text()), expected
+          print("AB_CONTENT " + json.dumps({"variant":variant, "fingerprints":expected}), flush=True)
+          if os.environ["DIAG_MODE"] == "trace":
+              probe("trace", "start_trace")
+          probe("gc", "warm_gc")
+          probe("trim", "warm_trim")
+          probe("sample", "baseline")
+          for i in range(1, 11):
+              body = get(market+("?sort=trend" if i%2==0 else "?sort=rating"))
+              assert b"Synthetic Player" in body
+              del body
+              time.sleep(0.5)
+              probe("sample", f"market_{i}")
+          time.sleep(5)
+          probe("sample", "final_idle")
+          probe("gc", "final_gc")
+          probe("trim", "final_trim")
+          PY
+            kill "$server_pid"
+            wait "$server_pid" || true
+            trap - EXIT
+            if [ "$variant" = flat ]; then grep FLAT_MARKET_ENABLED "flat-comparison-output/$variant.server.log"; fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flat-comparison-${{ matrix.mode }}
+          path: flat-comparison-output/
+          if-no-files-found: warn
