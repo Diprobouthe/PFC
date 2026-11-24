@@ -1,0 +1,113 @@
+name: Market memory diagnostic
+on:
+  push:
+    branches: [diagnostics/market-memory-20261124]
+    paths:
+      - '.github/workflows/market-memory-diagnostic.yml'
+      - 'diagnostics/market_memory.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [rss, trace]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_market_memory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_market_memory_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_market_memory_test
+      SECRET_KEY: isolated-market-memory-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PFC_MARKET_DIAGNOSTIC: "1"
+      DIAG_MODE: ${{ matrix.mode }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Set up synthetic database
+        run: |
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput
+          python -m diagnostics.market_memory
+      - name: Exercise real HTTP lifecycle and collect memory samples
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p market-memory-output
+          daphne -b 127.0.0.1 -p 8765 diagnostics.market_memory:application >market-memory-output/server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; cat market-memory-output/server.log' EXIT
+          python - <<'PY' | tee market-memory-output/client.jsonl
+          import json, os, time
+          from urllib.request import urlopen, Request
+          base = "http://127.0.0.1:8765"
+          def get(path):
+              req = Request(base + path, headers={"Accept-Language": "en", "Connection": "close"})
+              with urlopen(req, timeout=90) as response:
+                  body = response.read()
+                  assert response.status == 200
+                  return body
+          def probe(action, label):
+              value = json.loads(get("/__memory_probe__/" + action))
+              print(json.dumps({"label": label, **value}), flush=True)
+              return value
+          for attempt in range(60):
+              try:
+                  probe("sample", "startup")
+                  break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Daphne did not start")
+          if os.environ["DIAG_MODE"] == "trace":
+              probe("trace", "start_trace")
+          # Lightweight actual Django HTTP control, followed by five Market requests.
+          for i in range(3):
+              get("/auth/team/status/")
+          time.sleep(2)
+          probe("gc", "control_gc")
+          probe("trim", "control_trim")
+          probe("sample", "baseline")
+          for i in range(1, 6):
+              path = "/teams/players/pfc-market/" + ("?sort=trend" if i % 2 == 0 else "")
+              body = get(path)
+              assert b"Synthetic Player" in body, "Market fixture not rendered"
+              print(json.dumps({"label": f"market_{i}_response", "bytes": len(body)}), flush=True)
+              del body
+              time.sleep(2)
+              probe("sample", f"market_{i}_idle")
+          time.sleep(5)
+          probe("sample", "final_idle")
+          probe("gc", "final_gc")
+          probe("trim", "final_trim")
+          if os.environ["DIAG_MODE"] == "trace":
+              probe("snapshot", "top_live_allocations")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-memory-${{ matrix.mode }}
+          path: market-memory-output/
+          if-no-files-found: warn
