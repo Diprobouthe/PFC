@@ -1,0 +1,138 @@
+name: Market residual allocation isolation
+on:
+  push:
+    branches: [diagnostics/market-memory-20261124]
+    paths:
+      - '.github/workflows/market-residual.yml'
+      - 'diagnostics/market_residual.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [isolate, endurance]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_market_memory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_market_memory_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_market_memory_test
+      SECRET_KEY: isolated-market-memory-not-production
+      DEBUG: "False"
+      TOURNAMENT_LINEUP_CLOCK_ENABLED: "false"
+      PFC_MARKET_DIAGNOSTIC: "1"
+      DIAG_MODE: ${{ matrix.mode }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Set up synthetic database
+        run: |
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput
+          python -m diagnostics.market_memory
+          python manage.py shell -c 'from teams.models import PlayerProfile; ids=list(PlayerProfile.objects.order_by("pk").values_list("pk",flat=True)[:150]); PlayerProfile.objects.filter(pk__in=ids).update(profile_picture="synthetic/avatar.webp")'
+      - name: Identify remaining cycles and check long-run RSS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p residual-output
+          if [ "$DIAG_MODE" = isolate ]; then
+            modes="raw django_empty no_render minimal_no_context minimal full"
+            trace=1
+          else
+            modes="full"
+            trace=0
+          fi
+          for mode in $modes; do
+            PFC_MARKET_VARIANT=flat PFC_RESIDUAL_MODE="$mode" PFC_RESIDUAL_TRACE="$trace" daphne -b 127.0.0.1 -p 8765 diagnostics.market_residual:application >"residual-output/$mode.server.log" 2>&1 &
+            server_pid=$!
+            trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+            MODE="$mode" python - <<'PY' | tee "residual-output/$mode.jsonl"
+          import json, os, time
+          from urllib.request import urlopen, Request
+          base = "http://127.0.0.1:8765"
+          mode = os.environ["MODE"]
+          def get(path):
+              with urlopen(Request(base + path, headers={"Accept-Language": "en", "Connection": "close"}), timeout=90) as r:
+                  assert r.status == 200
+                  return r.read()
+          def probe(command, label):
+              value = json.loads(get("/__residual_probe__/" + command))
+              print("RESIDUAL " + json.dumps({"mode":mode, "label":label, **value}), flush=True)
+              return value
+          for attempt in range(60):
+              try:
+                  probe("sample", "startup")
+                  break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Daphne did not start")
+          market = "/teams/players/pfc-market/"
+          def request_market():
+              body = get(market)
+              if mode == "full":
+                  assert b"Synthetic Player" in body
+              elif mode in ("minimal", "minimal_no_context"):
+                  assert body == b"300", body[:100]
+              elif mode == "no_render":
+                  assert body == b"flat query only"
+              elif mode == "django_empty":
+                  assert body == b"empty"
+              elif mode == "raw":
+                  assert body == b"raw ASGI"
+          # Warm up dependencies before taking a baseline.
+          get("/auth/team/status/")
+          for _ in range(4):
+              request_market()
+          time.sleep(1)
+          probe("start", "baseline")
+          endurance = os.environ["DIAG_MODE"] == "endurance"
+          n = 60 if endurance else 5
+          for i in range(1, n+1):
+              request_market()
+              time.sleep(0.1)
+              if not endurance or i % 5 == 0:
+                  probe("sample", f"request_{i}")
+          time.sleep(3)
+          probe("sample", "idle")
+          probe("collect", "after_gc")
+          if not endurance:
+              probe("isolate", "isolated_baseline")
+              request_market()
+              time.sleep(0.3)
+              probe("sample", "isolated_after_request")
+              probe("garbage", "unreachable_graph")
+              probe("sample", "after_graph_release")
+          PY
+            kill "$server_pid"
+            wait "$server_pid" || true
+            trap - EXIT
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: residual-${{ matrix.mode }}
+          path: residual-output/
+          if-no-files-found: warn
