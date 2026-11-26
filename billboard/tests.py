@@ -44,3 +44,20 @@ class ManualHereLocationRetryTemplateTests(SimpleTestCase):
         self.assertNotIn("getPayload()", handler)
         self.assertIn("if(confirmedCourtId)payload.court_id=confirmedCourtId;", handler)
         self.assertIn("clean.searchParams.set('court_id',String(d.court_id))", handler)
+
+    def test_arrival_planner_only_opens_on_going_intent(self):
+        self.assertNotIn('id="expand-chip"', self.template)
+        self.assertIn('aria-controls="expand-panel" aria-expanded="false"', self.template)
+        self.assertIn("function oneTapGoingOpen(){setGoingOpen(true);}", self.template)
+        self.assertIn("setGoingOpen(false);", self.template)
+
+    def test_community_report_uses_separate_venue_selection(self):
+        self.assertIn('id="community-court"', self.template)
+        self.assertIn("BB.communityCourtId=d.community_presence_court_id||null", self.template)
+        start = self.template.index("function _initCommunityPresence()")
+        end = self.template.index("async function _loadCommunityReport", start)
+        self.assertNotIn("sel-court", self.template[start:end])
+
+    def test_successful_checkin_prevents_duplicate_taps_before_navigation(self):
+        self.assertIn("BB.manualHereSucceeded=true;updateManualHereAvailability();", self.template)
+        self.assertIn("button.disabled = !available || BB.manualHereBusy || BB.manualHereSucceeded;", self.template)

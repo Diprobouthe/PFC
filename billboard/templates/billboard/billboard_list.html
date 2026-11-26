@@ -7,16 +7,31 @@
 <style>
 :root{--bb-blue:#1a56db;--bb-green:#057a55;--bb-card:#ffffff;--bb-radius:16px}
 .bb-wrap{max-width:600px;margin:0 auto;padding:12px 12px 80px}
-.bb-hero{background:linear-gradient(135deg,#1a56db 0%,#1e40af 100%);border-radius:var(--bb-radius);padding:20px 16px 16px;margin-bottom:16px;color:#fff}
-.bb-hero-title{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;opacity:.75;margin-bottom:12px}
-.bb-onetap-row{display:flex;gap:10px}
-.bb-onetap-btn{flex:1;padding:14px 8px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:transform .1s,opacity .15s;display:flex;flex-direction:column;align-items:center;gap:4px;line-height:1.2}
-.bb-onetap-btn:active{transform:scale(.96)}
-.bb-btn-here{background:#22c55e;color:#fff}
-.bb-btn-going{background:#f59e0b;color:#fff}
-.bb-btn-icon{font-size:22px}
-.bb-btn-label{font-size:13px;font-weight:600}
-.bb-defaults-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:12px;margin-top:10px;cursor:pointer;border:none;color:#fff}
+.bb-hero{background:#153762;border-radius:20px;padding:18px 14px 16px;margin-bottom:16px;color:#fff}
+.bb-hero-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.bb-hero-title{font-size:20px;font-weight:750;letter-spacing:-.02em;margin:0}
+.bb-live-label{display:inline-flex;align-items:center;gap:6px;color:#bbf7d0;font-size:11px;font-weight:700;letter-spacing:.1em}
+.bb-live-label::before{content:'';width:7px;height:7px;border-radius:50%;background:#86efac}
+.bb-onetap-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bb-onetap-btn{min-width:0;min-height:100px;padding:15px 6px;border:1px solid transparent;border-radius:16px;font-weight:700;cursor:pointer;transition:transform .12s,opacity .15s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;line-height:1.2;text-align:center}
+.bb-onetap-btn:active:not(:disabled){transform:scale(.97)}
+.bb-onetap-btn:focus-visible,.bb-plan-close:focus-visible{outline:3px solid #93c5fd;outline-offset:3px}
+.bb-onetap-btn:disabled{cursor:wait}
+.bb-btn-here{background:#166534;color:#fff;border-color:#4ade80}
+.bb-btn-going{background:#fff;color:#153762;border-color:#dbeafe}
+.bb-btn-icon{font-size:26px;margin-bottom:2px}
+.bb-btn-label{font-size:17px;font-weight:750}
+.bb-btn-sub{font-size:11px;font-weight:500;line-height:1.35}
+.bb-btn-here .bb-btn-sub{color:#dcfce7}
+.bb-btn-going .bb-btn-sub{color:#475569}
+.bb-btn-going[aria-expanded="true"]{outline:2px solid #93c5fd;outline-offset:2px}
+.bb-plan-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;font-size:15px;font-weight:700}
+.bb-plan-close{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55);border-radius:8px;padding:7px 10px;cursor:pointer}
+.bb-plan-submit{width:100%;min-height:48px;margin-top:8px;flex-direction:row;gap:8px;font-size:15px}
+.bb-community-details{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.bb-community-details>summary{cursor:pointer;font-size:13px;font-weight:700;color:#475569;min-height:30px;line-height:30px}
+.bb-community-details .bb-court-select{width:100%;margin:8px 0 12px}
+@media(prefers-reduced-motion:reduce){.bb-onetap-btn{transition:none}}
 .bb-expand-panel{display:none;background:rgba(255,255,255,.1);border-radius:12px;padding:14px;margin-top:12px}
 .bb-expand-panel.open{display:block}
 .bb-field-label{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;opacity:.7;margin-bottom:6px}
@@ -76,15 +91,21 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 
   <!-- One-tap hero -->
   <div class="bb-hero">
-    <div class="bb-hero-title">📍 Billboard — Where are you?</div>
+    <div class="bb-hero-heading">
+      <h2 class="bb-hero-title">Billboard</h2>
+      <span class="bb-live-label">LIVE</span>
+    </div>
     <div class="bb-onetap-row">
-      <button class="bb-onetap-btn bb-btn-here" id="btn-im-here" onclick="oneTapHere()">
-        <span class="bb-btn-icon">✅</span>
-        <span class="bb-btn-label">I'm here</span>
+      <button type="button" class="bb-onetap-btn bb-btn-here" id="btn-im-here" onclick="oneTapHere()" disabled
+        data-ready-label="{% translate "I'm here" %}" data-busy-label="{% translate "Locating you…" %}" data-success-label="{% translate "You're here!" %}">
+        <i class="fas fa-map-marker-alt bb-btn-icon" aria-hidden="true"></i>
+        <span class="bb-btn-label" id="here-label" aria-live="polite">{% translate "I'm here" %}</span>
+        <span class="bb-btn-sub">{% translate "At the courts" %}</span>
       </button>
-      <button class="bb-onetap-btn bb-btn-going" id="btn-going" onclick="oneTapGoingOpen()">
-        <span class="bb-btn-icon">🚶</span>
-        <span class="bb-btn-label">I'm going</span>
+      <button type="button" class="bb-onetap-btn bb-btn-going" id="btn-going" onclick="setGoingOpen(!BB.expandOpen)" aria-controls="expand-panel" aria-expanded="false">
+        <i class="fas fa-walking bb-btn-icon" aria-hidden="true"></i>
+        <span class="bb-btn-label">{% translate "I'm going" %}</span>
+        <span class="bb-btn-sub">{% translate "Plan my arrival" %}</span>
       </button>
     </div>
     <!-- Presence-session choices -->
@@ -102,24 +123,23 @@ canvas.bb-chart{width:100%!important;max-height:180px}
         <span style="display:block;opacity:.72;font-size:11px;">{% translate "This saved preference applies only while I am currently here at a Court Complex." %}</span>
       </label>
     </div>
-    <button class="bb-defaults-chip" onclick="toggleExpand()" id="expand-chip">
-      <i class="fas fa-sliders-h"></i>
-      <span id="defaults-summary">Loading…</span>
-      <i class="fas fa-chevron-down" id="expand-arrow"></i>
-    </button>
     <div class="bb-expand-panel" id="expand-panel">
-      <div class="bb-field-label">Court</div>
+      <div class="bb-plan-heading">
+        <span>{% translate "Plan your arrival" %}</span>
+        <button type="button" class="bb-plan-close" onclick="setGoingOpen(false)">{% translate "Cancel" %}</button>
+      </div>
+      <label class="bb-field-label" for="sel-court">{% translate "Court Complex" %}</label>
       <select class="bb-select" id="sel-court" onchange="onCourtChange()">
         {% for court in courts %}<option value="{{ court.id }}">{{ court.name }}</option>{% endfor %}
       </select>
       <div class="bb-field-label">Date</div>
-      <div class="bb-chip-row">
+      <div class="bb-chip-row" id="going-date-options">
         <button class="bb-chip active" onclick="setDate('today',this)">Today</button>
         <button class="bb-chip" onclick="setDate('tomorrow',this)">Tomorrow</button>
         <button class="bb-chip" onclick="setDate('custom',this)">Custom</button>
       </div>
       <input type="date" class="bb-select" id="custom-date" style="display:none">
-      <div id="time-section" style="display:none">
+      <div id="time-section">
         <div class="bb-field-label">{% translate "Expected arrival" %}</div>
         <div class="bb-chip-row">
           <button class="bb-chip active" onclick="setTime('plus30',this)">{% translate "In 30 minutes" %}</button>
@@ -129,8 +149,8 @@ canvas.bb-chart{width:100%!important;max-height:180px}
       </div>
       <div class="bb-field-label">Message (optional)</div>
       <textarea class="bb-msg-input" id="expand-message" rows="2" placeholder="e.g. Looking for a game…"></textarea>
-      <button class="bb-onetap-btn bb-btn-going" id="btn-going-submit" onclick="oneTapGoing()" style="width:100%;margin-top:8px;flex-direction:row;justify-content:center;gap:8px;display:none">
-        <span>🚶</span><span>Post — I'm going</span>
+      <button type="button" class="bb-onetap-btn bb-btn-going bb-plan-submit" id="btn-going-submit" onclick="oneTapGoing()">
+        <i class="fas fa-check" aria-hidden="true"></i><span>{% translate "Confirm — I'm going" %}</span>
       </button>
     </div>
     <div id="going-status" aria-live="polite"></div>
@@ -177,6 +197,14 @@ canvas.bb-chart{width:100%!important;max-height:180px}
   {% endif %}
 
   <!-- ── Community presence report ──────────────────────────────── -->
+  <details class="bb-community-details" id="community-details">
+    <summary><i class="fas fa-users" aria-hidden="true"></i> {% translate "Community report" %}</summary>
+    <label class="bb-court-select-label" for="community-court">{% translate "Court Complex" %}</label>
+    <select class="bb-court-select" id="community-court" onchange="selectCommunityCourt(this.value)">
+      <option value="">{% translate "Select court" %}</option>
+      {% for court in courts %}{% if court.has_coordinates %}<option value="{{ court.id }}">{{ court.name }}</option>{% endif %}{% endfor %}
+    </select>
+    <div id="community-content" hidden>
   <div id="community-presence-block" style="display:none;background:#fff;border-radius:14px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
       <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#94a3b8;">
@@ -220,6 +248,9 @@ canvas.bb-chart{width:100%!important;max-height:180px}
       </div>
     </div>
   </div>
+
+    </div>
+  </details>
 
   <!-- ── Going to courts — compact rows ──────────────────────────── -->
   {% if going_to_courts %}
@@ -310,14 +341,15 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,manualHereBusy:false,activeGoing:[],recentCanceledGoing:null};
+const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,manualHereBusy:false,manualHereSucceeded:false,defaultsReady:false,defaultsRequest:0,communityCourtId:null,activeGoing:[],recentCanceledGoing:null};
 document.addEventListener('DOMContentLoaded',async()=>{
   const params = new URLSearchParams(window.location.search);
   const requestedCourt = params.get('court_id');
   const selector=document.getElementById('sel-court');
   if(requestedCourt && selector && Array.from(selector.options).some(o=>o.value===requestedCourt))selector.value=requestedCourt;
-  await fetchDefaults(requestedCourt || undefined);
+  await fetchDefaults(requestedCourt || undefined, true);
   {% if courts %}loadAnalytics(Number(selector?.value)||{{ courts.0.id }});{% endif %}
+  _initCommunityPresence();
 
   // The Welcome Screen's “I'm Coming” button intentionally lands in this
   // existing arrival flow. It only opens the existing time-selection controls.
@@ -331,14 +363,16 @@ document.addEventListener('DOMContentLoaded',async()=>{
     setTimeout(oneTapHere, 150);
   }
 });
-async function fetchDefaults(courtId){
+async function fetchDefaults(courtId, initial=false, refreshFriendly=false){
+  const request=++BB.defaultsRequest;
+  BB.defaultsReady=false;
   try{
     // Pass court_id so the server computes now_slot/plus30_slot in court-local time
-    const cid=courtId||document.getElementById('sel-court')?.value||'';
+    const cid=courtId||(initial?'':document.getElementById('sel-court')?.value)||'';
     const url='/billboard/api/defaults/'+(cid?'?court_id='+encodeURIComponent(cid):'');
-    const r=await fetch(url);const d=await r.json();BB.defaults=d.defaults||{};BB.courts=d.courts||[];updateChip();
+    const r=await fetch(url);const d=await r.json();if(request!==BB.defaultsRequest)return;if(!r.ok||!d.ok)throw new Error('Defaults unavailable');BB.defaults=d.defaults||{};BB.courts=d.courts||[];BB.communityCourtId=d.community_presence_court_id||null;
     // Pre-select anonymous toggle from server preference (last choice)
-    if(typeof d.last_anonymous !== 'undefined'){
+    if(initial && typeof d.last_anonymous !== 'undefined'){
       const tog=document.getElementById('anon-toggle');
       if(tog) tog.checked = !d.last_anonymous; // "Show my name" = NOT anonymous
     }
@@ -349,26 +383,30 @@ async function fetchDefaults(courtId){
     renderGoingStatus();
     updateManualHereAvailability();
     const friendlyToggle = document.getElementById('friendly-available-toggle');
-    if (friendlyToggle) friendlyToggle.checked = Boolean(d.available_for_friendly);
+    if (friendlyToggle && (initial||refreshFriendly)) friendlyToggle.checked = Boolean(d.available_for_friendly);
     const s=document.getElementById('sel-court');
     if(s){
-      if(!courtId&&BB.defaults.court_id){
+      if(initial&&!courtId&&BB.defaults.court_id){
         // Initial load: set the selector to the user's last-used court,
         // then immediately re-fetch with that court so now/+30min slots
         // are computed in the correct court-local timezone.
         s.value=BB.defaults.court_id;
-        fetchDefaults(String(BB.defaults.court_id));
+        return await fetchDefaults(String(BB.defaults.court_id));
       }
     }
-  }catch(e){document.getElementById('defaults-summary').textContent='Tap to customise';}
+    BB.defaultsReady=true;
+  }catch(e){if(request===BB.defaultsRequest)toast('⚠️ {% translate "Unable to load Billboard. Refresh and try again." %}');}
 }
 function updateManualHereAvailability(){
   const button = document.getElementById('btn-im-here');
   if(!button) return;
   const available = Boolean(BB.manualHereAvailable);
-  button.disabled = !available || BB.manualHereBusy;
-  button.style.opacity = BB.manualHereBusy ? '.6' : (available ? '1' : '.45');
-  button.style.cursor = available ? 'pointer' : 'not-allowed';
+  button.disabled = !available || BB.manualHereBusy || BB.manualHereSucceeded;
+  button.style.opacity = BB.manualHereBusy && !BB.manualHereSucceeded ? '.75' : (available ? '1' : '.45');
+  const label=document.getElementById('here-label');
+  if(label)label.textContent=BB.manualHereSucceeded?button.dataset.successLabel:(BB.manualHereBusy?button.dataset.busyLabel:button.dataset.readyLabel);
+  button.setAttribute('aria-busy',String(BB.manualHereBusy && !BB.manualHereSucceeded));
+  button.style.cursor = BB.manualHereBusy ? 'wait' : (available && !BB.manualHereSucceeded ? 'pointer' : 'default');
   button.title = available ? '' : '{% translate "Manual check-in is unavailable because this Court Complex has no location configured." %}';
 }
 function onCourtChange(){
@@ -400,19 +438,12 @@ async function cancelGoing(entryId){
     await fetchDefaults(document.getElementById('sel-court')?.value);
   }catch(e){toast('⚠️ {% translate "Unable to cancel your arrival." %}');}
 }
-function updateChip(){
-  const d=BB.defaults;
-  const c=d.court_name||'Select court';
-  const dt=BB.dateMode==='today'?'Today':BB.dateMode==='tomorrow'?'Tomorrow':(document.getElementById('custom-date')?.value||'Custom');
-  const tm=BB.timeMode==='plus30'?'{% translate "In 30 minutes" %}':(document.getElementById('custom-time')?.value||'{% translate "Choose time" %}');
-  document.getElementById('defaults-summary').textContent=`${c} · ${dt} · ${tm}`;
-}
-function toggleExpand(){
-  BB.expandOpen=!BB.expandOpen;
+function setGoingOpen(open){
+  BB.expandOpen=Boolean(open);
   document.getElementById('expand-panel').classList.toggle('open',BB.expandOpen);
-  document.getElementById('expand-arrow').style.transform=BB.expandOpen?'rotate(180deg)':'';
+  document.getElementById('btn-going').setAttribute('aria-expanded',String(BB.expandOpen));
 }
-function setDate(m,btn){BB.dateMode=m;document.querySelectorAll('#expand-panel .bb-chip-row:nth-of-type(1) .bb-chip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('custom-date').style.display=m==='custom'?'block':'none';updateChip();}
+function setDate(m,btn){BB.dateMode=m;document.querySelectorAll('#going-date-options .bb-chip').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('custom-date').style.display=m==='custom'?'block':'none';}
 function setTime(m,btn){
   BB.timeMode=m;
   document.querySelectorAll('#time-section .bb-chip').forEach(b=>b.classList.remove('active'));
@@ -420,7 +451,6 @@ function setTime(m,btn){
   const custom=document.getElementById('custom-time');
   custom.style.display=m==='custom'?'block':'none';
   if(m==='custom' && !custom.value) custom.value=BB.defaults.plus30_time || '';
-  updateChip();
 }
 function getPayload(){
   const d=BB.defaults;
@@ -511,6 +541,7 @@ async function submitManualHere(position, confirmedCourtId, manualDetails){
     throw {pfcRequestFailure:true,message:'HTTP '+r.status+' '+r.statusText,stage:'response'};
   }
   if(d.ok){
+    BB.manualHereSucceeded=true;updateManualHereAvailability();
     const clean = new URL(window.location.href);
     clean.searchParams.delete('action');
     clean.searchParams.delete('going_entry_id');
@@ -524,17 +555,18 @@ async function submitManualHere(position, confirmedCourtId, manualDetails){
   toast('⚠️ '+(d.error||'Error'));
 }
 async function oneTapHere(){
-  if(BB.manualHereBusy)return;
+  if(BB.manualHereBusy||BB.manualHereSucceeded)return;
   if(!BB.manualHereAvailable){
     toast('⚠️ {% translate "Manual check-in is unavailable because this Court Complex has no location configured." %}');
     return;
   }
-  const manualDetails={message:document.getElementById('expand-message')?.value||'',is_anonymous:!(document.getElementById('anon-toggle')?.checked ?? true)};
+  setGoingOpen(false);
+  const manualDetails={is_anonymous:!(document.getElementById('anon-toggle')?.checked ?? true)};
   clearVenueConfirmation();
   await runManualHere(null,null,manualDetails);
 }
 async function runManualHere(position,confirmedCourtId,manualDetails){
-  if(BB.manualHereBusy)return;
+  if(BB.manualHereBusy||BB.manualHereSucceeded)return;
   BB.manualHereBusy=true;updateManualHereAvailability();
   try{const currentPosition=position||await requestManualHereLocationWithRetry();await submitManualHere(currentPosition,confirmedCourtId,manualDetails);}
   catch(e){
@@ -553,12 +585,9 @@ async function runManualHere(position,confirmedCourtId,manualDetails){
     }
   }finally{BB.manualHereBusy=false;updateManualHereAvailability();}
 }
-function oneTapGoingOpen(){
-  document.getElementById('time-section').style.display='block';
-  document.getElementById('btn-going-submit').style.display='flex';
-  if(!BB.expandOpen)toggleExpand();
-}
+function oneTapGoingOpen(){setGoingOpen(true);}
 async function oneTapGoing(){
+  if(!BB.defaultsReady){toast('⚠️ {% translate "Unable to load Billboard. Refresh and try again." %}');return;}
   const btn=document.getElementById('btn-going-submit');btn.disabled=true;btn.style.opacity='.6';
   try{const r=await fetch('/billboard/api/going/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify(getPayload())});
   const d=await r.json();if(d.ok){toast('🚶 {% translate "Going to" %} '+d.court+' {% translate "at" %} '+d.time);setTimeout(()=>location.reload(),1200);}else toast('⚠️ '+(d.error||'Error'));}
@@ -609,29 +638,44 @@ async function saveFriendlyAvailability(){
     const r = await fetch('{% url "billboard:api_friendly_availability" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({available_for_friendly:enabled})});
     const d = await r.json();
     if(d.ok){ toast(enabled ? '{% translate "Available for Friendly preference saved." %}' : '{% translate "Available for Friendly preference turned off." %}'); }
-    else { toast('⚠️ '+(d.error||'{% translate "Unable to update Friendly availability." %}')); fetchDefaults(courtId); }
-  }catch(e){ toast('⚠️ {% translate "Unable to update Friendly availability." %}'); fetchDefaults(courtId); }
+    else { toast('⚠️ '+(d.error||'{% translate "Unable to update Friendly availability." %}')); fetchDefaults(courtId,false,true); }
+  }catch(e){ toast('⚠️ {% translate "Unable to update Friendly availability." %}'); fetchDefaults(courtId,false,true); }
 }
 
 /* ── Community presence ──────────────────────────────────────── */
 var _cpCourtId = null;
 function _initCommunityPresence(){
-  // Use the currently selected court
-  const sel = document.getElementById('sel-court');
-  _cpCourtId = sel ? parseInt(sel.value) : null;
-  if(!_cpCourtId) return;
-  _loadCommunityReport(_cpCourtId);
+  const select=document.getElementById('community-court');
+  if(!select)return;
+  const id=String(BB.communityCourtId||'');
+  if(id && Array.from(select.options).some(option=>option.value===id)){
+    select.value=id;
+    document.getElementById('community-details').open=true;
+    selectCommunityCourt(id);
+  }
+}
+function selectCommunityCourt(value){
+  _cpCourtId=Number(value)||null;
+  document.getElementById('community-content').hidden=!_cpCourtId;
+  document.getElementById('cp-input').value='';
+  document.getElementById('cp-input-standalone').value='';
+  hideCommunityReportForm();
+  hideCommunityReportFormStandalone();
+  document.getElementById('community-presence-block').style.display='none';
+  document.getElementById('community-no-report').style.display='none';
+  if(_cpCourtId)_loadCommunityReport(_cpCourtId);
 }
 async function _loadCommunityReport(courtId){
   try{
     const r = await fetch('/billboard/api/community-status/'+courtId+'/');
     const d = await r.json();
+    if(_cpCourtId!==courtId)return;
     if(d.ok && d.report && !d.report.is_stale){
       _showCommunityReport(d.report);
     } else {
       _hideCommunityReport();
     }
-  }catch(e){ _hideCommunityReport(); }
+  }catch(e){if(_cpCourtId===courtId)_hideCommunityReport();}
 }
 function _showCommunityReport(rep){
   document.getElementById('community-presence-block').style.display = 'block';
@@ -662,36 +706,39 @@ function hideCommunityReportFormStandalone(){
 async function submitCommunityReport(){
   const count = parseInt(document.getElementById('cp-input')?.value);
   if(!count || count < 1){ toast('⚠️ Enter a valid number'); return; }
+  const courtId=_cpCourtId;
   await _postCommunityReport(count);
-  hideCommunityReportForm();
+  if(_cpCourtId===courtId)hideCommunityReportForm();
 }
 async function submitCommunityReportStandalone(){
   const count = parseInt(document.getElementById('cp-input-standalone')?.value);
   if(!count || count < 1){ toast('⚠️ Enter a valid number'); return; }
+  const courtId=_cpCourtId;
   await _postCommunityReport(count);
-  hideCommunityReportFormStandalone();
+  if(_cpCourtId===courtId)hideCommunityReportFormStandalone();
 }
 async function _postCommunityReport(count){
   if(!_cpCourtId){ toast('⚠️ No court selected'); return; }
+  const courtId=_cpCourtId;
   try{
-    const r = await fetch('/billboard/api/community-report/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({court_id:_cpCourtId,count:count})});
+    const r = await fetch('/billboard/api/community-report/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({court_id:courtId,count:count})});
     const d = await r.json();
+    if(_cpCourtId!==courtId)return;
     if(d.ok){ toast('📊 Reported ~'+count+' people'); _showCommunityReport(d.report); }
     else toast('⚠️ '+(d.error||'Error'));
   }catch(e){ toast('⚠️ Network error'); }
 }
 async function confirmCommunityReport(){
   if(!_cpCourtId) return;
+  const courtId=_cpCourtId;
   try{
-    const r = await fetch('/billboard/api/community-confirm/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({court_id:_cpCourtId})});
+    const r = await fetch('/billboard/api/community-confirm/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({court_id:courtId})});
     const d = await r.json();
+    if(_cpCourtId!==courtId)return;
     if(d.ok){ toast('✓ Confirmed'); _showCommunityReport(d.report); }
     else toast('⚠️ '+(d.error||'Error'));
   }catch(e){ toast('⚠️ Network error'); }
 }
-// Init community presence on page load
-document.addEventListener('DOMContentLoaded', function(){
-  setTimeout(_initCommunityPresence, 600); // after fetchDefaults sets the court selector
-});
+
 </script>
 {% endblock %}

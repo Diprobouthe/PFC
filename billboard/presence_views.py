@@ -152,6 +152,8 @@ def api_defaults(request):
             last_anonymous = prefs.last_anonymous_choice
 
     current_presence = _current_manual_presence(codename, court_complex) if codename else None
+    # Community reports use actual manual presence, not a planned arrival.
+    community_presence = _current_manual_presence(codename) if codename else None
     active_going = []
     recent_canceled_going = None
     if codename:
@@ -193,6 +195,7 @@ def api_defaults(request):
         "courts": courts,
         "last_anonymous": last_anonymous,
         "friendly_presence_active": bool(current_presence),
+        "community_presence_court_id": community_presence.court_complex_id if community_presence else None,
         "active_going": active_going,
         "recent_canceled_going": recent_canceled_going,
         "available_for_friendly": friendly_preference,
