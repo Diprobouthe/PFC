@@ -93,6 +93,26 @@
   font-weight: 500;
 }
 
+/* ── player name ── */
+.ep-name-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ep-name-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 1.5px solid #dee2e6;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 1rem;
+  color: #212529;
+  background: #fff;
+}
+.ep-name-input:focus { outline: none; border-color: #198754; }
+.ep-name-help { font-size: 0.75rem; color: #6c757d; margin: 0; }
+
 /* ── stats strip ── */
 .ep-stats {
   display: grid;
@@ -413,6 +433,23 @@
     </div>
 
   </div>
+
+  <!-- PLAYER NAME: display only, not the login email -->
+  {% if request.session.session_active %}
+  {% get_current_language as NAME_UI_LANGUAGE %}
+  <div class="ep-row">
+    <label class="ep-label" for="ep-player-name-input">{% if NAME_UI_LANGUAGE == 'el' %}Όνομα παίκτη{% else %}Player Name{% endif %}</label>
+    <form method="post" class="ep-name-form" id="ep-name-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_name">
+      <input type="text" name="name" id="ep-player-name-input" class="ep-name-input"
+             value="{{ authenticated_player.name }}" maxlength="100" required autocomplete="name"
+             aria-describedby="ep-name-help">
+      <button type="submit" class="ep-save-btn visible">{% if NAME_UI_LANGUAGE == 'el' %}Αποθήκευση{% else %}Save{% endif %}</button>
+    </form>
+    <p class="ep-name-help" id="ep-name-help">{% if NAME_UI_LANGUAGE == 'el' %}Το όνομα που εμφανίζεται στους αγώνες και στις κατατάξεις. Το email σύνδεσης δεν αλλάζει.{% else %}Your name in matches and rankings. Your login email stays the same.{% endif %}</p>
+  </div>
+  {% endif %}
 
   <!-- ② PROFILE PICTURE -->
   <div class="ep-row">
