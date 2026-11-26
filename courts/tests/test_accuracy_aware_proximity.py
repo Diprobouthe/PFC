@@ -228,6 +228,17 @@ class AccuracyAwarePresenceEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(BillboardEntry.objects.filter(action_type="AT_COURTS").exists())
 
+    def test_community_default_is_active_presence_not_planned_destination(self):
+        other = CourtComplex.objects.create(
+            name="Planned Destination", latitude="0.020000", longitude="0.000000"
+        )
+        response = self._post_here(latitude=0, longitude=0, accuracy=5)
+        self.assertEqual(response.status_code, 200)
+        defaults = self.client.get(reverse("billboard:api_defaults"), {"court_id": other.pk})
+        self.assertEqual(defaults.status_code, 200)
+        self.assertEqual(defaults.json()["community_presence_court_id"], self.primary.pk)
+        self.assertFalse(defaults.json()["friendly_presence_active"])
+
 
 class AccuracyAwareFriendlyEndpointTests(TestCase):
     def setUp(self):
