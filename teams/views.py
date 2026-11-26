@@ -2188,7 +2188,7 @@ def edit_player_profile(request):
     """
     Session-based player profile editing.
     Identity is resolved from session (no codename input required).
-    Supports: profile picture upload, preferred position, team transfer via PIN.
+    Supports: player name, profile picture, preferred position, team transfer via PIN.
     """
     # Resolve player from session
     session_codename = request.session.get('player_codename')
@@ -2219,6 +2219,24 @@ def edit_player_profile(request):
             return redirect('codename_login')
 
         action = request.POST.get('action', '')
+
+        # --- Update player display name (never the login identity) ---
+        if action == 'update_name':
+            if not CodenameSessionManager.is_logged_in(request):
+                messages.error(request, _('You must be signed in to edit your name.'))
+                return redirect('codename_login')
+            try:
+                name = Player._meta.get_field('name').formfield().clean(
+                    request.POST.get('name', '')
+                )
+            except ValidationError:
+                messages.error(request, _('Enter a valid player name (1–100 characters).'))
+                return redirect('edit_player_profile')
+            if name != authenticated_player.name:
+                authenticated_player.name = name
+                authenticated_player.save(update_fields=['name', 'updated_at'])
+            messages.success(request, _('Player name updated!'))
+            return redirect('edit_player_profile')
 
         # --- Update profile picture ---
         if action == 'update_picture':
