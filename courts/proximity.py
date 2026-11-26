@@ -180,6 +180,74 @@ def assess_court_proximity(
     )
 
 
+
+def resolve_presence_venue(
+    *,
+    latitude: float,
+    longitude: float,
+    reported_accuracy=None,
+    confirmed_court_id=None,
+    candidate_complexes: Optional[Iterable] = None,
+):
+    """Resolve a manual check-in from GPS, never from a previously selected venue.
+
+    The existing radius and per-reading accuracy allowance still apply. If more
+    than one physical complex is plausible (including overlapping strict
+    radii), require the player to choose from the server-calculated candidates.
+    An explicit confirmation is accepted only for a current candidate.
+    Friendly creation continues to use assess_court_proximity unchanged.
+    """
+    radius = float(settings.PFC_FRIENDLY_COURT_PROXIMITY_METERS)
+    accuracy = valid_accuracy_metres(reported_accuracy)
+    effective_radius = radius + (accuracy or 0.0)
+    matches = []
+    for complex_ in _physical_complexes(candidate_complexes):
+        distance = distance_metres(
+            latitude, longitude, float(complex_.latitude), float(complex_.longitude)
+        )
+        if distance <= effective_radius:
+            matches.append((distance, complex_))
+    if not matches:
+        return None, None
+
+    matches.sort(key=lambda match: (match[0], match[1].pk))
+    overlapping = tuple(complex_ for _, complex_ in matches)
+    distance, court = matches[0]
+    if len(matches) > 1:
+        confirmed = next(
+            (match for match in matches if str(match[1].pk) == str(confirmed_court_id)),
+            None,
+        )
+        if confirmed is None:
+            return None, ProximityAssessment(
+                outcome=VERIFICATION_AMBIGUOUS,
+                distance_metres=distance,
+                configured_radius_metres=radius,
+                effective_radius_metres=effective_radius,
+                reported_accuracy_metres=accuracy,
+                overlapping_complexes=overlapping,
+            )
+        distance, court = confirmed
+        outcome = VERIFICATION_USER_CONFIRMED_AMBIGUOUS
+    elif distance <= radius:
+        outcome = VERIFICATION_NORMAL_RADIUS
+    else:
+        outcome = VERIFICATION_ACCURACY_ASSISTED
+
+    # A stale or forged explicit confirmation must not create presence elsewhere.
+    if confirmed_court_id is not None and str(court.pk) != str(confirmed_court_id):
+        return None, None
+
+    return court, ProximityAssessment(
+        outcome=outcome,
+        distance_metres=distance,
+        configured_radius_metres=radius,
+        effective_radius_metres=radius if outcome == VERIFICATION_NORMAL_RADIUS else effective_radius,
+        reported_accuracy_metres=accuracy,
+        overlapping_complexes=overlapping,
+    )
+
+
 def assessment_payload(assessment: ProximityAssessment):
     """Return caller-safe diagnostic metadata without exposing other users."""
     return {
