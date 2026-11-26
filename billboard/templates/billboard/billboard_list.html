@@ -310,12 +310,14 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,activeGoing:[],recentCanceledGoing:null};
+const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,manualHereBusy:false,activeGoing:[],recentCanceledGoing:null};
 document.addEventListener('DOMContentLoaded',async()=>{
   const params = new URLSearchParams(window.location.search);
   const requestedCourt = params.get('court_id');
+  const selector=document.getElementById('sel-court');
+  if(requestedCourt && selector && Array.from(selector.options).some(o=>o.value===requestedCourt))selector.value=requestedCourt;
   await fetchDefaults(requestedCourt || undefined);
-  {% if courts %}loadAnalytics({{ courts.0.id }});{% endif %}
+  {% if courts %}loadAnalytics(Number(selector?.value)||{{ courts.0.id }});{% endif %}
 
   // The Welcome Screen's “I'm Coming” button intentionally lands in this
   // existing arrival flow. It only opens the existing time-selection controls.
@@ -364,20 +366,14 @@ function updateManualHereAvailability(){
   const button = document.getElementById('btn-im-here');
   if(!button) return;
   const available = Boolean(BB.manualHereAvailable);
-  button.disabled = !available;
-  button.style.opacity = available ? '1' : '.45';
+  button.disabled = !available || BB.manualHereBusy;
+  button.style.opacity = BB.manualHereBusy ? '.6' : (available ? '1' : '.45');
   button.style.cursor = available ? 'pointer' : 'not-allowed';
   button.title = available ? '' : '{% translate "Manual check-in is unavailable because this Court Complex has no location configured." %}';
 }
 function onCourtChange(){
-  // Disable manual presence immediately for an unlocated complex. The
-  // subsequent defaults request confirms the same state server-side.
+  // The selector controls browsing and planned arrivals, not GPS check-in.
   const cid=document.getElementById('sel-court')?.value||'';
-  const selectedCourt=BB.courts.find(court=>String(court.id)===String(cid));
-  BB.manualHereAvailable=Boolean(selectedCourt && selectedCourt.latitude !== null && selectedCourt.longitude !== null);
-  updateManualHereAvailability();
-  // Re-fetch defaults with the newly selected court so now/+30min slots
-  // are recalculated in that court's local timezone.
   fetchDefaults(cid);
 }
 function escapeStatusText(value){return String(value||'').replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
@@ -486,22 +482,18 @@ function showVenueConfirmation(verification, retry){
   panel.innerHTML='<strong>{% translate "Confirm your Court Complex" %}</strong><span>{% translate "Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at." %} '+(accuracy?'(±'+accuracy+' m)':'')+'</span><div style="display:grid;gap:6px">'+venues.map(v=>'<button type="button" class="bb-cancel-going" style="text-align:left" data-confirm-venue="'+Number(v.id)+'">'+escapeStatusText(v.name)+'</button>').join('')+'</div>';
   panel.style.display='flex';
   panel.querySelectorAll('[data-confirm-venue]').forEach(button=>button.addEventListener('click',()=>{
-    const courtSelect=document.getElementById('sel-court');
-    if(courtSelect)courtSelect.value=button.dataset.confirmVenue;
-    onCourtChange();
     clearVenueConfirmation();
     retry(Number(button.dataset.confirmVenue));
   }));
 }
-async function submitManualHere(position, confirmedCourtId){
-  const payload=getPayload();
+async function submitManualHere(position, confirmedCourtId, manualDetails){
+  // No court or future date from the Going/browsing controls on initial GPS check-in.
+  const payload={...manualDetails};
   if(confirmedCourtId)payload.court_id=confirmedCourtId;
   payload.latitude=position.coords.latitude;
   payload.longitude=position.coords.longitude;
   payload.accuracy=position.coords.accuracy;
   payload.position_timestamp=position.timestamp;
-  const showName=document.getElementById('anon-toggle')?.checked ?? true;
-  payload.is_anonymous = !showName;
   if(confirmedCourtId)payload.confirm_ambiguous_venue=true;
   // A due arrival reminder carries one specific Going declaration.  Pass it
   // through only to the established manual check-in success path so that the
@@ -519,28 +511,32 @@ async function submitManualHere(position, confirmedCourtId){
     throw {pfcRequestFailure:true,message:'HTTP '+r.status+' '+r.statusText,stage:'response'};
   }
   if(d.ok){
-    if (d.completed_going_entry_id) {
-      const clean = new URL(window.location.href);
-      clean.searchParams.delete('action');
-      clean.searchParams.delete('going_entry_id');
-      window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash);
-    }
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('action');
+    clean.searchParams.delete('going_entry_id');
+    if(d.court_id)clean.searchParams.set('court_id',String(d.court_id));
     toast('✅ You\'re at '+d.court+'!');
     if(d.accuracy_notice)setTimeout(()=>toast('ℹ️ '+d.accuracy_notice),350);
-    setTimeout(()=>location.reload(),d.accuracy_notice?3300:1200);
+    setTimeout(()=>window.location.replace(clean.href),d.accuracy_notice?3300:1200);
     return;
   }
-  if(d.requires_venue_confirmation){showVenueConfirmation(d.verification,(courtId)=>submitManualHere(position,courtId));return;}
+  if(d.requires_venue_confirmation){showVenueConfirmation(d.verification,(courtId)=>runManualHere(position,courtId,manualDetails));return;}
   toast('⚠️ '+(d.error||'Error'));
 }
 async function oneTapHere(){
-  const btn=document.getElementById('btn-im-here');
+  if(BB.manualHereBusy)return;
   if(!BB.manualHereAvailable){
     toast('⚠️ {% translate "Manual check-in is unavailable because this Court Complex has no location configured." %}');
     return;
   }
-  clearVenueConfirmation();btn.disabled=true;btn.style.opacity='.6';
-  try{const position=await requestManualHereLocationWithRetry();await submitManualHere(position,null);}
+  const manualDetails={message:document.getElementById('expand-message')?.value||'',is_anonymous:!(document.getElementById('anon-toggle')?.checked ?? true)};
+  clearVenueConfirmation();
+  await runManualHere(null,null,manualDetails);
+}
+async function runManualHere(position,confirmedCourtId,manualDetails){
+  if(BB.manualHereBusy)return;
+  BB.manualHereBusy=true;updateManualHereAvailability();
+  try{const currentPosition=position||await requestManualHereLocationWithRetry();await submitManualHere(currentPosition,confirmedCourtId,manualDetails);}
   catch(e){
     if(e&&e.pfcRequestFailure){
       toast('⚠️ {% translate "PFC obtained your location, but the check-in request could not be completed. Check your connection and try again." %} {% translate "Diagnostic" %}: '+(e.message||'{% translate "No request error message was provided." %}'));
@@ -555,7 +551,7 @@ async function oneTapHere(){
     }else{
       toast('⚠️ {% translate "PFC encountered an unexpected location error. Please try again." %} '+locationDiagnostic(e));
     }
-  }finally{btn.disabled=!BB.manualHereAvailable;btn.style.opacity=BB.manualHereAvailable?'1':'.45';}
+  }finally{BB.manualHereBusy=false;updateManualHereAvailability();}
 }
 function oneTapGoingOpen(){
   document.getElementById('time-section').style.display='block';
