@@ -35,4 +35,12 @@ class ManualHereLocationRetryTemplateTests(SimpleTestCase):
     def test_successful_location_keeps_accuracy_aware_payload_fields(self):
         self.assertIn("payload.accuracy=position.coords.accuracy;", self.template)
         self.assertIn("payload.position_timestamp=position.timestamp;", self.template)
-        self.assertIn("await submitManualHere(position,null);", self.template)
+        self.assertIn("await submitManualHere(currentPosition,confirmedCourtId,manualDetails);", self.template)
+
+    def test_manual_here_does_not_send_browsed_court_or_going_date(self):
+        start = self.template.index("async function submitManualHere(")
+        end = self.template.index("async function oneTapHere()", start)
+        handler = self.template[start:end]
+        self.assertNotIn("getPayload()", handler)
+        self.assertIn("if(confirmedCourtId)payload.court_id=confirmedCourtId;", handler)
+        self.assertIn("clean.searchParams.set('court_id',String(d.court_id))", handler)

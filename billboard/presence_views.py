@@ -26,7 +26,7 @@ from courts.proximity import (
     VERIFICATION_ACCURACY_ASSISTED,
     VERIFICATION_AMBIGUOUS,
     VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
-    assess_court_proximity,
+    resolve_presence_venue,
     assessment_payload,
 )
 from billboard.models import BillboardEntry, BillboardSettings
@@ -139,10 +139,11 @@ def api_defaults(request):
         except (ValueError, TypeError):
             pass
     defaults = _get_defaults(codename, court_complex=court_complex)
-    selected_court = court_complex
-    if selected_court is None and defaults.get("court_id"):
-        selected_court = CourtComplex.objects.filter(pk=defaults["court_id"]).first()
-    manual_here_available = bool(selected_court and selected_court.has_coordinates())
+    # Manual check-in uses the current GPS location, not the browsing selector.
+    manual_here_available = any(
+        court["latitude"] is not None and court["longitude"] is not None
+        for court in courts
+    )
     # Include the player's last anonymous choice so the UI can pre-select the toggle
     last_anonymous = False
     if codename:
@@ -205,8 +206,9 @@ def api_im_here(request):
     POST /billboard/api/im-here/
     Body (JSON):
         codename      : str (6-char, optional if session is set)
-        court_id      : int (optional, falls back to last used)
-        scheduled_date: "YYYY-MM-DD" (optional, defaults to today)
+        court_id      : int (only used with confirm_ambiguous_venue)
+        latitude, longitude, accuracy: current browser position
+        scheduled_date: "YYYY-MM-DD" (optional, defaults to venue-local today)
         message       : str (optional)
     """
     codename = _get_codename(request)
@@ -218,26 +220,8 @@ def api_im_here(request):
     if not codename:
         return JsonResponse({"ok": False, "error": _("Sign in before checking in.")}, status=401)
 
-    # Resolve court
-    court_id = data.get("court_id")
-    if court_id:
-        court = CourtComplex.objects.filter(pk=court_id).first()
-    else:
-        prefs = UserPresencePrefs.get_for_codename(codename)
-        court = prefs.last_court_complex if prefs else None
-    if not court:
-        court = CourtComplex.objects.order_by("name").first()
-    if not court:
-        return JsonResponse({"ok": False, "error": "No court complex available"}, status=400)
-
     # This GPS gate applies only to the explicit manual I'm Here action.
-    # Game- and match-generated presence continues to create Billboard entries
-    # directly through its existing lifecycle helpers without any GPS request.
-    if not court.has_coordinates():
-        return JsonResponse({
-            "ok": False,
-            "error": _("Manual check-in is unavailable because this Court Complex has no location configured."),
-        }, status=409)
+    # Game- and match-generated presence retain their existing lifecycle.
     try:
         device_latitude = float(data.get("latitude", ""))
         device_longitude = float(data.get("longitude", ""))
@@ -249,31 +233,29 @@ def api_im_here(request):
             "error": _("Location permission is required to check in at these courts."),
         }, status=400)
 
-    # Browser accuracy is a one-request uncertainty measurement. It never
-    # alters the configured Court Complex radius and missing/invalid values
-    # retain the established strict-radius behavior.
+    # Ignore the previous/browsed court unless the player explicitly confirms
+    # one of the GPS-derived ambiguous candidates.
     venue_confirmed = str(data.get("confirm_ambiguous_venue", "")).lower() in {"1", "true", "yes"}
-    proximity = assess_court_proximity(
+    confirmed_court_id = data.get("court_id") if venue_confirmed else None
+    court, proximity = resolve_presence_venue(
         latitude=device_latitude,
         longitude=device_longitude,
-        selected_complex=court,
         reported_accuracy=data.get("accuracy"),
-        venue_confirmed=venue_confirmed,
+        confirmed_court_id=confirmed_court_id,
     )
-    verification = assessment_payload(proximity)
-    if proximity.outcome == VERIFICATION_AMBIGUOUS:
+    if proximity is not None and proximity.outcome == VERIFICATION_AMBIGUOUS:
         return JsonResponse({
             "ok": False,
             "requires_venue_confirmation": True,
             "error": _("Your device location is not precise enough to distinguish between nearby PFC venues. Please confirm which Court Complex you are currently at."),
-            "verification": verification,
+            "verification": assessment_payload(proximity),
         }, status=409)
-    if not proximity.allowed:
+    if court is None or proximity is None or not proximity.allowed:
         return JsonResponse({
             "ok": False,
             "error": _("You are not at the courts yet."),
-            "verification": verification,
         }, status=403)
+    verification = assessment_payload(proximity)
 
     # No per-player daily limit — unlimited check-ins allowed.
     # Resolve date — use court-local date so Athens courts are not affected by server UTC offset
@@ -348,12 +330,13 @@ def api_im_here(request):
         "ok": True,
         "entry_id": entry.pk,
         "court": court.name,
+        "court_id": court.pk,
         "date": sched_date.isoformat(),
         "completed_going_entry_id": completed_going_entry_ids[0] if completed_going_entry_ids else None,
         "completed_going_entry_ids": completed_going_entry_ids,
         "verification": verification,
     }
-    if proximity.outcome in {
+    if proximity.reported_accuracy_metres is not None and proximity.distance_metres > proximity.configured_radius_metres and proximity.outcome in {
         VERIFICATION_ACCURACY_ASSISTED,
         VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
     }:
