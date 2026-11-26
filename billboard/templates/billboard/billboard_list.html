@@ -341,7 +341,7 @@ canvas.bb-chart{width:100%!important;max-height:180px}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,manualHereBusy:false,manualHereSucceeded:false,defaultsReady:false,communityCourtId:null,activeGoing:[],recentCanceledGoing:null};
+const BB={defaults:{},courts:[],dateMode:'today',timeMode:'plus30',expandOpen:false,charts:{},friendlyPresenceActive:false,manualHereAvailable:false,manualHereBusy:false,manualHereSucceeded:false,defaultsReady:false,defaultsRequest:0,communityCourtId:null,activeGoing:[],recentCanceledGoing:null};
 document.addEventListener('DOMContentLoaded',async()=>{
   const params = new URLSearchParams(window.location.search);
   const requestedCourt = params.get('court_id');
@@ -363,12 +363,14 @@ document.addEventListener('DOMContentLoaded',async()=>{
     setTimeout(oneTapHere, 150);
   }
 });
-async function fetchDefaults(courtId, initial=false){
+async function fetchDefaults(courtId, initial=false, refreshFriendly=false){
+  const request=++BB.defaultsRequest;
+  BB.defaultsReady=false;
   try{
     // Pass court_id so the server computes now_slot/plus30_slot in court-local time
     const cid=courtId||(initial?'':document.getElementById('sel-court')?.value)||'';
     const url='/billboard/api/defaults/'+(cid?'?court_id='+encodeURIComponent(cid):'');
-    const r=await fetch(url);const d=await r.json();if(!r.ok||!d.ok)throw new Error('Defaults unavailable');BB.defaults=d.defaults||{};BB.courts=d.courts||[];BB.communityCourtId=d.community_presence_court_id||null;
+    const r=await fetch(url);const d=await r.json();if(request!==BB.defaultsRequest)return;if(!r.ok||!d.ok)throw new Error('Defaults unavailable');BB.defaults=d.defaults||{};BB.courts=d.courts||[];BB.communityCourtId=d.community_presence_court_id||null;
     // Pre-select anonymous toggle from server preference (last choice)
     if(initial && typeof d.last_anonymous !== 'undefined'){
       const tog=document.getElementById('anon-toggle');
@@ -381,7 +383,7 @@ async function fetchDefaults(courtId, initial=false){
     renderGoingStatus();
     updateManualHereAvailability();
     const friendlyToggle = document.getElementById('friendly-available-toggle');
-    if (friendlyToggle && initial) friendlyToggle.checked = Boolean(d.available_for_friendly);
+    if (friendlyToggle && (initial||refreshFriendly)) friendlyToggle.checked = Boolean(d.available_for_friendly);
     const s=document.getElementById('sel-court');
     if(s){
       if(initial&&!courtId&&BB.defaults.court_id){
@@ -389,11 +391,11 @@ async function fetchDefaults(courtId, initial=false){
         // then immediately re-fetch with that court so now/+30min slots
         // are computed in the correct court-local timezone.
         s.value=BB.defaults.court_id;
-        await fetchDefaults(String(BB.defaults.court_id));
+        return await fetchDefaults(String(BB.defaults.court_id));
       }
     }
     BB.defaultsReady=true;
-  }catch(e){if(initial)toast('⚠️ {% translate "Unable to load Billboard. Refresh and try again." %}');}
+  }catch(e){if(request===BB.defaultsRequest)toast('⚠️ {% translate "Unable to load Billboard. Refresh and try again." %}');}
 }
 function updateManualHereAvailability(){
   const button = document.getElementById('btn-im-here');
@@ -404,7 +406,7 @@ function updateManualHereAvailability(){
   const label=document.getElementById('here-label');
   if(label)label.textContent=BB.manualHereSucceeded?button.dataset.successLabel:(BB.manualHereBusy?button.dataset.busyLabel:button.dataset.readyLabel);
   button.setAttribute('aria-busy',String(BB.manualHereBusy && !BB.manualHereSucceeded));
-  button.style.cursor = available ? 'pointer' : 'not-allowed';
+  button.style.cursor = BB.manualHereBusy ? 'wait' : (available && !BB.manualHereSucceeded ? 'pointer' : 'default');
   button.title = available ? '' : '{% translate "Manual check-in is unavailable because this Court Complex has no location configured." %}';
 }
 function onCourtChange(){
@@ -636,8 +638,8 @@ async function saveFriendlyAvailability(){
     const r = await fetch('{% url "billboard:api_friendly_availability" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:JSON.stringify({available_for_friendly:enabled})});
     const d = await r.json();
     if(d.ok){ toast(enabled ? '{% translate "Available for Friendly preference saved." %}' : '{% translate "Available for Friendly preference turned off." %}'); }
-    else { toast('⚠️ '+(d.error||'{% translate "Unable to update Friendly availability." %}')); fetchDefaults(courtId); }
-  }catch(e){ toast('⚠️ {% translate "Unable to update Friendly availability." %}'); fetchDefaults(courtId); }
+    else { toast('⚠️ '+(d.error||'{% translate "Unable to update Friendly availability." %}')); fetchDefaults(courtId,false,true); }
+  }catch(e){ toast('⚠️ {% translate "Unable to update Friendly availability." %}'); fetchDefaults(courtId,false,true); }
 }
 
 /* ── Community presence ──────────────────────────────────────── */
@@ -655,6 +657,8 @@ function _initCommunityPresence(){
 function selectCommunityCourt(value){
   _cpCourtId=Number(value)||null;
   document.getElementById('community-content').hidden=!_cpCourtId;
+  document.getElementById('cp-input').value='';
+  document.getElementById('cp-input-standalone').value='';
   hideCommunityReportForm();
   hideCommunityReportFormStandalone();
   document.getElementById('community-presence-block').style.display='none';
@@ -702,14 +706,16 @@ function hideCommunityReportFormStandalone(){
 async function submitCommunityReport(){
   const count = parseInt(document.getElementById('cp-input')?.value);
   if(!count || count < 1){ toast('⚠️ Enter a valid number'); return; }
+  const courtId=_cpCourtId;
   await _postCommunityReport(count);
-  hideCommunityReportForm();
+  if(_cpCourtId===courtId)hideCommunityReportForm();
 }
 async function submitCommunityReportStandalone(){
   const count = parseInt(document.getElementById('cp-input-standalone')?.value);
   if(!count || count < 1){ toast('⚠️ Enter a valid number'); return; }
+  const courtId=_cpCourtId;
   await _postCommunityReport(count);
-  hideCommunityReportFormStandalone();
+  if(_cpCourtId===courtId)hideCommunityReportFormStandalone();
 }
 async function _postCommunityReport(count){
   if(!_cpCourtId){ toast('⚠️ No court selected'); return; }
