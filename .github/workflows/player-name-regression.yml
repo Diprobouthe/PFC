@@ -1,0 +1,38 @@
+name: Player name regression
+on:
+  push:
+    branches:
+      - test/player-name-regression-20261126
+permissions:
+  contents: read
+jobs:
+  player-name:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pfc_name_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pfc_name_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/pfc_name_test
+      SECRET_KEY: isolated-player-name-test-no-production
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py test teams.test_player_name_edit player_auth.test_new_player_onboarding teams.test_profile_image_hardening --verbosity 2
