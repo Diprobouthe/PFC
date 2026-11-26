@@ -1,7 +1,7 @@
 import json
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from friendly_games.models import PlayerCodename
@@ -41,6 +41,7 @@ class NewPlayerOnboardingTests(TestCase):
         self.assertEqual(session.get("player_codename"), codename)
         self.assertNotIn("pauth_user_id", session)
 
+    @override_settings(GOOGLE_OAUTH_CLIENT_ID='test-client', GOOGLE_OAUTH_CLIENT_SECRET='test-secret')
     def test_brand_new_google_account_skips_legacy_link_screen(self):
         class FakeResponse:
             def __init__(self, payload):
@@ -55,15 +56,15 @@ class NewPlayerOnboardingTests(TestCase):
             def read(self):
                 return json.dumps(self.payload).encode()
 
-        session = self.client.session
-        session["pauth_oauth_state"] = "expected-state"
-        session.save()
+        self.client.get(reverse("player_auth:google_login"))
+        state = self.client.session["pauth_oauth_state"]
 
         responses = [
             FakeResponse({"access_token": "test-token"}),
             FakeResponse({
-                "email": "brand-new-google@example.com",
+                "email": "brand-new-google@gmail.com",
                 "sub": "google-sub-new-player",
+                "email_verified": True,
                 "name": "Brand New Google Player",
                 "picture": "",
             }),
@@ -71,11 +72,11 @@ class NewPlayerOnboardingTests(TestCase):
         with patch("player_auth.views.urllib.request.urlopen", side_effect=responses):
             response = self.client.get(
                 reverse("player_auth:google_callback"),
-                {"state": "expected-state", "code": "test-code"},
+                {"state": state, "code": "test-code"},
             )
 
         self.assertRedirects(response, "/", fetch_redirect_response=False)
-        user = PFCUser.objects.get(email="brand-new-google@example.com")
+        user = PFCUser.objects.get(email="brand-new-google@gmail.com")
         self.assertIsNotNone(user.player_id)
         self.assertEqual(user.player.name, "Brand New Google Player")
         self.assertTrue(user.legacy_link_skipped)
