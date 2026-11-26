@@ -159,6 +159,75 @@ class AccuracyAwarePresenceEndpointTests(TestCase):
             BillboardEntry.LOCATION_VERIFICATION_USER_CONFIRMED_AMBIGUOUS,
         )
 
+    def test_gps_detects_different_court_despite_stale_selector(self):
+        other = CourtComplex.objects.create(
+            name="Actual Physical Courts", latitude="0.020000", longitude="0.000000"
+        )
+        response = self._post_here(
+            court_id=self.primary.pk, latitude=0.02, longitude=0, accuracy=10,
+            is_anonymous=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["court_id"], other.pk)
+        entry = BillboardEntry.objects.get(action_type="AT_COURTS")
+        self.assertEqual(entry.court_complex_id, other.pk)
+        self.assertTrue(entry.is_anonymous)
+        self.assertEqual(entry.location_verification, VERIFICATION_NORMAL_RADIUS)
+
+    def test_virtual_selector_does_not_disable_physical_checkin(self):
+        virtual = CourtComplex.objects.create(name="Virtual Courts", description="")
+        defaults = self.client.get(reverse("billboard:api_defaults"), {"court_id": virtual.pk})
+        self.assertTrue(defaults.json()["manual_here_available"])
+        response = self._post_here(
+            court_id=virtual.pk, latitude=0, longitude=0, accuracy=5
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["court_id"], self.primary.pk)
+
+    def test_no_court_id_needed(self):
+        response = self.client.post(
+            reverse("billboard:api_im_here"),
+            data=json.dumps({"latitude": 0, "longitude": 0, "accuracy": 5}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["court_id"], self.primary.pk)
+
+    def test_overlapping_normal_radii_require_explicit_choice(self):
+        nearby = CourtComplex.objects.create(
+            name="Nearby Courts", latitude="0.001000", longitude="0.000000"
+        )
+        response = self._post_here(latitude=0.0005, longitude=0, accuracy=5)
+        self.assertEqual(response.status_code, 409)
+        self.assertTrue(response.json()["requires_venue_confirmation"])
+        self.assertEqual(
+            {venue["id"] for venue in response.json()["verification"]["venues"]},
+            {self.primary.pk, nearby.pk},
+        )
+        self.assertFalse(BillboardEntry.objects.filter(action_type="AT_COURTS").exists())
+        confirmed = self._post_here(
+            court_id=nearby.pk, latitude=0.0005, longitude=0, accuracy=5,
+            confirm_ambiguous_venue=True,
+        )
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(BillboardEntry.objects.get(action_type="AT_COURTS").court_complex_id, nearby.pk)
+
+    def test_outside_all_venues_does_not_register(self):
+        response = self._post_here(latitude=0.05, longitude=0, accuracy=10)
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(BillboardEntry.objects.filter(action_type="AT_COURTS").exists())
+
+    def test_confirmation_cannot_select_non_candidate(self):
+        remote = CourtComplex.objects.create(
+            name="Remote Courts", latitude="0.020000", longitude="0.000000"
+        )
+        response = self._post_here(
+            court_id=remote.pk, latitude=0, longitude=0, accuracy=5,
+            confirm_ambiguous_venue=True,
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(BillboardEntry.objects.filter(action_type="AT_COURTS").exists())
+
 
 class AccuracyAwareFriendlyEndpointTests(TestCase):
     def setUp(self):
